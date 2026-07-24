@@ -11,7 +11,6 @@ permissions:
   contents: read
   pages: write
   id-token: write
-  pull-requests: write
 
 concurrency:
   group: pages-${{ github.ref }}
@@ -26,22 +25,10 @@ jobs:
         with:
           node-version: 22
       - run: npm install --no-audit --no-fund
-      - name: Build application
-        id: app-build
-        shell: bash
-        run: |
-          set -o pipefail
-          npm run build 2>&1 | tee build.log
-      - name: Report build failure
-        if: failure() && github.event_name == 'pull_request'
+      - run: npm run build
         env:
-          GH_TOKEN: ${{ github.token }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-        run: |
-          printf '### MaxDock v2 build failure\n\n```text\n' > build-comment.md
-          tail -n 120 build.log >> build-comment.md
-          printf '\n```\n' >> build-comment.md
-          gh pr comment "$PR_NUMBER" --body-file build-comment.md
+          VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
       - uses: actions/configure-pages@v5
         if: github.event_name != 'pull_request'
       - uses: actions/upload-pages-artifact@v3
