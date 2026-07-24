@@ -32,6 +32,8 @@ jobs:
         run: node scripts/test-verifiers.mjs
       - name: Verify Stage 1 shell files
         run: node scripts/verify-stage1-shell.mjs
+      - name: Verify Stage 2 My Appointments
+        run: node scripts/verify-stage2-my-appointments.mjs
       - name: Prepare static site artifact
         if: github.event_name != 'pull_request'
         shell: bash

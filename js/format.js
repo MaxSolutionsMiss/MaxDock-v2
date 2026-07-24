@@ -30,8 +30,20 @@ export const format = Object.freeze({
     return `${this.date(value, location)} · ${this.time(value, location)}`;
   },
 
+  epoch(value) {
+    return makeDate(value).getTime();
+  },
+
+  compareChronologically(left, right) {
+    return this.epoch(left) - this.epoch(right);
+  },
+
   nowIso() {
     return new Date().toISOString();
+  },
+
+  nowEpoch() {
+    return Date.now();
   },
 
   initials(name = '') {

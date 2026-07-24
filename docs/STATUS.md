@@ -1,60 +1,51 @@
 # MaxDock Implementation Status
 
 **Updated:** 2026-07-24  
-**Branch:** `chore/stage1-tap-target-correction`  
-**Pull request:** PR #7  
-**Deployed:** Stage 1 shell deployed from merged PR #5 at `https://maxsolutionsmiss.github.io/MaxDock-v2/`
+**Current branch:** `feat/stage2-my-appointments`  
+**Pull request:** PR #8 — Stage 2 merge candidate  
+**Production URL:** `https://maxsolutionsmiss.github.io/MaxDock-v2/`  
+**Stage 2 preview URL:** `https://maxsolutionsmiss.github.io/MaxDock-v2/stage2-preview/`
 
 ## Stage
-1 of 8 — Shell
+2 of 8 — My Appointments — implementation complete, audit hold
+
+## Actually deployed
+
+- The production root serves the Stage 1 shell until PR #8 finishes merging and the main deployment completes.
+- The Stage 2 preview serves the current head of `feat/stage2-my-appointments` under `/stage2-preview/`.
+- The preview workflow checks out the branch by name and writes the deployed branch commit to `/stage2-preview/build.json`; it does not reference a frozen application commit hash or a CDN-pinned source file.
 
 ## Completed
 
-- Stage 0 bridge, contract, audit and CI hardening are merged.
-- Stage 1 replaced the temporary React/Vite application with the approved static, no-build architecture.
-- Removed `src/`, React, Vite, TypeScript application files, npm build tooling and the old stylesheet completely.
-- Added the static login screen with the approved MaxDock badge and the single permitted full-colour ownership lockup.
-- Added Supabase email/password sign-in, forgot-password recovery, password update and required first-password replacement.
-- Added authenticated profile, permission and RLS-filtered location context using the existing live Supabase API.
-- Added permission-driven staff and customer shells without hard-coded role comparisons.
-- Added saved location and Normal/Large/Larger text preferences.
-- Added session-expiry sign-in overlay, network/reconnect state, no-access state, no-location state, fatal-error state and honest Stage 1 empty states.
-- Added the suspendable five-second polling foundation for later operational stages.
-- Added static GitHub Pages validation and Stage 1 shell verification.
-- Claude’s deployed Stage 1 audit is recorded at `docs/AUDIT-2026-07-24-STAGE1.md`; verdict: Stage 1 passes.
-- Claude corrected the design contract for the 44 px minimum touch-target rule.
-- Updated `docs/maxdock-design-v2.html`, `docs/MAXDOCK_ARCHITECTURE.md`, `docs/MAXDOCK_FUNCTIONAL_SPEC.md` and `scripts/verify-maxdock.mjs` with the approved `--tap: 44px` system and `a11y.tap-target` enforcement.
-- Updated the existing `assets/maxdock.css` in place so buttons, inputs, selects, segmented controls, rail links, skip links and text-only actions use the shared 44 px target without changing type size or adding an override layer.
+- Stage 1 static shell, authentication, permission-based navigation, location context, text-size controls, connection handling and accessible empty states.
+- Stage 2 My Appointments with real data through `list_my_appointments`.
+- Upcoming, Past, Cancelled and All views, KPI totals and next-appointment summary.
+- Appointment details, booking references and Copy confirmation.
+- Customer-owned cancellation through `cancel_my_appointment` with permission-controlled visibility.
+- Saved default appointment view through the existing preference RPCs.
+- Five-second refresh that patches existing appointment cards rather than rebuilding the page.
+- Shared modal with focus trapping, Escape handling, focus restoration and polling suspension.
+- Modal hidden-state CSS conflict corrected and confirmed in the deployed preview.
+- Responsive testing for Normal, Large and Larger text.
+- User functional review completed successfully for the Stage 2 preview.
 
-## Validation completed
+## Validation
 
-- Claude design checker: conformant, zero errors and zero warnings.
-- Implementation architecture gate: conformant, zero errors and zero warnings.
-- Stage 1 shell verifier: valid.
-- Uploaded Claude files verified byte-for-byte against the supplied originals.
-- Corrected implementation stylesheet verified byte-for-byte against the locally tested file.
+- `scripts/verify-maxdock.mjs` must pass on the branch head before and after any Stage 2 correction.
+- GitHub `validate` and `conformance` checks must remain green.
+- Every Supabase call remains routed through `js/db.js` and uses the existing RPC signatures.
 
-## Not completed
+## Audit hold
 
-- Authenticated role testing with customer, coordinator, shipping manager, site admin and system admin accounts.
-- Verification that each role sees only permitted navigation and locations.
-- Verification that customer network responses contain no internal dock names or identifiers.
-- Password-recovery email delivery test.
-- Session-expiry overlay test with a real expired session.
-- Offline/reconnect test against the deployed site.
-- Stage 2 — My Appointments.
+- Stage 3 has not started.
+- Design/architecture is auditing the Stage 1 shell and Stage 2 My Appointments against the four contract documents.
+- No new screen work will begin until the findings list is received and resolved.
 
-## Decisions
+## Rules in force
 
-- The Stage 1 correction changes the existing design token and component rules directly; no secondary stylesheet, override block or patch script was added.
-- Claude-owned files remain complete replacements supplied by Claude, not implementation-authored edits.
-- Stage 2 remains blocked until authenticated role testing is completed.
-
-## Questions for design
-
-1. After this correction deploys, confirm the login controls and text-only actions measure at least 44 px at 390 px width.
-2. Confirm no visual spacing or typography regression was introduced by the larger hit areas.
-
-## Next action
-
-Merge and deploy the tap-target correction after CI passes, then complete authenticated role testing before starting Stage 2.
+- One stylesheet: `assets/maxdock.css`.
+- No `!important`.
+- No MutationObservers for layout.
+- No runtime script or stylesheet injection.
+- No direct Supabase calls outside `js/db.js`.
+- Do not edit `/docs/` except `docs/STATUS.md` during implementation corrections.
