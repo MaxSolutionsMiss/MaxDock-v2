@@ -1,0 +1,62 @@
+name: Deploy Stage 2 Preview
+
+on:
+  push:
+    branches:
+      - feat/stage2-my-appointments
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: stage2-preview
+  cancel-in-progress: true
+
+jobs:
+  deploy-preview:
+    runs-on: ubuntu-latest
+    environment:
+      name: stage2-preview
+      url: ${{ steps.deployment.outputs.page_url }}stage2-preview/
+    steps:
+      - name: Check out production root
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          path: site
+
+      - name: Check out current Stage 2 branch head
+        uses: actions/checkout@v4
+        with:
+          ref: feat/stage2-my-appointments
+          path: stage2
+          fetch-depth: 1
+
+      - name: Build isolated preview from branch head
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf site/stage2-preview
+          mkdir -p site/stage2-preview
+          cp stage2/index.html site/stage2-preview/index.html
+          cp -R stage2/app site/stage2-preview/app
+          cp -R stage2/assets site/stage2-preview/assets
+          cp -R stage2/js site/stage2-preview/js
+          touch site/.nojekyll
+          stage2_sha="$(git -C stage2 rev-parse HEAD)"
+          printf '{"branch":"feat/stage2-my-appointments","commit":"%s"}\n' "$stage2_sha" > site/stage2-preview/build.json
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+      - name: Deploy preview
+        id: deployment
+        uses: actions/deploy-pages@v4

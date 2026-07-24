@@ -1,55 +1,51 @@
 # MaxDock Implementation Status
 
 **Updated:** 2026-07-24  
-**Branch:** `feat/stage2-my-appointments`  
-**Pull request:** Draft PR #8  
-**Deployed:** Stage 1 shell remains live at `https://maxsolutionsmiss.github.io/MaxDock-v2/`
+**Current branch:** `feat/stage2-my-appointments`  
+**Pull request:** PR #8 — Stage 2 merge candidate  
+**Production URL:** `https://maxsolutionsmiss.github.io/MaxDock-v2/`  
+**Stage 2 preview URL:** `https://maxsolutionsmiss.github.io/MaxDock-v2/stage2-preview/`
 
 ## Stage
-2 of 8 — My Appointments
+2 of 8 — My Appointments — implementation complete, audit hold
 
-## Completed on the Stage 2 branch
+## Actually deployed
 
-- Replaced the My Appointments placeholder with real data from the customer-safe `list_my_appointments` RPC.
-- Added Upcoming, Past, Cancelled and All views, KPI totals and a next-appointment summary.
-- Added appointment details, booking references and Copy confirmation.
-- Added customer-owned cancellation through `cancel_my_appointment` without direct table writes.
-- Added a shared modal component with focus trapping, Escape handling, focus restoration and polling suspension.
-- Added five-second refresh that patches existing appointment cards by appointment ID instead of rebuilding the page.
-- Suspended refresh while an interactive control or modal has focus so an action does not move under the user.
-- Added a saved default appointment view using `get_user_preference` and `save_user_preference`.
-- Kept all current-time and chronological comparisons inside `format.js`.
-- Added responsive Stage 2 styling to the one canonical `assets/maxdock.css` file.
-- Added a Stage 2 repository verifier and wired it into the validation workflow.
+- The production root serves the Stage 1 shell until PR #8 finishes merging and the main deployment completes.
+- The Stage 2 preview serves the current head of `feat/stage2-my-appointments` under `/stage2-preview/`.
+- The preview workflow checks out the branch by name and writes the deployed branch commit to `/stage2-preview/build.json`; it does not reference a frozen application commit hash or a CDN-pinned source file.
 
-## Validation completed
+## Completed
 
-- Claude design checker: conformant, zero errors and zero warnings.
-- Implementation architecture gate: conformant, zero errors and zero warnings.
-- Stage 1 shell verifier: valid.
-- Stage 2 verifier: valid.
-- JavaScript syntax checks passed for the page, formatter and shared modal.
-- Mock browser runtime test loaded real-shaped appointment records with no console errors.
-- Cancellation, view filtering, modal Escape/focus restoration and keyboard focus trapping passed in the mock browser test.
-- A five-second refresh updated an existing card in place; the appointment DOM node was preserved.
-- Layout checks passed at 1920, 1440, 1194 and 390 px with Normal, Large and Larger text: no horizontal overflow, no detail clipping and no interactive target below 44 px.
-- Latest GitHub `validate` and `conformance` checks passed on the Stage 2 head commit.
+- Stage 1 static shell, authentication, permission-based navigation, location context, text-size controls, connection handling and accessible empty states.
+- Stage 2 My Appointments with real data through `list_my_appointments`.
+- Upcoming, Past, Cancelled and All views, KPI totals and next-appointment summary.
+- Appointment details, booking references and Copy confirmation.
+- Customer-owned cancellation through `cancel_my_appointment` with permission-controlled visibility.
+- Saved default appointment view through the existing preference RPCs.
+- Five-second refresh that patches existing appointment cards rather than rebuilding the page.
+- Shared modal with focus trapping, Escape handling, focus restoration and polling suspension.
+- Modal hidden-state CSS conflict corrected and confirmed in the deployed preview.
+- Responsive testing for Normal, Large and Larger text.
+- User functional review completed successfully for the Stage 2 preview.
 
-## Still required before merge
+## Validation
 
-- Authenticated testing against the live Supabase project as customer, coordinator, shipping manager, site admin and system admin.
-- Customer network-payload verification confirming no internal dock identifiers or other requester data are returned.
-- Ten-minute five-second refresh test against real data.
-- Real offline/reconnect test without reloading the page.
-- Rebook remains dependent on the Stage 3 five-step booking screen; no broken or placeholder rebook link is exposed in Stage 2.
+- `scripts/verify-maxdock.mjs` must pass on the branch head before and after any Stage 2 correction.
+- GitHub `validate` and `conformance` checks must remain green.
+- Every Supabase call remains routed through `js/db.js` and uses the existing RPC signatures.
 
-## Decisions
+## Audit hold
 
-- PR #8 remains a draft and `main` remains unchanged until the remaining authenticated tests have a safe review path.
-- Stage 2 reads appointments only through `list_my_appointments`; the browser does not select from `appointments` directly.
-- The shared modal is a canonical UI module, not a page-specific workaround.
-- Rebook will be completed with Stage 3 so it opens a real prefilled booking flow rather than a dead link or duplicate appointment.
+- Stage 3 has not started.
+- Design/architecture is auditing the Stage 1 shell and Stage 2 My Appointments against the four contract documents.
+- No new screen work will begin until the findings list is received and resolved.
 
-## Next action
+## Rules in force
 
-Establish a reviewable authenticated deployment path, then complete the real-role, customer network-payload, ten-minute refresh and offline/reconnect tests before requesting merge approval.
+- One stylesheet: `assets/maxdock.css`.
+- No `!important`.
+- No MutationObservers for layout.
+- No runtime script or stylesheet injection.
+- No direct Supabase calls outside `js/db.js`.
+- Do not edit `/docs/` except `docs/STATUS.md` during implementation corrections.
