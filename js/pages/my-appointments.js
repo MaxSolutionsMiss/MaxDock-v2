@@ -1,7 +1,9 @@
 import { db } from '../db.js';
 import { format } from '../format.js';
+import { poll } from '../poll.js';
 import { startPage } from '../router.js';
 import { renderState } from '../ui/empty.js';
+import { createModal } from '../ui/modal.js';
 import { toast } from '../ui/toast.js';
 
 const TERMINAL_STATUSES = new Set(['completed', 'cancelled', 'no_show']);
@@ -12,13 +14,18 @@ const VIEW_LABELS = Object.freeze({
   cancelled: 'Cancelled',
   all: 'All',
 });
+const VIEW_PREFERENCE_KEY = 'my-appointments';
+const CONTROL_FOCUS_REASON = 'my-appointments-control-focus';
 
 let activeContext = null;
 let records = [];
 let activeView = 'upcoming';
 let hosts = null;
 let cancelTarget = null;
+let cancelModal = null;
 let interactionCleanup = [];
+let cards = new Map();
+let nextAppointmentSignature = '';
 
 function createElement(tag, className, text) {
   const element = document.createElement(tag);
@@ -35,13 +42,13 @@ function statusLabel(value) {
   return format.role(normaliseStatus(value));
 }
 
-function isUpcoming(record, now = Date.now()) {
+function isUpcoming(record, now = format.nowEpoch()) {
   return !TERMINAL_STATUSES.has(normaliseStatus(record.status))
     && format.epoch(record.start_at) >= now;
 }
 
 function filterRecords(view, rows) {
-  const now = Date.now();
+  const now = format.nowEpoch();
   switch (view) {
     case 'cancelled':
       return rows.filter(record => normaliseStatus(record.status) === 'cancelled');
@@ -68,32 +75,14 @@ function detailValue(value, fallback = '—') {
   return clean || fallback;
 }
 
-function createMetric(label, value) {
-  const card = createElement('div', 'metric-card');
-  const number = createElement('strong', 'metric-card__value data', String(value));
-  const caption = createElement('span', 'metric-card__label', label);
-  card.append(number, caption);
-  return card;
-}
-
 function renderMetrics() {
-  const upcoming = filterRecords('upcoming', records).length;
-  const past = filterRecords('past', records).length;
-  const cancelled = filterRecords('cancelled', records).length;
-  hosts.metrics.replaceChildren(
-    createMetric('Upcoming', upcoming),
-    createMetric('Past', past),
-    createMetric('Cancelled', cancelled),
-    createMetric('Total', records.length),
-  );
-}
-
-function createDetail(label, value) {
-  const item = createElement('div', 'appointment-detail');
-  const term = createElement('span', 'appointment-detail__label', label);
-  const description = createElement('span', 'appointment-detail__value', detailValue(value));
-  item.append(term, description);
-  return item;
+  const values = {
+    upcoming: filterRecords('upcoming', records).length,
+    past: filterRecords('past', records).length,
+    cancelled: filterRecords('cancelled', records).length,
+    total: records.length,
+  };
+  for (const [key, value] of Object.entries(values)) hosts.metricValues[key].textContent = String(value);
 }
 
 function confirmationText(record) {
@@ -117,18 +106,15 @@ async function copyConfirmation(record) {
   }
 }
 
-function openCancelModal(record) {
+function openCancelModal(record, trigger) {
   cancelTarget = record;
   hosts.cancelReference.textContent = record.booking_reference;
-  hosts.cancelModal.hidden = false;
-  document.body.classList.add('modal-open');
-  hosts.cancelConfirm.focus();
+  cancelModal.open({ trigger });
 }
 
-function closeCancelModal() {
+function closeCancelModal(options) {
   cancelTarget = null;
-  if (hosts?.cancelModal) hosts.cancelModal.hidden = true;
-  document.body.classList.remove('modal-open');
+  cancelModal?.close(options);
 }
 
 async function confirmCancellation() {
@@ -138,14 +124,15 @@ async function confirmCancellation() {
   hosts.cancelDismiss.disabled = true;
   try {
     await db.rpc('cancel_my_appointment', { p_appointment_id: appointmentId }, {
-      key: `appointment:cancel:${appointmentId}:${Date.now()}`,
+      key: `appointment:cancel:${appointmentId}:${format.nowEpoch()}`,
       retry: 0,
       userMessage: 'The appointment could not be cancelled.',
     });
     db.invalidate('appointments:mine');
-    closeCancelModal();
+    closeCancelModal({ restoreFocus: false });
     toast('Appointment cancelled.', 'success');
     await refreshData(true);
+    activeContext?.pageRoot?.focus();
   } catch (error) {
     toast(error.userMessage || 'The appointment could not be cancelled.', 'error');
   } finally {
@@ -154,51 +141,100 @@ async function confirmCancellation() {
   }
 }
 
+function createDetail(label) {
+  const item = createElement('div', 'appointment-detail');
+  const term = createElement('span', 'appointment-detail__label', label);
+  const description = createElement('span', 'appointment-detail__value');
+  item.append(term, description);
+  return { element: item, value: description };
+}
+
 function createAppointmentCard(record) {
-  const card = createElement('article', 'appointment-card');
-  card.dataset.appointmentId = record.appointment_id;
+  let currentRecord = record;
+  const element = createElement('article', 'appointment-card');
+  element.dataset.appointmentId = record.appointment_id;
 
   const head = createElement('div', 'appointment-card__head');
   const identity = createElement('div');
-  const reference = createElement('div', 'appointment-card__reference data', record.booking_reference);
-  const location = createElement('h3', 'appointment-card__title', record.location_name);
+  const reference = createElement('div', 'appointment-card__reference data');
+  const location = createElement('h3', 'appointment-card__title');
   identity.append(reference, location);
-
-  const status = createElement('span', `status status--${normaliseStatus(record.status)}`, statusLabel(record.status));
+  const status = createElement('span', 'status');
   head.append(identity, status);
 
-  const when = createElement('p', 'appointment-card__time', appointmentTime(record));
+  const when = createElement('p', 'appointment-card__time');
   const details = createElement('div', 'appointment-card__details');
-  details.append(
-    createDetail('Direction', format.role(record.direction || '')),
-    createDetail('Appointment type', record.appointment_type),
-    createDetail('Truck type', record.truck_type),
-    createDetail('Skids', record.skid_count),
-    createDetail('Handling', record.handling_type),
-    createDetail('PO / BOL / job', record.external_reference),
-    createDetail('Company', record.company_name),
-    createDetail('Carrier', record.carrier_name),
-  );
+  const detailRefs = [
+    ['direction', 'Direction'],
+    ['appointment_type', 'Appointment type'],
+    ['truck_type', 'Truck type'],
+    ['skid_count', 'Skids'],
+    ['handling_type', 'Handling'],
+    ['external_reference', 'PO / BOL / job'],
+    ['company_name', 'Company'],
+    ['carrier_name', 'Carrier'],
+  ].map(([key, label]) => ({ key, ...createDetail(label) }));
+  details.append(...detailRefs.map(detail => detail.element));
 
   const actions = createElement('div', 'appointment-card__actions');
   const copy = createElement('button', 'btn btn--quiet', 'Copy confirmation');
   copy.type = 'button';
-  copy.addEventListener('click', () => copyConfirmation(record));
-  actions.append(copy);
+  copy.addEventListener('click', () => copyConfirmation(currentRecord));
+  const cancel = createElement('button', 'btn btn--danger', 'Cancel appointment');
+  cancel.type = 'button';
+  cancel.addEventListener('click', () => openCancelModal(currentRecord, cancel));
+  actions.append(copy, cancel);
 
-  if (CANCELLABLE_STATUSES.has(normaliseStatus(record.status)) && isUpcoming(record)) {
-    const cancel = createElement('button', 'btn btn--danger', 'Cancel appointment');
-    cancel.type = 'button';
-    cancel.addEventListener('click', () => openCancelModal(record));
-    actions.append(cancel);
+  function update(nextRecord) {
+    currentRecord = nextRecord;
+    reference.textContent = nextRecord.booking_reference;
+    location.textContent = nextRecord.location_name;
+    when.textContent = appointmentTime(nextRecord);
+    const nextStatus = normaliseStatus(nextRecord.status);
+    status.className = `status status--${nextStatus}`;
+    status.textContent = statusLabel(nextStatus);
+
+    for (const detail of detailRefs) {
+      const rawValue = detail.key === 'direction'
+        ? format.role(nextRecord.direction || '')
+        : nextRecord[detail.key];
+      detail.value.textContent = detailValue(rawValue);
+    }
+
+    cancel.hidden = !(CANCELLABLE_STATUSES.has(nextStatus) && isUpcoming(nextRecord));
   }
 
-  card.append(head, when, details, actions);
-  return card;
+  element.append(head, when, details, actions);
+  update(record);
+  return Object.freeze({ element, update, destroy: () => element.remove() });
+}
+
+function recordId(record) {
+  return String(record.appointment_id || '');
+}
+
+function reconcileRecordComponents() {
+  const liveIds = new Set(records.map(recordId));
+  for (const [id, card] of cards) {
+    if (liveIds.has(id)) continue;
+    card.destroy();
+    cards.delete(id);
+  }
+
+  for (const record of records) {
+    const id = recordId(record);
+    if (!id) continue;
+    const card = cards.get(id) || createAppointmentCard(record);
+    card.update(record);
+    cards.set(id, card);
+  }
 }
 
 function renderNextAppointment() {
-  const next = sortRecords(filterRecords('upcoming', records))[0];
+  const next = sortRecords(filterRecords('upcoming', records))[0] || null;
+  const signature = next ? `${recordId(next)}|${next.start_at}|${next.end_at}|${next.status}|${next.location_name}|${next.booking_reference}` : 'none';
+  if (signature === nextAppointmentSignature) return;
+  nextAppointmentSignature = signature;
   hosts.next.replaceChildren();
 
   if (!next) {
@@ -226,19 +262,41 @@ function renderNextAppointment() {
   hosts.next.append(summary, reference);
 }
 
-function renderAppointments() {
-  const visible = sortRecords(filterRecords(activeView, records));
-  hosts.list.replaceChildren();
-  hosts.count.textContent = `${visible.length} ${visible.length === 1 ? 'appointment' : 'appointments'}`;
-
+function updateViewButtons() {
   for (const [view, label] of Object.entries(VIEW_LABELS)) {
     const button = hosts.views.querySelector(`[data-view="${view}"]`);
     if (!button) continue;
     button.textContent = label;
     button.setAttribute('aria-pressed', String(view === activeView));
   }
+}
+
+function placeCardsInOrder(visible) {
+  const visibleIds = new Set(visible.map(recordId));
+  for (const [id, card] of cards) {
+    if (!visibleIds.has(id)) card.element.remove();
+  }
+
+  let cursor = hosts.list.firstElementChild;
+  for (const record of visible) {
+    const card = cards.get(recordId(record));
+    if (!card) continue;
+    if (card.element === cursor) {
+      cursor = cursor.nextElementSibling;
+    } else {
+      hosts.list.insertBefore(card.element, cursor);
+    }
+  }
+}
+
+function renderAppointments() {
+  const visible = sortRecords(filterRecords(activeView, records));
+  hosts.count.textContent = `${visible.length} ${visible.length === 1 ? 'appointment' : 'appointments'}`;
+  updateViewButtons();
+  reconcileRecordComponents();
 
   if (!visible.length) {
+    hosts.list.replaceChildren();
     renderState(hosts.list, {
       type: 'empty',
       title: `No ${VIEW_LABELS[activeView].toLowerCase()} appointments`,
@@ -249,9 +307,8 @@ function renderAppointments() {
     return;
   }
 
-  const fragment = document.createDocumentFragment();
-  for (const record of visible) fragment.append(createAppointmentCard(record));
-  hosts.list.append(fragment);
+  if (hosts.list.querySelector('.state')) hosts.list.replaceChildren();
+  placeCardsInOrder(visible);
 }
 
 function renderPage() {
@@ -262,9 +319,8 @@ function renderPage() {
 }
 
 function renderLoadError(error) {
-  hosts.metrics.replaceChildren();
-  hosts.next.replaceChildren();
   hosts.count.textContent = '';
+  hosts.list.replaceChildren();
   renderState(hosts.list, {
     type: 'error',
     title: 'Appointments are temporarily unavailable',
@@ -288,6 +344,35 @@ async function loadAppointments({ force = false } = {}) {
   return Array.isArray(response) ? response : [];
 }
 
+async function loadViewPreference() {
+  try {
+    const preference = await db.rpc('get_user_preference', { p_preference_key: VIEW_PREFERENCE_KEY }, {
+      key: `preference:${VIEW_PREFERENCE_KEY}`,
+      cache: 300000,
+      userMessage: 'Your saved appointment view could not be loaded.',
+    });
+    if (preference && VIEW_LABELS[preference.default_view]) activeView = preference.default_view;
+  } catch {
+    activeView = 'upcoming';
+  }
+}
+
+async function saveViewPreference() {
+  try {
+    await db.rpc('save_user_preference', {
+      p_preference_key: VIEW_PREFERENCE_KEY,
+      p_preferences: { default_view: activeView },
+    }, {
+      key: `preference:${VIEW_PREFERENCE_KEY}:save`,
+      retry: 0,
+      userMessage: 'Your appointment view preference could not be saved.',
+    });
+    db.invalidate(`preference:${VIEW_PREFERENCE_KEY}`);
+  } catch {
+    toast('The view changed, but MaxDock could not save it as your default.', 'error');
+  }
+}
+
 async function refreshData(force = false) {
   try {
     records = await loadAppointments({ force });
@@ -295,6 +380,15 @@ async function refreshData(force = false) {
   } catch (error) {
     renderLoadError(error);
   }
+}
+
+function createMetric(label, key) {
+  const card = createElement('div', 'metric-card');
+  const value = createElement('strong', 'metric-card__value data', '0');
+  const caption = createElement('span', 'metric-card__label', label);
+  card.append(value, caption);
+  hosts.metricValues[key] = value;
+  return card;
 }
 
 function createViewControls() {
@@ -312,6 +406,8 @@ function createViewControls() {
 }
 
 function buildPage(root, context) {
+  hosts = { metricValues: {} };
+
   const head = createElement('div', 'page__head');
   const heading = createElement('div');
   const title = createElement('h1', 'page__title', 'My appointments');
@@ -323,6 +419,12 @@ function buildPage(root, context) {
 
   const metrics = createElement('section', 'metric-grid');
   metrics.setAttribute('aria-label', 'Appointment summary');
+  metrics.append(
+    createMetric('Upcoming', 'upcoming'),
+    createMetric('Past', 'past'),
+    createMetric('Cancelled', 'cancelled'),
+    createMetric('Total', 'total'),
+  );
 
   const next = createElement('section', 'panel next-appointment');
   next.setAttribute('aria-label', 'Next appointment');
@@ -331,6 +433,7 @@ function buildPage(root, context) {
   const views = createViewControls();
   const toolbarMeta = createElement('div', 'appointment-toolbar__meta');
   const count = createElement('span', 'appointment-toolbar__count data');
+  count.setAttribute('aria-live', 'polite');
   const updated = createElement('span', 'page-updated muted');
   toolbarMeta.append(count, updated);
   toolbar.append(views, toolbarMeta);
@@ -338,15 +441,17 @@ function buildPage(root, context) {
   const list = createElement('section', 'appointment-list');
   list.setAttribute('aria-label', 'Appointments');
 
-  const cancelModal = createElement('div', 'modal-backdrop');
-  cancelModal.hidden = true;
+  const cancelBackdrop = createElement('div', 'modal-backdrop');
+  cancelBackdrop.hidden = true;
   const dialog = createElement('section', 'modal');
   dialog.setAttribute('role', 'dialog');
   dialog.setAttribute('aria-modal', 'true');
   dialog.setAttribute('aria-labelledby', 'cancel-appointment-title');
+  dialog.setAttribute('aria-describedby', 'cancel-appointment-message');
   const modalTitle = createElement('h2', 'modal__title', 'Cancel this appointment?');
   modalTitle.id = 'cancel-appointment-title';
   const modalMessage = createElement('p', 'modal__message');
+  modalMessage.id = 'cancel-appointment-message';
   modalMessage.append('Booking ', createElement('strong', 'data'), ' will be cancelled. This cannot be undone.');
   const cancelReference = modalMessage.querySelector('strong');
   const modalActions = createElement('div', 'form-actions');
@@ -356,22 +461,32 @@ function buildPage(root, context) {
   cancelConfirm.type = 'button';
   modalActions.append(cancelDismiss, cancelConfirm);
   dialog.append(modalTitle, modalMessage, modalActions);
-  cancelModal.append(dialog);
+  cancelBackdrop.append(dialog);
 
-  root.append(head, metrics, next, toolbar, list, cancelModal);
+  root.append(head, metrics, next, toolbar, list, cancelBackdrop);
 
-  hosts = {
+  Object.assign(hosts, {
     metrics,
     next,
     views,
     count,
     updated,
     list,
-    cancelModal,
+    cancelBackdrop,
     cancelReference,
     cancelConfirm,
     cancelDismiss,
-  };
+  });
+
+  cancelModal = createModal(cancelBackdrop, {
+    initialFocus: cancelConfirm,
+    onRequestClose: () => closeCancelModal(),
+  });
+}
+
+function interactiveFocusWithinPage() {
+  const active = document.activeElement;
+  return Boolean(active && activeContext?.pageRoot?.contains(active) && active.matches('button, a[href], input, select, textarea, [tabindex]:not([tabindex="-1"])'));
 }
 
 function bindInteractions() {
@@ -380,26 +495,30 @@ function bindInteractions() {
     if (!button) return;
     activeView = button.dataset.view;
     renderAppointments();
+    saveViewPreference();
   };
-  const onModalClick = event => {
-    if (event.target === hosts.cancelModal) closeCancelModal();
+  const onFocusIn = event => {
+    if (event.target.matches('button, a[href], input, select, textarea, [tabindex]:not([tabindex="-1"])')) poll.suspend(CONTROL_FOCUS_REASON);
   };
-  const onKeyDown = event => {
-    if (event.key === 'Escape' && !hosts.cancelModal.hidden) closeCancelModal();
+  const onFocusOut = () => {
+    queueMicrotask(() => {
+      if (!interactiveFocusWithinPage()) poll.resume(CONTROL_FOCUS_REASON);
+    });
   };
 
   hosts.views.addEventListener('click', onViewClick);
   hosts.cancelDismiss.addEventListener('click', closeCancelModal);
   hosts.cancelConfirm.addEventListener('click', confirmCancellation);
-  hosts.cancelModal.addEventListener('click', onModalClick);
-  document.addEventListener('keydown', onKeyDown);
+  activeContext.pageRoot.addEventListener('focusin', onFocusIn);
+  activeContext.pageRoot.addEventListener('focusout', onFocusOut);
 
   interactionCleanup = [
     () => hosts?.views.removeEventListener('click', onViewClick),
     () => hosts?.cancelDismiss.removeEventListener('click', closeCancelModal),
     () => hosts?.cancelConfirm.removeEventListener('click', confirmCancellation),
-    () => hosts?.cancelModal.removeEventListener('click', onModalClick),
-    () => document.removeEventListener('keydown', onKeyDown),
+    () => activeContext?.pageRoot?.removeEventListener('focusin', onFocusIn),
+    () => activeContext?.pageRoot?.removeEventListener('focusout', onFocusOut),
+    () => poll.resume(CONTROL_FOCUS_REASON),
   ];
 }
 
@@ -416,8 +535,11 @@ const page = {
     activeContext = context;
     records = [];
     activeView = 'upcoming';
+    cards = new Map();
+    nextAppointmentSignature = '';
     buildPage(context.pageRoot, context);
     bindInteractions();
+    await loadViewPreference();
     await refreshData(true);
   },
 
@@ -427,11 +549,17 @@ const page = {
   },
 
   destroy() {
-    closeCancelModal();
+    closeCancelModal({ restoreFocus: false });
+    cancelModal?.destroy();
+    cancelModal = null;
     for (const cleanup of interactionCleanup.splice(0)) cleanup();
+    for (const card of cards.values()) card.destroy();
+    cards.clear();
     activeContext = null;
     records = [];
     hosts = null;
+    cancelTarget = null;
+    nextAppointmentSignature = '';
   },
 };
 
