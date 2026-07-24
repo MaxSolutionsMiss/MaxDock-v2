@@ -1,0 +1,45 @@
+name: Deploy Stage 2 Preview
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [preview/stage2-my-appointments]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy-preview:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}stage2-preview/
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify preview package
+        run: |
+          test -f stage2-preview/index.html
+          test -f stage2-preview/app/my-appointments.html
+          test -f stage2-preview/app/board.html
+          test -f stage2-preview/js/preview-fixes.js
+      - name: Prepare production-safe Pages artifact
+        run: |
+          rm -rf _site
+          mkdir -p _site
+          cp index.html _site/
+          cp -R app assets js _site/
+          cp -R stage2-preview _site/
+          touch _site/.nojekyll
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - name: Deploy preview alongside unchanged production root
+        id: deployment
+        uses: actions/deploy-pages@v4
