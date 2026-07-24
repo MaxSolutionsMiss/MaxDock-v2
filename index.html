@@ -1,14 +1,90 @@
 <!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#16202a" />
-    <meta name="description" content="MaxDock dock appointment scheduling" />
-    <title>MaxDock · Dock Scheduling</title>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
-  </body>
+<html lang="en" data-text="normal">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="MaxDock dock appointment and operations management">
+  <title>Sign in · MaxDock</title>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/maxdock.css">
+  <link rel="icon" href="assets/logo-knockout.png">
+</head>
+<body>
+  <a class="skip-link" href="#login-main">Skip to sign in</a>
+  <main class="login-page" id="login-main">
+    <div class="login-wrap">
+      <div class="login-brand" aria-label="MaxDock">
+        <span class="login-brand__badge"><img src="assets/logo-knockout.png" alt=""></span>
+        <h1 class="login-brand__name">MaxDock</h1>
+      </div>
+
+      <section class="login-card" id="sign-in-panel">
+        <h2 class="login-card__title">Sign in</h2>
+        <p class="login-card__intro">Use the email and password assigned to your MaxDock account.</p>
+        <form id="sign-in-form">
+          <div class="field">
+            <label class="field__label" for="email">Email</label>
+            <input class="input" id="email" name="email" type="email" autocomplete="username" required>
+          </div>
+          <div class="field">
+            <label class="field__label" for="password">Password</label>
+            <input class="input" id="password" name="password" type="password" autocomplete="current-password" required>
+            <p class="field__hint">Contact a MaxDock administrator when you do not know the email assigned to your account.</p>
+          </div>
+          <p class="form-message" id="sign-in-message" aria-live="polite"></p>
+          <div class="form-actions form-actions--stack">
+            <button class="btn btn--primary btn--block" id="sign-in-submit" type="submit">Sign in</button>
+            <button class="text-link" id="forgot-link" type="button">Forgot your password?</button>
+          </div>
+        </form>
+        <div class="login-divider">A system by</div>
+        <div class="login-owner"><img src="assets/logo-color.png" alt="Max Solutions"></div>
+      </section>
+
+      <section class="login-card" id="forgot-panel" hidden>
+        <h2 class="login-card__title">Reset your password</h2>
+        <p class="login-card__intro">Enter the email assigned to your account. MaxDock will send a secure reset link.</p>
+        <form id="forgot-form">
+          <div class="field">
+            <label class="field__label" for="reset-email">Email</label>
+            <input class="input" id="reset-email" name="email" type="email" autocomplete="email" required>
+          </div>
+          <p class="form-message" id="forgot-message" aria-live="polite"></p>
+          <div class="form-actions form-actions--stack">
+            <button class="btn btn--primary btn--block" id="forgot-submit" type="submit">Send reset link</button>
+            <button class="text-link" id="back-to-sign-in" type="button">Back to sign in</button>
+          </div>
+        </form>
+      </section>
+
+      <section class="login-card" id="password-panel" hidden>
+        <h2 class="login-card__title" id="password-title">Reset your password</h2>
+        <p class="login-card__intro" id="password-intro">Choose a new password for your MaxDock account.</p>
+        <form id="password-form">
+          <div class="field">
+            <label class="field__label" for="new-password">New password</label>
+            <input class="input" id="new-password" name="password" type="password" minlength="10" autocomplete="new-password" required>
+            <p class="field__hint">Use at least 10 characters.</p>
+          </div>
+          <div class="field">
+            <label class="field__label" for="confirm-password">Confirm new password</label>
+            <input class="input" id="confirm-password" name="confirmation" type="password" minlength="10" autocomplete="new-password" required>
+          </div>
+          <p class="form-message" id="password-message" aria-live="polite"></p>
+          <div class="form-actions form-actions--stack">
+            <button class="btn btn--primary btn--block" id="password-submit" type="submit">Save new password</button>
+          </div>
+        </form>
+      </section>
+
+      <p class="login-footer">Secure access to Max Solutions dock operations.</p>
+    </div>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.52.1/dist/umd/supabase.min.js"></script>
+  <script type="module" src="js/db.js"></script>
+  <script type="module" src="js/format.js"></script>
+  <script type="module" src="js/session.js"></script>
+  <script type="module" src="js/pages/login.js"></script>
+</body>
 </html>
