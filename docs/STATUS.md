@@ -1,41 +1,58 @@
-# Status — updated 2026-07-24
+# MaxDock Implementation Status
 
-## Stage
-1 of 8 — Shell
+**Updated:** 2026-07-24  
+**Current stage:** 1 of 8 — Shell  
+**Branch:** `chore/stage1-tap-target-correction`  
+**Pull request:** Pending  
+**Deployed:** Stage 1 shell deployed from merged PR #5 at `https://maxsolutionsmiss.github.io/MaxDock-v2/`
 
-## Done
-- Replaced the temporary React/Vite foundation with the approved static, no-build structure.
-- Added the login screen with the MaxDock badge and the full Max Solutions lockup in its single permitted location.
-- Connected Supabase email/password sign-in, password recovery, password update and required first-password setup.
-- Added the single network module in `js/db.js` with retry, short-lived reference caching, in-flight de-duplication and uniform user-facing errors.
-- Added authenticated profile, role, permission, accessible-location and saved-preference loading.
-- Added permission-gated staff and customer shells. The customer shell contains no internal dock names or administration navigation.
-- Added location context, per-user Normal/Large/Larger text size, sign-out, session-expiry sign-in overlay, connection banner, empty state, no-access state and panel-level error handling.
-- Added a suspendable five-second poll engine ready for later operational stages.
-- Replaced the npm/Vite deployment with static-file validation and GitHub Pages publishing.
-- Kept all design-owned contract documents and Claude's checker unchanged.
-- Merged PR #5 and deployed the Stage 1 static shell to GitHub Pages.
-- Completed Claude's Stage 1 deployed audit at 1920, 1440, 1194 and 390 pixels with zero console errors, zero failed requests and no horizontal scrolling.
+## Completed
 
-## Not done
-- Stage 1 has not yet been tested with every real MaxDock role account.
-- Password recovery, session-expiry, offline and reconnect behaviour still require authenticated browser testing.
-- The 44 px minimum tap-target rule is not yet met on the login controls because the current design file and architecture rule conflict.
-- Awaiting Claude's corrected design file and updated design-owned verifier rule before applying the tap-target token.
-- My Appointments remains an intentional Stage 2 empty state.
-- Dock-board data remains an intentional Stage 4 empty state.
+- Stage 0 bridge, contract, audit and CI hardening are merged.
+- Stage 1 replaced the temporary React/Vite application with the approved static, no-build architecture.
+- Removed `src/`, React, Vite, TypeScript application files, npm build tooling and the old stylesheet completely.
+- Added the static login screen with the approved MaxDock badge and the single permitted full-colour ownership lockup.
+- Added Supabase email/password sign-in, forgot-password recovery, password update and required first-password replacement.
+- Added authenticated profile, permission and RLS-filtered location context using the existing live Supabase API.
+- Added permission-driven staff and customer shells without hard-coded role comparisons.
+- Added saved location and Normal/Large/Larger text preferences.
+- Added session-expiry sign-in overlay, network/reconnect state, no-access state, no-location state, fatal-error state and honest Stage 1 empty states.
+- Added the suspendable five-second polling foundation for later operational stages.
+- Added static GitHub Pages validation and Stage 1 shell verification.
+- Claude’s deployed Stage 1 audit is recorded at `docs/AUDIT-2026-07-24-STAGE1.md`; verdict: Stage 1 passes.
+- Claude corrected the design contract for the 44 px minimum touch-target rule.
+- Updated `docs/maxdock-design-v2.html`, `docs/MAXDOCK_ARCHITECTURE.md`, `docs/MAXDOCK_FUNCTIONAL_SPEC.md` and `scripts/verify-maxdock.mjs` with the approved `--tap: 44px` system and `a11y.tap-target` enforcement.
+- Updated the existing `assets/maxdock.css` in place so buttons, inputs, selects, segmented controls, rail links, skip links and text-only actions use the shared 44 px target without changing type size or adding an override layer.
 
-## Decisions taken
-- The browser-safe Supabase project URL and publishable client key live in `js/db.js`; no administrative or service-role credential is present.
-- Accessible locations are read from the RLS-filtered `locations` table. The database remains authoritative through `has_location_access` in the existing RLS policy.
-- UI permissions are loaded from `role_permissions`; no role name controls navigation or access.
-- Only Dock Board and My Appointments appear in the Stage 1 navigation. Later screens are not shown as dead links.
-- The legacy shell is deleted rather than repaired or retained beside the static implementation.
-- Stage 2 will not begin until the corrected tap-target contract lands and authenticated role testing is completed.
+## Validation completed
+
+- Claude design checker: conformant, zero errors and zero warnings.
+- Implementation architecture gate: conformant, zero errors and zero warnings.
+- Stage 1 shell verifier: valid.
+- Uploaded Claude files verified byte-for-byte against the supplied originals.
+- Corrected implementation stylesheet verified byte-for-byte against the locally tested file.
+
+## Not completed
+
+- Authenticated role testing with customer, coordinator, shipping manager, site admin and system admin accounts.
+- Verification that each role sees only permitted navigation and locations.
+- Verification that customer network responses contain no internal dock names or identifiers.
+- Password-recovery email delivery test.
+- Session-expiry overlay test with a real expired session.
+- Offline/reconnect test against the deployed site.
+- Stage 2 — My Appointments.
+
+## Decisions
+
+- The Stage 1 correction changes the existing design token and component rules directly; no secondary stylesheet, override block or patch script was added.
+- Claude-owned files remain complete replacements supplied by Claude, not implementation-authored edits.
+- Stage 2 remains blocked until authenticated role testing is completed.
 
 ## Questions for design
-1. Please provide the corrected `maxdock-design-v2.html` with the `--tap: 44px` token and compliant hit areas.
-2. Please provide the corresponding update to `scripts/verify-maxdock.mjs` so tap-target compliance is checked automatically.
 
-## Deployed
-https://maxsolutionsmiss.github.io/MaxDock-v2/
+1. After this correction deploys, confirm the login controls and text-only actions measure at least 44 px at 390 px width.
+2. Confirm no visual spacing or typography regression was introduced by the larger hit areas.
+
+## Next action
+
+Merge and deploy the tap-target correction after CI passes, then complete authenticated role testing before starting Stage 2.
