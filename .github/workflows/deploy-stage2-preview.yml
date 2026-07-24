@@ -17,7 +17,7 @@ concurrency:
 jobs:
   deploy-preview:
     environment:
-      name: github-pages
+      name: stage2-preview
       url: ${{ steps.deployment.outputs.page_url }}stage2-preview/
     runs-on: ubuntu-latest
     steps:
