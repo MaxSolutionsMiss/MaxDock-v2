@@ -114,6 +114,67 @@ for (const f of cssFiles) {
       'Use var(--motion), or prefers-reduced-motion stops working.'));
 }
 
+// 4b. tap targets — every interactive control must be at least --tap tall
+//     Added after the Stage 1 audit found a 19px "Forgot your password?" button
+//     on the login screen. The design system and the architecture document had
+//     contradicted each other; a person caught it, which is exactly what this
+//     file exists to prevent.
+{
+  const own = cssFiles.filter(f => !/vendor|normalize|reset/i.test(f));
+  for (const f of own) {
+    const text = decomment(read(f));
+
+    // the token must exist, and be big enough
+    const tok = text.match(/--tap\s*:\s*(\d+(?:\.\d+)?)px/);
+    if (!tok) {
+      error('a11y.tap-target', rel(f),
+        'No --tap token declared.',
+        'Interactive controls need a shared minimum height. Declare --tap: 44px in :root.');
+    } else if (parseFloat(tok[1]) < 44) {
+      error('a11y.tap-target', rel(f),
+        `--tap is ${tok[1]}px, minimum is 44px.`,
+        'WCAG 2.5.5 and Apple HIG both put the floor at 44. This is used on tablets with gloves on.');
+    }
+
+    // which selectors actually receive the token
+    const covered = [];
+    scan(text, /([^{}]+)\{([^}]*)\}/g, m => {
+      if (/min-height\s*:\s*var\(\s*--tap/.test(m[2])) covered.push(m[1]);
+    });
+    // coverage is claimed by the selector's subject, not by an ancestor
+    const coverage = covered.join(' , ');
+    const REQUIRED = [
+      { name: 'buttons',            re: /(^|[\s,>])button\b|\.btn\b/ },
+      { name: 'text inputs',        re: /(^|[\s,>])input\b|\.input\b|textarea/ },
+      { name: 'selects',            re: /(^|[\s,>])select\b|\.select\b/ },
+      { name: 'text-only actions',  re: /linkBtn|\.link\b|a\[role|\.rail__link/ },
+    ];
+    for (const r of REQUIRED) {
+      if (!r.re.test(coverage))
+        error('a11y.tap-target', rel(f),
+          `No rule gives ${r.name} min-height: var(--tap).`,
+          'Every interactive control carries the token. Padding and type stay as designed; only the hit area grows.');
+    }
+
+    // a literal height on an interactive control is how one quietly shrinks.
+    // Test the SUBJECT of each selector, not the whole string — otherwise
+    // `.btn svg{height:14px}` reads as a 14px button, which it is not.
+    const INTERACTIVE = /^(button|input|select|textarea)\b|^\.btn\b|^\.input\b|^\.select\b|linkBtn|\[role=["']?button/;
+    const subjects = sel => sel.split(',')
+      .map(part => part.trim().split(/\s+|>|\+|~/).filter(Boolean).pop() || '')
+      .filter(Boolean);
+    scan(text, /([^{}]+)\{([^}]*)\}/g, (m, line) => {
+      if (m[1].trim().startsWith('@')) return;
+      if (!subjects(m[1]).some(sub => INTERACTIVE.test(sub))) return;
+      const h = m[2].match(/(?:min-)?height\s*:\s*(\d+(?:\.\d+)?)px/);
+      if (h && parseFloat(h[1]) < 44)
+        error('a11y.tap-target', `${rel(f)}:${line}`,
+          `Interactive control fixed at ${h[1]}px.`,
+          'Use min-height: var(--tap). A literal below 44px defeats the whole rule.');
+    });
+  }
+}
+
 // 5. invalid declarations (the #005party class of typo)
 for (const f of cssFiles) {
   scan(decomment(read(f)), /:\s*#[0-9a-z]*[g-z][0-9a-z]*\s*;/gi, (m, line) =>
