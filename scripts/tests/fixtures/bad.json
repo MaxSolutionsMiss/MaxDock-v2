@@ -1,0 +1,18 @@
+{
+  "docs/maxdock-design-v2.html": "<!doctype html><title>Design</title>",
+  "docs/MAXDOCK_FUNCTIONAL_SPEC.md": "# Functional",
+  "docs/MAXDOCK_ARCHITECTURE.md": "# Architecture",
+  "docs/MAXDOCK_BRIDGE.md": "# Bridge",
+  "docs/STATUS.md": "# Status\n\n## Stage\n1 of 8 — Shell\n",
+  "assets/maxdock.css": ":root { --scale: 1; }\nbody { font-size: 13px !important; }\n",
+  "assets/override-fix.css": "body { color: #005party; }\n",
+  "assets/logo-knockout.png": "fixture",
+  "assets/logo-color.png": "fixture",
+  "index.html": "<!doctype html><html><head><style>body{display:block}</style></head><body style=\"margin:0\"><script src=\"https://example.com/app.js\"></script></body></html>",
+  "src/App.tsx": "import React from 'react'; export default function App(){ return <div/>; }\n",
+  "package.json": "{\"scripts\":{\"build\":\"vite build\"},\"dependencies\":{\"react\":\"latest\"}}",
+  "vite.config.ts": "export default {}\n",
+  "js/page.js": "supabase.from('appointments'); new MutationObserver(() => {}); const qr='https://api.qrserver.com/v1/create-qr-code';\n",
+  "js/db.js": "const a=createClient('x','y'); const b=createClient('x','y');\n",
+  "js/poll.js": "export function start(){}\n"
+}
