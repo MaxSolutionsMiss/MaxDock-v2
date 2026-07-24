@@ -14,11 +14,14 @@
 - Added a suspendable five-second poll engine ready for later operational stages.
 - Replaced the npm/Vite deployment with static-file validation and GitHub Pages publishing.
 - Kept all design-owned contract documents and Claude's checker unchanged.
+- Merged PR #5 and deployed the Stage 1 static shell to GitHub Pages.
+- Completed Claude's Stage 1 deployed audit at 1920, 1440, 1194 and 390 pixels with zero console errors, zero failed requests and no horizontal scrolling.
 
 ## Not done
 - Stage 1 has not yet been tested with every real MaxDock role account.
-- Browser measurements at 1920, 1440, 1194 and 390 pixels are pending the deployed staging audit.
-- Offline/reconnect and session-expiry behaviour require authenticated browser testing.
+- Password recovery, session-expiry, offline and reconnect behaviour still require authenticated browser testing.
+- The 44 px minimum tap-target rule is not yet met on the login controls because the current design file and architecture rule conflict.
+- Awaiting Claude's corrected design file and updated design-owned verifier rule before applying the tap-target token.
 - My Appointments remains an intentional Stage 2 empty state.
 - Dock-board data remains an intentional Stage 4 empty state.
 
@@ -28,9 +31,11 @@
 - UI permissions are loaded from `role_permissions`; no role name controls navigation or access.
 - Only Dock Board and My Appointments appear in the Stage 1 navigation. Later screens are not shown as dead links.
 - The legacy shell is deleted rather than repaired or retained beside the static implementation.
+- Stage 2 will not begin until the corrected tap-target contract lands and authenticated role testing is completed.
 
 ## Questions for design
-None at this stage.
+1. Please provide the corrected `maxdock-design-v2.html` with the `--tap: 44px` token and compliant hit areas.
+2. Please provide the corresponding update to `scripts/verify-maxdock.mjs` so tap-target compliance is checked automatically.
 
 ## Deployed
-Pending merge and GitHub Pages deployment of the Stage 1 branch.
+https://maxsolutionsmiss.github.io/MaxDock-v2/
