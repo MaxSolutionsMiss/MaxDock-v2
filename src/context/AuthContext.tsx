@@ -29,7 +29,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!supabase) {
+    const client = supabase;
+    if (!client) {
       setLoading(false);
       return;
     }
@@ -46,7 +47,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
-      const { data } = await supabase
+      const { data } = await client
         .from('profiles')
         .select('id, full_name, username, role_code, organization_name')
         .eq('id', nextSession.user.id)
@@ -57,8 +58,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setLoading(false);
     };
 
-    void supabase.auth.getSession().then(({ data }) => loadProfile(data.session));
-    const { data: authListener } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+    void client.auth.getSession().then(({ data }) => loadProfile(data.session));
+    const { data: authListener } = client.auth.onAuthStateChange((_event, nextSession) => {
       void loadProfile(nextSession);
     });
 
