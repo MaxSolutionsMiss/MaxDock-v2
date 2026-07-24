@@ -21,3 +21,9 @@ jobs:
 
       - name: Run Claude architecture checker
         run: node scripts/verify-maxdock.mjs
+
+      - name: Run implementation architecture gate
+        run: node scripts/verify-maxdock-implementation.mjs
+
+      - name: Test both verifiers against clean and bad fixtures
+        run: node scripts/test-verifiers.mjs
