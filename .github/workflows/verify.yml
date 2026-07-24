@@ -32,6 +32,16 @@ jobs:
           echo "number=$stage" >> "$GITHUB_OUTPUT"
           echo "MaxDock implementation stage: $stage"
 
+      - name: Stage 0 bypass is void once Stage 1 work exists
+        shell: bash
+        run: |
+          if [[ "${{ steps.stage.outputs.number }}" == "0" ]] \
+             && { [[ -d js ]] || [[ -d app ]] || [[ -f assets/maxdock.css ]]; }; then
+            echo "Stage 1 directories exist but STATUS.md still says Stage 0."
+            echo "Update docs/STATUS.md — the conformance bypass no longer applies."
+            exit 1
+          fi
+
       - name: Run Claude architecture checker
         shell: bash
         run: |
