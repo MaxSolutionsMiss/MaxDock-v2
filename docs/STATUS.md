@@ -1,19 +1,22 @@
 # MaxDock Implementation Status
 
 **Updated:** 2026-07-24  
-**Current branch:** `feat/stage2-my-appointments`  
-**Pull request:** PR #8 — Stage 2 merge candidate  
+**Current branch:** `main`  
+**Stage 2 source branch:** `feat/stage2-my-appointments`  
+**Pull request:** PR #8 — merged  
+**Stage 2 merge commit:** `50e58dd021e54b0256626c90a2d2093b48177803`  
 **Production URL:** `https://maxsolutionsmiss.github.io/MaxDock-v2/`  
 **Stage 2 preview URL:** `https://maxsolutionsmiss.github.io/MaxDock-v2/stage2-preview/`
 
 ## Stage
-2 of 8 — My Appointments — implementation complete, audit hold
+2 of 8 — My Appointments — merged, audit hold
 
 ## Actually deployed
 
-- The production root serves the Stage 1 shell until PR #8 finishes merging and the main deployment completes.
-- The Stage 2 preview serves the current head of `feat/stage2-my-appointments` under `/stage2-preview/`.
-- The preview workflow checks out the branch by name and writes the deployed branch commit to `/stage2-preview/build.json`; it does not reference a frozen application commit hash or a CDN-pinned source file.
+- Stage 1 shell and Stage 2 My Appointments are merged into `main`.
+- The production site is deployed from `main` at the production URL above.
+- The Stage 2 preview is deployed from the current head of `feat/stage2-my-appointments` at the preview URL above.
+- The preview workflow checks out the source branch by name and writes the deployed source commit to `/stage2-preview/build.json`; it does not load application files from a frozen CDN commit hash.
 
 ## Completed
 
@@ -31,8 +34,8 @@
 
 ## Validation
 
-- `scripts/verify-maxdock.mjs` must pass on the branch head before and after any Stage 2 correction.
-- GitHub `validate` and `conformance` checks must remain green.
+- `scripts/verify-maxdock.mjs` passes on the Stage 2 branch head.
+- GitHub `validate`, `conformance` and `deploy-preview` checks passed on the deployed Stage 2 branch head.
 - Every Supabase call remains routed through `js/db.js` and uses the existing RPC signatures.
 
 ## Audit hold
