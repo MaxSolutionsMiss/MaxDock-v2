@@ -201,7 +201,7 @@ function createAppointmentCard(record) {
       detail.value.textContent = detailValue(rawValue);
     }
 
-    cancel.hidden = !(CANCELLABLE_STATUSES.has(nextStatus) && isUpcoming(nextRecord));
+    cancel.hidden = !(activeContext?.can('appointment.cancel_own') && CANCELLABLE_STATUSES.has(nextStatus) && isUpcoming(nextRecord));
   }
 
   element.append(head, when, details, actions);
@@ -431,7 +431,7 @@ function buildPage(root, context) {
 
   const toolbar = createElement('div', 'appointment-toolbar');
   const views = createViewControls();
-  const toolbarMeta = createElement('div', 'appointment-toolbar__meta');
+  const toolbarMeta = createElement('div', 'profile appointment-toolbar__meta');
   const count = createElement('span', 'appointment-toolbar__count data');
   count.setAttribute('aria-live', 'polite');
   const updated = createElement('span', 'page-updated muted');
