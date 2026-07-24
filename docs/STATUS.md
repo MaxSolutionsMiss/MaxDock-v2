@@ -11,11 +11,14 @@
 - added clean and deliberately bad verifier fixtures and confirmed both checkers behave correctly
 - added a dedicated GitHub Actions conformance workflow
 - documented staging, audit, failure and final production cutover rules
+- received Claude's Stage 0 audit with a verdict that the bridge is sound and Stage 1 may begin
+- prepared a hard guard so the Stage 0 bypass cannot remain active after Stage 1 files appear
 - documented the architecture pivot in the repository README
-- kept Draft PR #3 open and unmerged
+- merged PR #3 into `main` after the contract and verification checks passed
 
 ## Not done
 - Stage 1 application shell has not started
+- the Stage 0 audit-hardening pull request has not yet been merged
 - the current React/Vite shell has not yet been replaced
 - the static no-build application directories have not yet been created
 - authenticated role and workflow testing has not started
@@ -33,6 +36,10 @@
 
 ## Questions for design
 None at Stage 0.
+
+## Latest audit
+- `docs/AUDIT-2026-07-24.md`
+- Verdict: bridge sound; Stage 1 may begin after the status correction and Stage 0 bypass guard are merged.
 
 ## Deployed
 https://maxsolutionsmiss.github.io/MaxDock-v2/
