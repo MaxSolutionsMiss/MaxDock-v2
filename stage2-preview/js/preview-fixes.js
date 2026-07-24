@@ -2,6 +2,14 @@
   const previewRoot = '/MaxDock-v2/stage2-preview/';
   const productionLogo = '/MaxDock-v2/assets/logo-knockout.png';
 
+  function installPreviewSafeguards() {
+    if (document.getElementById('stage2-preview-safeguards')) return;
+    const style = document.createElement('style');
+    style.id = 'stage2-preview-safeguards';
+    style.textContent = '.modal-backdrop[hidden]{display:none;}';
+    document.head.append(style);
+  }
+
   function repairPreviewAssets(root = document) {
     root.querySelectorAll?.('img').forEach(image => {
       const source = image.getAttribute('src') || '';
@@ -31,6 +39,8 @@
     });
     document.body.append(badge);
   }
+
+  installPreviewSafeguards();
 
   const observer = new MutationObserver(records => {
     for (const record of records) {
