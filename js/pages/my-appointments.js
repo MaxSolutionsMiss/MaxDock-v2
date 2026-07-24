@@ -37,7 +37,7 @@ function statusLabel(value) {
 
 function isUpcoming(record, now = Date.now()) {
   return !TERMINAL_STATUSES.has(normaliseStatus(record.status))
-    && new Date(record.start_at).getTime() >= now;
+    && format.epoch(record.start_at) >= now;
 }
 
 function filterRecords(view, rows) {
@@ -55,7 +55,7 @@ function filterRecords(view, rows) {
 }
 
 function sortRecords(rows) {
-  return [...rows].sort((left, right) => new Date(left.start_at) - new Date(right.start_at));
+  return [...rows].sort((left, right) => format.compareChronologically(left.start_at, right.start_at));
 }
 
 function appointmentTime(record) {
@@ -220,216 +220,119 @@ function renderNextAppointment() {
   const reference = createElement('div', 'next-appointment__reference');
   reference.append(
     createElement('span', 'next-appointment__reference-label', 'Booking reference'),
-    createElement('strong', 'data', next.booking_reference),
+    createElement('strong', 'next-appointment__reference-value data', next.booking_reference),
   );
   hosts.next.append(summary, reference);
 }
 
-function renderList() {
-  const visible = activeView === 'upcoming'
-    ? sortRecords(filterRecords(activeView, records))
-    : sortRecords(filterRecords(activeView, records)).reverse();
-
+function renderAppointments() {
+  const visible = sortRecords(filterRecords(activeView, records));
   hosts.list.replaceChildren();
-  hosts.resultCount.textContent = `${visible.length} ${visible.length === 1 ? 'appointment' : 'appointments'}`;
+  hosts.count.textContent = `${visible.length} ${visible.length === 1 ? 'appointment' : 'appointments'}`;
+
+  for (const [view, label] of Object.entries(VIEW_LABELS)) {
+    const button = hosts.views.querySelector(`[data-view="${view}"]`);
+    if (!button) continue;
+    button.textContent = label;
+    button.setAttribute('aria-pressed', String(view === activeView));
+  }
 
   if (!visible.length) {
-    renderState(hosts.list, {
+    hosts.list.append(renderState({
       type: 'empty',
       title: `No ${VIEW_LABELS[activeView].toLowerCase()} appointments`,
       message: activeView === 'upcoming'
-        ? 'Your next dock appointment will appear here after it is booked.'
-        : `There are no appointments in the ${VIEW_LABELS[activeView].toLowerCase()} view.`,
-    });
+        ? 'When an appointment is booked, its confirmation and current status will appear here.'
+        : 'There are no appointments in this view.',
+    }));
     return;
   }
 
   const fragment = document.createDocumentFragment();
-  visible.forEach(record => fragment.append(createAppointmentCard(record)));
+  for (const record of visible) fragment.append(createAppointmentCard(record));
   hosts.list.append(fragment);
 }
 
-function renderAll() {
+function renderPage() {
   renderMetrics();
   renderNextAppointment();
-  renderList();
+  renderAppointments();
+  hosts.updated.textContent = `Updated ${format.time(format.nowIso(), activeContext?.location)}`;
 }
 
-async function loadAppointments() {
-  const result = await db.rpc('list_my_appointments', {}, {
-    key: 'rpc:list_my_appointments',
-    cache: 0,
-    retry: 1,
-    userMessage: 'Your appointments could not be loaded.',
+function renderLoadError(error) {
+  hosts.metrics.replaceChildren();
+  hosts.next.replaceChildren();
+  hosts.count.textContent = '';
+  hosts.list.replaceChildren(renderState({
+    type: 'error',
+    title: 'Appointments are temporarily unavailable',
+    message: error.userMessage || 'MaxDock could not load your appointments. Your session is still active.',
+    primaryLabel: 'Try again',
+    onPrimary: () => refreshData(true),
+  }));
+}
+
+async function loadAppointments({ force = false } = {}) {
+  const response = await db.rpc('list_my_appointments', {}, {
+    key: 'appointments:mine',
+    ttl: 4000,
+    force,
+    userMessage: 'MaxDock could not load your appointments.',
   });
-  return Array.isArray(result) ? result : [];
+  return Array.isArray(response.data) ? response.data : [];
 }
 
 async function refreshData(force = false) {
-  if (force) db.invalidate('rpc:list_my_appointments');
-  const nextRecords = await loadAppointments();
-  records = nextRecords;
-  renderAll();
-  hosts.updated.textContent = `Updated ${format.time(null, activeContext.location)}`;
-  return records;
+  try {
+    const nextRecords = await loadAppointments({ force });
+    records = nextRecords;
+    renderPage();
+  } catch (error) {
+    renderLoadError(error);
+  }
 }
 
-function createViewControl() {
-  const control = createElement('div', 'seg appointment-views');
-  control.setAttribute('aria-label', 'Appointment views');
-
-  Object.entries(VIEW_LABELS).forEach(([value, label]) => {
-    const button = createElement('button', '', label);
-    button.type = 'button';
-    button.dataset.view = value;
-    button.setAttribute('aria-pressed', String(value === activeView));
-    button.addEventListener('click', () => {
-      activeView = value;
-      control.querySelectorAll('button').forEach(item => item.setAttribute('aria-pressed', String(item === button)));
-      renderList();
-    });
-    control.append(button);
-  });
-
-  return control;
-}
-
-function createCancelModal() {
-  const backdrop = createElement('div', 'modal-backdrop');
-  backdrop.hidden = true;
-  backdrop.setAttribute('role', 'presentation');
-
-  const modal = createElement('section', 'modal');
-  modal.setAttribute('role', 'dialog');
-  modal.setAttribute('aria-modal', 'true');
-  modal.setAttribute('aria-labelledby', 'cancel-appointment-title');
-
-  const title = createElement('h2', 'modal__title', 'Cancel appointment?');
-  title.id = 'cancel-appointment-title';
-  const message = createElement('p', 'modal__message');
-  message.append('This will cancel booking ', createElement('strong', 'data'), '. This action cannot be undone.');
-  const reference = message.querySelector('strong');
-
-  const actions = createElement('div', 'form-actions');
-  const dismiss = createElement('button', 'btn btn--quiet', 'Keep appointment');
-  dismiss.type = 'button';
-  const confirm = createElement('button', 'btn btn--danger', 'Cancel appointment');
-  confirm.type = 'button';
-  dismiss.addEventListener('click', closeCancelModal);
-  confirm.addEventListener('click', confirmCancellation);
-  backdrop.addEventListener('click', event => {
-    if (event.target === backdrop) closeCancelModal();
-  });
-  actions.append(dismiss, confirm);
-  modal.append(title, message, actions);
-  backdrop.append(modal);
-
-  return { backdrop, reference, dismiss, confirm };
-}
-
-function buildPage(context) {
-  const root = context.pageRoot;
-  const head = createElement('div', 'page__head');
-  const heading = createElement('div');
-  heading.append(
-    createElement('h1', 'page__title', 'My appointments'),
-    createElement('p', 'page__sub', context.customerShell ? 'Track your MaxDock bookings' : 'Your bookings across accessible locations'),
-  );
-  const actions = createElement('div', 'page__actions');
-  const updated = createElement('span', 'page-updated muted', 'Loading appointments…');
-  const refresh = createElement('button', 'btn btn--quiet', 'Refresh');
-  refresh.type = 'button';
-  refresh.addEventListener('click', async () => {
-    refresh.disabled = true;
-    try {
-      await refreshData(true);
-      toast('Appointments refreshed.', 'success');
-    } catch (error) {
-      toast(error.userMessage || 'Appointments could not be refreshed.', 'error');
-    } finally {
-      refresh.disabled = false;
-    }
-  });
-  actions.append(updated, refresh);
-  head.append(heading, actions);
-
-  const metrics = createElement('section', 'metric-grid');
-  metrics.setAttribute('aria-label', 'Appointment summary');
-
-  const next = createElement('section', 'panel next-appointment');
-  next.setAttribute('aria-label', 'Next appointment');
-
-  const toolbar = createElement('div', 'appointment-toolbar');
-  const viewControl = createViewControl();
-  const resultCount = createElement('span', 'appointment-toolbar__count muted');
-  toolbar.append(viewControl, resultCount);
-
-  const list = createElement('section', 'appointment-list');
-  list.setAttribute('aria-live', 'polite');
-
-  const modal = createCancelModal();
-  root.append(head, metrics, next, toolbar, list, modal.backdrop);
-
-  return {
-    metrics,
-    next,
-    list,
-    resultCount,
-    updated,
-    cancelModal: modal.backdrop,
-    cancelReference: modal.reference,
-    cancelDismiss: modal.dismiss,
-    cancelConfirm: modal.confirm,
+function cacheHosts() {
+  hosts = {
+    metrics: document.querySelector('[data-appointment-metrics]'),
+    next: document.querySelector('[data-next-appointment]'),
+    views: document.querySelector('[data-appointment-views]'),
+    count: document.querySelector('[data-appointment-count]'),
+    updated: document.querySelector('[data-appointment-updated]'),
+    list: document.querySelector('[data-appointment-list]'),
+    cancelModal: document.querySelector('[data-cancel-modal]'),
+    cancelReference: document.querySelector('[data-cancel-reference]'),
+    cancelConfirm: document.querySelector('[data-cancel-confirm]'),
+    cancelDismiss: document.querySelector('[data-cancel-dismiss]'),
   };
 }
 
-const page = {
-  code: 'my-appointments',
-  permissions: ['appointment.view_own', 'appointment.view'],
+function bindInteractions() {
+  hosts.views.addEventListener('click', event => {
+    const button = event.target.closest('[data-view]');
+    if (!button) return;
+    activeView = button.dataset.view;
+    renderAppointments();
+  });
 
-  async mount(context) {
-    document.title = 'My appointments · MaxDock';
-    activeContext = context;
-    hosts = buildPage(context);
+  hosts.cancelDismiss.addEventListener('click', closeCancelModal);
+  hosts.cancelConfirm.addEventListener('click', confirmCancellation);
+  hosts.cancelModal.addEventListener('click', event => {
+    if (event.target === hosts.cancelModal) closeCancelModal();
+  });
+  document.addEventListener('keydown', event => {
+    if (event.key === 'Escape' && !hosts.cancelModal.hidden) closeCancelModal();
+  });
+}
 
-    try {
-      await refreshData(true);
-      poll.start({
-        interval: 5000,
-        fetch: loadAppointments,
-        apply: nextRecords => {
-          records = nextRecords;
-          renderAll();
-          hosts.updated.textContent = `Updated ${format.time(null, activeContext.location)}`;
-        },
-        onStale: () => {
-          hosts.updated.textContent = 'Showing last loaded appointments';
-        },
-      });
-    } catch (error) {
-      renderState(hosts.list, {
-        type: 'error',
-        title: 'Appointments could not be loaded',
-        message: error.userMessage || 'MaxDock could not load your appointments.',
-        actions: [{ id: 'retry-appointments', label: 'Try again', primary: true, onClick: () => refreshData(true) }],
-      });
-      hosts.updated.textContent = 'Not updated';
-    }
-  },
+startPage({ requiredPermission: 'appointments.view_own' }).then(async context => {
+  if (!context) return;
+  activeContext = context;
+  cacheHosts();
+  bindInteractions();
+  await refreshData(true);
 
-  async refresh() {
-    await refreshData(true);
-  },
-
-  destroy() {
-    poll.stop();
-    closeCancelModal();
-    activeContext = null;
-    records = [];
-    hosts = null;
-  },
-};
-
-startPage(page);
-
-export const { mount, refresh, destroy } = page;
+  poll.start('my-appointments', () => refreshData(false), 5000);
+  window.addEventListener('pagehide', () => poll.stop('my-appointments'), { once: true });
+});
