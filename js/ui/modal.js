@@ -19,6 +19,13 @@ function visibleFocusable(root) {
   });
 }
 
+function setBackdropVisibility(backdrop, visible) {
+  backdrop.hidden = !visible;
+  backdrop.setAttribute('aria-hidden', String(!visible));
+  if (visible) backdrop.style.removeProperty('display');
+  else backdrop.style.display = 'none';
+}
+
 export function createModal(backdrop, options = {}) {
   if (!backdrop) throw new Error('A modal backdrop element is required.');
 
@@ -80,18 +87,19 @@ export function createModal(backdrop, options = {}) {
     if (isOpen) return;
     returnFocus = trigger || document.activeElement;
     isOpen = true;
-    backdrop.hidden = false;
-    backdrop.setAttribute('aria-hidden', 'false');
+    setBackdropVisibility(backdrop, true);
     document.body.classList.add('modal-open');
     poll.suspend(suspensionReason);
     requestAnimationFrame(() => resolveInitialFocus()?.focus());
   }
 
   function close({ restoreFocus = true } = {}) {
-    if (!isOpen) return;
+    if (!isOpen) {
+      setBackdropVisibility(backdrop, false);
+      return;
+    }
     isOpen = false;
-    backdrop.hidden = true;
-    backdrop.setAttribute('aria-hidden', 'true');
+    setBackdropVisibility(backdrop, false);
     document.body.classList.remove('modal-open');
     poll.resume(suspensionReason);
 
@@ -109,7 +117,7 @@ export function createModal(backdrop, options = {}) {
   }
 
   dialog.tabIndex = -1;
-  backdrop.setAttribute('aria-hidden', String(backdrop.hidden));
+  setBackdropVisibility(backdrop, isOpen);
   backdrop.addEventListener('click', onBackdropClick);
   document.addEventListener('keydown', onKeyDown, true);
 
