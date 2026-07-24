@@ -17,24 +17,35 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build:
+  validate:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
-      - run: npm install --no-audit --no-fund
-      - run: npm run build
-        env:
-          VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
-          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
+          node-version: '20'
+      - name: Verify design conformance
+        run: node scripts/verify-maxdock.mjs
+      - name: Verify implementation architecture
+        run: node scripts/verify-maxdock-implementation.mjs
+      - name: Test conformance checkers
+        run: node scripts/test-verifiers.mjs
+      - name: Verify Stage 1 shell files
+        run: node scripts/verify-stage1-shell.mjs
+      - name: Prepare static site artifact
+        if: github.event_name != 'pull_request'
+        shell: bash
+        run: |
+          rm -rf _site
+          mkdir -p _site
+          cp index.html _site/
+          cp -R app assets js _site/
       - uses: actions/configure-pages@v5
         if: github.event_name != 'pull_request'
       - uses: actions/upload-pages-artifact@v3
         if: github.event_name != 'pull_request'
         with:
-          path: dist
+          path: _site
 
   deploy:
     if: github.event_name != 'pull_request'
@@ -42,7 +53,7 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
-    needs: build
+    needs: validate
     steps:
       - name: Deploy
         id: deployment
