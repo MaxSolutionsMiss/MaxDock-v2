@@ -1,0 +1,21 @@
+const maxSolutionsMark = 'data:image/png;base64,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';
+
+type LogoProps = {
+  compact?: boolean;
+  large?: boolean;
+};
+
+export function Logo({ compact = false, large = false }: LogoProps) {
+  const classes = ['brand'];
+  if (compact) classes.push('brand--compact');
+  if (large) classes.push('brand--large');
+
+  return (
+    <div className={classes.join(' ')} aria-label="MaxDock by Max Solutions">
+      <span className="brand__mark" aria-hidden="true">
+        <img src={maxSolutionsMark} alt="" />
+      </span>
+      <span className="brand__name">MaxDock</span>
+    </div>
+  );
+}
