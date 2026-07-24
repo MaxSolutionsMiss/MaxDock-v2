@@ -1,10 +1,12 @@
 # MaxDock Implementation Status
 
 **Updated:** 2026-07-24  
-**Current stage:** 1 of 8 — Shell  
 **Branch:** `chore/stage1-tap-target-correction`  
-**Pull request:** Draft PR pending creation  
+**Pull request:** PR #7  
 **Deployed:** Stage 1 shell deployed from merged PR #5 at `https://maxsolutionsmiss.github.io/MaxDock-v2/`
+
+## Stage
+1 of 8 — Shell
 
 ## Completed
 
