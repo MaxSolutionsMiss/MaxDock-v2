@@ -1,6 +1,5 @@
 import { db } from '../db.js';
 import { format } from '../format.js';
-import { poll } from '../poll.js';
 import { startPage } from '../router.js';
 import { renderState } from '../ui/empty.js';
 import { toast } from '../ui/toast.js';
@@ -19,6 +18,7 @@ let records = [];
 let activeView = 'upcoming';
 let hosts = null;
 let cancelTarget = null;
+let interactionCleanup = [];
 
 function createElement(tag, className, text) {
   const element = document.createElement(tag);
@@ -59,7 +59,8 @@ function sortRecords(rows) {
 }
 
 function appointmentTime(record) {
-  return `${format.date(record.start_at, { timezone: record.location_timezone })} · ${format.time(record.start_at, { timezone: record.location_timezone })}–${format.time(record.end_at, { timezone: record.location_timezone })}`;
+  const location = { timezone: record.location_timezone };
+  return `${format.date(record.start_at, location)} · ${format.time(record.start_at, location)}–${format.time(record.end_at, location)}`;
 }
 
 function detailValue(value, fallback = '—') {
@@ -126,7 +127,7 @@ function openCancelModal(record) {
 
 function closeCancelModal() {
   cancelTarget = null;
-  hosts.cancelModal.hidden = true;
+  if (hosts?.cancelModal) hosts.cancelModal.hidden = true;
   document.body.classList.remove('modal-open');
 }
 
@@ -141,7 +142,7 @@ async function confirmCancellation() {
       retry: 0,
       userMessage: 'The appointment could not be cancelled.',
     });
-    db.invalidate('rpc:list_my_appointments');
+    db.invalidate('appointments:mine');
     closeCancelModal();
     toast('Appointment cancelled.', 'success');
     await refreshData(true);
@@ -238,13 +239,13 @@ function renderAppointments() {
   }
 
   if (!visible.length) {
-    hosts.list.append(renderState({
+    renderState(hosts.list, {
       type: 'empty',
       title: `No ${VIEW_LABELS[activeView].toLowerCase()} appointments`,
       message: activeView === 'upcoming'
         ? 'When an appointment is booked, its confirmation and current status will appear here.'
         : 'There are no appointments in this view.',
-    }));
+    });
     return;
   }
 
@@ -264,75 +265,176 @@ function renderLoadError(error) {
   hosts.metrics.replaceChildren();
   hosts.next.replaceChildren();
   hosts.count.textContent = '';
-  hosts.list.replaceChildren(renderState({
+  renderState(hosts.list, {
     type: 'error',
     title: 'Appointments are temporarily unavailable',
     message: error.userMessage || 'MaxDock could not load your appointments. Your session is still active.',
-    primaryLabel: 'Try again',
-    onPrimary: () => refreshData(true),
-  }));
+    actions: [{
+      id: 'retry-appointments',
+      label: 'Try again',
+      primary: true,
+      onClick: () => refreshData(true),
+    }],
+  });
 }
 
 async function loadAppointments({ force = false } = {}) {
+  if (force) db.invalidate('appointments:mine');
   const response = await db.rpc('list_my_appointments', {}, {
     key: 'appointments:mine',
-    ttl: 4000,
-    force,
+    cache: 4000,
     userMessage: 'MaxDock could not load your appointments.',
   });
-  return Array.isArray(response.data) ? response.data : [];
+  return Array.isArray(response) ? response : [];
 }
 
 async function refreshData(force = false) {
   try {
-    const nextRecords = await loadAppointments({ force });
-    records = nextRecords;
+    records = await loadAppointments({ force });
     renderPage();
   } catch (error) {
     renderLoadError(error);
   }
 }
 
-function cacheHosts() {
+function createViewControls() {
+  const views = createElement('div', 'seg appointment-views');
+  views.dataset.appointmentViews = '';
+  views.setAttribute('aria-label', 'Appointment view');
+  for (const [view, label] of Object.entries(VIEW_LABELS)) {
+    const button = createElement('button', '', label);
+    button.type = 'button';
+    button.dataset.view = view;
+    button.setAttribute('aria-pressed', String(view === activeView));
+    views.append(button);
+  }
+  return views;
+}
+
+function buildPage(root, context) {
+  const head = createElement('div', 'page__head');
+  const heading = createElement('div');
+  const title = createElement('h1', 'page__title', 'My appointments');
+  const subtitle = createElement('p', 'page__sub', context.customerShell
+    ? 'View and manage your MaxDock bookings.'
+    : `${context.location.name} · Your bookings`);
+  heading.append(title, subtitle);
+  head.append(heading);
+
+  const metrics = createElement('section', 'metric-grid');
+  metrics.setAttribute('aria-label', 'Appointment summary');
+
+  const next = createElement('section', 'panel next-appointment');
+  next.setAttribute('aria-label', 'Next appointment');
+
+  const toolbar = createElement('div', 'appointment-toolbar');
+  const views = createViewControls();
+  const toolbarMeta = createElement('div', 'appointment-toolbar__meta');
+  const count = createElement('span', 'appointment-toolbar__count data');
+  const updated = createElement('span', 'page-updated muted');
+  toolbarMeta.append(count, updated);
+  toolbar.append(views, toolbarMeta);
+
+  const list = createElement('section', 'appointment-list');
+  list.setAttribute('aria-label', 'Appointments');
+
+  const cancelModal = createElement('div', 'modal-backdrop');
+  cancelModal.hidden = true;
+  const dialog = createElement('section', 'modal');
+  dialog.setAttribute('role', 'dialog');
+  dialog.setAttribute('aria-modal', 'true');
+  dialog.setAttribute('aria-labelledby', 'cancel-appointment-title');
+  const modalTitle = createElement('h2', 'modal__title', 'Cancel this appointment?');
+  modalTitle.id = 'cancel-appointment-title';
+  const modalMessage = createElement('p', 'modal__message');
+  modalMessage.append('Booking ', createElement('strong', 'data'), ' will be cancelled. This cannot be undone.');
+  const cancelReference = modalMessage.querySelector('strong');
+  const modalActions = createElement('div', 'form-actions');
+  const cancelDismiss = createElement('button', 'btn btn--quiet', 'Keep appointment');
+  cancelDismiss.type = 'button';
+  const cancelConfirm = createElement('button', 'btn btn--danger', 'Cancel appointment');
+  cancelConfirm.type = 'button';
+  modalActions.append(cancelDismiss, cancelConfirm);
+  dialog.append(modalTitle, modalMessage, modalActions);
+  cancelModal.append(dialog);
+
+  root.append(head, metrics, next, toolbar, list, cancelModal);
+
   hosts = {
-    metrics: document.querySelector('[data-appointment-metrics]'),
-    next: document.querySelector('[data-next-appointment]'),
-    views: document.querySelector('[data-appointment-views]'),
-    count: document.querySelector('[data-appointment-count]'),
-    updated: document.querySelector('[data-appointment-updated]'),
-    list: document.querySelector('[data-appointment-list]'),
-    cancelModal: document.querySelector('[data-cancel-modal]'),
-    cancelReference: document.querySelector('[data-cancel-reference]'),
-    cancelConfirm: document.querySelector('[data-cancel-confirm]'),
-    cancelDismiss: document.querySelector('[data-cancel-dismiss]'),
+    metrics,
+    next,
+    views,
+    count,
+    updated,
+    list,
+    cancelModal,
+    cancelReference,
+    cancelConfirm,
+    cancelDismiss,
   };
 }
 
 function bindInteractions() {
-  hosts.views.addEventListener('click', event => {
+  const onViewClick = event => {
     const button = event.target.closest('[data-view]');
     if (!button) return;
     activeView = button.dataset.view;
     renderAppointments();
-  });
+  };
+  const onModalClick = event => {
+    if (event.target === hosts.cancelModal) closeCancelModal();
+  };
+  const onKeyDown = event => {
+    if (event.key === 'Escape' && !hosts.cancelModal.hidden) closeCancelModal();
+  };
 
+  hosts.views.addEventListener('click', onViewClick);
   hosts.cancelDismiss.addEventListener('click', closeCancelModal);
   hosts.cancelConfirm.addEventListener('click', confirmCancellation);
-  hosts.cancelModal.addEventListener('click', event => {
-    if (event.target === hosts.cancelModal) closeCancelModal();
-  });
-  document.addEventListener('keydown', event => {
-    if (event.key === 'Escape' && !hosts.cancelModal.hidden) closeCancelModal();
-  });
+  hosts.cancelModal.addEventListener('click', onModalClick);
+  document.addEventListener('keydown', onKeyDown);
+
+  interactionCleanup = [
+    () => hosts?.views.removeEventListener('click', onViewClick),
+    () => hosts?.cancelDismiss.removeEventListener('click', closeCancelModal),
+    () => hosts?.cancelConfirm.removeEventListener('click', confirmCancellation),
+    () => hosts?.cancelModal.removeEventListener('click', onModalClick),
+    () => document.removeEventListener('keydown', onKeyDown),
+  ];
 }
 
-startPage({ requiredPermission: 'appointments.view_own' }).then(async context => {
-  if (!context) return;
-  activeContext = context;
-  cacheHosts();
-  bindInteractions();
-  await refreshData(true);
+const page = {
+  code: 'my-appointments',
+  permissions: ['appointment.view_own', 'appointment.view'],
+  poll: {
+    interval: 5000,
+    fetch: () => loadAppointments(),
+  },
 
-  poll.start('my-appointments', () => refreshData(false), 5000);
-  window.addEventListener('pagehide', () => poll.stop('my-appointments'), { once: true });
-});
+  async mount(context) {
+    document.title = 'My appointments · MaxDock';
+    activeContext = context;
+    records = [];
+    activeView = 'upcoming';
+    buildPage(context.pageRoot, context);
+    bindInteractions();
+    await refreshData(true);
+  },
+
+  async refresh(nextRecords) {
+    records = Array.isArray(nextRecords) ? nextRecords : [];
+    renderPage();
+  },
+
+  destroy() {
+    closeCancelModal();
+    for (const cleanup of interactionCleanup.splice(0)) cleanup();
+    activeContext = null;
+    records = [];
+    hosts = null;
+  },
+};
+
+startPage(page);
+
+export const { mount, refresh, destroy } = page;
