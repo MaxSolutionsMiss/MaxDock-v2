@@ -1,60 +1,55 @@
 # MaxDock Implementation Status
 
 **Updated:** 2026-07-24  
-**Branch:** `chore/stage1-tap-target-correction`  
-**Pull request:** PR #7  
-**Deployed:** Stage 1 shell deployed from merged PR #5 at `https://maxsolutionsmiss.github.io/MaxDock-v2/`
+**Branch:** `feat/stage2-my-appointments`  
+**Pull request:** Draft PR #8  
+**Deployed:** Stage 1 shell remains live at `https://maxsolutionsmiss.github.io/MaxDock-v2/`
 
 ## Stage
-1 of 8 — Shell
+2 of 8 — My Appointments
 
-## Completed
+## Completed on the Stage 2 branch
 
-- Stage 0 bridge, contract, audit and CI hardening are merged.
-- Stage 1 replaced the temporary React/Vite application with the approved static, no-build architecture.
-- Removed `src/`, React, Vite, TypeScript application files, npm build tooling and the old stylesheet completely.
-- Added the static login screen with the approved MaxDock badge and the single permitted full-colour ownership lockup.
-- Added Supabase email/password sign-in, forgot-password recovery, password update and required first-password replacement.
-- Added authenticated profile, permission and RLS-filtered location context using the existing live Supabase API.
-- Added permission-driven staff and customer shells without hard-coded role comparisons.
-- Added saved location and Normal/Large/Larger text preferences.
-- Added session-expiry sign-in overlay, network/reconnect state, no-access state, no-location state, fatal-error state and honest Stage 1 empty states.
-- Added the suspendable five-second polling foundation for later operational stages.
-- Added static GitHub Pages validation and Stage 1 shell verification.
-- Claude’s deployed Stage 1 audit is recorded at `docs/AUDIT-2026-07-24-STAGE1.md`; verdict: Stage 1 passes.
-- Claude corrected the design contract for the 44 px minimum touch-target rule.
-- Updated `docs/maxdock-design-v2.html`, `docs/MAXDOCK_ARCHITECTURE.md`, `docs/MAXDOCK_FUNCTIONAL_SPEC.md` and `scripts/verify-maxdock.mjs` with the approved `--tap: 44px` system and `a11y.tap-target` enforcement.
-- Updated the existing `assets/maxdock.css` in place so buttons, inputs, selects, segmented controls, rail links, skip links and text-only actions use the shared 44 px target without changing type size or adding an override layer.
+- Replaced the My Appointments placeholder with real data from the customer-safe `list_my_appointments` RPC.
+- Added Upcoming, Past, Cancelled and All views, KPI totals and a next-appointment summary.
+- Added appointment details, booking references and Copy confirmation.
+- Added customer-owned cancellation through `cancel_my_appointment` without direct table writes.
+- Added a shared modal component with focus trapping, Escape handling, focus restoration and polling suspension.
+- Added five-second refresh that patches existing appointment cards by appointment ID instead of rebuilding the page.
+- Suspended refresh while an interactive control or modal has focus so an action does not move under the user.
+- Added a saved default appointment view using `get_user_preference` and `save_user_preference`.
+- Kept all current-time and chronological comparisons inside `format.js`.
+- Added responsive Stage 2 styling to the one canonical `assets/maxdock.css` file.
+- Added a Stage 2 repository verifier and wired it into the validation workflow.
 
-## Validation completed
+## Validation completed locally
 
 - Claude design checker: conformant, zero errors and zero warnings.
 - Implementation architecture gate: conformant, zero errors and zero warnings.
 - Stage 1 shell verifier: valid.
-- Uploaded Claude files verified byte-for-byte against the supplied originals.
-- Corrected implementation stylesheet verified byte-for-byte against the locally tested file.
+- Stage 2 verifier: valid.
+- JavaScript syntax checks passed for the page, formatter and shared modal.
+- Mock browser runtime test loaded real-shaped appointment records with no console errors.
+- Cancellation, view filtering, modal Escape/focus restoration and keyboard focus trapping passed in the mock browser test.
+- A five-second refresh updated an existing card in place; the appointment DOM node was preserved.
+- Layout checks passed at 1920, 1440, 1194 and 390 px with Normal, Large and Larger text: no horizontal overflow, no detail clipping and no interactive target below 44 px.
 
-## Not completed
+## Still required before merge
 
-- Authenticated role testing with customer, coordinator, shipping manager, site admin and system admin accounts.
-- Verification that each role sees only permitted navigation and locations.
-- Verification that customer network responses contain no internal dock names or identifiers.
-- Password-recovery email delivery test.
-- Session-expiry overlay test with a real expired session.
-- Offline/reconnect test against the deployed site.
-- Stage 2 — My Appointments.
+- GitHub `validate` and `conformance` checks for the latest Stage 2 commit.
+- Authenticated testing against the live Supabase project as customer, coordinator, shipping manager, site admin and system admin.
+- Customer network-payload verification confirming no internal dock identifiers or other requester data are returned.
+- Ten-minute five-second refresh test against real data.
+- Real offline/reconnect test without reloading the page.
+- Rebook remains dependent on the Stage 3 five-step booking screen; no broken or placeholder rebook link is exposed in Stage 2.
 
 ## Decisions
 
-- The Stage 1 correction changes the existing design token and component rules directly; no secondary stylesheet, override block or patch script was added.
-- Claude-owned files remain complete replacements supplied by Claude, not implementation-authored edits.
-- Stage 2 remains blocked until authenticated role testing is completed.
-
-## Questions for design
-
-1. After this correction deploys, confirm the login controls and text-only actions measure at least 44 px at 390 px width.
-2. Confirm no visual spacing or typography regression was introduced by the larger hit areas.
+- PR #8 remains a draft and `main` remains unchanged until the latest checks pass and the remaining authenticated tests have a safe review path.
+- Stage 2 reads appointments only through `list_my_appointments`; the browser does not select from `appointments` directly.
+- The shared modal is a canonical UI module, not a page-specific workaround.
+- Rebook will be completed with Stage 3 so it opens a real prefilled booking flow rather than a dead link or duplicate appointment.
 
 ## Next action
 
-Merge and deploy the tap-target correction after CI passes, then complete authenticated role testing before starting Stage 2.
+Push the Stage 2 accessibility, patch-refresh, preference and verifier updates to PR #8. After CI passes, establish a reviewable authenticated deployment path and complete the real-role and network-payload tests before requesting merge approval.

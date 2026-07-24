@@ -42,6 +42,10 @@ export const format = Object.freeze({
     return new Date().toISOString();
   },
 
+  nowEpoch() {
+    return Date.now();
+  },
+
   initials(name = '') {
     const parts = String(name).trim().split(/\s+/).filter(Boolean);
     if (!parts.length) return 'MD';

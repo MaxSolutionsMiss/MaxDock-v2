@@ -33,7 +33,8 @@ for (const path of ['src', 'package.json', 'vite.config.ts', 'tsconfig.json', 'e
 }
 
 const status = read('docs/STATUS.md');
-if (!/## Stage\s+1 of 8/i.test(status)) fail('docs/STATUS.md', 'Status does not declare Stage 1 of 8.');
+const stageMatch = status.match(/## Stage\s+\n?\s*(\d+)\s+of\s+8/i);
+if (!stageMatch || Number(stageMatch[1]) < 1) fail('docs/STATUS.md', 'Status must declare Stage 1 or later.');
 
 function walk(dir, out = []) {
   const absolute = join(ROOT, dir);
@@ -98,5 +99,4 @@ if (failures.length) {
   process.exit(1);
 }
 console.log(`  ${htmlFiles.length} HTML · ${Math.round(cssBytes / 1024)} KB CSS · ${Math.round(jsBytes / 1024)} KB JS`);
-console.log('  Stage 1 static shell structure is valid.');
-console.log();
+console.log('  Stage 1 static shell structure is valid.\n');
