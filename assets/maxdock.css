@@ -48,7 +48,7 @@
   --radius-lg: 7px;
   --rail-w: 196px;
   --topbar-h: 52px;
-  --control-h: 36px;
+  --tap: 44px;
   --shadow-overlay: 0 12px 32px rgba(22, 32, 42, 0.16), 0 2px 6px rgba(22, 32, 42, 0.08);
   --motion: 0.12s;
 }
@@ -87,12 +87,15 @@ a { color: var(--dock-deep); }
   color: var(--ink);
   border: 1px solid var(--rule-strong);
   border-radius: var(--radius);
+  min-height: var(--tap);
   padding: var(--s2) var(--s3);
+  display: inline-flex;
+  align-items: center;
 }
 .skip-link:focus { inset-block-start: var(--s3); }
 
 .btn {
-  min-height: var(--control-h);
+  min-height: var(--tap);
   border: 1px solid transparent;
   border-radius: var(--radius);
   padding: 6px 12px;
@@ -111,7 +114,7 @@ a { color: var(--dock-deep); }
 .btn--primary:hover { background: var(--dock-hover); }
 .btn--quiet { background: var(--surface); border-color: var(--rule-strong); }
 .btn--quiet:hover { background: var(--surface-sunk); }
-.btn--ghost { color: var(--ink-muted); padding-inline: var(--s2); }
+.btn--ghost { min-width: var(--tap); color: var(--ink-muted); padding-inline: var(--s2); }
 .btn--ghost:hover { color: var(--ink); background: var(--surface-sunk); }
 .btn--danger { color: var(--stop); border-color: var(--rule-strong); background: var(--surface); }
 .btn--block { width: 100%; }
@@ -123,7 +126,7 @@ a { color: var(--dock-deep); }
 .field__hint { margin: 0; font-size: var(--t-small); color: var(--ink-muted); }
 .input, .select {
   width: 100%;
-  min-height: var(--control-h);
+  min-height: var(--tap);
   border: 1px solid var(--rule-strong);
   border-radius: var(--radius);
   background: var(--surface);
@@ -136,7 +139,7 @@ a { color: var(--dock-deep); }
 .form-actions--stack { display: grid; }
 .form-message { min-height: 1.5em; margin: var(--s3) 0 0; color: var(--stop); font-size: var(--t-small); }
 .form-message--success { color: var(--ok); }
-.text-link { border: 0; background: transparent; color: var(--dock-deep); padding: 0; text-decoration: underline; text-underline-offset: 2px; }
+.text-link { min-height: var(--tap); border: 0; background: transparent; color: var(--dock-deep); padding: 0 var(--s2); display: inline-flex; align-items: center; justify-content: center; text-decoration: underline; text-underline-offset: 2px; }
 
 .seg {
   display: inline-flex;
@@ -146,7 +149,7 @@ a { color: var(--dock-deep); }
   background: var(--surface);
 }
 .seg button {
-  min-height: 30px;
+  min-height: var(--tap);
   border: 0;
   border-inline-end: 1px solid var(--rule);
   padding: 5px 10px;
@@ -186,7 +189,7 @@ a { color: var(--dock-deep); }
 .rail__name { color: var(--white); font-weight: 600; letter-spacing: -0.01em; }
 .rail__group { padding: var(--s4) var(--s2) var(--s1); }
 .rail__label { padding: 0 var(--s3) var(--s2); color: var(--rail-label); font-size: var(--t-micro); font-weight: 600; text-transform: uppercase; letter-spacing: 0.09em; }
-.rail__link { display: flex; align-items: center; gap: var(--s3); min-height: 34px; margin: 1px var(--s1); padding: 7px var(--s3); border-radius: var(--radius); color: var(--rail-ink); text-decoration: none; transition: background-color var(--motion), color var(--motion); }
+.rail__link { display: flex; align-items: center; gap: var(--s3); min-height: var(--tap); margin: 1px var(--s1); padding: 7px var(--s3); border-radius: var(--radius); color: var(--rail-ink); text-decoration: none; transition: background-color var(--motion), color var(--motion); }
 .rail__link:hover { background: var(--rail-hover); color: var(--white); }
 .rail__link[aria-current="page"] { background: var(--dock); color: var(--white); font-weight: 500; }
 .rail__icon { width: 15px; height: 15px; flex: none; stroke: currentColor; fill: none; stroke-width: 1.6; }
