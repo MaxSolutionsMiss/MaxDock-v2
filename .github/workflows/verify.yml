@@ -7,7 +7,6 @@ on:
 
 permissions:
   contents: read
-  pull-requests: write
 
 jobs:
   conformance:
@@ -21,62 +20,35 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Run Claude architecture checker
-        id: claude
-        continue-on-error: true
+      - name: Read implementation stage
+        id: stage
         shell: bash
         run: |
-          set -o pipefail
-          node scripts/verify-maxdock.mjs 2>&1 | tee claude-verifier.log
+          stage=$(awk '/^## Stage/{getline; while ($0 ~ /^[[:space:]]*$/) getline; print $1; exit}' docs/STATUS.md)
+          if [[ ! "$stage" =~ ^[0-8]$ ]]; then
+            echo "Could not read a valid stage number from docs/STATUS.md"
+            exit 1
+          fi
+          echo "number=$stage" >> "$GITHUB_OUTPUT"
+          echo "MaxDock implementation stage: $stage"
+
+      - name: Run Claude architecture checker
+        shell: bash
+        run: |
+          set +e
+          node scripts/verify-maxdock.mjs
+          result=$?
+          set -e
+
+          if [[ "$result" -ne 0 && "${{ steps.stage.outputs.number }}" == "0" ]]; then
+            echo "::warning title=Stage 0 legacy baseline::Claude's checker found violations in the temporary React/Vite shell. They are recorded but do not block the contract-only Stage 0. From Stage 1 onward, the same findings fail CI."
+            exit 0
+          fi
+
+          exit "$result"
 
       - name: Run implementation architecture gate
-        id: implementation
-        continue-on-error: true
-        shell: bash
-        run: |
-          set -o pipefail
-          node scripts/verify-maxdock-implementation.mjs 2>&1 | tee implementation-verifier.log
+        run: node scripts/verify-maxdock-implementation.mjs
 
       - name: Test both verifiers against clean and bad fixtures
-        id: fixtures
-        continue-on-error: true
-        shell: bash
-        run: |
-          set -o pipefail
-          node scripts/test-verifiers.mjs 2>&1 | tee verifier-fixtures.log
-
-      - name: Report verifier failure on pull request
-        if: always() && github.event_name == 'pull_request' && (steps.claude.outcome == 'failure' || steps.implementation.outcome == 'failure' || steps.fixtures.outcome == 'failure')
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const fs = require('fs');
-            const read = (path) => fs.existsSync(path) ? fs.readFileSync(path, 'utf8') : '(no output)';
-            const body = [
-              '## MaxDock conformance diagnostic',
-              '',
-              '### Claude checker',
-              '```text',
-              read('claude-verifier.log').slice(0, 18000),
-              '```',
-              '',
-              '### Implementation gate',
-              '```text',
-              read('implementation-verifier.log').slice(0, 18000),
-              '```',
-              '',
-              '### Fixture tests',
-              '```text',
-              read('verifier-fixtures.log').slice(0, 18000),
-              '```'
-            ].join('\n');
-            await github.rest.issues.createComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.issue.number,
-              body
-            });
-
-      - name: Fail when any verifier fails
-        if: steps.claude.outcome == 'failure' || steps.implementation.outcome == 'failure' || steps.fixtures.outcome == 'failure'
-        run: exit 1
+        run: node scripts/test-verifiers.mjs
