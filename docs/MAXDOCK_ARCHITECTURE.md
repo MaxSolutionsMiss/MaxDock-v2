@@ -211,6 +211,13 @@ across four pages, which is exactly why they never matched.
 
 | Component | Notes |
 |---|---|
+**Every interactive control is at least `var(--tap)` — 44px — tall.** Buttons, inputs, selects,
+text-only actions and navigation links all carry `min-height: var(--tap)`. Padding and type sizes
+are unchanged from the design system; only the hit area grows. This is applied unconditionally
+rather than behind `@media (pointer: coarse)`, because a rule with a condition is a rule someone
+forgets, and this is used on tablets with gloves on. Enforced by `a11y.tap-target` in
+`scripts/verify-maxdock.mjs`.
+
 | `kpis` | grid, per-user selection and order, persisted to `user_preferences` |
 | `table` | sort, column visibility, sticky header, CSV export, print, empty state |
 | `board` | doors × time grid, interval control, no vertical scroll |
@@ -301,6 +308,9 @@ Measured against the old build's ~617 KB of JavaScript and 36 stylesheets per pa
 If a page needs a 24th script, that is the signal the architecture has drifted — the same signal
 that was ignored last time.
 
+| `!important` | 0 |
+| Interactive controls below 44px | 0 |
+
 ---
 
 ## 12. Repository and deploy
@@ -349,6 +359,7 @@ Not "it looks right". These, on every screen:
 - customer session contains **no** internal field anywhere in any network response — check the
   payload, not the screen
 - network disconnected for 30s, then restored, with no reload
+- every interactive control at least 44px tall, measured — not eyeballed
 - keyboard only, start to finish
 - times correct on a DST transition date
 

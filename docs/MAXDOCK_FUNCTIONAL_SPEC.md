@@ -343,6 +343,9 @@ not bugs to fix individually.
    applications, which is why fixes appeared not to stick. Protect the published branch.
 8. Keep the no-build static-hosting model. It works and it is easy to deploy.
 9. **One logo in the app.** The badge everywhere; the Max Solutions lockup on login only.
+10. **Every interactive control is at least 44px tall** via `min-height: var(--tap)` — buttons,
+    inputs, selects, text-only actions and navigation links. Type and padding are unchanged;
+    only the hit area grows. This is a warehouse tool used on tablets with gloves on.
 
 ---
 
