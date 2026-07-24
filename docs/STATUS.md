@@ -3,7 +3,7 @@
 **Updated:** 2026-07-24  
 **Current stage:** 1 of 8 — Shell  
 **Branch:** `chore/stage1-tap-target-correction`  
-**Pull request:** Pending  
+**Pull request:** Draft PR pending creation  
 **Deployed:** Stage 1 shell deployed from merged PR #5 at `https://maxsolutionsmiss.github.io/MaxDock-v2/`
 
 ## Completed
