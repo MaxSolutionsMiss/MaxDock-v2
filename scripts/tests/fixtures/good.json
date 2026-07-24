@@ -1,0 +1,18 @@
+{
+  "docs/maxdock-design-v2.html": "<!doctype html><title>Design</title>",
+  "docs/MAXDOCK_FUNCTIONAL_SPEC.md": "# Functional",
+  "docs/MAXDOCK_ARCHITECTURE.md": "# Architecture",
+  "docs/MAXDOCK_BRIDGE.md": "# Bridge",
+  "docs/STATUS.md": "# Status\n\n## Stage\n1 of 8 — Shell\n",
+  "assets/maxdock.css": ":root { --scale: 1; --motion: 120ms; --dock: #0e5c63; }\nbody { font-size: calc(13px * var(--scale)); color: var(--dock); transition: opacity var(--motion); }\n",
+  "assets/logo-knockout.png": "fixture",
+  "assets/logo-color.png": "fixture",
+  "index.html": "<!doctype html><html><head><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><link rel=\"stylesheet\" href=\"assets/maxdock.css\"></head><body><img src=\"assets/logo-color.png\" alt=\"Max Solutions\"><script src=\"https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2\"></script><script src=\"js/db.js\"></script><script src=\"js/session.js\"></script><script src=\"js/format.js\"></script><script src=\"js/router.js\"></script></body></html>",
+  "app/board.html": "<!doctype html><html><head><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><link rel=\"stylesheet\" href=\"../assets/maxdock.css\"></head><body><img src=\"../assets/logo-knockout.png\" alt=\"MaxDock\"><script src=\"../js/db.js\"></script><script src=\"../js/session.js\"></script><script src=\"../js/format.js\"></script><script src=\"../js/router.js\"></script><script src=\"../js/poll.js\"></script><script src=\"../js/pages/board.js\"></script></body></html>",
+  "js/db.js": "const client = createClient('https://example.supabase.co', 'sb_publishable_fixture');\nexport { client };\n",
+  "js/session.js": "export async function restoreSession(){ return null; }\n",
+  "js/router.js": "export function boot(){}\n",
+  "js/format.js": "export function hour(value){ return new Date(value).getHours(); }\n",
+  "js/poll.js": "export function suspend(){}\nexport function resume(){}\ndocument.addEventListener('visibilitychange', () => document.visibilityState);\n",
+  "js/pages/board.js": "export async function mount(){}\nexport async function refresh(){}\nexport function destroy(){}\n"
+}

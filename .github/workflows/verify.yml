@@ -1,0 +1,54 @@
+name: Verify MaxDock Conformance
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  conformance:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Read implementation stage
+        id: stage
+        shell: bash
+        run: |
+          stage=$(awk '/^## Stage/{getline; while ($0 ~ /^[[:space:]]*$/) getline; print $1; exit}' docs/STATUS.md)
+          if [[ ! "$stage" =~ ^[0-8]$ ]]; then
+            echo "Could not read a valid stage number from docs/STATUS.md"
+            exit 1
+          fi
+          echo "number=$stage" >> "$GITHUB_OUTPUT"
+          echo "MaxDock implementation stage: $stage"
+
+      - name: Run Claude architecture checker
+        shell: bash
+        run: |
+          set +e
+          node scripts/verify-maxdock.mjs
+          result=$?
+          set -e
+
+          if [[ "$result" -ne 0 && "${{ steps.stage.outputs.number }}" == "0" ]]; then
+            echo "::warning title=Stage 0 legacy baseline::Claude's checker found violations in the temporary React/Vite shell. They are recorded but do not block the contract-only Stage 0. From Stage 1 onward, the same findings fail CI."
+            exit 0
+          fi
+
+          exit "$result"
+
+      - name: Run implementation architecture gate
+        run: node scripts/verify-maxdock-implementation.mjs
+
+      - name: Test both verifiers against clean and bad fixtures
+        run: node scripts/test-verifiers.mjs

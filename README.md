@@ -1,67 +1,40 @@
 # MaxDock v2
 
-Clean second-generation frontend for MaxDock, using the approved dock-sheet design system and Max Solutions brand badge.
+MaxDock v2 is the controlled replacement for the existing MaxDock dock-appointment system.
 
-## Architecture rules
+## Current status
 
-- One React application and one routing system.
-- One global stylesheet; no DB-numbered patch layers.
-- Shared controls are React components and are created once.
-- No runtime script injection.
-- No MutationObservers for page construction.
-- Supabase remains the scheduling and security engine.
-- The existing MaxDock site remains untouched until controlled cutover.
+The React/Vite application currently deployed from `main` is a temporary visual foundation only. It is **not** the approved production architecture and must not receive additional operational features.
 
-## Stack
+The production rebuild will replace that shell stage by stage using the static, no-build architecture defined in `/docs`.
 
-- React + TypeScript
-- Vite
-- React Router with hash routing for GitHub Pages
-- Supabase JS
-- Plain CSS design system
-- IBM Plex Sans + IBM Plex Mono
-- Shared Max Solutions brand asset
+## Authoritative contract
 
-## Local setup
+These three files are the sole source of truth for all new work:
 
-```bash
-npm install
-cp .env.example .env.local
-npm run dev
-```
+- [`docs/maxdock-design-v2.html`](docs/maxdock-design-v2.html) — visual design, tokens and reference screens
+- [`docs/MAXDOCK_FUNCTIONAL_SPEC.md`](docs/MAXDOCK_FUNCTIONAL_SPEC.md) — roles, workflows, business rules and Supabase RPC usage
+- [`docs/MAXDOCK_ARCHITECTURE.md`](docs/MAXDOCK_ARCHITECTURE.md) — repository structure, module ownership, performance and acceptance rules
 
-Set:
+When implementation reveals a design or functional conflict, the relevant document must be updated and approved before the code changes. The application must never silently drift away from the contract.
 
-```text
-VITE_SUPABASE_URL=...
-VITE_SUPABASE_PUBLISHABLE_KEY=...
-```
+## Implementation rules
 
-## Build
+- Static multi-page application; no React, Vite, npm or bundler in the production replacement.
+- One stylesheet: `assets/maxdock.css`.
+- One Supabase network module: `js/db.js`.
+- No DB-numbered patch files, runtime script injection, layout MutationObservers or `!important` declarations.
+- Business rules remain in the existing Supabase RPCs; the browser does not recreate scheduling logic.
+- Customer screens use customer-safe data sources and do not render internal operational fields.
+- Location times are always displayed in the location timezone, never implicitly in the browser timezone.
+- Every implementation stage uses a separate branch and draft pull request.
+- No automatic merging or production cutover.
 
-```bash
-npm run build
-```
+## Brand assets
 
-## Foundation scope
+- `assets/logo-knockout.png` — MaxDock badge mark used throughout the application.
+- `assets/logo-color.png` — full Max Solutions attribution used on the login page only.
 
-The first foundation contains:
+## Controlled transition
 
-- responsive application shell
-- permanent primary navigation
-- neutral location selector
-- Supabase email/password authentication
-- profile loading
-- login screen and password-recovery placement
-- dashboard visual direction
-- placeholder routes for booking, appointments, queue, reports, and settings
-
-The next implementation step is the real **Request Dock Appointment** workflow using the existing Supabase RPC functions.
-
-## Design source of truth
-
-- `docs/maxdock-design-reference.html` — approved visual reference and screens
-- `DESIGN_SYSTEM.md` — implementation contract
-- the shared `Logo` component — supplied white Max Solutions mark embedded once
-
-The white mark is always rendered inside the teal badge until a dark-ink version is supplied for print, email, favicon, and other light surfaces.
+The existing MaxDock site remains available until each replacement screen is built, tested against real data, audited against the contract and explicitly approved for cutover.

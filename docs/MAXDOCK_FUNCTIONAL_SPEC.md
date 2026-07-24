@@ -1,11 +1,17 @@
 # MaxDock — Functional Specification for the Rebuild
 
-Companion to `maxdock-design-reference.html`. That file is how it should look.
+Companion to `maxdock-design-v2.html`. That file is how it should look.
 This is what it has to **do**.
 
 Everything below was read directly from the live application and the production Supabase
 project `rywzqepzramurbrpmept` on 23 July 2026. It is not a wish list — it is an inventory
 of what already exists and must survive the rebuild.
+
+| File | Answers |
+|---|---|
+| `maxdock-design-v2.html` | What it looks like |
+| **`MAXDOCK_FUNCTIONAL_SPEC.md`** | **What it does — this file** |
+| `MAXDOCK_ARCHITECTURE.md` | How it is built |
 
 > **The single most important fact for whoever builds this:**
 > The scheduling engine is **not** in the JavaScript. It lives in **52 Postgres functions**,

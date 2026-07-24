@@ -6,7 +6,7 @@ Third document in the set.
 |---|---|
 | `maxdock-design-v2.html` | What it looks like |
 | `MAXDOCK_FUNCTIONAL_SPEC.md` | What it does |
-| **this** | **How it is built** |
+| **`MAXDOCK_ARCHITECTURE.md`** | **How it is built — this file** |
 
 Written for whoever implements it. Where I have made a call you did not ask for, it is marked
 **Decision** with the reasoning, so you can overrule it knowing what it costs.
@@ -76,7 +76,9 @@ palette. If a second usage appears in a pull request, that is a review failure.
       board.js  queue.js  my-appointments.js  book.js
       reports.js  settings.js  users.js  data.js  display.js
   /docs
-    design-system.html  functional-spec.md  architecture.md   ← this file
+    maxdock-design-v2.html          design system, tokens, screens
+    MAXDOCK_FUNCTIONAL_SPEC.md      roles, RPCs, rules, screens
+    MAXDOCK_ARCHITECTURE.md         this file
     decisions/          one short file per decision, dated
 ```
 
@@ -357,7 +359,7 @@ Not "it looks right". These, on every screen:
 You asked how this works between us. It works through the repository — not through either of us
 describing things to the other.
 
-**The three documents in `/docs/` are the contract.** They get committed to the new repository on
+**The three documents in `/docs/` are the contract** — `maxdock-design-v2.html`, `MAXDOCK_FUNCTIONAL_SPEC.md` and `MAXDOCK_ARCHITECTURE.md`, committed under those exact filenames so a reference in one always resolves in the others. They get committed to the new repository on
 day one, before any code. ChatGPT implements against them and has full autonomy over
 implementation, commits, deployment and Supabase.
 
