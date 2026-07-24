@@ -3,9 +3,11 @@ name: Verify MaxDock Conformance
 on:
   pull_request:
   push:
+    branches: [main]
 
 permissions:
   contents: read
+  pull-requests: write
 
 jobs:
   conformance:
@@ -20,10 +22,61 @@ jobs:
           node-version: '20'
 
       - name: Run Claude architecture checker
-        run: node scripts/verify-maxdock.mjs
+        id: claude
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          node scripts/verify-maxdock.mjs 2>&1 | tee claude-verifier.log
 
       - name: Run implementation architecture gate
-        run: node scripts/verify-maxdock-implementation.mjs
+        id: implementation
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          node scripts/verify-maxdock-implementation.mjs 2>&1 | tee implementation-verifier.log
 
       - name: Test both verifiers against clean and bad fixtures
-        run: node scripts/test-verifiers.mjs
+        id: fixtures
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          node scripts/test-verifiers.mjs 2>&1 | tee verifier-fixtures.log
+
+      - name: Report verifier failure on pull request
+        if: always() && github.event_name == 'pull_request' && (steps.claude.outcome == 'failure' || steps.implementation.outcome == 'failure' || steps.fixtures.outcome == 'failure')
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const read = (path) => fs.existsSync(path) ? fs.readFileSync(path, 'utf8') : '(no output)';
+            const body = [
+              '## MaxDock conformance diagnostic',
+              '',
+              '### Claude checker',
+              '```text',
+              read('claude-verifier.log').slice(0, 18000),
+              '```',
+              '',
+              '### Implementation gate',
+              '```text',
+              read('implementation-verifier.log').slice(0, 18000),
+              '```',
+              '',
+              '### Fixture tests',
+              '```text',
+              read('verifier-fixtures.log').slice(0, 18000),
+              '```'
+            ].join('\n');
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body
+            });
+
+      - name: Fail when any verifier fails
+        if: steps.claude.outcome == 'failure' || steps.implementation.outcome == 'failure' || steps.fixtures.outcome == 'failure'
+        run: exit 1
