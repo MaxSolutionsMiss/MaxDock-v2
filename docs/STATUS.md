@@ -22,7 +22,7 @@
 - Added responsive Stage 2 styling to the one canonical `assets/maxdock.css` file.
 - Added a Stage 2 repository verifier and wired it into the validation workflow.
 
-## Validation completed locally
+## Validation completed
 
 - Claude design checker: conformant, zero errors and zero warnings.
 - Implementation architecture gate: conformant, zero errors and zero warnings.
@@ -33,10 +33,10 @@
 - Cancellation, view filtering, modal Escape/focus restoration and keyboard focus trapping passed in the mock browser test.
 - A five-second refresh updated an existing card in place; the appointment DOM node was preserved.
 - Layout checks passed at 1920, 1440, 1194 and 390 px with Normal, Large and Larger text: no horizontal overflow, no detail clipping and no interactive target below 44 px.
+- Latest GitHub `validate` and `conformance` checks passed on the Stage 2 head commit.
 
 ## Still required before merge
 
-- GitHub `validate` and `conformance` checks for the latest Stage 2 commit.
 - Authenticated testing against the live Supabase project as customer, coordinator, shipping manager, site admin and system admin.
 - Customer network-payload verification confirming no internal dock identifiers or other requester data are returned.
 - Ten-minute five-second refresh test against real data.
@@ -45,11 +45,11 @@
 
 ## Decisions
 
-- PR #8 remains a draft and `main` remains unchanged until the latest checks pass and the remaining authenticated tests have a safe review path.
+- PR #8 remains a draft and `main` remains unchanged until the remaining authenticated tests have a safe review path.
 - Stage 2 reads appointments only through `list_my_appointments`; the browser does not select from `appointments` directly.
 - The shared modal is a canonical UI module, not a page-specific workaround.
 - Rebook will be completed with Stage 3 so it opens a real prefilled booking flow rather than a dead link or duplicate appointment.
 
 ## Next action
 
-Push the Stage 2 accessibility, patch-refresh, preference and verifier updates to PR #8. After CI passes, establish a reviewable authenticated deployment path and complete the real-role and network-payload tests before requesting merge approval.
+Establish a reviewable authenticated deployment path, then complete the real-role, customer network-payload, ten-minute refresh and offline/reconnect tests before requesting merge approval.
