@@ -313,6 +313,16 @@ not bugs to fix individually.
 
 ---
 
+## 6b. Branding
+
+- The **teal badge with the knocked-out Max Solutions mark** is the MaxDock identity. It is the
+  only logo used in the application — rail, wall display, printed dock sheets, emails, PDFs,
+  favicon. It is square, so it scales from 22px to 56px without a layout exception.
+- The **full Max Solutions colour lockup appears on the login page only**, once, as ownership
+  attribution beneath the sign-in card. Nowhere else in the product.
+- Brand blue `#0082CB` is the interface colour. Brand green `#3AAE2A` exists for the logo alone —
+  green in an operations tool has to mean "complete".
+
 ## 7. Architecture rules for the new build
 
 1. **One stylesheet.** Never a `maxdock-dbNN.css`. A visual change edits a token.
@@ -326,6 +336,7 @@ not bugs to fix individually.
 7. **Publish from one branch only.** `main` and `gh-pages` diverged into two different
    applications, which is why fixes appeared not to stick. Protect the published branch.
 8. Keep the no-build static-hosting model. It works and it is easy to deploy.
+9. **One logo in the app.** The badge everywhere; the Max Solutions lockup on login only.
 
 ---
 
