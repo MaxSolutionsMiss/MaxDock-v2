@@ -1,0 +1,94 @@
+;border-right:1px solid var(--rule)}
+.seg button:last-child{border-right:none}
+.seg button[aria-pressed="true"]{background:var(--dock);color:#fff}
+
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:var(--s2);margin-bottom:var(--s3);flex:none}
+.kpi{background:var(--surface);border:1px solid var(--rule);border-top:2px solid var(--rule-strong);border-radius:var(--radius-lg);padding:var(--s2) var(--s3)}
+.kpi__label{font-size:var(--t-micro);text-transform:uppercase;letter-spacing:.08em;color:var(--ink-muted);font-weight:600}
+.kpi__value{font-family:var(--font-data);font-size:var(--t-metric);font-weight:500;line-height:1.15}
+.kpi--ok{border-top-color:var(--ok)} .kpi--ok .kpi__value{color:var(--ok)}
+.kpi--signal{border-top-color:var(--signal)} .kpi--signal .kpi__value{color:var(--signal)}
+.kpi--stop{border-top-color:var(--stop)} .kpi--stop .kpi__value{color:var(--stop)}
+
+/* ==========================================================================
+   THE DOCK BOARD
+   Docks across, time down. The grid fills whatever height is left, and the
+   time rows share it with 1fr, so slots grow as tall as the screen allows.
+   Adding doors narrows the columns; it never makes the page scroll.
+   ========================================================================== */
+.board{background:var(--surface);border:1px solid var(--rule);border-radius:var(--radius-lg);display:flex;flex-direction:column;flex:1;min-height:0;overflow:hidden}
+.board__head{display:flex;align-items:center;gap:var(--s3);padding:var(--s2) var(--s3);border-bottom:1px solid var(--rule);flex:none}
+.board__title{font-weight:600;font-size:var(--t-lead)}
+.board__grid{display:grid;flex:1;min-height:0;
+  grid-template-columns:calc(58px * var(--scale)) repeat(var(--docks),minmax(0,1fr));
+  grid-template-rows:auto repeat(var(--rows),minmax(0,1fr))}
+.board__corner,.board__door{background:var(--surface-sunk);border-bottom:1px solid var(--rule-strong);
+  font-family:var(--font-data);font-size:var(--t-small);font-weight:500;
+  display:flex;align-items:center;justify-content:center;border-left:1px solid var(--rule);padding:5px 2px}
+.board__door span{font-size:var(--t-micro);color:var(--ink-muted);font-family:var(--font-ui);display:block}
+.board__time{font-family:var(--font-data);font-size:var(--t-small);color:var(--ink-muted);
+  display:flex;align-items:flex-start;justify-content:flex-end;padding:4px 6px 0 0;border-bottom:1px solid var(--rule);background:var(--surface-sunk)}
+.board__cell{border-bottom:1px solid var(--rule);border-left:1px solid var(--rule);padding:2px;min-width:0;overflow:hidden}
+
+/* a booking. three lines when there is room, two when there is not. */
+.slot{height:100%;border-radius:4px;padding:4px 6px;border-left:3px solid;overflow:hidden;cursor:pointer;display:flex;flex-direction:column;gap:1px}
+.slot__ref{font-family:var(--font-data);font-weight:600;font-size:var(--t-small);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.slot__who{font-size:var(--t-small);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.slot__meta{font-family:var(--font-data);font-size:var(--t-micro);color:var(--ink-muted);margin-top:auto;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.slot--in{background:var(--dock-wash);border-left-color:var(--dock)}
+.slot--out{background:var(--ok-wash);border-left-color:var(--ok)}
+.slot--pri{background:var(--signal-wash);border-left-color:var(--signal)}
+.slot--blk{background:repeating-linear-gradient(45deg,var(--surface-sunk),var(--surface-sunk) 5px,#E4E9EC 5px,#E4E9EC 10px);border-left-color:var(--rule-strong);color:var(--ink-muted);cursor:default;align-items:center;justify-content:center}
+.slot--span2{grid-row:span 2}
+
+.tag{display:inline-flex;align-items:center;font-size:var(--t-micro);font-weight:600;text-transform:uppercase;letter-spacing:.05em;padding:1px 5px;border-radius:3px;align-self:flex-start}
+.tag--ok{background:var(--ok-wash);color:var(--ok)} .tag--pri{background:var(--signal-wash);color:var(--signal)}
+.tag--quiet{background:var(--surface-sunk);color:var(--ink-muted)}
+
+/* --- mobile: the grid becomes a list, grouped by time ---------------------- */
+.mob{display:none}
+@media (max-width:820px){
+  .shell{grid-template-columns:1fr;height:auto;overflow:visible}
+  .rail{flex-direction:row;align-items:center;overflow-x:auto;position:sticky;top:0;z-index:30}
+  .rail__group{display:flex;align-items:center;padding:var(--s2)} .rail__label,.rail__foot{display:none}
+  .desktop-only{display:none}
+  .mob{display:block}
+  .page{padding:var(--s3)}
+}
+.mobrow{background:var(--surface);border:1px solid var(--rule);border-radius:var(--radius-lg);padding:var(--s3);margin-bottom:var(--s2);display:flex;gap:var(--s3);align-items:flex-start;border-left:3px solid var(--dock)}
+.mobrow__time{font-family:var(--font-data);font-weight:600;font-size:var(--t-lead);flex:none;width:64px}
+.mobtime{font-size:var(--t-micro);text-transform:uppercase;letter-spacing:.08em;color:var(--ink-muted);font-weight:600;margin:var(--s3) 0 var(--s2)}
+
+/* --- doc chrome (reference page only) -------------------------------------- */
+.doc{max-width:1240px;margin:0 auto;padding:var(--s6) var(--s5)}
+.doc__eyebrow{font-size:var(--t-micro);text-transform:uppercase;letter-spacing:.14em;color:var(--dock);font-weight:600}
+.doc__h{font-size:calc(23px*var(--scale));font-weight:600;letter-spacing:-.02em;margin:var(--s2) 0}
+.doc__p{color:var(--ink-muted);max-width:68ch;margin:0 0 var(--s4)}
+.doc__section{margin:var(--s7) 0 var(--s5);padding-top:var(--s5);border-top:1px solid var(--rule-strong)}
+.frame{border:1px solid var(--rule-strong);border-radius:var(--radius-lg);overflow:hidden;background:var(--ground);height:660px}
+.frame .shell{height:660px}
+.sw{border:1px solid var(--rule);border-radius:var(--radius);overflow:hidden;background:var(--surface)}
+.swatches{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:var(--s3)}
+.sw__chip{height:46px} .sw__meta{padding:var(--s2) var(--s3);font-size:var(--t-small)}
+.sw__hex{font-family:var(--font-data);color:var(--ink-muted);font-size:calc(11px*var(--scale))}
+.panel{background:var(--surface);border:1px solid var(--rule);border-radius:var(--radius-lg);padding:var(--s4)}
+table.cmp{width:100%;border-collapse:collapse;font-size:var(--t-small)}
+table.cmp th,table.cmp td{text-align:left;padding:7px 10px;border-bottom:1px solid var(--rule)}
+table.cmp th{font-size:var(--t-micro);text-transform:uppercase;letter-spacing:.08em;color:var(--ink-muted);background:var(--surface-sunk)}
+table.cmp td.n{font-family:var(--font-data)}
+</style>
+</head>
+<body>
+<div class="doc">
+  <p class="doc__eyebrow">MaxDock · design system v2</p>
+  <h1 class="doc__h">Built for a shift, not a demo</h1>
+  <p class="doc__p">
+    The people using this are running shipping and receiving. They are often standing, often on a
+    phone or an iPad on the floor, and they look at this dozens of times a shift. Every decision
+    below serves reading it quickly and acting on it — nothing is here to be attractive.
+  </p>
+
+  <!-- 01 BRAND -->
+  <div class="doc__section"><p class="doc__eyebrow">01 · Brand</p>
+  <h2 class="doc__h">Blue leads, green stays with the mark</h2>
+  <p class="doc__p">Sampled from your artwork. Blue is the wordmark colour and the larger share of the mark, so it becomes the interface colour. Green is reserved for the logo and never used in the UI — in an operations tool green has to mean “complete”, and the brand should not compete with a status.</p><div class="panel" style="border-left:3px solid var(--signal);margin-bottom:var(--s4)"><strong>Logo usage — one rule, no exceptions.</strong><br>The <strong>teal badge with the knocked-out mark</strong> is the MaxDock identity. It is the only logo used anywhere in the application: rail, wall display, printed dock sheets, emails, PDFs, favicon.<br>The <strong>full Max Solutions logo appears on the login page and nowhere else</strong>, once, as ownership attribution. It is a wide two-colour loc
