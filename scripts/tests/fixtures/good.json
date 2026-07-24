@@ -4,7 +4,7 @@
   "docs/MAXDOCK_ARCHITECTURE.md": "# Architecture",
   "docs/MAXDOCK_BRIDGE.md": "# Bridge",
   "docs/STATUS.md": "# Status\n\n## Stage\n1 of 8 — Shell\n",
-  "assets/maxdock.css": ":root { --scale: 1; --motion: 120ms; --dock: #0e5c63; }\nbody { font-size: calc(13px * var(--scale)); color: var(--dock); transition: opacity var(--motion); }\n",
+  "assets/maxdock.css": ":root { --scale: 1; --motion: 120ms; --dock: #0e5c63; --tap: 44px; }\nbody { font-size: calc(13px * var(--scale)); color: var(--dock); transition: opacity var(--motion); }\nbutton, .btn, input, .input, textarea, select, .select, .linkBtn, .rail__link { min-height: var(--tap); }\n",
   "assets/logo-knockout.png": "fixture",
   "assets/logo-color.png": "fixture",
   "index.html": "<!doctype html><html><head><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><link rel=\"stylesheet\" href=\"assets/maxdock.css\"></head><body><img src=\"assets/logo-color.png\" alt=\"Max Solutions\"><script src=\"https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2\"></script><script src=\"js/db.js\"></script><script src=\"js/session.js\"></script><script src=\"js/format.js\"></script><script src=\"js/router.js\"></script></body></html>",
