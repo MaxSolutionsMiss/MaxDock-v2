@@ -1,0 +1,41 @@
+name: Align composed page contracts
+on:
+  push:
+    branches: [feat/stage4-dock-board]
+    paths: [.github/workflows/align-composed-pages.yml]
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/stage4-dock-board
+      - name: Patch page contracts
+        shell: python
+        run: |
+          from pathlib import Path
+          for code in ['queue','settings','reports','users','data']:
+            p = Path(f'js/pages/{code}.js')
+            s = p.read_text()
+            old = f"startPage({{ code: '{code}', async mount(context) {{ mountComposedPage(context.pageRoot, markup, {{ code: '{code}', context }}); }} }});"
+            new = f"""const page = {{
+            code: '{code}',
+            async mount(context) {{ mountComposedPage(context.pageRoot, markup, {{ code: '{code}', context }}); }},
+            refresh() {{}},
+            destroy() {{}},
+          }};
+
+          startPage(page);
+          export const {{ mount, refresh, destroy }} = page;"""
+            if old not in s:
+              raise SystemExit(f'Expected page footer missing in {p}')
+            p.write_text(s.replace(old, new))
+      - name: Commit
+        run: |
+          git config user.name 'MaxDock Stage Builder'
+          git config user.email 'actions@users.noreply.github.com'
+          git add js/pages/queue.js js/pages/settings.js js/pages/reports.js js/pages/users.js js/pages/data.js
+          git diff --cached --quiet || git commit -m 'Align composed page module contracts'
+          git push
