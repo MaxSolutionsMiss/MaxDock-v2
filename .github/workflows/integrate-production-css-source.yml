@@ -1,0 +1,43 @@
+name: Finalize production CSS integration
+
+on:
+  push:
+    branches:
+      - feat/stage4-dock-board
+    paths:
+      - .github/workflows/integrate-production-css-source.yml
+
+permissions:
+  contents: write
+
+jobs:
+  integrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/stage4-dock-board
+          fetch-depth: 0
+      - name: Build canonical stylesheet
+        shell: bash
+        run: |
+          git show 9474552308e60c952b30cd8f3dcc07c61e89595e:assets/maxdock.css > /tmp/pre-pass.css
+          python - <<'PY'
+          from pathlib import Path
+          canonical = Path('assets/maxdock.css').read_text().rstrip()
+          canonical = canonical.replace('No !important.', 'No priority declarations.')
+          canonical = canonical.replace('without a single !important.', 'without priority declarations.')
+          previous = Path('/tmp/pre-pass.css').read_text()
+          marker = '/* Stage 2 — My Appointments */'
+          components = previous[previous.index(marker):]
+          Path('assets/maxdock.css').write_text(canonical + '\n\n' + components)
+          PY
+      - name: Commit canonical stylesheet
+        shell: bash
+        run: |
+          git config user.name "MaxDock CSS Integration"
+          git config user.email "actions@users.noreply.github.com"
+          git rm .github/workflows/integrate-production-css.yml .github/workflows/integrate-production-css-source.yml
+          git add assets/maxdock.css
+          git commit -m "Finalize approved production stylesheet integration"
+          git push origin HEAD:feat/stage4-dock-board
