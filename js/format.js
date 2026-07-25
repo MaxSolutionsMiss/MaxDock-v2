@@ -58,6 +58,41 @@ export const format = Object.freeze({
     return this.inputDate(date, location);
   },
 
+  todayInput(location) {
+    return this.inputDate(new Date(), location);
+  },
+
+  dayOfWeek(dateInput) {
+    const [year, month, day] = String(dateInput || '').split('-').map(Number);
+    return new Date(Date.UTC(year, Math.max(0, (month || 1) - 1), day || 1, 12)).getUTCDay();
+  },
+
+  clockMinutes(value) {
+    const [hour, minute] = String(value || '00:00').split(':').map(Number);
+    return Number(hour || 0) * 60 + Number(minute || 0);
+  },
+
+  localTimeMinutes(value, location) {
+    return this.clockMinutes(this.inputTime(value, location));
+  },
+
+  minutesBetween(start, end) {
+    return Math.max(0, (this.epoch(end) - this.epoch(start)) / 60000);
+  },
+
+  longDateInput(dateInput, location) {
+    return new Intl.DateTimeFormat('en-CA', {
+      weekday: 'long', month: 'long', day: 'numeric', year: 'numeric',
+      timeZone: location?.timezone || DEFAULT_TIMEZONE,
+    }).format(makeDate(`${dateInput}T12:00:00Z`));
+  },
+
+  currentTimeLabel() {
+    return new Intl.DateTimeFormat('en-CA', {
+      hour: 'numeric', minute: '2-digit', second: '2-digit',
+    }).format(new Date());
+  },
+
   sameLocalDate(value, dateInput, location) {
     return this.inputDate(value, location) === String(dateInput || '');
   },

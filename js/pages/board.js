@@ -3,10 +3,11 @@ import { db } from '../db.js';
 import { createModal } from '../ui/modal.js';
 import { toast } from '../ui/toast.js';
 import { renderState } from '../ui/empty.js';
+import { format } from '../format.js';
 
 const state = {
   context: null,
-  date: new Date(),
+  date: format.todayInput(),
   docks: [],
   hours: null,
   records: [],
@@ -16,21 +17,6 @@ const state = {
   fullscreen: false,
 };
 
-const isoDate = value => {
-  const date = value instanceof Date ? value : new Date(value);
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-};
-const addDays = (value, amount) => {
-  const next = new Date(value);
-  next.setDate(next.getDate() + amount);
-  return next;
-};
-const timeLabel = (value, location) => new Intl.DateTimeFormat('en-CA', {
-  hour: 'numeric', minute: '2-digit', timeZone: location.timezone || 'America/Toronto',
-}).format(new Date(value));
-const dateLabel = (value, location) => new Intl.DateTimeFormat('en-CA', {
-  weekday: 'long', month: 'long', day: 'numeric', year: 'numeric', timeZone: location.timezone || 'America/Toronto',
-}).format(value);
 const escapeHtml = value => String(value ?? '').replace(/[&<>'"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[char]));
 const can = permission => state.context?.can?.(permission);
 
@@ -48,19 +34,19 @@ function normalizeRecord(row) {
 
 async function fetchBoardData() {
   const locationId = state.context.location.id;
-  const day = state.date.getDay();
+  const day = format.dayOfWeek(state.date);
   const [scheduleRows, docks, hours] = await Promise.all([
     db.rpc('list_location_schedule', { p_location_id: locationId }, { key: `board:schedule:${locationId}`, cache: 0, retry: 1 }),
     db.select('docks', query => query.select('id,name,description,sort_order,direction_mode,is_active').eq('location_id', locationId).eq('is_active', true).order('sort_order').order('name'), { key: `board:docks:${locationId}`, cache: 30000 }),
     db.select('location_operating_hours', query => query.select('day_of_week,is_open,open_time,close_time').eq('location_id', locationId).eq('day_of_week', day).maybeSingle(), { key: `board:hours:${locationId}:${day}`, cache: 30000 }),
   ]);
-  const selectedDate = isoDate(state.date);
+  const selectedDate = state.date;
   return {
     docks: docks || [],
     hours: hours || null,
     records: (scheduleRows || []).map(normalizeRecord).filter(record => {
       if (!record.start_at) return false;
-      return isoDate(new Date(record.start_at)) === selectedDate;
+      return format.sameLocalDate(record.start_at, selectedDate, state.context.location);
     }),
   };
 }
@@ -152,23 +138,18 @@ function renderKpis() {
 function slotTimes() {
   const open = state.hours?.is_open !== false ? (state.hours?.open_time || '06:00:00') : '06:00:00';
   const close = state.hours?.is_open !== false ? (state.hours?.close_time || '22:00:00') : '22:00:00';
-  const parse = value => { const [h, m] = value.split(':').map(Number); return h * 60 + m; };
-  const start = parse(open);
-  const end = parse(close);
+  const start = format.clockMinutes(open);
+  const end = format.clockMinutes(close);
   const slots = [];
   for (let minute = start; minute < end; minute += 60) slots.push(minute);
   return slots;
 }
 
 function recordsForCell(dockId, minute) {
-  const timezone = state.context.location.timezone || 'America/Toronto';
   return visibleRecords().filter(record => {
     if (record.dock_id !== dockId || !record.start_at || !record.end_at) return false;
-    const parts = new Intl.DateTimeFormat('en-CA', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: timezone }).formatToParts(new Date(record.start_at));
-    const hour = Number(parts.find(part => part.type === 'hour')?.value || 0);
-    const min = Number(parts.find(part => part.type === 'minute')?.value || 0);
-    const startMinute = hour * 60 + min;
-    const duration = Math.max(1, (new Date(record.end_at) - new Date(record.start_at)) / 60000);
+    const startMinute = format.localTimeMinutes(record.start_at, state.context.location);
+    const duration = Math.max(1, format.minutesBetween(record.start_at, record.end_at));
     return startMinute < minute + 60 && startMinute + duration > minute;
   });
 }
@@ -177,13 +158,13 @@ function card(record) {
   const isBlock = record.entry_kind === 'block';
   const title = isBlock ? (record.block_reason || 'Dock blocked') : (record.booking_reference || 'Appointment');
   const who = isBlock ? (record.notes || 'Unavailable') : (record.company_name || record.display_counterpart_location_name || record.requester_name || 'Scheduled movement');
-  const meta = isBlock ? `${timeLabel(record.start_at, state.context.location)}–${timeLabel(record.end_at, state.context.location)}` : `${record.direction} · ${Number(record.skid_count || 0)} skids`;
+  const meta = isBlock ? `${format.time(record.start_at, state.context.location)}–${format.time(record.end_at, state.context.location)}` : `${record.direction} · ${Number(record.skid_count || 0)} skids`;
   return `<article class="slot ${isBlock ? 'slot--blk' : record.direction === 'outbound' ? 'slot--out' : record.is_priority ? 'slot--pri' : 'slot--in'}" data-record-id="${escapeHtml(record.id)}" tabindex="0" title="${escapeHtml(`${title} · ${who}`)}"><div class="slot__ref">${escapeHtml(title)}</div><div class="slot__who">${escapeHtml(who)}</div><div class="slot__meta">${escapeHtml(meta)}</div></article>`;
 }
 
 function renderBoard() {
-  state.elements.subtitle.textContent = `${state.context.location.name} · ${dateLabel(state.date, state.context.location)}`;
-  state.elements.date.value = isoDate(state.date);
+  state.elements.subtitle.textContent = `${state.context.location.name} · ${format.longDateInput(state.date, state.context.location)}`;
+  state.elements.date.value = state.date;
   renderKpis();
   if (state.hours?.is_open === false) {
     renderState(state.elements.host, { type: 'empty', title: 'Location closed', message: `${state.context.location.name} is closed on this date.` });
@@ -201,7 +182,7 @@ function renderBoard() {
     return `<div class="board__time">${label}</div>${state.docks.map(dock => `<div class="board__cell" data-dock-id="${dock.id}" data-minute="${minute}">${recordsForCell(dock.id, minute).map(card).join('')}</div>`).join('')}`;
   }).join('');
   state.elements.host.innerHTML = `<div class="board__head"><div class="board__title">${state.docks.length} docks · ${visibleRecords().length} scheduled entries</div><div class="board__legend"><span><i class="legend-in"></i>Inbound</span><span><i class="legend-out"></i>Outbound</span><span><i class="legend-priority"></i>Priority</span><span><i class="legend-block"></i>Blocked</span></div></div><div class="board__scroll"><div class="board__grid" style="${style}">${header}${cells}</div></div>`;
-  state.elements.status.textContent = `Updated ${new Intl.DateTimeFormat('en-CA', { hour: 'numeric', minute: '2-digit', second: '2-digit' }).format(new Date())}`;
+  state.elements.status.textContent = `Updated ${format.currentTimeLabel()}`;
 }
 
 function patchData(data) {
@@ -212,7 +193,7 @@ function patchData(data) {
   const structureChanged = state.records.length !== data.records.length || state.docks.length !== (data.docks || []).length || [...after].some(([id, value]) => before.get(id) !== value);
   state.records = data.records;
   if (structureChanged) renderBoard();
-  else state.elements.status.textContent = `Up to date · ${new Intl.DateTimeFormat('en-CA', { hour: 'numeric', minute: '2-digit', second: '2-digit' }).format(new Date())}`;
+  else state.elements.status.textContent = `Up to date · ${format.currentTimeLabel()}`;
 }
 
 function exportCsv() {
@@ -224,14 +205,14 @@ function exportCsv() {
   const csv = rows.map(row => row.map(value => `"${String(value ?? '').replaceAll('"', '""')}"`).join(',')).join('\n');
   const link = document.createElement('a');
   link.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
-  link.download = `maxdock-${state.context.location.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${isoDate(state.date)}.csv`;
+  link.download = `maxdock-${state.context.location.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${state.date}.csv`;
   link.click();
   URL.revokeObjectURL(link.href);
 }
 
 function openBlockModal(trigger) {
   state.elements.blockForm.reset();
-  state.elements.blockForm.elements.date.value = isoDate(state.date);
+  state.elements.blockForm.elements.date.value = state.date;
   state.elements.dockChecks.innerHTML = state.docks.map(dock => `<label class="dock-check"><input type="checkbox" name="dock_id" value="${dock.id}"><span>${escapeHtml(dock.name)}</span></label>`).join('');
   state.blockModal.open({ trigger });
 }
@@ -262,8 +243,8 @@ async function submitBlock(event) {
 function wireEvents(root) {
   root.addEventListener('click', async event => {
     const day = event.target.closest('[data-day]');
-    if (day) { state.date = addDays(state.date, Number(day.dataset.day)); patchData(await fetchBoardData()); }
-    if (event.target.closest('[data-today]')) { state.date = new Date(); patchData(await fetchBoardData()); }
+    if (day) { state.date = format.addDaysInput(state.date, Number(day.dataset.day), state.context.location); patchData(await fetchBoardData()); }
+    if (event.target.closest('[data-today]')) { state.date = format.todayInput(state.context.location); patchData(await fetchBoardData()); }
     const block = event.target.closest('[data-block-time]');
     if (block) openBlockModal(block);
     if (event.target.closest('[data-close-block]')) state.blockModal.close();
@@ -275,7 +256,7 @@ function wireEvents(root) {
     }
   });
   root.addEventListener('change', async event => {
-    if (event.target.matches('[data-board-date]')) { state.date = new Date(`${event.target.value}T12:00:00`); patchData(await fetchBoardData()); }
+    if (event.target.matches('[data-board-date]')) { state.date = event.target.value; patchData(await fetchBoardData()); }
     if (event.target.matches('[data-filter-direction]')) { state.filters.direction = event.target.value; renderBoard(); }
     if (event.target.matches('[data-filter-status]')) { state.filters.status = event.target.value; renderBoard(); }
   });
@@ -291,7 +272,7 @@ const page = {
   code: 'board', permission: 'dock.view',
   async mount(context) {
     state.context = context;
-    state.date = new Date();
+    state.date = format.todayInput(state.context.location);
     document.title = `Dock board · ${context.location.name} · MaxDock`;
     buildShell(context.pageRoot);
     wireEvents(context.pageRoot);
