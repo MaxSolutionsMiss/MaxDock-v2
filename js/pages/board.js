@@ -14,7 +14,6 @@ const state = {
   filters: { direction: 'all', status: 'all' },
   elements: {},
   blockModal: null,
-  fullscreen: false,
 };
 
 const escapeHtml = value => String(value ?? '').replace(/[&<>'"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[char]));
@@ -53,46 +52,45 @@ async function fetchBoardData() {
 
 function buildShell(root) {
   root.innerHTML = `
-    <div class="page__head board-page-head">
-      <div><h1 class="page__title">Dock board</h1><p class="page__sub" data-board-subtitle></p></div>
-      <div class="page__actions board-primary-actions">
-        <a class="btn btn--primary" href="book.html">Book appointment</a>
-        ${can('block.manage') ? '<button class="btn btn--quiet" type="button" data-block-time>Block dock time</button>' : ''}
+    <div class="pagehead">
+      <div><h1 class="pagehead__title">Dock board</h1><p class="pagehead__sub" data-board-subtitle></p></div>
+      <div class="pagehead__actions">
+        ${can('block.manage') ? '<button class="btn btn--quiet" type="button" data-block-time><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"></rect><path d="M3 10h18M8 3v4M16 3v4"></path></svg>Block dock time</button>' : ''}
+        <button class="btn btn--primary" type="button" data-open-booking><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>Book appointment</button>
       </div>
     </div>
-    <section class="board-toolbar" aria-label="Dock board controls">
-      <div class="board-date-nav">
-        <button class="btn btn--quiet" type="button" data-day="-1" aria-label="Previous day">‹</button>
-        <button class="btn btn--quiet" type="button" data-today>Today</button>
-        <label class="field field--sm"><span class="field__label">Board date</span><input class="input" type="date" data-board-date></label>
-        <button class="btn btn--quiet" type="button" data-day="1" aria-label="Next day">›</button>
+    <section class="controls" aria-label="Dock board controls">
+      <div class="datenav">
+        <button class="iconbtn" type="button" data-day="-1" aria-label="Previous day">‹</button>
+        <button class="btn btn--quiet btn--sm" type="button" data-today>Today</button>
+        <input class="input input--date" type="date" data-board-date aria-label="Board date">
+        <button class="iconbtn" type="button" data-day="1" aria-label="Next day">›</button>
       </div>
-      <div class="board-filter-row">
-        <label class="field field--md"><span class="field__label">Direction</span><select class="select" data-filter-direction><option value="all">All movements</option><option value="inbound">Inbound</option><option value="outbound">Outbound</option></select></label>
-        <label class="field field--md"><span class="field__label">Status</span><select class="select" data-filter-status><option value="all">All statuses</option><option value="scheduled">Scheduled</option><option value="arrived">Arrived</option><option value="complete">Complete</option><option value="cancelled">Cancelled</option></select></label>
-        <div class="board-tool-actions">
-          <button class="btn btn--quiet" type="button" data-export>Export CSV</button>
-          <button class="btn btn--quiet" type="button" data-print>Print</button>
-          <button class="btn btn--quiet" type="button" data-fullscreen>Full screen</button>
-        </div>
+      <div class="ctrl-field"><label for="board-direction">Direction</label><select class="select" id="board-direction" data-filter-direction><option value="all">All movements</option><option value="inbound">Inbound</option><option value="outbound">Outbound</option></select></div>
+      <div class="ctrl-field"><label for="board-status">Status</label><select class="select" id="board-status" data-filter-status><option value="all">All statuses</option><option value="scheduled">Scheduled</option><option value="arrived">Arrived</option><option value="complete">Complete</option><option value="cancelled">Cancelled</option></select></div>
+      <div class="controls__end">
+        <button class="btn btn--quiet btn--icon" type="button" data-export title="Export CSV" aria-label="Export CSV"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0 4-4m-4 4-4-4M5 18v3h14v-3"></path></svg></button>
+        <button class="btn btn--quiet btn--icon" type="button" data-print title="Print" aria-label="Print"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9V3h12v6M6 18H4v-7h16v7h-2M8 14h8v7H8z"></path></svg></button>
+        <button class="btn btn--quiet" type="button" data-fullscreen title="Full screen — opens a broadcast window"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"></path></svg><span>Full screen</span></button>
       </div>
     </section>
-    <section class="kpis board-kpis" aria-label="Dock board summary" data-kpis></section>
-    <div class="board-status" role="status" aria-live="polite" data-board-status></div>
-    <section class="board board--operational" data-board-host aria-label="Dock schedule"></section>
-    <div class="modal-backdrop" data-block-backdrop hidden aria-hidden="true">
-      <section class="modal modal--wide" role="dialog" aria-modal="true" aria-labelledby="block-title">
-        <div class="modal__head"><div><h2 id="block-title">Block dock time</h2><p>Reserve one or more docks for maintenance, breaks or operational constraints.</p></div><button class="btn btn--ghost" type="button" data-close-block aria-label="Close">×</button></div>
+    <section class="kpis kpis--5" aria-label="Dock board summary" data-kpis></section>
+    <section class="board" data-board-host aria-label="Dock schedule"></section>
+    <div class="scrim" data-block-backdrop hidden aria-hidden="true">
+      <section class="modal" role="dialog" aria-modal="true" aria-labelledby="block-title">
+        <div class="modal__head"><div><h2 class="modal__title" id="block-title">Block dock time</h2><p class="modal__sub">Reserve one or more docks for maintenance, breaks or operational constraints.</p></div><button class="modal__x" type="button" data-close-block aria-label="Close">×</button></div>
         <form data-block-form>
-          <div class="fieldFlow">
-            <label class="field field--sm"><span class="field__label">Date</span><input class="input" type="date" name="date" required></label>
-            <label class="field field--sm"><span class="field__label">Start time</span><input class="input" type="time" name="start_time" required></label>
-            <label class="field field--sm"><span class="field__label">Duration</span><select class="select" name="duration"><option value="30">30 minutes</option><option value="60" selected>1 hour</option><option value="90">90 minutes</option><option value="120">2 hours</option><option value="240">4 hours</option></select></label>
-            <label class="field field--md"><span class="field__label">Reason</span><input class="input" name="reason" maxlength="120" required></label>
+          <div class="modal__body">
+            <div class="frow">
+              <label class="field field--sm"><span class="field__label">Date</span><input class="input" type="date" name="date" required></label>
+              <label class="field field--sm"><span class="field__label">Start time</span><input class="input" type="time" name="start_time" required></label>
+              <label class="field field--sm"><span class="field__label">Duration</span><select class="select" name="duration"><option value="30">30 minutes</option><option value="60" selected>1 hour</option><option value="90">90 minutes</option><option value="120">2 hours</option><option value="240">4 hours</option></select></label>
+              <label class="field"><span class="field__label">Reason</span><input class="input" name="reason" maxlength="120" required></label>
+            </div>
+            <fieldset class="dock-checks"><legend>Select docks</legend><div data-dock-checks></div></fieldset>
+            <label class="field"><span class="field__label">Notes</span><textarea name="notes" rows="3" maxlength="500"></textarea></label>
           </div>
-          <fieldset class="dock-checks"><legend>Select docks</legend><div data-dock-checks></div></fieldset>
-          <label class="field field--full"><span class="field__label">Notes</span><textarea class="input" name="notes" rows="3" maxlength="500"></textarea></label>
-          <div class="modal__actions"><button class="btn btn--quiet" type="button" data-close-block>Cancel</button><button class="btn btn--primary" type="submit">Block selected docks</button></div>
+          <div class="modal__foot"><button class="btn btn--quiet" type="button" data-close-block>Cancel</button><button class="btn btn--primary" type="submit">Block selected docks</button></div>
         </form>
       </section>
     </div>`;
@@ -101,7 +99,6 @@ function buildShell(root) {
     subtitle: root.querySelector('[data-board-subtitle]'),
     date: root.querySelector('[data-board-date]'),
     kpis: root.querySelector('[data-kpis]'),
-    status: root.querySelector('[data-board-status]'),
     host: root.querySelector('[data-board-host]'),
     fullscreen: root.querySelector('[data-fullscreen]'),
     blockBackdrop: root.querySelector('[data-block-backdrop]'),
@@ -110,7 +107,6 @@ function buildShell(root) {
   };
   state.blockModal = createModal(state.elements.blockBackdrop, { onRequestClose: () => state.blockModal.close() });
 }
-
 function visibleRecords() {
   return state.records.filter(record => {
     if (state.filters.direction !== 'all' && record.direction !== state.filters.direction) return false;
@@ -128,10 +124,10 @@ function renderKpis() {
   const active = appointments.filter(record => ['arrived', 'loading', 'unloading'].includes(record.status));
   state.elements.kpis.innerHTML = [
     ['Appointments', appointments.length, ''],
-    ['Inbound skids', inbound.reduce((sum, record) => sum + Number(record.skid_count || 0), 0), 'kpi--ok'],
-    ['Outbound skids', outbound.reduce((sum, record) => sum + Number(record.skid_count || 0), 0), 'kpi--signal'],
-    ['Active trucks', active.length, 'kpi--stop'],
-    ['Blocked docks', blocks.length, ''],
+    ['Inbound skids', inbound.reduce((sum, record) => sum + Number(record.skid_count || 0), 0), 'kpi--out'],
+    ['Outbound skids', outbound.reduce((sum, record) => sum + Number(record.skid_count || 0), 0), 'kpi--ok'],
+    ['Active trucks', active.length, 'kpi--signal'],
+    ['Blocked docks', blocks.length, 'kpi--stop'],
   ].map(([label, value, className]) => `<article class="kpi ${className}"><div class="kpi__label">${label}</div><div class="kpi__value">${value}</div></article>`).join('');
 }
 
@@ -163,7 +159,8 @@ function card(record) {
 }
 
 function renderBoard() {
-  state.elements.subtitle.textContent = `${state.context.location.name} · ${format.longDateInput(state.date, state.context.location)}`;
+  const records = visibleRecords();
+  state.elements.subtitle.textContent = `${state.context.location.name} · ${state.docks.length} docks · ${records.length} scheduled today`;
   state.elements.date.value = state.date;
   renderKpis();
   if (state.hours?.is_open === false) {
@@ -174,17 +171,15 @@ function renderBoard() {
     renderState(state.elements.host, { type: 'empty', title: 'No active docks', message: 'This location has no active dock doors configured.' });
     return;
   }
-  const slots = slotTimes();
-  const style = `--docks:${state.docks.length};--rows:${slots.length}`;
-  const header = `<div class="board__corner">Time</div>${state.docks.map(dock => `<div class="board__door"><div>${escapeHtml(dock.name)}<span>${escapeHtml(dock.direction_mode || 'both')}</span></div></div>`).join('')}`;
-  const cells = slots.map(minute => {
-    const label = `${String(Math.floor(minute / 60)).padStart(2, '0')}:${String(minute % 60).padStart(2, '0')}`;
-    return `<div class="board__time">${label}</div>${state.docks.map(dock => `<div class="board__cell" data-dock-id="${dock.id}" data-minute="${minute}">${recordsForCell(dock.id, minute).map(card).join('')}</div>`).join('')}`;
+  const hours = slotTimes();
+  const labels = hours.map(minute => `${String(Math.floor(minute / 60)).padStart(2, '0')}:${String(minute % 60).padStart(2, '0')}`);
+  const header = `<div class="corner"></div>${labels.map(label => `<div class="thead">${label}</div>`).join('')}`;
+  const rows = state.docks.map(dock => {
+    const cells = hours.map(minute => `<div class="cell" data-dock-id="${dock.id}" data-minute="${minute}">${recordsForCell(dock.id, minute).map(record => card(record)).join('')}</div>`).join('');
+    return `<div class="dock">${escapeHtml(dock.name)}<small>${escapeHtml(dock.direction_mode || 'both')}</small></div>${cells}`;
   }).join('');
-  state.elements.host.innerHTML = `<div class="board__head"><div class="board__title">${state.docks.length} docks · ${visibleRecords().length} scheduled entries</div><div class="board__legend"><span><i class="legend-in"></i>Inbound</span><span><i class="legend-out"></i>Outbound</span><span><i class="legend-priority"></i>Priority</span><span><i class="legend-block"></i>Blocked</span></div></div><div class="board__scroll"><div class="board__grid" style="${style}">${header}${cells}</div></div>`;
-  state.elements.status.textContent = `Updated ${format.currentTimeLabel()}`;
+  state.elements.host.innerHTML = `<div class="board__head"><span class="board__title">${format.longDateInput(state.date, state.context.location)}</span><div class="board__legend"><span class="lg" style="--c:var(--dock)">Inbound</span><span class="lg" style="--c:var(--ok)">Outbound</span><span class="lg" style="--c:var(--signal)">Priority</span><span class="lg" style="--c:var(--rule-strong)">Blocked</span></div></div><div class="board__scroll"><div class="rowGrid" style="--hours:${hours.length}">${header}${rows}</div></div>`;
 }
-
 function patchData(data) {
   state.docks = data.docks;
   state.hours = data.hours;
@@ -193,7 +188,7 @@ function patchData(data) {
   const structureChanged = state.records.length !== data.records.length || state.docks.length !== (data.docks || []).length || [...after].some(([id, value]) => before.get(id) !== value);
   state.records = data.records;
   if (structureChanged) renderBoard();
-  else state.elements.status.textContent = `Up to date · ${format.currentTimeLabel()}`;
+  else renderKpis();
 }
 
 function exportCsv() {
@@ -240,8 +235,24 @@ async function submitBlock(event) {
   } finally { submit.disabled = false; }
 }
 
+function openBroadcastWindow() {
+  const popup = globalThis.open('', 'maxdock-broadcast', 'popup=yes,width=1280,height=760');
+  if (!popup) { toast('Allow pop-ups to open the broadcast board.', 'error'); return; }
+  const cssHref = new URL('../assets/maxdock.css', globalThis.location.href).href;
+  const rows = visibleRecords().filter(record => record.entry_kind !== 'block').slice(0, 18).map(record => {
+    const dock = state.docks.find(item => item.id === record.dock_id)?.name || 'Unassigned';
+    const statusClass = record.is_priority ? 'tag--pri' : ['arrived', 'loading', 'unloading'].includes(record.status) ? 'tag--ok' : 'tag--quiet';
+    return `<tr><td>${escapeHtml(dock)}</td><td>${escapeHtml(format.time(record.start_at, state.context.location))}</td><td>${escapeHtml(record.booking_reference || 'Appointment')}</td><td><span class="tag ${statusClass}">${escapeHtml(record.status || 'Scheduled')}</span></td></tr>`;
+  }).join('');
+  popup.document.open();
+  popup.document.write(`<!doctype html><html lang="en" data-text="larger"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(state.context.location.name)} · Dock board</title><link rel="stylesheet" href="${cssHref}"></head><body class="wall"><header class="wall__head"><div class="wall__title">${escapeHtml(state.context.location.name)} · Dock board</div><div class="wall__clock" id="clock"></div></header><table><thead><tr><th>Dock</th><th>Time</th><th>Reference</th><th>Status</th></tr></thead><tbody>${rows || '<tr><td colspan="4">No scheduled appointments</td></tr>'}</tbody></table><script>const tick=()=>document.getElementById('clock').textContent=new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});tick();setInterval(tick,1000);<\/script></body></html>`);
+  popup.document.close();
+} 
+
 function wireEvents(root) {
   root.addEventListener('click', async event => {
+    const booking = event.target.closest('[data-open-booking]');
+    if (booking) globalThis.dispatchEvent(new CustomEvent('maxdock:open-booking', { detail: { trigger: booking } }));
     const day = event.target.closest('[data-day]');
     if (day) { state.date = format.addDaysInput(state.date, Number(day.dataset.day), state.context.location); patchData(await fetchBoardData()); }
     if (event.target.closest('[data-today]')) { state.date = format.todayInput(state.context.location); patchData(await fetchBoardData()); }
@@ -250,10 +261,7 @@ function wireEvents(root) {
     if (event.target.closest('[data-close-block]')) state.blockModal.close();
     if (event.target.closest('[data-export]')) exportCsv();
     if (event.target.closest('[data-print]')) globalThis.print();
-    if (event.target.closest('[data-fullscreen]')) {
-      if (!document.fullscreenElement) await state.elements.root.closest('.main').requestFullscreen();
-      else await document.exitFullscreen();
-    }
+    if (event.target.closest('[data-fullscreen]')) openBroadcastWindow();
   });
   root.addEventListener('change', async event => {
     if (event.target.matches('[data-board-date]')) { state.date = event.target.value; patchData(await fetchBoardData()); }
@@ -261,11 +269,6 @@ function wireEvents(root) {
     if (event.target.matches('[data-filter-status]')) { state.filters.status = event.target.value; renderBoard(); }
   });
   state.elements.blockForm?.addEventListener('submit', submitBlock);
-  document.addEventListener('fullscreenchange', () => {
-    state.fullscreen = Boolean(document.fullscreenElement);
-    document.body.classList.toggle('board-fullscreen', state.fullscreen);
-    if (state.elements.fullscreen) state.elements.fullscreen.textContent = state.fullscreen ? 'Exit full screen' : 'Full screen';
-  });
 }
 
 const page = {

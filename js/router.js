@@ -10,8 +10,18 @@ const STAFF_ROUTES = [
     group: 'Operations',
     items: [
       { code: 'board', label: 'Dock board', path: 'app/board.html', permission: 'dock.view', icon: '<rect x="3" y="4" width="18" height="16" rx="2"></rect><path d="M3 9h18M9 4v16"></path>' },
-      { code: 'book', label: 'Book appointment', path: 'app/book.html', permission: 'appointment.create', icon: '<path d="M12 5v14M5 12h14"></path><circle cx="12" cy="12" r="9"></circle>' },
+      { code: 'queue', label: 'Operations queue', path: 'app/queue.html', icon: '<path d="M4 6h16M4 12h16M4 18h10"></path>' },
       { code: 'my-appointments', label: 'My appointments', path: 'app/my-appointments.html', permissions: ['appointment.view_own', 'appointment.view'], icon: '<circle cx="12" cy="12" r="9"></circle><path d="M12 8v4l3 2"></path>' },
+      { code: 'settings', label: 'Locations & docks', path: 'app/settings.html', icon: '<path d="M12 21s7-6.2 7-11a7 7 0 1 0-14 0c0 4.8 7 11 7 11Z"></path><circle cx="12" cy="10" r="2.4"></circle>' },
+      { code: 'reports', label: 'Reports', path: 'app/reports.html', icon: '<path d="M4 19V9m5 10V5m5 14v-7m5 7V8"></path>' },
+    ],
+  },
+  {
+    group: 'Administration',
+    admin: true,
+    items: [
+      { code: 'users', label: 'Users', path: 'app/users.html', icon: '<circle cx="9" cy="8" r="3"></circle><path d="M3 20a6 6 0 0 1 12 0"></path>' },
+      { code: 'data', label: 'Data integration', path: 'app/data.html', icon: '<ellipse cx="12" cy="6" rx="8" ry="3"></ellipse><path d="M4 6v12c0 1.7 3.6 3 8 3s8-1.3 8-3V6"></path>' },
     ],
   },
 ];
@@ -20,7 +30,6 @@ const CUSTOMER_ROUTES = [
   {
     group: 'Appointments',
     items: [
-      { code: 'book', label: 'Book appointment', path: 'app/book.html', permission: 'appointment.create', icon: '<path d="M12 5v14M5 12h14"></path><circle cx="12" cy="12" r="9"></circle>' },
       { code: 'my-appointments', label: 'My appointments', path: 'app/my-appointments.html', permissions: ['appointment.view_own', 'appointment.view'], icon: '<circle cx="12" cy="12" r="9"></circle><path d="M12 8v4l3 2"></path>' },
     ],
   },
@@ -43,6 +52,7 @@ function appUrl(path) {
 }
 
 function routeAllowed(context, item) {
+  if (!item.permission && !item.permissions) return true;
   if (item.permission) return context.can(item.permission);
   return (item.permissions || []).some(permission => context.can(permission));
 }
@@ -61,8 +71,14 @@ function createNav(context, pageCode) {
     const visibleItems = routeGroup.items.filter(item => routeAllowed(context, item));
     if (!visibleItems.length) continue;
 
+    if (routeGroup.admin) {
+      const spacer = document.createElement('div');
+      spacer.className = 'rail__spacer';
+      fragment.append(spacer);
+    }
+
     const group = document.createElement('div');
-    group.className = 'rail__group';
+    group.className = routeGroup.admin ? 'rail__group rail__group--admin' : 'rail__group';
     const label = document.createElement('div');
     label.className = 'rail__label';
     label.textContent = routeGroup.group;
@@ -84,6 +100,18 @@ function createNav(context, pageCode) {
       group.append(link);
     }
     fragment.append(group);
+
+    if (!routeGroup.admin && context.can('appointment.create')) {
+      const cta = document.createElement('div');
+      cta.className = 'rail__cta';
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'btn btn--primary btn--block';
+      button.dataset.openBooking = '';
+      button.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg><span>Book appointment</span>';
+      cta.append(button);
+      fragment.append(cta);
+    }
   }
   return fragment;
 }
@@ -103,10 +131,7 @@ function createShell(context, page) {
   brand.setAttribute('aria-label', 'MaxDock home');
   const mark = document.createElement('span');
   mark.className = 'rail__mark';
-  const markImage = document.createElement('img');
-  markImage.src = appUrl('assets/logo-knockout.png');
-  markImage.alt = '';
-  mark.append(markImage);
+  mark.innerHTML = '<svg viewBox="0 0 40 28" aria-hidden="true"><path d="M4 24 L14 6 L20 17 M20 17 L26 6 L36 24" stroke="#fff" stroke-width="2.4" fill="none" stroke-linejoin="round"></path></svg>';
   const brandName = document.createElement('span');
   brandName.className = 'rail__name';
   brandName.textContent = 'MaxDock';
@@ -115,11 +140,9 @@ function createShell(context, page) {
 
   const railFoot = document.createElement('div');
   railFoot.className = 'rail__foot';
-  const person = document.createElement('div');
-  person.className = 'rail__person';
+  const person = document.createElement('strong');
   person.textContent = context.profile.full_name;
-  const role = document.createElement('div');
-  role.textContent = context.role?.name || format.role(context.profile.role_code);
+  const role = document.createTextNode(context.role?.name || format.role(context.profile.role_code));
   railFoot.append(person, role);
   rail.append(railFoot);
 
@@ -130,7 +153,7 @@ function createShell(context, page) {
   top.className = 'top';
 
   const locationSelect = document.createElement('select');
-  locationSelect.className = 'select top__location';
+  locationSelect.className = 'select top__loc';
   locationSelect.id = 'location-context';
   locationSelect.setAttribute('aria-label', 'Current MaxDock location');
   if (!context.locations.length) {
@@ -149,7 +172,7 @@ function createShell(context, page) {
   }
 
   const date = document.createElement('span');
-  date.className = 'data muted desktop-only';
+  date.className = 'top__date';
   date.textContent = format.date(null, context.location);
 
   const spacer = document.createElement('div');
@@ -169,9 +192,9 @@ function createShell(context, page) {
   }
 
   const connected = document.createElement('div');
-  connected.className = 'top__live';
+  connected.className = 'top__conn';
   const pulse = document.createElement('span');
-  pulse.className = 'pulse';
+  pulse.className = 'dot';
   pulse.id = 'connection-pulse';
   const connectedText = document.createElement('span');
   connectedText.id = 'connection-label';
@@ -179,22 +202,22 @@ function createShell(context, page) {
   connected.append(pulse, connectedText);
 
   const profile = document.createElement('div');
-  profile.className = 'profile';
+  profile.className = 'who';
   const avatar = document.createElement('span');
   avatar.className = 'avatar';
   avatar.textContent = format.initials(context.profile.full_name);
   const profileText = document.createElement('span');
-  profileText.className = 'profile__text';
+  profileText.className = '';
   const profileName = document.createElement('span');
-  profileName.className = 'profile__name';
+  profileName.className = 'who__name';
   profileName.textContent = context.profile.full_name;
   const profileRole = document.createElement('span');
-  profileRole.className = 'profile__role';
+  profileRole.className = 'who__role';
   profileRole.textContent = context.role?.name || format.role(context.profile.role_code);
   profileText.append(profileName, profileRole);
   const signOut = document.createElement('button');
   signOut.type = 'button';
-  signOut.className = 'btn btn--ghost';
+  signOut.className = 'linkBtn';
   signOut.id = 'sign-out';
   signOut.textContent = 'Sign out';
   profile.append(avatar, profileText, signOut);
@@ -202,7 +225,7 @@ function createShell(context, page) {
   top.append(locationSelect, date, spacer, sizeControl, connected, profile);
 
   const banner = document.createElement('div');
-  banner.className = 'network-banner';
+  banner.className = 'sub';
   banner.id = 'network-banner';
   banner.hidden = true;
 
@@ -213,6 +236,12 @@ function createShell(context, page) {
 
   main.append(top, banner, pageRoot);
   root.append(rail, main);
+
+  rail.addEventListener('click', event => {
+    const trigger = event.target.closest('[data-open-booking]');
+    if (!trigger) return;
+    globalThis.dispatchEvent(new CustomEvent('maxdock:open-booking', { detail: { trigger } }));
+  });
 
   return { root, pageRoot, locationSelect, sizeControl, signOut, banner, pulse, connectedText };
 }
