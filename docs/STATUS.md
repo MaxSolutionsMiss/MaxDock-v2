@@ -9,13 +9,13 @@
 
 ## Stage
 
-4 of 8 — Dock Board / Dashboard — implemented and under review
+4 of 8 — Approved full front-end composition assembled on the Stage 4 draft branch
 
 ## Production baseline
 
 - Stage 1 Shell, Stage 2 My Appointments and Stage 3 Booking are merged into `main`.
 - Stage 4 work is isolated on `feat/stage4-dock-board`.
-- Production must remain unchanged until the Stage 4 preview is verified, audited and explicitly approved.
+- Production must remain unchanged until the preview is verified, audited and explicitly approved.
 
 ## Stage 4 scope
 
@@ -59,8 +59,6 @@
 - Do not edit `/docs/` except `docs/STATUS.md` during implementation.
 - Build and review one stage at a time.
 
-<!-- Final CI refresh after canonical production stylesheet integration -->
-
 ## Approved design handoff alignment
 
 - `DESIGN_HANDOFF.md` is now the source of truth for all staged front-end work.
@@ -68,8 +66,16 @@
 - Stage 4 uses docks as rows, time across the top, sticky time headers and a sticky dock-label column.
 - The rail follows the approved fixed order and Book appointment remains a modal action rather than a navigation page.
 - Full screen opens a separate dark broadcast popup so the operator can continue using the main portal.
-- Later stages will match their corresponding composed pages from the approved handoff package.
 - PR #11 remains draft and must not be merged without explicit owner approval.
 
-<!-- Final CI after approved handoff verifier alignment -->
-<!-- Final CI after approved booking modal verifier alignment -->
+## Full front-end audit handoff
+
+- Added the approved composed routes for Operations queue, Locations & docks, Reports, Users and Data integration.
+- The application now contains Board, Queue, My Appointments, Locations & docks, Reports, Users, Data integration and the booking engine.
+- Shared rail navigation resolves to real `app/*.html` files; the Book appointment control dispatches the shared modal action instead of navigating as a rail page.
+- Queue includes the approved AI brief, KPI row, movement table, heatmap and watch-list composition.
+- Locations & docks includes operating hours, skid capacity, booking window/notice, dock throughput, docks and timing/feature controls.
+- Reports, Users and Data integration match their approved composed page structures; Data integration identifies transactional email as Not configured and QR as local/secure.
+- Added a deployed-preview smoke check covering every application route, the canonical stylesheet, router and page modules.
+- Latest `verify`, `conformance`, `validate`, `deploy-preview` and `smoke-preview` checks passed.
+- This remains an audit candidate, not a merge candidate. Clo must review layout, interactions, backend completeness and architecture before owner approval.
