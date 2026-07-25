@@ -443,4 +443,37 @@ export function destroyPage() {
   }
 }
 
+
+function openBookingModal(event) {
+  if (document.getElementById('booking-modal')) return;
+  const backdrop = document.createElement('div');
+  backdrop.className = 'modal-backdrop';
+  backdrop.id = 'booking-modal';
+  const modal = document.createElement('section');
+  modal.className = 'modal';
+  modal.setAttribute('role', 'dialog');
+  modal.setAttribute('aria-modal', 'true');
+  modal.setAttribute('aria-labelledby', 'booking-modal-title');
+  modal.innerHTML = `
+    <div class="modal__head">
+      <div><h2 class="modal__title" id="booking-modal-title">Book appointment</h2><p class="modal__sub">Role-aware MaxDock booking</p></div>
+      <button class="modal__x" type="button" data-close-booking aria-label="Close booking">×</button>
+    </div>
+    <div class="modal__body"><iframe title="Book appointment" src="${appUrl('app/book.html?modal=1')}" width="100%" height="650" loading="eager"></iframe></div>`;
+  backdrop.append(modal);
+  document.body.append(backdrop);
+  const close = () => { backdrop.remove(); event?.detail?.trigger?.focus?.(); };
+  backdrop.addEventListener('click', click => {
+    if (click.target === backdrop || click.target.closest('[data-close-booking]')) close();
+  });
+  const onKey = key => {
+    if (key.key !== 'Escape') return;
+    globalThis.removeEventListener('keydown', onKey);
+    close();
+  };
+  globalThis.addEventListener('keydown', onKey);
+}
+
+globalThis.addEventListener('maxdock:open-booking', openBookingModal);
+
 globalThis.addEventListener('pagehide', destroyPage);
