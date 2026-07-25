@@ -1,5 +1,5 @@
 import { startPage } from '../router.js';
-import { mountComposedPage } from './composed.js';
+import { mountComposedPage } from '../ui/composed.js';
 
 const markup = `
 <div class="pagehead"><div><h1 class="pagehead__title">Operations queue</h1><p class="pagehead__sub">Pickering · today · live</p></div>
