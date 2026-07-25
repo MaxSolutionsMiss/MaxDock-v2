@@ -1,0 +1,56 @@
+name: Deploy Stage 4 preview
+
+on:
+  push:
+    branches: [feat/stage4-dock-board]
+  pull_request:
+    branches: [main]
+    paths:
+      - app/board.html
+      - js/pages/board.js
+      - assets/maxdock.css
+      - scripts/verify-stage4-board.mjs
+
+permissions:
+  contents: write
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          node --check js/pages/board.js
+          node scripts/verify-maxdock.mjs
+          node scripts/verify-maxdock-implementation.mjs
+          node scripts/verify-stage1-shell.mjs
+          node scripts/verify-stage2-my-appointments.mjs
+          node scripts/verify-stage3-booking.mjs
+          node scripts/verify-stage4-board.mjs
+
+  deploy-preview:
+    if: github.event_name == 'push'
+    needs: verify
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/stage4-dock-board
+      - run: |
+          mkdir -p /tmp/stage4-preview
+          cp -R app assets js index.html /tmp/stage4-preview/
+          printf '{"commit":"%s","branch":"feat/stage4-dock-board"}\n' "$(git rev-parse HEAD)" > /tmp/stage4-preview/build.json
+      - uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+          path: pages
+      - run: |
+          rm -rf pages/stage4-preview
+          mkdir -p pages/stage4-preview
+          cp -R /tmp/stage4-preview/. pages/stage4-preview/
+          cd pages
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add stage4-preview
+          git diff --cached --quiet || git commit -m "Deploy Stage 4 preview"
+          git push
