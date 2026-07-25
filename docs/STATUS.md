@@ -32,6 +32,7 @@
 
 - Replaced `assets/maxdock.css` with the supplied production stylesheet from the approved design file.
 - Confirmed the board grid, slot, KPI, rail-width and field-cap rules are present.
+- Integrated the existing Stage 2–4 application component sections into the same canonical stylesheet so appointment cards, booking panels and operational board controls remain styled.
 - My Appointments uses the shared KPI component.
 - Booking Direction and Movement use `.field--md`; skids use `.field--xs`; PO / BOL / job number uses `.field--sm`.
 - PR #11 remains draft and unmerged.
@@ -51,11 +52,11 @@
 ## Standing rules
 
 - One stylesheet: `assets/maxdock.css`.
-- No `!important`, override files or patch layers.
+- No priority declarations, override files or patch layers.
 - No MutationObservers for layout.
 - No runtime script or stylesheet injection.
 - Every Supabase operation goes through `js/db.js`.
 - Do not edit `/docs/` except `docs/STATUS.md` during implementation.
 - Build and review one stage at a time.
 
-<!-- CI refresh after production stylesheet replacement -->
+<!-- Final CI refresh after canonical production stylesheet integration -->
