@@ -70,3 +70,5 @@
 - Full screen opens a separate dark broadcast popup so the operator can continue using the main portal.
 - Later stages will match their corresponding composed pages from the approved handoff package.
 - PR #11 remains draft and must not be merged without explicit owner approval.
+
+<!-- Final CI after approved handoff verifier alignment -->
