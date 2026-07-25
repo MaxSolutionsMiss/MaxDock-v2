@@ -30,7 +30,11 @@ jobs:
           set -euo pipefail
           cat .github/stage3-payload.part-* | base64 --decode > /tmp/stage3-payload.tar.gz
           tar -xzf /tmp/stage3-payload.tar.gz
-          rm -f .github/stage3-payload.part-* .github/workflows/materialize-stage3.yml
+          cp .github/workflows/deploy-pages.yml /tmp/deploy-pages.yml
+          cp .github/workflows/deploy-stage3-preview.yml /tmp/deploy-stage3-preview.yml
+          git checkout -- .github/workflows/deploy-pages.yml
+          rm -f .github/workflows/deploy-stage3-preview.yml
+          rm -f .github/stage3-payload.part-*
           node scripts/verify-maxdock.mjs
           node scripts/verify-maxdock-implementation.mjs
           node scripts/test-verifiers.mjs
