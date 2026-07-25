@@ -1,0 +1,39 @@
+name: Capture verifier output
+on:
+  push:
+    branches: [feat/stage4-dock-board]
+    paths: [.github/workflows/capture-verifier-output.yml]
+permissions:
+  contents: write
+jobs:
+  capture:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/stage4-dock-board
+      - name: Capture checks
+        run: |
+          set +e
+          {
+            echo '=== verify-maxdock ==='
+            node scripts/verify-maxdock.mjs
+            echo '=== verify-implementation ==='
+            node scripts/verify-maxdock-implementation.mjs
+            echo '=== stage1 ==='
+            node scripts/verify-stage1-shell.mjs
+            echo '=== stage2 ==='
+            node scripts/verify-stage2-my-appointments.mjs
+            echo '=== stage3 ==='
+            node scripts/verify-stage3-booking.mjs
+            echo '=== stage4 ==='
+            node scripts/verify-stage4-board.mjs
+          } > .ci-debug.txt 2>&1
+          exit 0
+      - name: Commit diagnostics
+        run: |
+          git config user.name 'MaxDock Diagnostics'
+          git config user.email 'actions@users.noreply.github.com'
+          git add .ci-debug.txt
+          git commit -m 'Capture verifier diagnostics'
+          git push
