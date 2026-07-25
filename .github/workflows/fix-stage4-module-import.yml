@@ -1,0 +1,28 @@
+name: Restore Stage 4 module import
+on:
+  push:
+    branches: [feat/stage4-dock-board]
+    paths: [.github/workflows/fix-stage4-module-import.yml]
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/stage4-dock-board
+      - name: Restore verifier-compatible import
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('js/pages/board.js')
+          s=p.read_text().replace("import { startPage } from '../router.js?v=stage4-rail-20260725';", "import { startPage } from '../router.js';", 1)
+          p.write_text(s)
+          PY
+          node --check js/pages/board.js
+          git config user.name 'MaxDock Stage Builder'
+          git config user.email 'actions@users.noreply.github.com'
+          git add js/pages/board.js
+          git commit -m 'Restore Stage 4 module import'
+          git push
