@@ -72,3 +72,4 @@
 - PR #11 remains draft and must not be merged without explicit owner approval.
 
 <!-- Final CI after approved handoff verifier alignment -->
+<!-- Final CI after approved booking modal verifier alignment -->
