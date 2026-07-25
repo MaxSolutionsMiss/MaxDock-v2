@@ -143,8 +143,30 @@ body{background:var(--ground);color:var(--ink);font-family:var(--font-ui);
 .btn--quiet{background:var(--surface);color:var(--ink);border-color:var(--rule-strong)}
 .btn--quiet:hover{background:var(--surface-sunk)}
 .btn--ghost{background:transparent;color:var(--ink-muted);padding:6px 8px;min-width:var(--tap)}
-.select{font-family:inherit;font-size:var(--t-base);color:var(--ink);background:var(--surface);border:1px solid var(--rule-strong);border-radius:var(--radius);padding:5px 8px;min-height:var(--tap)}
-.input,textarea{font-family:inherit;font-size:var(--t-base);color:var(--ink);background:var(--surface);border:1px solid var(--rule-strong);border-radius:var(--radius);padding:5px 9px;min-height:var(--tap)}
+.select{font-family:inherit;font-size:var(--t-base);color:var(--ink);background:var(--surface);border:1px solid var(--rule-strong);border-radius:var(--radius);padding:5px 8px;min-height:var(--tap);width:100%}
+.input,textarea{font-family:inherit;font-size:var(--t-base);color:var(--ink);background:var(--surface);border:1px solid var(--rule-strong);border-radius:var(--radius);padding:5px 9px;min-height:var(--tap);width:100%}
+
+/* --- field sizing discipline ------------------------------------------------- */
+.field--xs{max-width:110px}
+.field--sm{max-width:190px}
+.field--md{max-width:300px}
+.field--lg{max-width:420px}
+.field--full{max-width:none}
+.fieldFlow{display:flex;flex-wrap:wrap;gap:var(--s3) var(--s4);align-items:start}
+.fieldFlow > .field{flex:1 1 auto}
+.fieldGrid{display:grid;gap:var(--s3) var(--s4);align-items:start}
+.fieldGrid--2{grid-template-columns:repeat(2,minmax(0,1fr))}
+.fieldGrid--3{grid-template-columns:repeat(3,minmax(0,1fr))}
+.fieldGrid--4{grid-template-columns:repeat(4,minmax(0,1fr))}
+@media (max-width:640px){.fieldGrid--2,.fieldGrid--3,.fieldGrid--4{grid-template-columns:1fr}}
+
+/* --- password field with show/hide ----------------------------------------- */
+.passwordField{position:relative;display:flex;align-items:center}
+.passwordField .input{padding-right:calc(var(--tap) + 2px)}
+.passwordReveal{position:absolute;right:0;top:0;height:100%;width:var(--tap);display:flex;align-items:center;justify-content:center;border:none;background:none;color:var(--ink-muted);cursor:pointer;border-radius:var(--radius)}
+.passwordReveal:hover{color:var(--ink)}
+.passwordReveal svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.7}
+
 /* Text-only actions: the hit area carries the height, the type does not grow. */
 .linkBtn{font-family:inherit;font-size:var(--t-base);color:var(--dock);background:none;border:none;padding:0 var(--s2);cursor:pointer;display:inline-flex;align-items:center;min-height:var(--tap)}
 .linkBtn:hover{text-decoration:underline}
@@ -259,10 +281,10 @@ table.cmp td.n{font-family:var(--font-data)}
   <h2 class="doc__h">The one place the Max Solutions logo appears</h2>
   <p class="doc__p">MaxDock identifies itself with the badge. Max Solutions is credited once, quietly, at the foot of the card — enough that anyone signing in knows whose system this is, without the lockup having to survive a 32px rail.</p>
   <div style="background:var(--ground);border:1px solid var(--rule-strong);border-radius:var(--radius-lg);padding:var(--s7) var(--s5);display:grid;place-items:center">
-    <div style="background:var(--surface);border:1px solid var(--rule);border-radius:var(--radius-lg);box-shadow:var(--shadow-overlay);padding:var(--s6) var(--s5);width:340px;text-align:center">
-      <span class="rail__mark" style="width:56px;height:56px;border-radius:12px;padding:10px 9px;margin:0 auto"><img src="data:image/png;base64,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" alt="MaxDock"></span>
-      <div style="font-size:var(--t-title);font-weight:600;letter-spacing:-.015em;margin-top:var(--s3)">MaxDock</div>
-      <p style="font-size:var(--t-small);color:var(--ink-muted);margin:2px 0 var(--s5)">Dock scheduling</p>
+    <div style="background:var(--surface);border:1px solid var(--rule);border-radius:var(--radius-lg);box-shadow:var(--shadow-overlay);padding:var(--s6) var(--s5);width:360px">
+      <span class="rail__mark" style="width:36px;height:36px;border-radius:8px;padding:6px 5px"><img src="data:image/png;base64,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" alt="MaxDock"></span>
+      <div style="font-size:calc(22px*var(--scale));font-weight:700;letter-spacing:-.015em;color:var(--brand-blue)">MaxDock</div>
+      
       <div style="text-align:left;margin-bottom:var(--s3)"><div style="font-size:var(--t-micro);text-transform:uppercase;letter-spacing:.08em;color:var(--ink-muted);font-weight:600;margin-bottom:3px">Email</div><div class="input" style="color:var(--ink-faint)">name@company.com</div></div>
       <div style="text-align:left;margin-bottom:var(--s4)"><div style="font-size:var(--t-micro);text-transform:uppercase;letter-spacing:.08em;color:var(--ink-muted);font-weight:600;margin-bottom:3px">Password</div><div class="input" style="color:var(--ink-faint)">••••••••</div></div>
       <button class="btn btn--primary" style="width:100%">Sign in</button>
@@ -454,6 +476,8 @@ table.cmp td.n{font-family:var(--font-data)}
     <li><strong style="color:var(--ink)">Sizes come from <span class="sw__hex">--scale</span>.</strong> Never a literal px in a component rule, or the text-size control breaks.</li>
     <li><strong style="color:var(--ink)">The board never scrolls vertically.</strong> Rows are <span class="sw__hex">1fr</span>. If it scrolls, the interval is wrong, not the CSS.</li>
     <li><strong style="color:var(--ink)">Monospace means spoken aloud.</strong> Times, doors, references, skid counts, POs.</li>
+    <li><strong style="color:var(--ink)">Fields are only as wide as their content.</strong> Use <span class="sw__hex">.field--xs/sm/md/lg</span> width caps and <span class="sw__hex">.fieldFlow</span> so short fields sit back-to-back. Never a page of full-width half-empty inputs.</li>
+    <li><strong style="color:var(--ink)">Password fields have a show/hide toggle</strong> (<span class="sw__hex">.passwordReveal</span>), 44px, inside the field. The button swaps <span class="sw__hex">type</span> between password and text and its aria-label between Show and Hide.</li>
     <li><strong style="color:var(--ink)">Touch targets are <span class="sw__hex">var(--tap)</span>, 44px minimum.</strong> Applied to every button, input, select and text-only action. Padding and type are unchanged &mdash; only the hit area grows. Enforced by <span class="sw__hex">a11y.tap-target</span> in the checker.</li>
     <li><strong style="color:var(--ink)">Every option has an off switch</strong>, and lives in Preferences or Settings — nowhere else.</li>
     <li><strong style="color:var(--ink)">Customers see nothing internal.</strong> No door names, no other companies. Enforced in the RPCs, mirrored in the UI.</li>
