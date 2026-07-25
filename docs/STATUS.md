@@ -2,14 +2,14 @@
 
 **Updated:** 2026-07-25  
 **Current branch:** `feat/stage4-dock-board`  
-**Stage 4 pull request:** pending draft creation  
+**Stage 4 pull request:** draft PR #11  
 **Production branch:** `main`  
 **Production commit before Stage 4:** `a72079a0395144c6db62d96060b7ffea6d3049a1`  
 **Production URL:** `https://maxsolutionsmiss.github.io/MaxDock-v2/`
 
 ## Stage
 
-4 of 8 — Dock Board / Dashboard — started
+4 of 8 — Dock Board / Dashboard — implemented and under review
 
 ## Production baseline
 
@@ -27,7 +27,6 @@
 - Use the existing text-size system and the same components for normal and full-screen views; do not create a separate wall-display application.
 - Preserve five-second refresh behaviour without replacing active DOM controls or disrupting keyboard interaction.
 - Apply customer-safe and role-safe data access through `js/db.js` only.
-
 
 ## Stage 4 CSS correction
 
@@ -58,3 +57,5 @@
 - Every Supabase operation goes through `js/db.js`.
 - Do not edit `/docs/` except `docs/STATUS.md` during implementation.
 - Build and review one stage at a time.
+
+<!-- CI refresh after production stylesheet replacement -->
