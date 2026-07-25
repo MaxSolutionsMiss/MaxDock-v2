@@ -51,11 +51,15 @@
 
 ## Design-discipline pass
 
-- The authoritative `docs/maxdock-design-v2.html` and `docs/DESIGN_CORRECTIONS.md` are recorded on the Stage 3 branch.
+- The updated `docs/maxdock-design-v2.html` was used as the implementation reference; implementation did not modify `/docs/` other than this status file.
 - Login uses the in-card 36 px MaxDock badge and blue wordmark lockup, 44 px password reveal controls and a 26 px Max Solutions ownership logo.
-- Shared field sizing uses `.field--xs`, `.field--sm`, `.field--md`, `.field--lg` and `.field--full`.
-- Shared form layout uses `.fieldFlow` and `.fieldGrid--2/3/4`, with one-column collapse below 640 px.
-- Booking form fields have content-appropriate width caps; My Appointments has no text-input filter controls requiring conversion in the current stage.
+- Every current `.field` wrapper now carries one explicit width class: `.field--xs`, `.field--sm`, `.field--md`, `.field--lg` or `.field--full`.
+- Load uses `.fieldFlow` for compact content-sized controls, with Number of skids and PO / BOL / job number grouped together on the same compact row.
+- Vehicle uses `.fieldFlow` for truck, handling and carrier controls; Notes remains a full-width textarea. Time uses `.fieldFlow` for date and time controls.
+- Contact keeps the shared `.fieldGrid--2` alignment system while applying medium caps to name and company and a large cap to email.
+- Login, password recovery and the session-expiry sign-in form use explicit large field caps.
+- My Appointments currently uses segmented view buttons and has no input, select or textarea filter fields requiring width classes.
+- Rail links use `white-space: nowrap`; Book appointment and My appointments remain one line at normal, large and larger text sizes.
 - PR #10 remains draft and must not be merged until signed-in testing and explicit alignment approval are complete.
 
 ## Still required before merge
