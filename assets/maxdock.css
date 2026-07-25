@@ -117,7 +117,7 @@ a { color: var(--dock-deep); }
 
 .field { display: grid; gap: 6px; }
 .field + .field { margin-top: var(--s4); }
-.field__label { font-size: var(--t-small); font-weight: 600; color: var(--ink); }
+.field__label { min-height: calc(var(--t-small) * 1.45); display: flex; align-items: flex-end; font-size: var(--t-small); font-weight: 600; color: var(--ink); }
 .field__hint { margin: 0; font-size: var(--t-small); color: var(--ink-muted); }
 .input, .select {
   width: 100%;
@@ -130,6 +130,24 @@ a { color: var(--dock-deep); }
   transition: border-color var(--motion), box-shadow var(--motion);
 }
 .input:focus, .select:focus { border-color: var(--dock); }
+textarea.input { width: 100%; }
+.field--xs { max-width: 110px; }
+.field--sm { max-width: 190px; }
+.field--md { max-width: 300px; }
+.field--lg { max-width: 420px; }
+.field--full { max-width: none; }
+.fieldFlow { display: flex; flex-wrap: wrap; gap: var(--s3) var(--s4); align-items: start; }
+.fieldFlow > .field { flex: 1 1 auto; margin-top: 0; }
+.fieldGrid { display: grid; gap: var(--s3) var(--s4); align-items: start; }
+.fieldGrid--2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.fieldGrid--3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.fieldGrid--4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.passwordField { position: relative; display: flex; align-items: center; }
+.passwordField .input { padding-inline-end: calc(var(--tap) + 2px); }
+.passwordReveal { position: absolute; inset-inline-end: 0; inset-block-start: 0; width: var(--tap); height: 100%; min-height: var(--tap); border: 0; border-radius: var(--radius); display: flex; align-items: center; justify-content: center; background: transparent; color: var(--ink-muted); }
+.passwordReveal:hover { color: var(--ink); }
+.passwordReveal svg { width: 18px; height: 18px; stroke: currentColor; fill: none; stroke-width: 1.7; }
+
 .form-actions { display: flex; align-items: center; gap: var(--s2); margin-top: var(--s5); }
 .form-actions--stack { display: grid; }
 .form-message { min-height: 1.5em; margin: var(--s3) 0 0; color: var(--stop); font-size: var(--t-small); }
@@ -157,24 +175,24 @@ a { color: var(--dock-deep); }
 .seg button[aria-pressed="true"] { background: var(--dock); color: var(--white); }
 
 .login-page { min-height: 100vh; display: grid; place-items: center; padding: var(--s5); }
-.login-wrap { width: min(100%, 420px); }
-.login-brand { display: flex; align-items: center; justify-content: center; gap: var(--s3); margin-bottom: var(--s5); }
+.login-wrap { width: min(100%, 360px); }
+.login-brand { display: flex; align-items: center; gap: 10px; margin-bottom: var(--s4); }
 .login-brand__badge, .rail__mark {
   background: var(--dock);
   display: grid;
   place-items: center;
   flex: none;
 }
-.login-brand__badge { width: 48px; height: 48px; border-radius: 11px; padding: 8px 7px; }
+.login-brand__badge { width: 36px; height: 36px; border-radius: 8px; padding: 6px 5px; }
 .login-brand__badge img, .rail__mark img { width: 100%; height: 100%; object-fit: contain; display: block; }
-.login-brand__name { margin: 0; font-size: var(--t-title); font-weight: 600; letter-spacing: -0.015em; }
+.login-brand__name { margin: 0; color: var(--brand-blue); font-size: calc(22px * var(--scale)); font-weight: 700; letter-spacing: -0.015em; }
 .login-card { background: var(--surface); border: 1px solid var(--rule); border-radius: var(--radius-lg); padding: var(--s5); }
 .login-card__title { margin: 0; font-size: var(--t-title); font-weight: 600; }
 .login-card__intro { margin: var(--s1) 0 var(--s5); color: var(--ink-muted); }
 .login-divider { display: flex; align-items: center; gap: var(--s3); margin: var(--s5) 0 var(--s3); color: var(--ink-faint); font-size: var(--t-micro); text-transform: uppercase; letter-spacing: 0.09em; }
 .login-divider::before, .login-divider::after { content: ""; height: 1px; background: var(--rule); flex: 1; }
 .login-owner { text-align: center; }
-.login-owner img { max-width: 210px; width: 72%; height: auto; }
+.login-owner img { width: auto; max-width: 100%; height: 26px; }
 .login-footer { text-align: center; margin-top: var(--s4); color: var(--ink-muted); font-size: var(--t-small); }
 
 .shell { display: grid; grid-template-columns: var(--rail-w) minmax(0, 1fr); height: 100vh; overflow: hidden; }
@@ -396,6 +414,10 @@ body.modal-open { overflow: hidden; }
   .appointment-card__details { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
+@media (max-width: 640px) {
+  .fieldGrid--2, .fieldGrid--3, .fieldGrid--4 { grid-template-columns: 1fr; }
+}
+
 @media (max-width: 700px) {
   .metric-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .next-appointment { align-items: flex-start; flex-direction: column; }
@@ -460,10 +482,7 @@ body.modal-open { overflow: hidden; }
 .booking-section-head > p { max-width: 420px; margin: 0; color: var(--ink-muted); }
 .booking-kicker { display: block; margin-bottom: 2px; color: var(--dock-deep); font-size: var(--t-micro); font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; }
 .booking-title { margin: 0; font-size: var(--t-title); }
-.booking-fields { display: grid; gap: var(--s4); }
-.booking-fields--two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-.booking-fields--three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-.booking-field--wide { grid-column: 1 / -1; }
+
 .booking-textarea { resize: vertical; min-height: 108px; }
 .choice-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s2); }
 .choice-card {
@@ -571,9 +590,8 @@ body.modal-open { overflow: hidden; }
 @media (max-width: 700px) {
   .booking-steps { gap: var(--s1); }
   .booking-step { padding-inline: var(--s1); }
-  .booking-fields--two, .booking-fields--three, .choice-row, .booking-side, .slot-grid, .confirm-grid, .confirmation-details, .confirmation-layout { grid-template-columns: 1fr; }
+  .fieldGrid--2, .fieldGrid--3, .fieldGrid--4, .choice-row, .booking-side, .slot-grid, .confirm-grid, .confirmation-details, .confirmation-layout { grid-template-columns: 1fr; }
   .booking-section-head { display: grid; gap: var(--s2); }
-  .booking-field--wide { grid-column: auto; }
   .slot-toolbar { align-items: stretch; flex-direction: column; }
   .slot-toolbar .btn { width: 100%; }
   .summary-list__row { grid-template-columns: 1fr; gap: 2px; }

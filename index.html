@@ -13,12 +13,12 @@
   <a class="skip-link" href="#login-main">Skip to sign in</a>
   <main class="login-page" id="login-main">
     <div class="login-wrap">
-      <div class="login-brand" aria-label="MaxDock">
-        <span class="login-brand__badge"><img src="assets/logo-knockout.png" alt=""></span>
-        <h1 class="login-brand__name">MaxDock</h1>
-      </div>
 
       <section class="login-card" id="sign-in-panel">
+      <div class="login-brand" aria-label="MaxDock">
+        <span class="login-brand__badge"><img src="assets/logo-knockout.png" alt=""></span>
+        <span class="login-brand__name">MaxDock</span>
+      </div>
         <h2 class="login-card__title">Sign in</h2>
         <p class="login-card__intro">Use the email and password assigned to your MaxDock account.</p>
         <form id="sign-in-form">
@@ -28,7 +28,13 @@
           </div>
           <div class="field">
             <label class="field__label" for="password">Password</label>
-            <input class="input" id="password" name="password" type="password" autocomplete="current-password" required>
+            <div class="passwordField">
+
+              <input class="input" id="password" name="password" type="password" autocomplete="current-password" required>
+
+              <button class="passwordReveal" type="button" data-password-reveal="password" aria-label="Show password"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"></path><circle cx="12" cy="12" r="2.75"></circle></svg></button>
+
+            </div>
             <p class="field__hint">Contact a MaxDock administrator when you do not know the email assigned to your account.</p>
           </div>
           <p class="form-message" id="sign-in-message" aria-live="polite"></p>
@@ -42,6 +48,10 @@
       </section>
 
       <section class="login-card" id="forgot-panel" hidden>
+      <div class="login-brand" aria-label="MaxDock">
+        <span class="login-brand__badge"><img src="assets/logo-knockout.png" alt=""></span>
+        <span class="login-brand__name">MaxDock</span>
+      </div>
         <h2 class="login-card__title">Reset your password</h2>
         <p class="login-card__intro">Enter the email assigned to your account. MaxDock will send a secure reset link.</p>
         <form id="forgot-form">
@@ -58,17 +68,33 @@
       </section>
 
       <section class="login-card" id="password-panel" hidden>
+      <div class="login-brand" aria-label="MaxDock">
+        <span class="login-brand__badge"><img src="assets/logo-knockout.png" alt=""></span>
+        <span class="login-brand__name">MaxDock</span>
+      </div>
         <h2 class="login-card__title" id="password-title">Reset your password</h2>
         <p class="login-card__intro" id="password-intro">Choose a new password for your MaxDock account.</p>
         <form id="password-form">
           <div class="field">
             <label class="field__label" for="new-password">New password</label>
-            <input class="input" id="new-password" name="password" type="password" minlength="10" autocomplete="new-password" required>
+            <div class="passwordField">
+
+              <input class="input" id="new-password" name="password" type="password" minlength="10" autocomplete="new-password" required>
+
+              <button class="passwordReveal" type="button" data-password-reveal="new-password" aria-label="Show password"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"></path><circle cx="12" cy="12" r="2.75"></circle></svg></button>
+
+            </div>
             <p class="field__hint">Use at least 10 characters.</p>
           </div>
           <div class="field">
             <label class="field__label" for="confirm-password">Confirm new password</label>
-            <input class="input" id="confirm-password" name="confirmation" type="password" minlength="10" autocomplete="new-password" required>
+            <div class="passwordField">
+
+              <input class="input" id="confirm-password" name="confirmation" type="password" minlength="10" autocomplete="new-password" required>
+
+              <button class="passwordReveal" type="button" data-password-reveal="confirm-password" aria-label="Show password"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"></path><circle cx="12" cy="12" r="2.75"></circle></svg></button>
+
+            </div>
           </div>
           <p class="form-message" id="password-message" aria-live="polite"></p>
           <div class="form-actions form-actions--stack">

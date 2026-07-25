@@ -318,16 +318,16 @@ function renderLoadStep() {
           <button class="choice-card" type="button" data-action="set-movement" data-value="max" aria-pressed="${state.form.movement_kind === 'max'}"><strong>Max-to-Max</strong><span>Reserve both Max Solutions docks</span></button>
         </div>
       </div>`}
-    <div class="booking-fields booking-fields--two">
+    <div class="fieldGrid fieldGrid--2">
       ${!customer && state.form.movement_kind === 'external' ? `
-        <label class="field"><span class="field__label">External party type</span><select class="select" data-field="requester_type"></select></label>
-        <label class="field"><span class="field__label">Company or organisation</span><input class="input" data-field="company_name" list="company-directory" maxlength="120" autocomplete="organization"><datalist id="company-directory"></datalist></label>` : ''}
+        <label class="field field--md"><span class="field__label">External party type</span><select class="select" data-field="requester_type"></select></label>
+        <label class="field field--md"><span class="field__label">Company or organisation</span><input class="input" data-field="company_name" list="company-directory" maxlength="120" autocomplete="organization"><datalist id="company-directory"></datalist></label>` : ''}
       ${!customer && state.form.movement_kind === 'max' ? `
-        <label class="field booking-field--wide"><span class="field__label">Other Max Solutions location</span><select class="select" data-field="requester_location_id"></select><span class="field__hint">The same time will be reserved at both facilities.</span></label>` : ''}
-      <label class="field"><span class="field__label">Appointment type</span><select class="select" data-field="appointment_type_code"></select></label>
-      <label class="field"><span class="field__label">Number of skids</span><input class="input" data-field="skid_count" type="number" min="0" max="9999" inputmode="numeric"></label>
-      <label class="field booking-field--wide"><span class="field__label">PO / BOL / job number</span><input class="input data" data-field="external_reference" maxlength="120" autocomplete="off"></label>
-      ${isStaff() ? '<label class="check-row booking-field--wide"><input type="checkbox" data-field="is_priority"><span><strong>Priority load</strong><small>Apply the location’s configured priority timing rule.</small></span></label>' : ''}
+        <label class="field field--full"><span class="field__label">Other Max Solutions location</span><select class="select" data-field="requester_location_id"></select><span class="field__hint">The same time will be reserved at both facilities.</span></label>` : ''}
+      <label class="field field--md"><span class="field__label">Appointment type</span><select class="select" data-field="appointment_type_code"></select></label>
+      <label class="field field--xs"><span class="field__label">Number of skids</span><input class="input" data-field="skid_count" type="number" min="0" max="9999" inputmode="numeric"></label>
+      <label class="field field--sm"><span class="field__label">PO / BOL / job number</span><input class="input data" data-field="external_reference" maxlength="120" autocomplete="off"></label>
+      ${isStaff() ? '<label class="check-row field--full"><input type="checkbox" data-field="is_priority"><span><strong>Priority load</strong><small>Apply the location’s configured priority timing rule.</small></span></label>' : ''}
     </div>`;
 
   if (!customer && state.form.movement_kind === 'external') {
@@ -367,11 +367,11 @@ function renderVehicleStep() {
       <div><span class="booking-kicker">Step 2 of 5</span><h2 class="booking-title">Vehicle</h2></div>
       <p>Select only the vehicle and handling types enabled at this location.</p>
     </div>
-    <div class="booking-fields booking-fields--two">
-      <label class="field"><span class="field__label">Truck type</span><select class="select" data-field="truck_type_code"></select></label>
-      <label class="field"><span class="field__label">Handling</span><select class="select" data-field="handling_type_code"></select></label>
-      <label class="field booking-field--wide"><span class="field__label">Carrier or courier</span><input class="input" data-field="carrier_name" maxlength="120" autocomplete="organization"></label>
-      <label class="field booking-field--wide"><span class="field__label">Notes</span><textarea class="input booking-textarea" data-field="notes" maxlength="1000" rows="4"></textarea><span class="field__hint">Add handling instructions only. Do not include passwords or sensitive personal information.</span></label>
+    <div class="fieldGrid fieldGrid--2">
+      <label class="field field--md"><span class="field__label">Truck type</span><select class="select" data-field="truck_type_code"></select></label>
+      <label class="field field--md"><span class="field__label">Handling</span><select class="select" data-field="handling_type_code"></select></label>
+      <label class="field field--md"><span class="field__label">Carrier or courier</span><input class="input" data-field="carrier_name" maxlength="120" autocomplete="organization"></label>
+      <label class="field field--full"><span class="field__label">Notes</span><textarea class="input booking-textarea" data-field="notes" maxlength="1000" rows="4"></textarea><span class="field__hint">Add handling instructions only. Do not include passwords or sensitive personal information.</span></label>
     </div>`;
   addOptions(hosts.step.querySelector('[data-field="truck_type_code"]'), state.reference.truckTypes, state.form.truck_type_code, 'Choose a truck type');
   addOptions(hosts.step.querySelector('[data-field="handling_type_code"]'), state.reference.handlingTypes, state.form.handling_type_code, 'Choose a handling type');
@@ -439,16 +439,16 @@ function renderTimeStep() {
       <div><span class="booking-kicker">Step 3 of 5</span><h2 class="booking-title">Time</h2></div>
       <p>MaxDock calculates duration and dock compatibility. Customers never see internal dock assignments.</p>
     </div>
-    <div class="booking-fields booking-fields--three">
-      <label class="field"><span class="field__label">Requested date</span><input class="input" data-field="date" type="date" min="${format.inputDate(null, receivingLocation())}"></label>
-      <label class="field"><span class="field__label">Preferred start</span><input class="input" data-field="preferred_start_time" type="time"></label>
-      <label class="field"><span class="field__label">Preferred end</span><input class="input" data-field="preferred_end_time" type="time"></label>
+    <div class="fieldGrid fieldGrid--3">
+      <label class="field field--sm"><span class="field__label">Requested date</span><input class="input" data-field="date" type="date" min="${format.inputDate(null, receivingLocation())}"></label>
+      <label class="field field--sm"><span class="field__label">Preferred start</span><input class="input" data-field="preferred_start_time" type="time"></label>
+      <label class="field field--sm"><span class="field__label">Preferred end</span><input class="input" data-field="preferred_end_time" type="time"></label>
     </div>
     ${staff ? `
       <label class="check-row after-hours-toggle"><input type="checkbox" data-field="after_hours"><span><strong>Request an after-hours time</strong><small>Staff only. The booking RPC verifies the time and records your confirmation.</small></span></label>
       ${state.form.after_hours ? `
         <div class="after-hours-panel">
-          <label class="field"><span class="field__label">Custom start time</span><input class="input" data-field="custom_time" type="time" step="${Math.max(1, Number(state.reference.settings.slot_interval_minutes || 30)) * 60}"></label>
+          <label class="field field--sm"><span class="field__label">Custom start time</span><input class="input" data-field="custom_time" type="time" step="${Math.max(1, Number(state.reference.settings.slot_interval_minutes || 30)) * 60}"></label>
           <label class="check-row"><input type="checkbox" data-field="after_hours_acknowledged"><span><strong>I confirm this appointment may be outside operating hours</strong><small>This explicit acknowledgement is required before MaxDock sends the override to the booking RPC.</small></span></label>
         </div>` : ''}` : ''}
     ${!state.form.after_hours ? `
@@ -476,10 +476,10 @@ function renderContactStep() {
       <div><span class="booking-kicker">Step 4 of 5</span><h2 class="booking-title">Contact</h2></div>
       <p>These details identify the requester and are included in the confirmation draft.</p>
     </div>
-    <div class="booking-fields booking-fields--two">
-      <label class="field"><span class="field__label">Requester name</span><input class="input" data-field="requester_name" maxlength="120" autocomplete="name"></label>
-      <label class="field"><span class="field__label">Requester email</span><input class="input" data-field="requester_email" type="email" maxlength="180" autocomplete="email"></label>
-      ${state.form.movement_kind === 'external' ? '<label class="field booking-field--wide"><span class="field__label">Company or organisation</span><input class="input" data-field="company_name" maxlength="120" autocomplete="organization"></label>' : ''}
+    <div class="fieldGrid fieldGrid--2">
+      <label class="field field--md"><span class="field__label">Requester name</span><input class="input" data-field="requester_name" maxlength="120" autocomplete="name"></label>
+      <label class="field field--lg"><span class="field__label">Requester email</span><input class="input" data-field="requester_email" type="email" maxlength="180" autocomplete="email"></label>
+      ${state.form.movement_kind === 'external' ? '<label class="field field--full"><span class="field__label">Company or organisation</span><input class="input" data-field="company_name" maxlength="120" autocomplete="organization"></label>' : ''}
     </div>`;
   hosts.step.querySelector('[data-field="requester_name"]').value = state.form.requester_name;
   hosts.step.querySelector('[data-field="requester_email"]').value = state.form.requester_email;
@@ -518,7 +518,7 @@ function renderConfirmStep() {
     <div class="confirm-grid" data-confirm-grid></div>
     ${state.form.after_hours ? '<div class="inline-note inline-note--warning"><strong>After-hours override</strong><span>Your acknowledgement will be recorded with the booking.</span></div>' : ''}
     <label class="check-row save-template-row"><input type="checkbox" data-field="save_template"><span><strong>Save these load and vehicle details as a template</strong><small>Contact information, notes and PO/BOL/job numbers are not saved.</small></span></label>
-    ${state.form.save_template ? '<label class="field"><span class="field__label">Template name</span><input class="input" data-field="template_name" maxlength="80" placeholder="Example: Weekly Haleon inbound"></label>' : ''}`;
+    ${state.form.save_template ? '<label class="field field--md"><span class="field__label">Template name</span><input class="input" data-field="template_name" maxlength="80" placeholder="Example: Weekly Haleon inbound"></label>' : ''}`;
 
   const grid = hosts.step.querySelector('[data-confirm-grid]');
   for (const [label, value] of summaryRows()) {
