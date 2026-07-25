@@ -40,7 +40,7 @@ if (!failures.length) {
   check(/event\.key\s*!==\s*['"]Tab['"]/.test(modal) && /event\.key\s*===\s*['"]Escape['"]/.test(modal), 'js/ui/modal.js', 'The modal must trap Tab and support Escape.');
   check(/returnFocus/.test(modal), 'js/ui/modal.js', 'The modal must restore focus after closing.');
   check(/nowEpoch\(\)/.test(format), 'js/format.js', 'Current-time arithmetic must be provided by format.js.');
-  check(/\.appointment-card__actions/.test(css) && /\.metric-grid/.test(css), 'assets/maxdock.css', 'Stage 2 appointment layout styles are missing.');
+  check(/\.card/.test(css) && /\.kpis/.test(css) && /\.table/.test(css), 'assets/maxdock.css', 'Approved composed appointment layout styles are missing.');
 }
 
 console.log('\nMaxDock Stage 2 My Appointments verification');
