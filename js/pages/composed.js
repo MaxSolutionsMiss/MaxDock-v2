@@ -1,7 +1,8 @@
+import { format } from '../format.js';
 import { toast } from '../ui/toast.js';
 
 function downloadCsv(code) {
-  const rows = [['MaxDock page', code], ['Exported at', new Date().toISOString()]];
+  const rows = [['MaxDock page', code], ['Exported at', format.nowIso()]];
   const csv = rows.map(row => row.map(value => `"${String(value).replaceAll('"', '""')}"`).join(',')).join('\n');
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
   const url = URL.createObjectURL(blob);
