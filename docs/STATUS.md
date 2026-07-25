@@ -1,89 +1,51 @@
 # MaxDock Implementation Status
 
 **Updated:** 2026-07-25  
-**Current branch:** `feat/stage3-booking`  
-**Pull request:** PR #10 — draft, not approved for merge  
+**Current branch:** `feat/stage4-dock-board`  
+**Stage 4 pull request:** pending draft creation  
 **Production branch:** `main`  
-**Production URL:** `https://maxsolutionsmiss.github.io/MaxDock-v2/`  
-**Stage 3 preview URL:** `https://maxsolutionsmiss.github.io/MaxDock-v2/stage3-preview/`
+**Production commit before Stage 4:** `a72079a0395144c6db62d96060b7ffea6d3049a1`  
+**Production URL:** `https://maxsolutionsmiss.github.io/MaxDock-v2/`
 
 ## Stage
 
-3 of 8 — Booking — implemented, contract-audited and under signed-in testing
+4 of 8 — Dock Board / Dashboard — started
 
-## Actually deployed
+## Production baseline
 
-- Production remains the merged Stage 1 shell and Stage 2 My Appointments from `main`.
-- Stage 3 is isolated under `/stage3-preview/`; it does not replace production.
-- The Stage 3 preview workflow checks out `feat/stage3-booking` by branch name at deployment time.
-- The workflow writes the deployed branch-tip commit to `/stage3-preview/build.json`; no application file is pinned to a frozen commit hash.
+- Stage 1 Shell, Stage 2 My Appointments and Stage 3 Booking are merged into `main`.
+- Stage 4 work is isolated on `feat/stage4-dock-board`.
+- Production must remain unchanged until the Stage 4 preview is verified, audited and explicitly approved.
 
-## Stage 3 implemented
+## Stage 4 scope
 
-- Five-step booking flow: Load → Vehicle → Time → Contact → Confirm.
-- Capacity-aware slot picker through `list_capacity_aware_appointment_slots`.
-- Max-to-Max routed slots through `list_routed_appointment_slots` and routed booking through `book_routed_appointment`.
-- Standard booking through `book_appointment` using the live RPC signature.
-- Booking templates saved, applied and deleted through the RLS-protected `booking_templates` table via `js/db.js`.
-- Staff-only after-hours selection and explicit confirmation; customer accounts cannot access after-hours booking.
-- Same-day consolidation as an accessible modal with View existing appointment, Go back and combine, and Continue separately.
-- Confirmation panel with booking reference, locally generated QR, Copy confirmation and Open email draft.
-- Five-second polling is suspended while the Time slot picker is open and resumed after leaving it.
-- Customer slot responses use a customer-safe projection that omits dock identifiers and operational recommendation details.
+- Build the operational Dock Board / Dashboard using the shared shell and canonical `assets/maxdock.css`.
+- Render docks across and time down from real location and appointment data.
+- Provide date navigation, location switching, KPI cards and operational filters.
+- Keep Book appointment and Block dock time as permanent primary actions.
+- Provide Export, Print and Full-screen actions using shared components.
+- Use the existing text-size system and the same components for normal and full-screen views; do not create a separate wall-display application.
+- Preserve five-second refresh behaviour without replacing active DOM controls or disrupting keyboard interaction.
+- Apply customer-safe and role-safe data access through `js/db.js` only.
 
-## Audit result
+## Stage 4 acceptance gates
 
-- Claude Stage 3 audit verdict: pass.
-- All seven booking-related RPCs exist and match the live signatures.
-- Standard and Max-to-Max routed booking paths are wired correctly.
-- Local QR generation, the three-choice consolidation modal and slot-picker polling suspension all passed review.
-- Desktop and phone checks reported zero console errors, no horizontal scrolling and 44 px minimum tap targets.
-- Application JavaScript is 185 KB against the 120 KB warning budget. This is accepted for Stage 3, with page-specific loading and future growth to be monitored.
-- No audit code correction is required before signed-in testing.
+- The supported operational desktop view must show 10–15 dock doors without vertical scrolling.
+- No horizontal scrolling at supported desktop, tablet or phone widths.
+- Operational controls remain at least 44 px.
+- Rail labels remain on one line at Normal, Large and Larger text sizes.
+- The primary board task fits within one screen wherever practical, with minimal vertical scrolling.
+- Console remains clean and the design/architecture verifier remains green.
+- Empty, loading, offline, reconnect and error states are explicit and usable.
+- Full-screen mode opens and exits correctly and remains readable from the operational viewing distance.
+- Signed-in role testing and a design audit are required before merge.
 
-## Validation
-
-- `scripts/verify-maxdock.mjs` passes on the Stage 3 branch with the JavaScript budget warning only.
-- `scripts/verify-maxdock-implementation.mjs` passes.
-- Stage 1, Stage 2 and Stage 3 structural verifiers pass.
-- GitHub `validate`, `conformance`, preview `verify` and `deploy-preview` checks passed.
-- Local browser tests passed for customer booking, coordinator booking, Max-to-Max routing, staff after-hours, same-day consolidation, local QR decoding and responsive text sizes.
-
-## Design-discipline pass
-
-- The updated `docs/maxdock-design-v2.html` was used as the implementation reference; implementation did not modify `/docs/` other than this status file.
-- Login uses the in-card 36 px MaxDock badge and blue wordmark lockup, 44 px password reveal controls and a 26 px Max Solutions ownership logo.
-- Every current `.field` wrapper now carries one explicit width class: `.field--xs`, `.field--sm`, `.field--md`, `.field--lg` or `.field--full`.
-- Load uses `.fieldFlow` for compact content-sized controls, with Number of skids and PO / BOL / job number grouped together on the same compact row.
-- Vehicle uses `.fieldFlow` for truck, handling and carrier controls; Notes remains a full-width textarea. Time uses `.fieldFlow` for date and time controls.
-- Contact keeps the shared `.fieldGrid--2` alignment system while applying medium caps to name and company and a large cap to email.
-- Login, password recovery and the session-expiry sign-in form use explicit large field caps.
-- My Appointments currently uses segmented view buttons and has no input, select or textarea filter fields requiring width classes.
-- Rail links use `white-space: nowrap`; Book appointment and My appointments remain one line at normal, large and larger text sizes.
-- PR #10 remains draft and must not be merged until signed-in testing and explicit alignment approval are complete.
-
-## Still required before merge
-
-- Signed-in coordinator booking through all five steps, including Back-state preservation and final database confirmation.
-- Signed-in customer booking confirming that after-hours is unavailable and only permitted locations appear.
-- Customer browser network-payload inspection confirming no internal dock information is returned.
-- Same-day consolidation behaviour with an existing appointment.
-- Two-browser race test against the same slot, confirming one booking succeeds and the other receives a clean slot-taken response with alternatives.
-- Explicit approval to merge PR #10.
-
-## Standing UX requirement
-
-- No horizontal scrolling on supported desktop, tablet or phone widths.
-- Primary operational tasks should fit within one viewport where practical.
-- Vertical scrolling should be minimised by using compact, clear layouts rather than hiding required information.
-- The Dock Board must meet the contract requirement to show 10–15 doors without vertical scrolling at the supported operational desktop size.
-- Speed, clarity and low-click completion remain acceptance criteria for every stage.
-
-## Rules in force
+## Standing rules
 
 - One stylesheet: `assets/maxdock.css`.
-- No `!important`.
+- No `!important`, override files or patch layers.
 - No MutationObservers for layout.
 - No runtime script or stylesheet injection.
 - Every Supabase operation goes through `js/db.js`.
-- No `/docs/` changes except `docs/STATUS.md` during implementation.
+- Do not edit `/docs/` except `docs/STATUS.md` during implementation.
+- Build and review one stage at a time.
