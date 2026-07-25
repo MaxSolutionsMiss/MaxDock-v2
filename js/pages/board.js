@@ -1,4 +1,4 @@
-import { startPage } from '../router.js';
+import { startPage } from '../router.js?v=stage4-rail-20260725';
 import { db } from '../db.js';
 import { createModal } from '../ui/modal.js';
 import { toast } from '../ui/toast.js';

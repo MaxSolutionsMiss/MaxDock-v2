@@ -63,56 +63,60 @@ function pageAllowed(context, page) {
   return (page.permissions || []).some(permission => context.can(permission));
 }
 
+function appendRouteGroup(fragment, context, pageCode, routeGroup) {
+  const visibleItems = routeGroup.items.filter(item => routeAllowed(context, item));
+  if (!visibleItems.length) return;
+  const group = document.createElement('div');
+  group.className = routeGroup.admin ? 'rail__group rail__group--admin' : 'rail__group';
+  const label = document.createElement('div');
+  label.className = 'rail__label';
+  label.textContent = routeGroup.group;
+  group.append(label);
+  for (const item of visibleItems) {
+    const link = document.createElement('a');
+    link.className = 'rail__link';
+    link.href = appUrl(item.path);
+    if (item.code === pageCode) link.setAttribute('aria-current', 'page');
+    const icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    icon.setAttribute('class', 'rail__icon');
+    icon.setAttribute('viewBox', '0 0 24 24');
+    icon.setAttribute('aria-hidden', 'true');
+    icon.innerHTML = item.icon;
+    const text = document.createElement('span');
+    text.textContent = item.label;
+    link.append(icon, text);
+    group.append(link);
+  }
+  fragment.append(group);
+}
+
+function appendBookingButton(fragment, context) {
+  if (!context.can('appointment.create')) return;
+  const cta = document.createElement('div');
+  cta.className = 'rail__cta';
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'btn btn--primary btn--block';
+  button.dataset.openBooking = '';
+  button.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg><span>Book appointment</span>';
+  cta.append(button);
+  fragment.append(cta);
+}
+
 function createNav(context, pageCode) {
   const fragment = document.createDocumentFragment();
-  const routes = context.customerShell ? CUSTOMER_ROUTES : STAFF_ROUTES;
-
-  for (const routeGroup of routes) {
-    const visibleItems = routeGroup.items.filter(item => routeAllowed(context, item));
-    if (!visibleItems.length) continue;
-
-    if (routeGroup.admin) {
-      const spacer = document.createElement('div');
-      spacer.className = 'rail__spacer';
-      fragment.append(spacer);
-    }
-
-    const group = document.createElement('div');
-    group.className = routeGroup.admin ? 'rail__group rail__group--admin' : 'rail__group';
-    const label = document.createElement('div');
-    label.className = 'rail__label';
-    label.textContent = routeGroup.group;
-    group.append(label);
-
-    for (const item of visibleItems) {
-      const link = document.createElement('a');
-      link.className = 'rail__link';
-      link.href = appUrl(item.path);
-      if (item.code === pageCode) link.setAttribute('aria-current', 'page');
-      const icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-      icon.setAttribute('class', 'rail__icon');
-      icon.setAttribute('viewBox', '0 0 24 24');
-      icon.setAttribute('aria-hidden', 'true');
-      icon.innerHTML = item.icon;
-      const text = document.createElement('span');
-      text.textContent = item.label;
-      link.append(icon, text);
-      group.append(link);
-    }
-    fragment.append(group);
-
-    if (!routeGroup.admin && context.can('appointment.create')) {
-      const cta = document.createElement('div');
-      cta.className = 'rail__cta';
-      const button = document.createElement('button');
-      button.type = 'button';
-      button.className = 'btn btn--primary btn--block';
-      button.dataset.openBooking = '';
-      button.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg><span>Book appointment</span>';
-      cta.append(button);
-      fragment.append(cta);
-    }
+  if (context.customerShell) {
+    appendRouteGroup(fragment, context, pageCode, CUSTOMER_ROUTES[0]);
+    appendBookingButton(fragment, context);
+    return fragment;
   }
+  appendRouteGroup(fragment, context, pageCode, STAFF_ROUTES[0]);
+  appendBookingButton(fragment, context);
+  const spacer = document.createElement('div');
+  spacer.className = 'rail__spacer';
+  spacer.setAttribute('aria-hidden', 'true');
+  fragment.append(spacer);
+  appendRouteGroup(fragment, context, pageCode, STAFF_ROUTES[1]);
   return fragment;
 }
 
