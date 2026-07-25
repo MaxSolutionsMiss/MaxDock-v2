@@ -45,10 +45,10 @@ if (!errors.length) {
   requireText(page, /Open email draft/, 'Open email draft action is missing.');
   requireText(page, /renderQr\(/, 'Local QR rendering is not connected to the confirmation panel.');
   requireText(qr, /no appointment data leaves the browser/i, 'The local QR module attribution/privacy note is missing.');
-  requireText(css, /\/\* Stage 3 — Booking \*\//, 'Stage 3 booking styles are missing from the canonical stylesheet.');
+  requireText(css, /\.modal/.test(css) ? /\.steps/ : /$a/, 'Approved booking modal styles are missing from the canonical stylesheet.');
   requireText(db, /async insert\(/, 'db.js is missing the insert mutation wrapper.');
   requireText(db, /async remove\(/, 'db.js is missing the delete mutation wrapper.');
-  requireText(router, /code:\s*'book'/, 'Booking route is missing from the shell.');
+  requireText(router, /data-open-booking|maxdock:open-booking/, 'Booking modal action is missing from the shell.');
 
   if (/\bconfirm\s*\(/.test(page)) errors.push('Native confirm() is not permitted for consolidation.');
   if (/qrserver\.com|api\.qrserver/i.test(page + qr)) errors.push('A third-party QR service is referenced.');
