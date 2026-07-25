@@ -1,0 +1,39 @@
+name: Smoke Full Preview
+on:
+  push:
+    branches: [feat/stage4-dock-board]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  smoke-preview:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wait for Pages propagation
+        run: sleep 20
+      - name: Verify deployed routes and assets
+        env:
+          BASE: https://maxsolutionsmiss.github.io/MaxDock-v2/stage4-preview
+        run: |
+          set -euo pipefail
+          for path in \
+            / \
+            /app/board.html \
+            /app/queue.html \
+            /app/my-appointments.html \
+            /app/settings.html \
+            /app/reports.html \
+            /app/users.html \
+            /app/data.html \
+            /app/book.html \
+            /assets/maxdock.css \
+            /js/router.js \
+            /js/pages/board.js \
+            /js/pages/queue.js \
+            /js/pages/settings.js \
+            /js/pages/reports.js \
+            /js/pages/users.js \
+            /js/pages/data.js; do
+            echo "Checking ${BASE}${path}"
+            curl --fail --silent --show-error --location --retry 4 --retry-delay 3 --output /dev/null "${BASE}${path}"
+          done
