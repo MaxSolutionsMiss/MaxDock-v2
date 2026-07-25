@@ -9,7 +9,7 @@
 
 ## Stage
 
-3 of 8 — Booking — implemented, deployed and contract-audited
+3 of 8 — Booking — implemented, contract-audited and under signed-in testing
 
 ## Actually deployed
 
@@ -48,6 +48,15 @@
 - Stage 1, Stage 2 and Stage 3 structural verifiers pass.
 - GitHub `validate`, `conformance`, preview `verify` and `deploy-preview` checks passed.
 - Local browser tests passed for customer booking, coordinator booking, Max-to-Max routing, staff after-hours, same-day consolidation, local QR decoding and responsive text sizes.
+
+## Design-discipline pass
+
+- The authoritative `docs/maxdock-design-v2.html` and `docs/DESIGN_CORRECTIONS.md` are recorded on the Stage 3 branch.
+- Login uses the in-card 36 px MaxDock badge and blue wordmark lockup, 44 px password reveal controls and a 26 px Max Solutions ownership logo.
+- Shared field sizing uses `.field--xs`, `.field--sm`, `.field--md`, `.field--lg` and `.field--full`.
+- Shared form layout uses `.fieldFlow` and `.fieldGrid--2/3/4`, with one-column collapse below 640 px.
+- Booking form fields have content-appropriate width caps; My Appointments has no text-input filter controls requiring conversion in the current stage.
+- PR #10 remains draft and must not be merged until signed-in testing and explicit alignment approval are complete.
 
 ## Still required before merge
 
