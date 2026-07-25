@@ -1,56 +1,85 @@
-name: Deploy Stage 4 preview
+name: Deploy Stage 4 Preview
 
 on:
   push:
-    branches: [feat/stage4-dock-board]
-  pull_request:
-    branches: [main]
-    paths:
-      - app/board.html
-      - js/pages/board.js
-      - assets/maxdock.css
-      - scripts/verify-stage4-board.mjs
+    branches:
+      - feat/stage4-dock-board
+  workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: stage4-preview
+  cancel-in-progress: true
 
 jobs:
   verify:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: |
-          node --check js/pages/board.js
-          node scripts/verify-maxdock.mjs
-          node scripts/verify-maxdock-implementation.mjs
-          node scripts/verify-stage1-shell.mjs
-          node scripts/verify-stage2-my-appointments.mjs
-          node scripts/verify-stage3-booking.mjs
-          node scripts/verify-stage4-board.mjs
-
-  deploy-preview:
-    if: github.event_name == 'push'
-    needs: verify
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
         with:
           ref: feat/stage4-dock-board
-      - run: |
-          mkdir -p /tmp/stage4-preview
-          cp -R app assets js index.html /tmp/stage4-preview/
-          printf '{"commit":"%s","branch":"feat/stage4-dock-board"}\n' "$(git rev-parse HEAD)" > /tmp/stage4-preview/build.json
-      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
-          ref: gh-pages
-          path: pages
-      - run: |
-          rm -rf pages/stage4-preview
-          mkdir -p pages/stage4-preview
-          cp -R /tmp/stage4-preview/. pages/stage4-preview/
-          cd pages
-          git config user.name github-actions[bot]
-          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add stage4-preview
-          git diff --cached --quiet || git commit -m "Deploy Stage 4 preview"
-          git push
+          node-version: '20'
+      - name: Verify MaxDock conformance
+        run: node scripts/verify-maxdock.mjs
+      - name: Verify implementation architecture
+        run: node scripts/verify-maxdock-implementation.mjs
+      - name: Verify Stage 1 shell
+        run: node scripts/verify-stage1-shell.mjs
+      - name: Verify Stage 2 My Appointments
+        run: node scripts/verify-stage2-my-appointments.mjs
+      - name: Verify Stage 3 Booking
+        run: node scripts/verify-stage3-booking.mjs
+      - name: Verify Stage 4 Dock Board
+        run: node scripts/verify-stage4-board.mjs
+
+  deploy-preview:
+    runs-on: ubuntu-latest
+    needs: verify
+    environment:
+      name: stage4-preview
+      url: ${{ steps.deployment.outputs.page_url }}stage4-preview/
+    steps:
+      - name: Check out production root
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          path: site
+
+      - name: Check out current Stage 4 branch head
+        uses: actions/checkout@v4
+        with:
+          ref: feat/stage4-dock-board
+          path: stage4
+          fetch-depth: 1
+
+      - name: Build isolated preview from branch head
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf site/stage4-preview
+          mkdir -p site/stage4-preview
+          cp stage4/index.html site/stage4-preview/index.html
+          cp -R stage4/app site/stage4-preview/app
+          cp -R stage4/assets site/stage4-preview/assets
+          cp -R stage4/js site/stage4-preview/js
+          touch site/.nojekyll
+          stage4_sha="$(git -C stage4 rev-parse HEAD)"
+          printf '{"branch":"feat/stage4-dock-board","commit":"%s"}\n' "$stage4_sha" > site/stage4-preview/build.json
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+      - name: Deploy preview
+        id: deployment
+        uses: actions/deploy-pages@v4
