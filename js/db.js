@@ -94,7 +94,11 @@ function stableKey(prefix, value) {
 export const db = Object.freeze({
   async rpc(name, args = {}, options = {}) {
     const key = options.key || stableKey(`rpc:${name}`, args);
-    return execute(key, () => client.rpc(name, args), options);
+    return execute(key, () => {
+      let query = client.rpc(name, args);
+      if (options.select) query = query.select(options.select);
+      return query;
+    }, options);
   },
 
   async select(table, buildQuery, options = {}) {
@@ -103,6 +107,37 @@ export const db = Object.freeze({
       const base = client.from(table);
       return buildQuery(base);
     }, options);
+  },
+
+  async insert(table, values, options = {}) {
+    const key = options.key || `${stableKey(`insert:${table}`, values)}:${crypto.randomUUID()}`;
+    return execute(key, () => {
+      let query = client.from(table).insert(values);
+      if (options.select !== false) query = query.select(options.select || '*');
+      if (options.single !== false && options.select !== false) query = query.single();
+      return query;
+    }, { ...options, cache: 0, retry: options.retry ?? 0 });
+  },
+
+  async update(table, values, buildQuery, options = {}) {
+    const key = options.key || `${stableKey(`update:${table}`, values)}:${crypto.randomUUID()}`;
+    return execute(key, () => {
+      let query = client.from(table).update(values);
+      query = buildQuery(query);
+      if (options.select !== false) query = query.select(options.select || '*');
+      if (options.single === true && options.select !== false) query = query.single();
+      return query;
+    }, { ...options, cache: 0, retry: options.retry ?? 0 });
+  },
+
+  async remove(table, buildQuery, options = {}) {
+    const key = options.key || `${stableKey(`delete:${table}`, options.cacheKey || {})}:${crypto.randomUUID()}`;
+    return execute(key, () => {
+      let query = client.from(table).delete();
+      query = buildQuery(query);
+      if (options.select !== false) query = query.select(options.select || '*');
+      return query;
+    }, { ...options, cache: 0, retry: options.retry ?? 0 });
   },
 
   async edge(functionName, body, options = {}) {

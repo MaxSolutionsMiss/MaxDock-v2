@@ -30,6 +30,38 @@ export const format = Object.freeze({
     return `${this.date(value, location)} · ${this.time(value, location)}`;
   },
 
+  inputDate(value, location) {
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      timeZone: location?.timezone || DEFAULT_TIMEZONE,
+    }).formatToParts(makeDate(value));
+    const values = Object.fromEntries(parts.map(part => [part.type, part.value]));
+    return `${values.year}-${values.month}-${values.day}`;
+  },
+
+  inputTime(value, location) {
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+      timeZone: location?.timezone || DEFAULT_TIMEZONE,
+    }).formatToParts(makeDate(value));
+    const values = Object.fromEntries(parts.map(part => [part.type, part.value]));
+    return `${values.hour}:${values.minute}`;
+  },
+
+  addDaysInput(value, days, location) {
+    const date = makeDate(value);
+    date.setUTCDate(date.getUTCDate() + Number(days || 0));
+    return this.inputDate(date, location);
+  },
+
+  sameLocalDate(value, dateInput, location) {
+    return this.inputDate(value, location) === String(dateInput || '');
+  },
+
   epoch(value) {
     return makeDate(value).getTime();
   },

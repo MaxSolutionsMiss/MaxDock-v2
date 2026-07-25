@@ -10,6 +10,7 @@ const STAFF_ROUTES = [
     group: 'Operations',
     items: [
       { code: 'board', label: 'Dock board', path: 'app/board.html', permission: 'dock.view', icon: '<rect x="3" y="4" width="18" height="16" rx="2"></rect><path d="M3 9h18M9 4v16"></path>' },
+      { code: 'book', label: 'Book appointment', path: 'app/book.html', permission: 'appointment.create', icon: '<path d="M12 5v14M5 12h14"></path><circle cx="12" cy="12" r="9"></circle>' },
       { code: 'my-appointments', label: 'My appointments', path: 'app/my-appointments.html', permissions: ['appointment.view_own', 'appointment.view'], icon: '<circle cx="12" cy="12" r="9"></circle><path d="M12 8v4l3 2"></path>' },
     ],
   },
@@ -19,6 +20,7 @@ const CUSTOMER_ROUTES = [
   {
     group: 'Appointments',
     items: [
+      { code: 'book', label: 'Book appointment', path: 'app/book.html', permission: 'appointment.create', icon: '<path d="M12 5v14M5 12h14"></path><circle cx="12" cy="12" r="9"></circle>' },
       { code: 'my-appointments', label: 'My appointments', path: 'app/my-appointments.html', permissions: ['appointment.view_own', 'appointment.view'], icon: '<circle cx="12" cy="12" r="9"></circle><path d="M12 8v4l3 2"></path>' },
     ],
   },
