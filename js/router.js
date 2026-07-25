@@ -246,11 +246,11 @@ function showSessionModal(context) {
     <h2 class="modal__title" id="session-title">Your session expired</h2>
     <p class="modal__message">Sign in again to continue. The current screen will stay in place.</p>
     <form id="session-form">
-      <div class="field">
+      <div class="field field--lg">
         <label class="field__label" for="session-email">Email</label>
         <input class="input" id="session-email" name="email" type="email" autocomplete="username" required>
       </div>
-      <div class="field">
+      <div class="field field--lg">
         <label class="field__label" for="session-password">Password</label>
         <input class="input" id="session-password" name="password" type="password" autocomplete="current-password" required>
       </div>
