@@ -20,11 +20,11 @@
 ## Stage 4 scope
 
 - Build the operational Dock Board / Dashboard using the shared shell and canonical `assets/maxdock.css`.
-- Render docks across and time down from real location and appointment data.
+- Render docks as rows and time across the top from real location and appointment data, matching the approved design handoff.
 - Provide date navigation, location switching, KPI cards and operational filters.
 - Keep Book appointment and Block dock time as permanent primary actions.
 - Provide Export, Print and Full-screen actions using shared components.
-- Use the existing text-size system and the same components for normal and full-screen views; do not create a separate wall-display application.
+- Use the approved text-size system and open Full screen as the separate dark broadcast window from the handoff.
 - Preserve five-second refresh behaviour without replacing active DOM controls or disrupting keyboard interaction.
 - Apply customer-safe and role-safe data access through `js/db.js` only.
 
@@ -60,3 +60,13 @@
 - Build and review one stage at a time.
 
 <!-- Final CI refresh after canonical production stylesheet integration -->
+
+## Approved design handoff alignment
+
+- `DESIGN_HANDOFF.md` is now the source of truth for all staged front-end work.
+- The approved `maxdock.css` is used unchanged except for removing the single `!important` from the reduced-motion declaration, per owner approval.
+- Stage 4 uses docks as rows, time across the top, sticky time headers and a sticky dock-label column.
+- The rail follows the approved fixed order and Book appointment remains a modal action rather than a navigation page.
+- Full screen opens a separate dark broadcast popup so the operator can continue using the main portal.
+- Later stages will match their corresponding composed pages from the approved handoff package.
+- PR #11 remains draft and must not be merged without explicit owner approval.
