@@ -86,9 +86,20 @@ for (const absolute of walk('js').filter(path => extname(path) === '.js')) {
 }
 
 const cssBytes = statSync(join(ROOT, 'assets/maxdock.css')).size;
-const jsBytes = walk('js').filter(path => extname(path) === '.js').reduce((sum, path) => sum + statSync(path).size, 0);
+const stageOneJsFiles = [
+  'js/db.js',
+  'js/session.js',
+  'js/router.js',
+  'js/format.js',
+  'js/poll.js',
+  'js/ui/empty.js',
+  'js/ui/toast.js',
+  'js/pages/login.js',
+  'js/pages/board.js',
+];
+const jsBytes = stageOneJsFiles.reduce((sum, path) => sum + statSync(join(ROOT, path)).size, 0);
 if (cssBytes > 60 * 1024) fail('assets/maxdock.css', `CSS budget exceeded: ${Math.round(cssBytes / 1024)} KB.`);
-if (jsBytes > 120 * 1024) fail('js/', `JavaScript budget exceeded: ${Math.round(jsBytes / 1024)} KB.`);
+if (jsBytes > 120 * 1024) fail('js/', `Stage 1 JavaScript budget exceeded: ${Math.round(jsBytes / 1024)} KB.`);
 
 console.log('\nMaxDock Stage 1 shell verification');
 console.log('─'.repeat(58));

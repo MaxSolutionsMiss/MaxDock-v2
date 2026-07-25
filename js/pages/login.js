@@ -38,6 +38,21 @@ async function loadSignedInContext() {
   return context;
 }
 
+
+function initialisePasswordReveal() {
+  for (const button of document.querySelectorAll('[data-password-reveal]')) {
+    const input = document.getElementById(button.dataset.passwordReveal);
+    if (!input) continue;
+    button.addEventListener('click', () => {
+      const show = input.type === 'password';
+      input.type = show ? 'text' : 'password';
+      button.setAttribute('aria-label', show ? 'Hide password' : 'Show password');
+    });
+  }
+}
+
+initialisePasswordReveal();
+
 const signInForm = document.getElementById('sign-in-form');
 const signInButton = document.getElementById('sign-in-submit');
 signInForm.addEventListener('submit', async event => {

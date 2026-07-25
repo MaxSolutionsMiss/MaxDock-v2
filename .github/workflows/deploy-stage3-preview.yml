@@ -1,0 +1,83 @@
+name: Deploy Stage 3 Preview
+
+on:
+  push:
+    branches:
+      - feat/stage3-booking
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: stage3-preview
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/stage3-booking
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Verify MaxDock conformance
+        run: node scripts/verify-maxdock.mjs
+      - name: Verify implementation architecture
+        run: node scripts/verify-maxdock-implementation.mjs
+      - name: Verify Stage 1 shell
+        run: node scripts/verify-stage1-shell.mjs
+      - name: Verify Stage 2 My Appointments
+        run: node scripts/verify-stage2-my-appointments.mjs
+      - name: Verify Stage 3 Booking
+        run: node scripts/verify-stage3-booking.mjs
+
+  deploy-preview:
+    runs-on: ubuntu-latest
+    needs: verify
+    environment:
+      name: stage3-preview
+      url: ${{ steps.deployment.outputs.page_url }}stage3-preview/
+    steps:
+      - name: Check out production root
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          path: site
+
+      - name: Check out current Stage 3 branch head
+        uses: actions/checkout@v4
+        with:
+          ref: feat/stage3-booking
+          path: stage3
+          fetch-depth: 1
+
+      - name: Build isolated preview from branch head
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf site/stage3-preview
+          mkdir -p site/stage3-preview
+          cp stage3/index.html site/stage3-preview/index.html
+          cp -R stage3/app site/stage3-preview/app
+          cp -R stage3/assets site/stage3-preview/assets
+          cp -R stage3/js site/stage3-preview/js
+          touch site/.nojekyll
+          stage3_sha="$(git -C stage3 rev-parse HEAD)"
+          printf '{"branch":"feat/stage3-booking","commit":"%s"}\n' "$stage3_sha" > site/stage3-preview/build.json
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+      - name: Deploy preview
+        id: deployment
+        uses: actions/deploy-pages@v4

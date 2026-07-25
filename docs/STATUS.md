@@ -1,48 +1,83 @@
 # MaxDock Implementation Status
 
-**Updated:** 2026-07-24  
-**Current branch:** `main`  
-**Stage 2 source branch:** `feat/stage2-my-appointments`  
-**Pull request:** PR #8 — merged  
-**Stage 2 merge commit:** `50e58dd021e54b0256626c90a2d2093b48177803`  
+**Updated:** 2026-07-25  
+**Current branch:** `feat/stage3-booking`  
+**Pull request:** PR #10 — draft, not approved for merge  
+**Production branch:** `main`  
 **Production URL:** `https://maxsolutionsmiss.github.io/MaxDock-v2/`  
-**Stage 2 preview URL:** `https://maxsolutionsmiss.github.io/MaxDock-v2/stage2-preview/`
+**Stage 3 preview URL:** `https://maxsolutionsmiss.github.io/MaxDock-v2/stage3-preview/`
 
 ## Stage
-2 of 8 — My Appointments — merged, audit hold
+
+3 of 8 — Booking — implemented, contract-audited and under signed-in testing
 
 ## Actually deployed
 
-- Stage 1 shell and Stage 2 My Appointments are merged into `main`.
-- The production site is deployed from `main` at the production URL above.
-- The Stage 2 preview is deployed from the current head of `feat/stage2-my-appointments` at the preview URL above.
-- The preview workflow checks out the source branch by name and writes the deployed source commit to `/stage2-preview/build.json`; it does not load application files from a frozen CDN commit hash.
+- Production remains the merged Stage 1 shell and Stage 2 My Appointments from `main`.
+- Stage 3 is isolated under `/stage3-preview/`; it does not replace production.
+- The Stage 3 preview workflow checks out `feat/stage3-booking` by branch name at deployment time.
+- The workflow writes the deployed branch-tip commit to `/stage3-preview/build.json`; no application file is pinned to a frozen commit hash.
 
-## Completed
+## Stage 3 implemented
 
-- Stage 1 static shell, authentication, permission-based navigation, location context, text-size controls, connection handling and accessible empty states.
-- Stage 2 My Appointments with real data through `list_my_appointments`.
-- Upcoming, Past, Cancelled and All views, KPI totals and next-appointment summary.
-- Appointment details, booking references and Copy confirmation.
-- Customer-owned cancellation through `cancel_my_appointment` with permission-controlled visibility.
-- Saved default appointment view through the existing preference RPCs.
-- Five-second refresh that patches existing appointment cards rather than rebuilding the page.
-- Shared modal with focus trapping, Escape handling, focus restoration and polling suspension.
-- Modal hidden-state CSS conflict corrected and confirmed in the deployed preview.
-- Responsive testing for Normal, Large and Larger text.
-- User functional review completed successfully for the Stage 2 preview.
+- Five-step booking flow: Load → Vehicle → Time → Contact → Confirm.
+- Capacity-aware slot picker through `list_capacity_aware_appointment_slots`.
+- Max-to-Max routed slots through `list_routed_appointment_slots` and routed booking through `book_routed_appointment`.
+- Standard booking through `book_appointment` using the live RPC signature.
+- Booking templates saved, applied and deleted through the RLS-protected `booking_templates` table via `js/db.js`.
+- Staff-only after-hours selection and explicit confirmation; customer accounts cannot access after-hours booking.
+- Same-day consolidation as an accessible modal with View existing appointment, Go back and combine, and Continue separately.
+- Confirmation panel with booking reference, locally generated QR, Copy confirmation and Open email draft.
+- Five-second polling is suspended while the Time slot picker is open and resumed after leaving it.
+- Customer slot responses use a customer-safe projection that omits dock identifiers and operational recommendation details.
+
+## Audit result
+
+- Claude Stage 3 audit verdict: pass.
+- All seven booking-related RPCs exist and match the live signatures.
+- Standard and Max-to-Max routed booking paths are wired correctly.
+- Local QR generation, the three-choice consolidation modal and slot-picker polling suspension all passed review.
+- Desktop and phone checks reported zero console errors, no horizontal scrolling and 44 px minimum tap targets.
+- Application JavaScript is 185 KB against the 120 KB warning budget. This is accepted for Stage 3, with page-specific loading and future growth to be monitored.
+- No audit code correction is required before signed-in testing.
 
 ## Validation
 
-- `scripts/verify-maxdock.mjs` passes on the Stage 2 branch head.
-- GitHub `validate`, `conformance` and `deploy-preview` checks passed on the deployed Stage 2 branch head.
-- Every Supabase call remains routed through `js/db.js` and uses the existing RPC signatures.
+- `scripts/verify-maxdock.mjs` passes on the Stage 3 branch with the JavaScript budget warning only.
+- `scripts/verify-maxdock-implementation.mjs` passes.
+- Stage 1, Stage 2 and Stage 3 structural verifiers pass.
+- GitHub `validate`, `conformance`, preview `verify` and `deploy-preview` checks passed.
+- Local browser tests passed for customer booking, coordinator booking, Max-to-Max routing, staff after-hours, same-day consolidation, local QR decoding and responsive text sizes.
 
-## Audit hold
+## Design-discipline pass
 
-- Stage 3 has not started.
-- Design/architecture is auditing the Stage 1 shell and Stage 2 My Appointments against the four contract documents.
-- No new screen work will begin until the findings list is received and resolved.
+- The updated `docs/maxdock-design-v2.html` was used as the implementation reference; implementation did not modify `/docs/` other than this status file.
+- Login uses the in-card 36 px MaxDock badge and blue wordmark lockup, 44 px password reveal controls and a 26 px Max Solutions ownership logo.
+- Every current `.field` wrapper now carries one explicit width class: `.field--xs`, `.field--sm`, `.field--md`, `.field--lg` or `.field--full`.
+- Load uses `.fieldFlow` for compact content-sized controls, with Number of skids and PO / BOL / job number grouped together on the same compact row.
+- Vehicle uses `.fieldFlow` for truck, handling and carrier controls; Notes remains a full-width textarea. Time uses `.fieldFlow` for date and time controls.
+- Contact keeps the shared `.fieldGrid--2` alignment system while applying medium caps to name and company and a large cap to email.
+- Login, password recovery and the session-expiry sign-in form use explicit large field caps.
+- My Appointments currently uses segmented view buttons and has no input, select or textarea filter fields requiring width classes.
+- Rail links use `white-space: nowrap`; Book appointment and My appointments remain one line at normal, large and larger text sizes.
+- PR #10 remains draft and must not be merged until signed-in testing and explicit alignment approval are complete.
+
+## Still required before merge
+
+- Signed-in coordinator booking through all five steps, including Back-state preservation and final database confirmation.
+- Signed-in customer booking confirming that after-hours is unavailable and only permitted locations appear.
+- Customer browser network-payload inspection confirming no internal dock information is returned.
+- Same-day consolidation behaviour with an existing appointment.
+- Two-browser race test against the same slot, confirming one booking succeeds and the other receives a clean slot-taken response with alternatives.
+- Explicit approval to merge PR #10.
+
+## Standing UX requirement
+
+- No horizontal scrolling on supported desktop, tablet or phone widths.
+- Primary operational tasks should fit within one viewport where practical.
+- Vertical scrolling should be minimised by using compact, clear layouts rather than hiding required information.
+- The Dock Board must meet the contract requirement to show 10–15 doors without vertical scrolling at the supported operational desktop size.
+- Speed, clarity and low-click completion remain acceptance criteria for every stage.
 
 ## Rules in force
 
@@ -50,5 +85,5 @@
 - No `!important`.
 - No MutationObservers for layout.
 - No runtime script or stylesheet injection.
-- No direct Supabase calls outside `js/db.js`.
-- Do not edit `/docs/` except `docs/STATUS.md` during implementation corrections.
+- Every Supabase operation goes through `js/db.js`.
+- No `/docs/` changes except `docs/STATUS.md` during implementation.
