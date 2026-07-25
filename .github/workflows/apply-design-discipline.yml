@@ -1,0 +1,137 @@
+name: Apply design discipline pass
+
+on:
+  push:
+    branches: [feat/stage3-booking]
+    paths: [.github/workflows/apply-design-discipline.yml]
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/stage3-booking
+          fetch-depth: 0
+      - name: Apply docs and application changes
+        shell: bash
+        run: |
+          python <<'PY'
+          from pathlib import Path
+          import base64, gzip, re
+
+          root = Path('.')
+
+          corrections = gzip.decompress(base64.b64decode('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'))
+          (root / 'docs/DESIGN_CORRECTIONS.md').write_bytes(corrections)
+
+          design_path = root / 'docs/maxdock-design-v2.html'
+          design = design_path.read_text()
+          design = design.replace('min-height:var(--tap)}\n.input,textarea', 'min-height:var(--tap);width:100%}\n.input,textarea')
+          design = design.replace('min-height:var(--tap);width:100%}\n.input,textarea{', 'min-height:var(--tap);width:100%}\n.input,textarea{')
+          design = design.replace('min-height:var(--tap)}\n\n/* Text-only actions', 'min-height:var(--tap);width:100%}\n\n/* Text-only actions')
+          field_css = '''\n/* --- field sizing discipline ------------------------------------------------- */\n.field--xs{max-width:110px}\n.field--sm{max-width:190px}\n.field--md{max-width:300px}\n.field--lg{max-width:420px}\n.field--full{max-width:none}\n.fieldFlow{display:flex;flex-wrap:wrap;gap:var(--s3) var(--s4);align-items:start}\n.fieldFlow > .field{flex:1 1 auto}\n.fieldGrid{display:grid;gap:var(--s3) var(--s4);align-items:start}\n.fieldGrid--2{grid-template-columns:repeat(2,minmax(0,1fr))}\n.fieldGrid--3{grid-template-columns:repeat(3,minmax(0,1fr))}\n.fieldGrid--4{grid-template-columns:repeat(4,minmax(0,1fr))}\n@media (max-width:640px){.fieldGrid--2,.fieldGrid--3,.fieldGrid--4{grid-template-columns:1fr}}\n\n/* --- password field with show/hide ----------------------------------------- */\n.passwordField{position:relative;display:flex;align-items:center}\n.passwordField .input{padding-right:calc(var(--tap) + 2px)}\n.passwordReveal{position:absolute;right:0;top:0;height:100%;width:var(--tap);display:flex;align-items:center;justify-content:center;border:none;background:none;color:var(--ink-muted);cursor:pointer;border-radius:var(--radius)}\n.passwordReveal:hover{color:var(--ink)}\n.passwordReveal svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.7}\n'''
+          marker = '/* Text-only actions: the hit area carries the height, the type does not grow. */'
+          if '.field--xs{max-width:110px}' not in design:
+              design = design.replace(marker, field_css + '\n' + marker)
+          design = design.replace('width:340px;text-align:center', 'width:360px')
+          design = design.replace('width:56px;height:56px;border-radius:12px;padding:10px 9px;margin:0 auto', 'width:36px;height:36px;border-radius:8px;padding:6px 5px')
+          design = design.replace('<div style="font-size:var(--t-title);font-weight:600;letter-spacing:-.015em;margin-top:var(--s3)">MaxDock</div>', '<div style="font-size:calc(22px*var(--scale));font-weight:700;letter-spacing:-.015em;color:var(--brand-blue)">MaxDock</div>')
+          design = design.replace('<p style="font-size:var(--t-small);color:var(--ink-muted);margin:2px 0 var(--s5)">Dock scheduling</p>', '')
+          design = design.replace('alt="Max Solutions" style="height:72px"', 'alt="Max Solutions" style="height:26px"')
+          design = design.replace('alt="Max Solutions" style="height:auto;max-width:210px;width:72%"', 'alt="Max Solutions" style="height:26px;width:auto;max-width:100%"')
+          rules_marker = '<li><strong style="color:var(--ink)">Touch targets are'
+          additions = '<li><strong style="color:var(--ink)">Fields are only as wide as their content.</strong> Use <span class="sw__hex">.field--xs/sm/md/lg</span> width caps and <span class="sw__hex">.fieldFlow</span> so short fields sit back-to-back. Never a page of full-width half-empty inputs.</li>\n    <li><strong style="color:var(--ink)">Password fields have a show/hide toggle</strong> (<span class="sw__hex">.passwordReveal</span>), 44px, inside the field. The button swaps <span class="sw__hex">type</span> between password and text and its aria-label between Show and Hide.</li>\n    '
+          if 'Fields are only as wide as their content.' not in design:
+              design = design.replace(rules_marker, additions + rules_marker)
+          design_path.write_text(design)
+          PY
+
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add docs/maxdock-design-v2.html docs/DESIGN_CORRECTIONS.md
+          git commit -m "docs: import authoritative design correction set"
+
+          python <<'PY'
+          from pathlib import Path
+          import re
+
+          css_path = Path('assets/maxdock.css')
+          css = css_path.read_text()
+          css = css.replace('.field__label { font-size: var(--t-small); font-weight: 600; color: var(--ink); }', '.field__label { min-height: calc(var(--t-small) * 1.45); display: flex; align-items: flex-end; font-size: var(--t-small); font-weight: 600; color: var(--ink); }')
+          marker = '.input:focus, .select:focus { border-color: var(--dock); }'
+          additions = '''\ntextarea.input { width: 100%; }\n.field--xs { max-width: 110px; }\n.field--sm { max-width: 190px; }\n.field--md { max-width: 300px; }\n.field--lg { max-width: 420px; }\n.field--full { max-width: none; }\n.fieldFlow { display: flex; flex-wrap: wrap; gap: var(--s3) var(--s4); align-items: start; }\n.fieldFlow > .field { flex: 1 1 auto; margin-top: 0; }\n.fieldGrid { display: grid; gap: var(--s3) var(--s4); align-items: start; }\n.fieldGrid--2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }\n.fieldGrid--3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }\n.fieldGrid--4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }\n.passwordField { position: relative; display: flex; align-items: center; }\n.passwordField .input { padding-inline-end: calc(var(--tap) + 2px); }\n.passwordReveal { position: absolute; inset-inline-end: 0; inset-block-start: 0; width: var(--tap); height: 100%; min-height: var(--tap); border: 0; border-radius: var(--radius); display: flex; align-items: center; justify-content: center; background: transparent; color: var(--ink-muted); }\n.passwordReveal:hover { color: var(--ink); }\n.passwordReveal svg { width: 18px; height: 18px; stroke: currentColor; fill: none; stroke-width: 1.7; }\n'''
+          if '.field--xs { max-width: 110px; }' not in css:
+              css = css.replace(marker, marker + additions)
+          css = css.replace('.login-wrap { width: min(100%, 420px); }', '.login-wrap { width: min(100%, 360px); }')
+          css = css.replace('.login-brand { display: flex; align-items: center; justify-content: center; gap: var(--s3); margin-bottom: var(--s5); }', '.login-brand { display: flex; align-items: center; gap: 10px; margin-bottom: var(--s4); }')
+          css = css.replace('.login-brand__badge { width: 48px; height: 48px; border-radius: 11px; padding: 8px 7px; }', '.login-brand__badge { width: 36px; height: 36px; border-radius: 8px; padding: 6px 5px; }')
+          css = css.replace('.login-brand__name { margin: 0; font-size: var(--t-title); font-weight: 600; letter-spacing: -0.015em; }', '.login-brand__name { margin: 0; color: var(--brand-blue); font-size: calc(22px * var(--scale)); font-weight: 700; letter-spacing: -0.015em; }')
+          css = css.replace('.login-owner img { max-width: 210px; width: 72%; height: auto; }', '.login-owner img { width: auto; max-width: 100%; height: 26px; }')
+          css = css.replace('.booking-fields { display: grid; gap: var(--s4); }\n.booking-fields--two { grid-template-columns: repeat(2, minmax(0, 1fr)); }\n.booking-fields--three { grid-template-columns: repeat(3, minmax(0, 1fr)); }\n.booking-field--wide { grid-column: 1 / -1; }', '')
+          css = css.replace('.booking-fields--two, .booking-fields--three, .choice-row, .booking-side, .slot-grid, .confirm-grid, .confirmation-details, .confirmation-layout', '.fieldGrid--2, .fieldGrid--3, .fieldGrid--4, .choice-row, .booking-side, .slot-grid, .confirm-grid, .confirmation-details, .confirmation-layout')
+          css = css.replace('  .booking-field--wide { grid-column: auto; }\n', '')
+          if '@media (max-width: 640px)' not in css:
+              css = css.replace('@media (max-width: 700px) {', '@media (max-width: 640px) {\n  .fieldGrid--2, .fieldGrid--3, .fieldGrid--4 { grid-template-columns: 1fr; }\n}\n\n@media (max-width: 700px) {', 1)
+          css_path.write_text(css)
+
+          index_path = Path('index.html')
+          index = index_path.read_text()
+          brand = '''      <div class="login-brand" aria-label="MaxDock">\n        <span class="login-brand__badge"><img src="assets/logo-knockout.png" alt=""></span>\n        <span class="login-brand__name">MaxDock</span>\n      </div>'''
+          index = re.sub(r'\n      <div class="login-brand" aria-label="MaxDock">.*?</div>\n', '\n', index, count=1, flags=re.S)
+          for panel in ['sign-in-panel', 'forgot-panel', 'password-panel']:
+              index = index.replace(f'<section class="login-card" id="{panel}"', f'<section class="login-card" id="{panel}"', 1)
+              pattern = f'(<section class="login-card" id="{panel}"[^>]*>)'
+              index = re.sub(pattern, r'\1\n' + brand, index, count=1)
+          eye = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"></path><circle cx="12" cy="12" r="2.75"></circle></svg>'
+          for input_id in ['password', 'new-password', 'confirm-password']:
+              pattern = rf'(?P<indent>\s*)(?P<input><input class="input" id="{input_id}"[^>]+>)'
+              def replacement(match, input_id=input_id):
+                  indent = match.group('indent')
+                  return f'{indent}<div class="passwordField">\n{indent}  {match.group("input")}\n{indent}  <button class="passwordReveal" type="button" data-password-reveal="{input_id}" aria-label="Show password">{eye}</button>\n{indent}</div>'
+              index = re.sub(pattern, replacement, index, count=1)
+          index_path.write_text(index)
+
+          login_path = Path('js/pages/login.js')
+          login = login_path.read_text()
+          toggle = '''\nfunction initialisePasswordReveal() {\n  for (const button of document.querySelectorAll('[data-password-reveal]')) {\n    const input = document.getElementById(button.dataset.passwordReveal);\n    if (!input) continue;\n    button.addEventListener('click', () => {\n      const show = input.type === 'password';\n      input.type = show ? 'text' : 'password';\n      button.setAttribute('aria-label', show ? 'Hide password' : 'Show password');\n    });\n  }\n}\n\ninitialisePasswordReveal();\n'''
+          if 'function initialisePasswordReveal()' not in login:
+              login = login.replace("const signInForm = document.getElementById('sign-in-form');", toggle + "\nconst signInForm = document.getElementById('sign-in-form');")
+          login_path.write_text(login)
+
+          booking_path = Path('js/pages/booking.js')
+          booking = booking_path.read_text()
+          booking = booking.replace('booking-fields booking-fields--two', 'fieldGrid fieldGrid--2')
+          booking = booking.replace('booking-fields booking-fields--three', 'fieldGrid fieldGrid--3')
+          booking = booking.replace('field booking-field--wide', 'field field--full')
+          booking = booking.replace('check-row booking-field--wide', 'check-row field--full')
+          replacements = {
+            '<label class="field"><span class="field__label">External party type</span>':'<label class="field field--md"><span class="field__label">External party type</span>',
+            '<label class="field"><span class="field__label">Company or organisation</span>':'<label class="field field--md"><span class="field__label">Company or organisation</span>',
+            '<label class="field"><span class="field__label">Appointment type</span>':'<label class="field field--md"><span class="field__label">Appointment type</span>',
+            '<label class="field"><span class="field__label">Number of skids</span>':'<label class="field field--xs"><span class="field__label">Number of skids</span>',
+            '<label class="field field--full"><span class="field__label">PO / BOL / job number</span>':'<label class="field field--sm"><span class="field__label">PO / BOL / job number</span>',
+            '<label class="field"><span class="field__label">Truck type</span>':'<label class="field field--md"><span class="field__label">Truck type</span>',
+            '<label class="field"><span class="field__label">Handling</span>':'<label class="field field--md"><span class="field__label">Handling</span>',
+            '<label class="field field--full"><span class="field__label">Carrier or courier</span>':'<label class="field field--md"><span class="field__label">Carrier or courier</span>',
+            '<label class="field"><span class="field__label">Requested date</span>':'<label class="field field--sm"><span class="field__label">Requested date</span>',
+            '<label class="field"><span class="field__label">Preferred start</span>':'<label class="field field--sm"><span class="field__label">Preferred start</span>',
+            '<label class="field"><span class="field__label">Preferred end</span>':'<label class="field field--sm"><span class="field__label">Preferred end</span>',
+            '<label class="field"><span class="field__label">Custom start time</span>':'<label class="field field--sm"><span class="field__label">Custom start time</span>',
+            '<label class="field"><span class="field__label">Requester name</span>':'<label class="field field--md"><span class="field__label">Requester name</span>',
+            '<label class="field"><span class="field__label">Requester email</span>':'<label class="field field--lg"><span class="field__label">Requester email</span>',
+            '<label class="field"><span class="field__label">Template name</span>':'<label class="field field--md"><span class="field__label">Template name</span>'
+          }
+          for old, new in replacements.items():
+              booking = booking.replace(old, new)
+          booking_path.write_text(booking)
+          PY
+
+          node scripts/verify-maxdock.mjs
+          git add assets/maxdock.css index.html js/pages/login.js js/pages/booking.js
+          git rm .github/workflows/apply-design-discipline.yml
+          git commit -m "style: apply shared field and login discipline"
+          git push origin HEAD:feat/stage3-booking
