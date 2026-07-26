@@ -5,6 +5,7 @@ import { poll } from './poll.js';
 import { renderState } from './ui/empty.js';
 import { toast } from './ui/toast.js';
 import { createModal } from './ui/modal.js';
+import { createNotificationBell } from './ui/notifications.js';
 
 const STAFF_ROUTES = [
   {
@@ -227,7 +228,11 @@ function createShell(context, page) {
   signOut.textContent = 'Sign out';
   profile.append(avatar, profileText, signOut);
 
-  top.append(locationSelect, date, spacer, sizeControl, connected, profile);
+  // The bell returns null for roles without notifications.view, so it simply is not
+  // rendered rather than appearing and failing on click.
+  const notifications = createNotificationBell(context);
+  if (notifications) top.append(locationSelect, date, spacer, sizeControl, notifications.element, connected, profile);
+  else top.append(locationSelect, date, spacer, sizeControl, connected, profile);
 
   const banner = document.createElement('div');
   banner.className = 'sub';
@@ -248,7 +253,7 @@ function createShell(context, page) {
     globalThis.dispatchEvent(new CustomEvent('maxdock:open-booking', { detail: { trigger } }));
   });
 
-  return { root, pageRoot, locationSelect, sizeControl, signOut, banner, pulse, connectedText };
+  return { root, pageRoot, locationSelect, sizeControl, signOut, banner, pulse, connectedText, notifications };
 }
 
 function renderFatal(error) {
@@ -377,6 +382,7 @@ function wireShell(elements, context) {
     if (event === 'SIGNED_OUT' || (!authSession && event !== 'INITIAL_SESSION')) showSessionModal(context);
   });
   cleanup.push(unsubscribe);
+  if (elements.notifications) cleanup.push(() => elements.notifications.destroy());
 }
 
 function startHeartbeat(pageCode) {
