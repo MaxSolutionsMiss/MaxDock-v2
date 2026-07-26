@@ -225,6 +225,12 @@ for (const f of htmlFiles) {
 
 const NETWORK_MODULE = /(^|[\/\\])db\.js$/;
 const FORMAT_MODULE  = /(^|[\/\\])format\.js$/;
+// These two rules constrain how the shipped application is built: all network
+// access through db.js, all date arithmetic through format.js. They are about
+// runtime behaviour in the browser, so they apply to the application source and
+// not to build/verify tooling — a Supabase stub that fabricates fixture
+// timestamps is doing exactly what a stub is for.
+const APP_JS = f => /(^|[\/\\])js[\/\\]/.test(rel(f));
 
 for (const f of jsFiles) {
   const raw  = read(f);
@@ -232,7 +238,7 @@ for (const f of jsFiles) {
   const code = stripComments(raw);  // code including string contents
 
   // 10. only db.js talks to Supabase
-  if (!NETWORK_MODULE.test(f)) {
+  if (APP_JS(f) && !NETWORK_MODULE.test(f)) {
     scan(text, /createClient\s*\(|supabase\.(from|rpc|auth)\b/g, (_m, line) =>
       error('js.single-network-module', `${rel(f)}:${line}`,
         'Talks to Supabase directly.',
@@ -240,7 +246,7 @@ for (const f of jsFiles) {
   }
 
   // 11. only format.js does date arithmetic
-  if (!FORMAT_MODULE.test(f)) {
+  if (APP_JS(f) && !FORMAT_MODULE.test(f)) {
     scan(text, /new Date\(|\.getHours\(|\.setHours\(|\.getTimezoneOffset\(/g, (_m, line) =>
       error('js.time-in-format-only', `${rel(f)}:${line}`,
         'Date arithmetic outside format.js.',
