@@ -408,10 +408,10 @@ function createViewControls() {
 function buildPage(root, context) {
   hosts = { metricValues: {} };
 
-  const head = createElement('div', 'page__head');
+  const head = createElement('div', 'pagehead');
   const heading = createElement('div');
-  const title = createElement('h1', 'page__title', 'My appointments');
-  const subtitle = createElement('p', 'page__sub', context.customerShell
+  const title = createElement('h1', 'pagehead__title', 'My appointments');
+  const subtitle = createElement('p', 'pagehead__sub', context.customerShell
     ? 'View and manage your MaxDock bookings.'
     : `${context.location.name} · Your bookings`);
   heading.append(title, subtitle);
@@ -441,7 +441,7 @@ function buildPage(root, context) {
   const list = createElement('section', 'appointment-list');
   list.setAttribute('aria-label', 'Appointments');
 
-  const cancelBackdrop = createElement('div', 'modal-backdrop');
+  const cancelBackdrop = createElement('div', 'scrim');
   cancelBackdrop.hidden = true;
   const dialog = createElement('section', 'modal');
   dialog.setAttribute('role', 'dialog');

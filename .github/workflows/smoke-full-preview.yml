@@ -33,7 +33,9 @@ jobs:
             /js/pages/settings.js \
             /js/pages/reports.js \
             /js/pages/users.js \
-            /js/pages/data.js; do
+            /js/pages/data.js \
+            /js/pages/booking.js \
+            /js/ui/modal.js; do
             curl --fail --silent --show-error --location --retry 8 --retry-delay 3 --output /dev/null "${BASE}${path}?sha=${GITHUB_SHA}"
           done
       - name: Verify deployed Supabase loaders
@@ -55,9 +57,15 @@ jobs:
           set -euo pipefail
           curl --fail --silent --show-error --location --retry 8 --retry-delay 3 "${BASE}/assets/maxdock.css?sha=${GITHUB_SHA}" -o /tmp/maxdock.css
           curl --fail --silent --show-error --location --retry 8 --retry-delay 3 "${BASE}/js/router.js?sha=${GITHUB_SHA}" -o /tmp/router.js
+          curl --fail --silent --show-error --location --retry 8 --retry-delay 3 "${BASE}/js/pages/booking.js?sha=${GITHUB_SHA}" -o /tmp/booking.js
           test "$(grep -c '\.brief' /tmp/maxdock.css)" -gt 0
           test "$(grep -c '\.capbar' /tmp/maxdock.css)" -gt 0
           test "$(grep -c '\.passwordReveal' /tmp/maxdock.css)" -gt 0
-          grep -q 'bookingModalMarkup' /tmp/router.js
-          grep -q 'modal.innerHTML = bookingModalMarkup' /tmp/router.js
+          test "$(grep -c '\.login-page' /tmp/maxdock.css)" -gt 0
+          test "$(grep -c '\.toast-region' /tmp/maxdock.css)" -gt 0
+          grep -q "import('./pages/booking.js')" /tmp/router.js
+          grep -q 'bookingPage.mount' /tmp/router.js
+          grep -q 'createModal' /tmp/router.js
+          grep -q 'book_appointment' /tmp/booking.js
           ! grep -q '<iframe' /tmp/router.js
+          ! grep -q 'bookingModalMarkup' /tmp/router.js

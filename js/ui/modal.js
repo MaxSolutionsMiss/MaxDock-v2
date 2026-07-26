@@ -1,6 +1,7 @@
 import { poll } from '../poll.js';
 
 let modalSequence = 0;
+const openStack = [];
 
 const FOCUSABLE = [
   'a[href]',
@@ -32,7 +33,8 @@ export function createModal(backdrop, options = {}) {
   const dialog = backdrop.querySelector('[role="dialog"]') || backdrop.firstElementChild;
   if (!dialog) throw new Error('The modal backdrop must contain a dialog.');
 
-  const suspensionReason = `modal:${++modalSequence}`;
+  const id = ++modalSequence;
+  const suspensionReason = `modal:${id}`;
   let returnFocus = null;
   let isOpen = !backdrop.hidden;
 
@@ -56,6 +58,7 @@ export function createModal(backdrop, options = {}) {
 
   function onKeyDown(event) {
     if (!isOpen) return;
+    if (openStack[openStack.length - 1] !== id) return;
 
     if (event.key === 'Escape') {
       event.preventDefault();
@@ -87,6 +90,7 @@ export function createModal(backdrop, options = {}) {
     if (isOpen) return;
     returnFocus = trigger || document.activeElement;
     isOpen = true;
+    openStack.push(id);
     setBackdropVisibility(backdrop, true);
     document.body.classList.add('modal-open');
     poll.suspend(suspensionReason);
@@ -99,8 +103,10 @@ export function createModal(backdrop, options = {}) {
       return;
     }
     isOpen = false;
+    const stackIndex = openStack.indexOf(id);
+    if (stackIndex !== -1) openStack.splice(stackIndex, 1);
     setBackdropVisibility(backdrop, false);
-    document.body.classList.remove('modal-open');
+    if (!openStack.length) document.body.classList.remove('modal-open');
     poll.resume(suspensionReason);
 
     const target = returnFocus;

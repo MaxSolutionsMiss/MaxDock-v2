@@ -187,50 +187,40 @@ async function loadReferenceData() {
 
 function buildShell() {
   const root = context.pageRoot;
+  const customer = context.customerShell;
   root.innerHTML = `
-    <div class="page__head">
+    <div class="modal__head">
       <div>
-        <h1 class="page__title">Book appointment</h1>
-        <p class="page__sub">${currentLocation().name} · Complete five short steps</p>
+        <h2 class="modal__title" id="booking-modal-title">${customer ? 'Book a shipment' : 'Book appointment'}</h2>
+        <span class="modal__sub">${currentLocation().name}${customer ? ' · Sending to Max Solutions' : ''}</span>
       </div>
+      <button class="modal__x" type="button" data-action="close-booking" aria-label="Close booking">×</button>
     </div>
-    <nav class="booking-steps" data-booking-steps aria-label="Booking progress"></nav>
-    <div class="booking-layout">
-      <section class="panel booking-workspace" aria-live="polite">
-        <div data-booking-step></div>
-        <p class="form-message" data-booking-message aria-live="polite"></p>
-        <div class="booking-actions" data-booking-actions></div>
-      </section>
-      <aside class="booking-side" aria-label="Booking summary and templates">
-        <section class="panel booking-summary" data-booking-summary></section>
-        <section class="panel booking-templates">
-          <div class="panel__head">
-            <div>
-              <h2 class="panel__title">Booking templates</h2>
-              <p class="panel__sub">Reuse common load and vehicle details.</p>
-            </div>
-          </div>
-          <div data-booking-templates></div>
-        </section>
-      </aside>
+    <nav class="steps" data-booking-steps aria-label="Booking progress"></nav>
+    <div class="modal__body">
+      <div data-booking-step></div>
+      <p class="form-message" data-booking-message aria-live="polite"></p>
     </div>
-    <div class="modal-backdrop" data-consolidation-modal hidden aria-hidden="true">
-      <section class="modal modal--wide" role="dialog" aria-modal="true" aria-labelledby="consolidation-title">
-        <h2 class="modal__title" id="consolidation-title">Another appointment already exists that day</h2>
-        <p class="modal__message">Combining loads may reduce handling and truck movements. MaxDock will never combine them automatically.</p>
-        <div class="consolidation-list" data-consolidation-list></div>
-        <div class="modal__actions modal__actions--three">
+    <div class="modal__foot" data-booking-actions></div>
+    <div class="scrim" data-consolidation-modal hidden aria-hidden="true">
+      <section class="modal" role="dialog" aria-modal="true" aria-labelledby="consolidation-title">
+        <div class="modal__head"><div><h2 class="modal__title" id="consolidation-title">Another appointment already exists that day</h2></div></div>
+        <div class="modal__body">
+          <p class="modal__message">Combining loads may reduce handling and truck movements. MaxDock will never combine them automatically.</p>
+          <div data-consolidation-list></div>
+        </div>
+        <div class="modal__foot">
           <button class="btn btn--quiet" type="button" data-action="view-existing">View existing appointment</button>
           <button class="btn btn--quiet" type="button" data-action="combine-load">Go back and combine</button>
           <button class="btn btn--primary" type="button" data-action="continue-separately">Continue separately</button>
         </div>
       </section>
     </div>
-    <div class="modal-backdrop" data-template-delete-modal hidden aria-hidden="true">
+    <div class="scrim" data-template-delete-modal hidden aria-hidden="true">
       <section class="modal" role="dialog" aria-modal="true" aria-labelledby="template-delete-title">
-        <h2 class="modal__title" id="template-delete-title">Delete this booking template?</h2>
-        <p class="modal__message">The template will be removed. Existing appointments are not affected.</p>
-        <div class="modal__actions">
+        <div class="modal__head"><div><h2 class="modal__title" id="template-delete-title">Delete this booking template?</h2></div></div>
+        <div class="modal__body"><p class="modal__message">The template will be removed. Existing appointments are not affected.</p></div>
+        <div class="modal__foot">
           <button class="btn btn--quiet" type="button" data-action="dismiss-template-delete">Keep template</button>
           <button class="btn btn--danger" type="button" data-action="confirm-template-delete">Delete template</button>
         </div>
@@ -242,12 +232,13 @@ function buildShell() {
     step: root.querySelector('[data-booking-step]'),
     message: root.querySelector('[data-booking-message]'),
     actions: root.querySelector('[data-booking-actions]'),
-    summary: root.querySelector('[data-booking-summary]'),
-    templates: root.querySelector('[data-booking-templates]'),
     consolidationBackdrop: root.querySelector('[data-consolidation-modal]'),
     consolidationList: root.querySelector('[data-consolidation-list]'),
     deleteBackdrop: root.querySelector('[data-template-delete-modal]'),
   };
+
+  root.querySelector('[data-action="close-booking"]').addEventListener('click', () => context.onClose?.());
+  hosts.step.tabIndex = -1;
 
   sameDayModal = createModal(hosts.consolidationBackdrop, {
     initialFocus: '[data-action="view-existing"]',
@@ -282,55 +273,65 @@ function selectedName(rows, code, fallback = 'Not selected') {
 function renderSteps() {
   hosts.steps.replaceChildren();
   STEPS.forEach((label, index) => {
-    const button = element('button', 'booking-step', '');
+    const button = element('button', 'step', `${index + 1} · ${label}`);
     button.type = 'button';
     button.dataset.action = 'go-step';
     button.dataset.step = String(index);
     button.disabled = Boolean(state.confirmation) || index > state.maxStep;
+    if (index === state.step) button.classList.add('step--now');
+    else if (index < state.step) button.classList.add('step--done');
     button.setAttribute('aria-current', index === state.step ? 'step' : 'false');
     button.setAttribute('aria-label', `Step ${index + 1}: ${label}`);
-    const number = element('span', 'booking-step__number', String(index + 1));
-    const text = element('span', 'booking-step__label', label);
-    button.append(number, text);
     hosts.steps.append(button);
   });
+}
+
+function renderQuickRebook() {
+  if (!state.reference.templates.length) return '';
+  const items = state.reference.templates.slice(0, 4).map(template => {
+    const location = context.locations.find(item => item.id === template.location_id);
+    return `<div class="rebook"><div class="integ__ico">${template.name.slice(0, 1).toUpperCase()}</div>
+      <div class="rebook__body"><div class="rebook__ref">${template.name}</div><div class="rebook__det">${location?.name || 'Location'} · ${selectedName(state.reference.truckTypes, template.truck_type_code, template.truck_type_code)}</div></div>
+      <button class="btn btn--primary btn--sm" type="button" data-action="use-template" data-template-id="${template.id}">Use</button>
+      <button class="btn btn--quiet btn--sm" type="button" data-action="delete-template" data-template-id="${template.id}">Delete</button></div>`;
+  }).join('');
+  return `<div class="field__label" style="margin-bottom:var(--s2)">Quick rebook — saved templates</div><div>${items}</div><p class="hint">Use a template to prefill this booking, then continue through the steps.</p>`;
 }
 
 function renderLoadStep() {
   const customer = context.customerShell;
   hosts.step.innerHTML = `
-    <div class="booking-section-head">
-      <div><span class="booking-kicker">Step 1 of 5</span><h2 class="booking-title">Load</h2></div>
-      <p>Tell MaxDock what is moving and where it is going.</p>
-    </div>
+    ${renderQuickRebook()}
     ${customer ? '<div class="inline-note">Customer bookings are inbound to the selected MaxDock location and remain within normal operating hours.</div>' : `
-      <div class="field field--md">
+      <div class="field" style="margin-bottom:var(--s4)">
         <span class="field__label">Direction</span>
-        <div class="choice-row" role="group" aria-label="Appointment direction">
-          <button class="choice-card" type="button" data-action="set-direction" data-value="inbound" aria-pressed="${state.form.direction === 'inbound'}"><strong>Inbound</strong><span>Receiving at ${currentLocation().name}</span></button>
-          <button class="choice-card" type="button" data-action="set-direction" data-value="outbound" aria-pressed="${state.form.direction === 'outbound'}"><strong>Outbound</strong><span>Shipping from ${currentLocation().name}</span></button>
+        <div class="choice" role="group" aria-label="Appointment direction">
+          <button type="button" data-action="set-direction" data-value="inbound" aria-pressed="${state.form.direction === 'inbound'}"><strong>Inbound</strong><small>Receiving at ${currentLocation().name}</small></button>
+          <button type="button" data-action="set-direction" data-value="outbound" aria-pressed="${state.form.direction === 'outbound'}"><strong>Outbound</strong><small>Shipping from ${currentLocation().name}</small></button>
         </div>
       </div>
-      <div class="field field--md">
+      <div class="field" style="margin-bottom:var(--s4)">
         <span class="field__label">Movement</span>
-        <div class="choice-row" role="group" aria-label="Movement type">
-          <button class="choice-card" type="button" data-action="set-movement" data-value="external" aria-pressed="${state.form.movement_kind === 'external'}"><strong>External</strong><span>Customer, vendor or carrier</span></button>
-          <button class="choice-card" type="button" data-action="set-movement" data-value="max" aria-pressed="${state.form.movement_kind === 'max'}"><strong>Max-to-Max</strong><span>Reserve both Max Solutions docks</span></button>
+        <div class="choice" role="group" aria-label="Movement type">
+          <button type="button" data-action="set-movement" data-value="external" aria-pressed="${state.form.movement_kind === 'external'}"><strong>External</strong><small>Customer, vendor or carrier</small></button>
+          <button type="button" data-action="set-movement" data-value="max" aria-pressed="${state.form.movement_kind === 'max'}"><strong>Max-to-Max</strong><small>Reserve both Max Solutions docks</small></button>
         </div>
       </div>`}
-    <div class="fieldFlow">
+    ${customer ? `<div class="field" style="margin-bottom:var(--s4)"><span class="field__label">Direction</span><div class="choice"><button type="button" aria-pressed="true" disabled><strong>Outbound to Max</strong><small>Shipping to ${currentLocation().name}</small></button></div></div>` : ''}
+    <div class="frow">
       ${!customer && state.form.movement_kind === 'external' ? `
-        <label class="field field--md"><span class="field__label">External party type</span><select class="select" data-field="requester_type"></select></label>
-        <label class="field field--md"><span class="field__label">Company or organisation</span><input class="input" data-field="company_name" list="company-directory" maxlength="120" autocomplete="organization"><datalist id="company-directory"></datalist></label>` : ''}
+        <div class="field field--md"><span class="field__label">External party type</span><select class="select" data-field="requester_type"></select></div>
+        <div class="field field--md"><span class="field__label">Company or organisation</span><input class="input" data-field="company_name" list="company-directory" maxlength="120" autocomplete="organization"><datalist id="company-directory"></datalist></div>` : ''}
       ${!customer && state.form.movement_kind === 'max' ? `
-        <label class="field field--md"><span class="field__label">Other Max Solutions location</span><select class="select" data-field="requester_location_id"></select><span class="field__hint">The same time will be reserved at both facilities.</span></label>` : ''}
-      <label class="field field--md"><span class="field__label">Appointment type</span><select class="select" data-field="appointment_type_code"></select></label>
+        <div class="field field--md"><span class="field__label">Other Max Solutions location</span><select class="select" data-field="requester_location_id"></select><span class="hint">Same time reserved at both facilities.</span></div>` : ''}
+      <div class="field field--sm"><span class="field__label">Appointment type</span><select class="select" data-field="appointment_type_code"></select></div>
     </div>
-    <div class="fieldFlow">
-      <label class="field field--xs"><span class="field__label">Number of skids</span><input class="input" data-field="skid_count" type="number" min="0" max="9999" inputmode="numeric"></label>
-      <label class="field field--sm"><span class="field__label">PO / BOL / job number</span><input class="input data" data-field="external_reference" maxlength="120" autocomplete="off"></label>
+    <div class="frow">
+      <div class="field field--xs"><span class="field__label">Skids</span><input class="input" data-field="skid_count" type="number" min="0" max="9999" inputmode="numeric"></div>
+      <div class="field field--sm"><span class="field__label">PO / BOL / job number</span><input class="input data" data-field="external_reference" maxlength="120" autocomplete="off"></div>
     </div>
-    ${isStaff() ? '<label class="check-row field--full"><input type="checkbox" data-field="is_priority"><span><strong>Priority load</strong><small>Apply the location’s configured priority timing rule.</small></span></label>' : ''}`;
+    ${customer ? '<p class="hint">Your company and contact details are already on file. Just tell us what\'s moving and pick a time.</p>' : ''}
+    ${isStaff() ? '<label class="check-row" style="margin-top:var(--s4)"><input type="checkbox" data-field="is_priority"><span><strong>Priority load</strong><small>Apply the location’s configured priority timing rule.</small></span></label>' : ''}`;
 
   if (!customer && state.form.movement_kind === 'external') {
     addOptions(hosts.step.querySelector('[data-field="requester_type"]'), EXTERNAL_PARTIES, state.form.requester_type);
@@ -365,16 +366,12 @@ function renderLoadStep() {
 
 function renderVehicleStep() {
   hosts.step.innerHTML = `
-    <div class="booking-section-head">
-      <div><span class="booking-kicker">Step 2 of 5</span><h2 class="booking-title">Vehicle</h2></div>
-      <p>Select only the vehicle and handling types enabled at this location.</p>
+    <div class="frow">
+      <div class="field field--md"><span class="field__label">Truck type</span><select class="select" data-field="truck_type_code"></select></div>
+      <div class="field field--md"><span class="field__label">Handling</span><select class="select" data-field="handling_type_code"></select></div>
+      <div class="field field--md"><span class="field__label">Carrier or courier</span><input class="input" data-field="carrier_name" maxlength="120" autocomplete="organization"></div>
     </div>
-    <div class="fieldFlow">
-      <label class="field field--md"><span class="field__label">Truck type</span><select class="select" data-field="truck_type_code"></select></label>
-      <label class="field field--md"><span class="field__label">Handling</span><select class="select" data-field="handling_type_code"></select></label>
-      <label class="field field--md"><span class="field__label">Carrier or courier</span><input class="input" data-field="carrier_name" maxlength="120" autocomplete="organization"></label>
-    </div>
-    <label class="field field--full"><span class="field__label">Notes</span><textarea class="input booking-textarea" data-field="notes" maxlength="1000" rows="4"></textarea><span class="field__hint">Add handling instructions only. Do not include passwords or sensitive personal information.</span></label>`;
+    <div class="field field--full" style="margin-top:var(--s4)"><span class="field__label">Notes</span><textarea class="input" data-field="notes" maxlength="1000" rows="4"></textarea><span class="hint">Add handling instructions only. Do not include passwords or sensitive personal information.</span></div>`;
   addOptions(hosts.step.querySelector('[data-field="truck_type_code"]'), state.reference.truckTypes, state.form.truck_type_code, 'Choose a truck type');
   addOptions(hosts.step.querySelector('[data-field="handling_type_code"]'), state.reference.handlingTypes, state.form.handling_type_code, 'Choose a handling type');
   hosts.step.querySelector('[data-field="carrier_name"]').value = state.form.carrier_name;
@@ -387,77 +384,62 @@ function renderSlotCards() {
   host.replaceChildren();
 
   if (state.slotLoading) {
-    host.append(element('div', 'slot-state', 'Finding capacity-ready times…'));
+    host.append(element('p', 'hint', 'Finding capacity-ready times…'));
     return;
   }
   if (state.slotError) {
-    const card = element('div', 'slot-state slot-state--error');
-    card.append(element('strong', '', 'Times could not be loaded'), element('span', '', state.slotError));
-    host.append(card);
+    const message = element('p', 'form-message', state.slotError);
+    host.append(message);
     return;
   }
   if (!state.slots.length) {
-    host.append(element('div', 'slot-state', 'Choose a date and select “Find available times”.'));
+    host.append(element('p', 'hint', 'Choose a date and select “Find available times”.'));
     return;
   }
 
-  const group = element('div', 'slot-grid');
+  const group = element('div', 'slotpick');
   group.setAttribute('role', 'radiogroup');
   group.setAttribute('aria-label', 'Available appointment times');
   for (const slot of state.slots) {
     const selected = state.form.selected_slot?.slot_start === slot.slot_start;
-    const button = element('button', 'slot-card');
+    const button = element('button', '', `${format.time(slot.slot_start, receivingLocation())}`);
     button.type = 'button';
     button.dataset.action = 'select-slot';
     button.dataset.slot = slot.slot_start;
     button.setAttribute('role', 'radio');
     button.setAttribute('aria-checked', String(selected));
-    if (selected) button.classList.add('slot-card--selected');
-
-    const time = element('strong', 'slot-card__time', `${format.time(slot.slot_start, receivingLocation())}–${format.time(slot.slot_end, receivingLocation())}`);
-    const date = element('span', 'slot-card__date', format.date(slot.slot_start, receivingLocation()));
-    const reason = element('span', 'slot-card__reason', context.customerShell
-      ? (slot.alternative_date ? 'Next available date' : 'Available appointment time')
-      : clean(slot.recommendation_reason) || 'Compatible dock available');
-    button.append(time, date, reason);
-
+    button.setAttribute('aria-pressed', String(selected));
+    const label = [format.date(slot.slot_start, receivingLocation())];
     if (!context.customerShell) {
-      const details = element('span', 'slot-card__meta');
-      details.textContent = state.form.movement_kind === 'max'
-        ? `${clean(slot.recommended_dock_name) || 'Origin dock'} · ${clean(slot.counterpart_dock_name) || 'Destination dock'}`
-        : `${slot.available_docks || 1} compatible ${Number(slot.available_docks) === 1 ? 'dock' : 'docks'}`;
-      button.append(details);
+      label.push(state.form.movement_kind === 'max'
+        ? `${clean(slot.recommended_dock_name) || 'Origin dock'} / ${clean(slot.counterpart_dock_name) || 'Destination dock'}`
+        : `${slot.available_docks || 1} compatible ${Number(slot.available_docks) === 1 ? 'dock' : 'docks'}`);
     }
-    if (slot.capacity_warning) button.append(element('span', 'slot-card__warning', 'Capacity warning'));
+    if (slot.capacity_warning) label.push('Capacity warning');
+    button.title = label.join(' · ');
     group.append(button);
   }
   host.append(group);
+  host.append(element('p', 'hint', 'Live refresh won\'t move this list while you\'re choosing a time.'));
 }
 
 function renderTimeStep() {
   const staff = isStaff();
   hosts.step.innerHTML = `
-    <div class="booking-section-head">
-      <div><span class="booking-kicker">Step 3 of 5</span><h2 class="booking-title">Time</h2></div>
-      <p>MaxDock calculates duration and dock compatibility. Customers never see internal dock assignments.</p>
-    </div>
-    <div class="fieldFlow">
-      <label class="field field--sm"><span class="field__label">Requested date</span><input class="input" data-field="date" type="date" min="${format.inputDate(null, receivingLocation())}"></label>
-      <label class="field field--sm"><span class="field__label">Preferred start</span><input class="input" data-field="preferred_start_time" type="time"></label>
-      <label class="field field--sm"><span class="field__label">Preferred end</span><input class="input" data-field="preferred_end_time" type="time"></label>
+    <div class="frow">
+      <div class="field field--sm"><span class="field__label">Requested date</span><input class="input" data-field="date" type="date" min="${format.inputDate(null, receivingLocation())}"></div>
+      <div class="field field--sm"><span class="field__label">Preferred start</span><input class="input" data-field="preferred_start_time" type="time"></div>
+      <div class="field field--sm"><span class="field__label">Preferred end</span><input class="input" data-field="preferred_end_time" type="time"></div>
     </div>
     ${staff ? `
-      <label class="check-row after-hours-toggle"><input type="checkbox" data-field="after_hours"><span><strong>Request an after-hours time</strong><small>Staff only. The booking RPC verifies the time and records your confirmation.</small></span></label>
+      <label class="check-row" style="margin-top:var(--s4)"><input type="checkbox" data-field="after_hours"><span><strong>Request an after-hours time</strong><small>Staff only. The booking RPC verifies the time and records your confirmation.</small></span></label>
       ${state.form.after_hours ? `
-        <div class="after-hours-panel">
-          <label class="field field--sm"><span class="field__label">Custom start time</span><input class="input" data-field="custom_time" type="time" step="${Math.max(1, Number(state.reference.settings.slot_interval_minutes || 30)) * 60}"></label>
+        <div class="inline-note inline-note--warning">
+          <div class="field field--sm"><span class="field__label">Custom start time</span><input class="input" data-field="custom_time" type="time" step="${Math.max(1, Number(state.reference.settings.slot_interval_minutes || 30)) * 60}"></div>
           <label class="check-row"><input type="checkbox" data-field="after_hours_acknowledged"><span><strong>I confirm this appointment may be outside operating hours</strong><small>This explicit acknowledgement is required before MaxDock sends the override to the booking RPC.</small></span></label>
         </div>` : ''}` : ''}
     ${!state.form.after_hours ? `
-      <div class="slot-toolbar">
-        <div><strong>Available times</strong><span>Ranked by capacity, compatibility and preferred window.</span></div>
-        <button class="btn btn--primary" type="button" data-action="find-slots">Find available times</button>
-      </div>
+      <div class="field__label" style="margin:var(--s4) 0 var(--s2)">Available · ${state.form.date ? format.longDateInput(state.form.date, receivingLocation()) : 'choose a date'}</div>
       <div data-slot-list></div>` : ''}`;
 
   hosts.step.querySelector('[data-field="date"]').value = state.form.date;
@@ -474,14 +456,11 @@ function renderTimeStep() {
 
 function renderContactStep() {
   hosts.step.innerHTML = `
-    <div class="booking-section-head">
-      <div><span class="booking-kicker">Step 4 of 5</span><h2 class="booking-title">Contact</h2></div>
-      <p>These details identify the requester and are included in the confirmation draft.</p>
-    </div>
-    <div class="fieldGrid fieldGrid--2">
-      <label class="field field--md"><span class="field__label">Requester name</span><input class="input" data-field="requester_name" maxlength="120" autocomplete="name"></label>
-      <label class="field field--lg"><span class="field__label">Requester email</span><input class="input" data-field="requester_email" type="email" maxlength="180" autocomplete="email"></label>
-      ${state.form.movement_kind === 'external' ? '<label class="field field--md"><span class="field__label">Company or organisation</span><input class="input" data-field="company_name" maxlength="120" autocomplete="organization"></label>' : ''}
+    <p class="hint" style="margin:0 0 var(--s4)">These details identify the requester and are included in the confirmation draft.</p>
+    <div class="frow">
+      <div class="field field--md"><span class="field__label">Requester name</span><input class="input" data-field="requester_name" maxlength="120" autocomplete="name"></div>
+      <div class="field field--lg"><span class="field__label">Requester email</span><input class="input" data-field="requester_email" type="email" maxlength="180" autocomplete="email"></div>
+      ${state.form.movement_kind === 'external' ? '<div class="field field--md"><span class="field__label">Company or organisation</span><input class="input" data-field="company_name" maxlength="120" autocomplete="organization"></div>' : ''}
     </div>`;
   hosts.step.querySelector('[data-field="requester_name"]').value = state.form.requester_name;
   hosts.step.querySelector('[data-field="requester_email"]').value = state.form.requester_email;
@@ -513,20 +492,17 @@ function summaryRows() {
 
 function renderConfirmStep() {
   hosts.step.innerHTML = `
-    <div class="booking-section-head">
-      <div><span class="booking-kicker">Step 5 of 5</span><h2 class="booking-title">Confirm</h2></div>
-      <p>Review the booking before reserving the dock${state.form.movement_kind === 'max' ? 's' : ''}.</p>
-    </div>
-    <div class="confirm-grid" data-confirm-grid></div>
+    <p class="hint" style="margin:0 0 var(--s3)">Review the booking before reserving the dock${state.form.movement_kind === 'max' ? 's' : ''}.</p>
+    <div class="card" data-confirm-grid></div>
     ${state.form.after_hours ? '<div class="inline-note inline-note--warning"><strong>After-hours override</strong><span>Your acknowledgement will be recorded with the booking.</span></div>' : ''}
-    <label class="check-row save-template-row"><input type="checkbox" data-field="save_template"><span><strong>Save these load and vehicle details as a template</strong><small>Contact information, notes and PO/BOL/job numbers are not saved.</small></span></label>
-    ${state.form.save_template ? '<label class="field field--md"><span class="field__label">Template name</span><input class="input" data-field="template_name" maxlength="80" placeholder="Example: Weekly Haleon inbound"></label>' : ''}`;
+    <label class="check-row" style="margin-top:var(--s4)"><input type="checkbox" data-field="save_template"><span><strong>Save these load and vehicle details as a template</strong><small>Contact information, notes and PO/BOL/job numbers are not saved.</small></span></label>
+    ${state.form.save_template ? '<div class="field field--md" style="margin-top:var(--s3)"><span class="field__label">Template name</span><input class="input" data-field="template_name" maxlength="80" placeholder="Example: Weekly Haleon inbound"></div>' : ''}`;
 
   const grid = hosts.step.querySelector('[data-confirm-grid]');
   for (const [label, value] of summaryRows()) {
-    const item = element('div', 'confirm-item');
-    item.append(element('span', 'confirm-item__label', label), element('strong', 'confirm-item__value', value));
-    grid.append(item);
+    const row = element('div', 'setrow');
+    row.append(element('div', 'setrow__d', label), element('strong', '', value));
+    grid.append(row);
   }
   hosts.step.querySelector('[data-field="save_template"]').checked = state.form.save_template;
   const name = hosts.step.querySelector('[data-field="template_name"]');
@@ -551,32 +527,30 @@ function renderConfirmation() {
   const result = state.confirmation;
   const text = confirmationText(result);
   hosts.step.innerHTML = `
-    <div class="booking-success">
-      <span class="booking-success__mark" aria-hidden="true">✓</span>
-      <span class="booking-kicker">Appointment booked</span>
-      <h2 class="booking-success__title">${result.booking_reference}</h2>
-      <p>${currentLocation().name} · ${format.timestamp(result.start_at, receivingLocation())}</p>
+    <div style="text-align:center;padding:var(--s4) 0">
+      <span class="tag tag--ok" style="font-size:var(--t-base);padding:4px 10px">✓ Appointment booked</span>
+      <h3 style="margin:var(--s2) 0;font-family:var(--font-data);font-size:var(--t-metric);color:var(--dock-deep)">${result.booking_reference}</h3>
+      <p class="hint">${currentLocation().name} · ${format.timestamp(result.start_at, receivingLocation())}</p>
     </div>
-    <div class="confirmation-layout">
-      <div class="confirmation-details" data-confirmation-details></div>
-      <div class="confirmation-qr">
+    <div class="frow">
+      <div class="card" style="flex:1 1 260px" data-confirmation-details></div>
+      <div class="card" style="flex:0 0 auto;text-align:center">
         <div class="qr-frame" data-qr></div>
-        <strong>QR check-in code</strong>
-        <span>Generated locally in this browser. Stage 8 will connect scanning to the secure check-in token workflow.</span>
+        <p class="hint">QR check-in code<br>Generated locally in this browser.</p>
       </div>
     </div>
-    <div class="confirmation-actions">
+    <div class="modal__foot" style="margin-top:var(--s4);border:none;background:none;padding:0;flex-wrap:wrap">
       <button class="btn btn--quiet" type="button" data-action="copy-confirmation">Copy confirmation</button>
       <a class="btn btn--quiet" data-email-draft>Open email draft</a>
+      <button class="btn btn--quiet" type="button" data-action="book-another">Book another</button>
       <a class="btn btn--primary" href="my-appointments.html">View my appointments</a>
-      <button class="btn btn--ghost" type="button" data-action="book-another">Book another</button>
     </div>`;
 
   const details = hosts.step.querySelector('[data-confirmation-details]');
   for (const [label, value] of summaryRows()) {
-    const item = element('div', 'confirm-item');
-    item.append(element('span', 'confirm-item__label', label), element('strong', 'confirm-item__value', value));
-    details.append(item);
+    const row = element('div', 'setrow');
+    row.append(element('div', 'setrow__d', label), element('strong', '', value));
+    details.append(row);
   }
   renderQr(hosts.step.querySelector('[data-qr]'), `MAXDOCK|${result.appointment_id}|${result.booking_reference}`, {
     label: `QR code for MaxDock appointment ${result.booking_reference}`,
@@ -605,71 +579,21 @@ function renderStep() {
 function renderActions() {
   hosts.actions.replaceChildren();
   if (state.confirmation) return;
-  if (state.step > 0) {
-    const back = element('button', 'btn btn--quiet', 'Back');
-    back.type = 'button';
-    back.dataset.action = 'back';
-    hosts.actions.append(back);
-  }
-  const spacer = element('span', 'booking-actions__spacer');
-  hosts.actions.append(spacer);
-  const primary = element('button', 'btn btn--primary', state.step === 4 ? 'Book appointment' : 'Continue');
+  const back = element('button', 'btn btn--quiet', state.step > 0 ? 'Back' : 'Cancel');
+  back.type = 'button';
+  back.dataset.action = state.step > 0 ? 'back' : 'close-booking';
+  hosts.actions.append(back);
+  const primary = element('button', 'btn btn--primary', state.step === STEPS.length - 1 ? 'Book appointment' : 'Continue');
   primary.type = 'button';
-  primary.dataset.action = state.step === 4 ? 'book' : 'continue';
+  primary.dataset.action = state.step === STEPS.length - 1 ? 'book' : 'continue';
   primary.disabled = state.busy;
   hosts.actions.append(primary);
-}
-
-function renderSummary() {
-  hosts.summary.replaceChildren();
-  const head = element('div', 'panel__head');
-  const heading = element('div');
-  heading.append(element('h2', 'panel__title', 'Current booking'), element('p', 'panel__sub', currentLocation().name));
-  head.append(heading);
-  hosts.summary.append(head);
-  const list = element('dl', 'summary-list');
-  for (const [label, value] of summaryRows().slice(0, 8)) {
-    const row = element('div', 'summary-list__row');
-    row.append(element('dt', '', label), element('dd', '', value));
-    list.append(row);
-  }
-  hosts.summary.append(list);
-}
-
-function renderTemplates() {
-  hosts.templates.replaceChildren();
-  if (!state.reference.templates.length) {
-    hosts.templates.append(element('p', 'templates-empty', 'No saved templates yet. Save one from the Confirm step.'));
-    return;
-  }
-  const list = element('div', 'template-list');
-  for (const template of state.reference.templates) {
-    const card = element('article', 'template-card');
-    const location = context.locations.find(item => item.id === template.location_id);
-    const title = element('strong', 'template-card__name', template.name);
-    const meta = element('span', 'template-card__meta', `${location?.name || 'Location'} · ${selectedName(state.reference.truckTypes, template.truck_type_code, template.truck_type_code)}`);
-    const actions = element('div', 'template-card__actions');
-    const use = element('button', 'btn btn--quiet', 'Use');
-    use.type = 'button';
-    use.dataset.action = 'use-template';
-    use.dataset.templateId = template.id;
-    const remove = element('button', 'btn btn--ghost', 'Delete');
-    remove.type = 'button';
-    remove.dataset.action = 'delete-template';
-    remove.dataset.templateId = template.id;
-    actions.append(use, remove);
-    card.append(title, meta, actions);
-    list.append(card);
-  }
-  hosts.templates.append(list);
 }
 
 function renderAll() {
   renderSteps();
   renderStep();
   renderActions();
-  renderSummary();
-  renderTemplates();
 }
 
 function setMessage(message) {
@@ -726,7 +650,8 @@ function setStep(next) {
   state.maxStep = Math.max(state.maxStep, target);
   if (target === 2) poll.suspend(SLOT_SUSPENSION);
   renderAll();
-  hosts.step.querySelector('h2')?.focus?.();
+  hosts.step.focus();
+  if (target === 2 && !state.form.after_hours && !state.slots.length) findSlots();
 }
 
 async function findSlots(options = {}) {
@@ -842,12 +767,15 @@ async function findSameDayAppointments() {
 function renderConsolidationMatches(matches) {
   hosts.consolidationList.replaceChildren();
   for (const match of matches.slice(0, 4)) {
-    const item = element('article', 'consolidation-item');
-    const reference = element('strong', 'data', match.booking_reference || 'Existing appointment');
-    const when = element('span', '', `${format.date(match.start_at, currentLocation())} · ${format.time(match.start_at, currentLocation())}`);
-    const detail = element('span', '', `${match.skid_count ?? 0} skids · ${clean(match.carrier_name) || 'Carrier not listed'}`);
-    item.append(reference, when, detail);
-    hosts.consolidationList.append(item);
+    const row = element('div', 'setrow');
+    const left = element('div');
+    left.append(
+      element('strong', 'data', match.booking_reference || 'Existing appointment'),
+      element('div', 'setrow__d', `${format.date(match.start_at, currentLocation())} · ${format.time(match.start_at, currentLocation())}`),
+    );
+    const right = element('span', 'setrow__d', `${match.skid_count ?? 0} skids · ${clean(match.carrier_name) || 'Carrier not listed'}`);
+    row.append(left, right);
+    hosts.consolidationList.append(row);
   }
 }
 
@@ -1000,7 +928,7 @@ async function removeTemplate() {
     db.invalidate('booking:templates:');
     deleteTemplateModal.close();
     deleteTemplateId = null;
-    renderTemplates();
+    if (state.step === 0) renderStep();
     toast('Booking template deleted.', 'success');
   } catch (error) {
     toast(error.userMessage || 'The booking template could not be deleted.', 'error');
@@ -1019,18 +947,21 @@ function updateField(target) {
     'date', 'preferred_start_time', 'preferred_end_time', 'after_hours', 'custom_time',
     'appointment_type_code', 'truck_type_code', 'skid_count', 'handling_type_code', 'is_priority', 'requester_location_id',
   ]);
-  if (slotFields.has(field) && previous !== value) clearSlotSelection();
+  const slotFieldChanged = slotFields.has(field) && previous !== value;
+  if (slotFieldChanged) clearSlotSelection();
   if (field === 'after_hours' && !value) {
     state.form.custom_time = '';
     state.form.after_hours_acknowledged = false;
   }
   if (field === 'save_template' || field === 'after_hours') renderStep();
-  renderSummary();
+  if (slotFieldChanged && field !== 'after_hours' && state.step === 2 && !state.form.after_hours) findSlots();
 }
 
 async function handleAction(button) {
   const action = button.dataset.action;
-  if (action === 'continue') {
+  if (action === 'close-booking') {
+    context.onClose?.();
+  } else if (action === 'continue') {
     const error = validateStep();
     if (error) setMessage(error);
     else setStep(state.step + 1);
@@ -1054,7 +985,6 @@ async function handleAction(button) {
     state.form.selected_slot = state.slots.find(slot => slot.slot_start === button.dataset.slot) || null;
     state.sameDayAccepted = false;
     renderTimeStep();
-    renderSummary();
   } else if (action === 'book') {
     await attemptBooking();
   } else if (action === 'view-existing') {
@@ -1135,7 +1065,7 @@ const page = {
 
   async mount(pageContext) {
     context = pageContext;
-    document.title = 'Book appointment · MaxDock';
+    if (!context.onClose) document.title = 'Book appointment · MaxDock';
     const reference = await loadReferenceData();
     state = {
       step: 0,
@@ -1178,6 +1108,6 @@ const page = {
   },
 };
 
-startPage(page);
+if (globalThis.location.pathname.endsWith('book.html')) startPage(page);
 
 export const { mount, refresh, destroy } = page;
