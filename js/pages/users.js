@@ -13,6 +13,7 @@ const state = {
   users: [],
   usage: new Map(),
   filters: { role: 'all', location: 'all', search: '' },
+  selected: new Set(),
   elements: {},
   addModal: null,
   editModal: null,
@@ -65,14 +66,41 @@ function filteredUsers() {
   });
 }
 
+// Your own account is never selectable — admin_update_user rejects deactivating
+// yourself, so offering it would only produce a guaranteed error.
+function selectableUsers() {
+  return filteredUsers().filter(user => user.user_id !== state.context.user.id);
+}
+
+function renderBulkBar() {
+  const chosen = [...state.selected].filter(id => selectableUsers().some(user => user.user_id === id));
+  state.selected = new Set(chosen);
+  const bar = state.elements.bulkBar;
+  bar.hidden = chosen.length === 0;
+  if (!chosen.length) return;
+  const users = chosen.map(id => state.users.find(user => user.user_id === id)).filter(Boolean);
+  const activeCount = users.filter(user => user.is_active).length;
+  state.elements.bulkCount.textContent = `${chosen.length} selected`;
+  state.elements.bulkActivate.disabled = activeCount === chosen.length;
+  state.elements.bulkDeactivate.disabled = activeCount === 0;
+}
+
 function renderTable() {
   const users = filteredUsers();
+  const selectable = selectableUsers();
   state.elements.count.textContent = `${users.length} of ${state.users.length} users`;
+  state.elements.selectAll.checked = selectable.length > 0 && selectable.every(user => state.selected.has(user.user_id));
+  state.elements.selectAll.indeterminate = !state.elements.selectAll.checked && selectable.some(user => state.selected.has(user.user_id));
   state.elements.rows.innerHTML = users.map(user => {
     const usage = state.usage.get(user.user_id);
     const statusTag = !user.is_active ? '<span class="tag tag--quiet">Inactive</span>' : user.must_change_password ? '<span class="tag tag--pri">Invited</span>' : '<span class="tag tag--ok">Active</span>';
     const lastSeen = usage?.last_activity_at ? format.timestamp(usage.last_activity_at, state.context.location) : (user.last_sign_in_at ? format.timestamp(user.last_sign_in_at, state.context.location) : '—');
+    const isSelf = user.user_id === state.context.user.id;
+    const box = isSelf
+      ? '<span class="sub" title="You cannot change your own status">—</span>'
+      : `<input type="checkbox" data-select-user="${user.user_id}" ${state.selected.has(user.user_id) ? 'checked' : ''} aria-label="Select ${escapeHtml(user.full_name)}">`;
     return `<tr>
+      <td>${box}</td>
       <td class="data--strong">${escapeHtml(user.full_name)}</td>
       <td class="data">${escapeHtml(user.username)}</td>
       <td class="data">${escapeHtml(user.email)}</td>
@@ -82,7 +110,43 @@ function renderTable() {
       <td class="data">${escapeHtml(lastSeen)}</td>
       <td><button class="btn btn--quiet btn--sm" type="button" data-edit-user="${user.user_id}">Edit</button></td>
     </tr>`;
-  }).join('') || '<tr><td colspan="8" class="data">No users match these filters.</td></tr>';
+  }).join('') || '<tr><td colspan="9" class="data">No users match these filters.</td></tr>';
+  renderBulkBar();
+}
+
+// admin_update_user takes a whole user, so each row is resent with only is_active
+// changed. Applied one at a time so a single rejection cannot roll back the others.
+async function applyBulkStatus(makeActive) {
+  const ids = [...state.selected];
+  if (!ids.length) return;
+  const verb = makeActive ? 'Activate' : 'Deactivate';
+  if (!globalThis.confirm(`${verb} ${ids.length} user${ids.length === 1 ? '' : 's'}?`)) return;
+  state.elements.bulkActivate.disabled = true;
+  state.elements.bulkDeactivate.disabled = true;
+  const failed = [];
+  for (const id of ids) {
+    const user = state.users.find(item => item.user_id === id);
+    if (!user || user.is_active === makeActive) continue;
+    try {
+      await db.rpc('admin_update_user', {
+        p_user_id: user.user_id,
+        p_full_name: user.full_name,
+        p_role_code: user.role_code,
+        p_is_active: makeActive,
+        p_location_ids: user.location_ids || [],
+        p_external_party_type: user.role_code === 'customer' ? user.external_party_type : null,
+        p_organization_name: user.role_code === 'customer' ? user.organization_name : null,
+      }, { key: `users:bulk:${user.user_id}:${crypto.randomUUID()}`, retry: 0 });
+    } catch (error) {
+      failed.push(`${user.username}: ${error.userMessage || error.message || 'rejected'}`);
+    }
+  }
+  db.invalidate('users:list');
+  await fetchAll();
+  state.selected.clear();
+  renderTable();
+  if (failed.length) toast(`${failed.length} could not be updated — ${failed[0]}`, 'error');
+  else toast(`${ids.length} user${ids.length === 1 ? '' : 's'} ${makeActive ? 'activated' : 'deactivated'}.`, 'success');
 }
 
 function renderFilters() {
@@ -316,7 +380,13 @@ function buildShell(root) {
     </div>
     <div class="panel panel--fill">
       <div class="panel__head"><h3 class="panel__title">People</h3><div class="panel__actions"><span class="sub" data-count></span></div></div>
-      <div class="panel__scroll"><table class="table"><thead><tr><th>Name</th><th>Username</th><th>Email</th><th>Role</th><th>Locations</th><th>Status</th><th>Last seen</th><th></th></tr></thead><tbody data-rows></tbody></table></div>
+      <div class="bulkbar" data-bulk-bar hidden>
+        <span class="data--strong" data-bulk-count></span>
+        <button class="btn btn--quiet btn--sm" type="button" data-bulk-activate>Activate</button>
+        <button class="btn btn--quiet btn--sm" type="button" data-bulk-deactivate>Deactivate</button>
+        <button class="text-link" type="button" data-bulk-clear style="margin-left:auto">Clear selection</button>
+      </div>
+      <div class="panel__scroll"><table class="table"><thead><tr><th><input type="checkbox" data-select-all aria-label="Select all users"></th><th>Name</th><th>Username</th><th>Email</th><th>Role</th><th>Locations</th><th>Status</th><th>Last seen</th><th></th></tr></thead><tbody data-rows></tbody></table></div>
     </div>
     <div class="scrim" data-add-backdrop hidden aria-hidden="true">
       <section class="modal" role="dialog" aria-modal="true" aria-labelledby="add-user-title">
@@ -389,6 +459,11 @@ function buildShell(root) {
     search: root.querySelector('[data-search]'),
     count: root.querySelector('[data-count]'),
     rows: root.querySelector('[data-rows]'),
+    selectAll: root.querySelector('[data-select-all]'),
+    bulkBar: root.querySelector('[data-bulk-bar]'),
+    bulkCount: root.querySelector('[data-bulk-count]'),
+    bulkActivate: root.querySelector('[data-bulk-activate]'),
+    bulkDeactivate: root.querySelector('[data-bulk-deactivate]'),
     addTrigger: root.querySelector('[data-add-user]'),
     addBackdrop: root.querySelector('[data-add-backdrop]'),
     addForm: root.querySelector('[data-add-form]'),
@@ -414,6 +489,9 @@ function wireEvents(root) {
   root.addEventListener('click', event => {
     if (event.target.closest('[data-export]')) { exportCsv(); return; }
     if (event.target.closest('[data-print]')) { globalThis.print(); return; }
+    if (event.target.closest('[data-bulk-activate]')) { applyBulkStatus(true); return; }
+    if (event.target.closest('[data-bulk-deactivate]')) { applyBulkStatus(false); return; }
+    if (event.target.closest('[data-bulk-clear]')) { state.selected.clear(); renderTable(); return; }
     if (event.target.closest('[data-add-user]')) { openAddModal(); return; }
     if (event.target.closest('[data-close-add]')) { state.addModal.close(); return; }
     const editTrigger = event.target.closest('[data-edit-user]');
@@ -432,6 +510,19 @@ function wireEvents(root) {
   });
 
   root.addEventListener('change', event => {
+    const box = event.target.closest('[data-select-user]');
+    if (box) {
+      if (box.checked) state.selected.add(box.dataset.selectUser);
+      else state.selected.delete(box.dataset.selectUser);
+      renderTable();
+      return;
+    }
+    if (event.target.matches('[data-select-all]')) {
+      if (event.target.checked) for (const user of selectableUsers()) state.selected.add(user.user_id);
+      else state.selected.clear();
+      renderTable();
+      return;
+    }
     if (event.target.matches('[name="role_code"]')) {
       const form = event.target.closest('form');
       toggleCustomerFields(form);

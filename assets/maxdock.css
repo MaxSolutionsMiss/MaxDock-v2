@@ -49,6 +49,7 @@ body{background:var(--ground);color:var(--ink);font-family:var(--font-ui);font-s
 .seg button[aria-pressed="true"]{background:var(--dock);color:#fff}
 .top__conn{display:flex;align-items:center;gap:6px;font-size:var(--t-small);color:var(--ink-muted);white-space:nowrap}
 .dot{width:7px;height:7px;border-radius:50%;background:var(--ok)}
+.bulkbar{display:flex;align-items:center;gap:var(--s2);padding:var(--s2) var(--s4);background:var(--dock-wash);border-bottom:1px solid var(--rule);flex:none}
 .notif{position:relative;display:flex;align-items:center}
 .notif__btn{width:34px;height:34px;border:1px solid var(--rule-strong);background:var(--surface);border-radius:var(--radius);cursor:pointer;color:var(--ink-muted);display:grid;place-items:center;position:relative}
 .notif__btn:hover{color:var(--ink);background:var(--surface-sunk)}
