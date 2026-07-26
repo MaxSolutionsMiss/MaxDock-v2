@@ -4,6 +4,7 @@ import { poll } from '../poll.js';
 import { startPage } from '../router.js';
 import { renderState } from '../ui/empty.js';
 import { createModal } from '../ui/modal.js';
+import { pageHeadActions } from '../ui/pagehead.js';
 import { toast } from '../ui/toast.js';
 
 const TERMINAL_STATUSES = new Set(['completed', 'cancelled', 'no_show']);
@@ -405,6 +406,24 @@ function createViewControls() {
   return views;
 }
 
+function exportCsv() {
+  const rows = [['Reference', 'Status', 'Direction', 'Start', 'End', 'Location', 'Company', 'Skids', 'Carrier', 'Reference number']];
+  for (const record of filterRecords(activeView, records)) {
+    const location = { timezone: record.location_timezone };
+    rows.push([
+      record.booking_reference, statusLabel(record.status), record.direction,
+      format.timestamp(record.start_at, location), format.timestamp(record.end_at, location),
+      record.location_name, record.company_name, record.skid_count, record.carrier_name, record.external_reference,
+    ]);
+  }
+  const csv = rows.map(row => row.map(value => `"${String(value ?? '').replaceAll('"', '""')}"`).join(',')).join('\n');
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+  link.download = `maxdock-my-appointments-${activeView}.csv`;
+  link.click();
+  URL.revokeObjectURL(link.href);
+}
+
 function buildPage(root, context) {
   hosts = { metricValues: {} };
 
@@ -416,6 +435,9 @@ function buildPage(root, context) {
     : `${context.location.name} · Your bookings`);
   heading.append(title, subtitle);
   head.append(heading);
+  const headActions = createElement('div', 'pagehead__actions');
+  headActions.innerHTML = pageHeadActions(['export', 'print']);
+  head.append(headActions);
 
   const metrics = createElement('section', 'kpis');
   metrics.setAttribute('aria-label', 'Appointment summary');
@@ -506,7 +528,13 @@ function bindInteractions() {
     });
   };
 
+  const onHeadAction = event => {
+    if (event.target.closest('[data-export]')) exportCsv();
+    if (event.target.closest('[data-print]')) globalThis.print();
+  };
+
   hosts.views.addEventListener('click', onViewClick);
+  activeContext.pageRoot.addEventListener('click', onHeadAction);
   hosts.cancelDismiss.addEventListener('click', closeCancelModal);
   hosts.cancelConfirm.addEventListener('click', confirmCancellation);
   activeContext.pageRoot.addEventListener('focusin', onFocusIn);
@@ -514,6 +542,7 @@ function bindInteractions() {
 
   interactionCleanup = [
     () => hosts?.views.removeEventListener('click', onViewClick),
+    () => activeContext?.pageRoot?.removeEventListener('click', onHeadAction),
     () => hosts?.cancelDismiss.removeEventListener('click', closeCancelModal),
     () => hosts?.cancelConfirm.removeEventListener('click', confirmCancellation),
     () => activeContext?.pageRoot?.removeEventListener('focusin', onFocusIn),

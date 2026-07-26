@@ -3,6 +3,7 @@ import { db } from '../db.js';
 import { createModal } from '../ui/modal.js';
 import { toast } from '../ui/toast.js';
 import { renderState } from '../ui/empty.js';
+import { pageHead } from '../ui/pagehead.js';
 import { format } from '../format.js';
 
 const state = {
@@ -52,13 +53,10 @@ async function fetchBoardData() {
 
 function buildShell(root) {
   root.innerHTML = `
-    <div class="pagehead">
-      <div><h1 class="pagehead__title">Dock board</h1><p class="pagehead__sub" data-board-subtitle></p></div>
-      <div class="pagehead__actions">
-        ${can('block.manage') ? '<button class="btn btn--quiet" type="button" data-block-time><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"></rect><path d="M3 10h18M8 3v4M16 3v4"></path></svg>Block dock time</button>' : ''}
-        <button class="btn btn--primary" type="button" data-open-booking><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>Book appointment</button>
-      </div>
-    </div>
+    ${pageHead('Dock board', {
+      subtitleAttribute: 'data-board-subtitle',
+      actions: ['export', 'print', 'fullscreen', ['block', can('block.manage')], ['book', can('appointment.create')]],
+    })}
     <section class="controls" aria-label="Dock board controls">
       <div class="datenav">
         <button class="iconbtn" type="button" data-day="-1" aria-label="Previous day">‹</button>
@@ -68,11 +66,6 @@ function buildShell(root) {
       </div>
       <div class="ctrl-field"><label for="board-direction">Direction</label><select class="select" id="board-direction" data-filter-direction><option value="all">All movements</option><option value="inbound">Inbound</option><option value="outbound">Outbound</option></select></div>
       <div class="ctrl-field"><label for="board-status">Status</label><select class="select" id="board-status" data-filter-status><option value="all">All statuses</option><option value="scheduled">Scheduled</option><option value="arrived">Arrived</option><option value="complete">Complete</option><option value="cancelled">Cancelled</option></select></div>
-      <div class="controls__end">
-        <button class="btn btn--quiet btn--icon" type="button" data-export title="Export CSV" aria-label="Export CSV"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0 4-4m-4 4-4-4M5 18v3h14v-3"></path></svg></button>
-        <button class="btn btn--quiet btn--icon" type="button" data-print title="Print" aria-label="Print"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9V3h12v6M6 18H4v-7h16v7h-2M8 14h8v7H8z"></path></svg></button>
-        <button class="btn btn--quiet" type="button" data-fullscreen title="Full screen — opens a broadcast window"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"></path></svg><span>Full screen</span></button>
-      </div>
     </section>
     <section class="kpis kpis--5" aria-label="Dock board summary" data-kpis></section>
     <section class="board" data-board-host aria-label="Dock schedule"></section>

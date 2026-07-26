@@ -3,6 +3,7 @@ import { db } from '../db.js';
 import { toast } from '../ui/toast.js';
 import { createModal } from '../ui/modal.js';
 import { renderState } from '../ui/empty.js';
+import { pageHead } from '../ui/pagehead.js';
 import { format } from '../format.js';
 
 const state = {
@@ -284,12 +285,30 @@ async function deleteUser() {
   }
 }
 
+function exportCsv() {
+  const rows = [['Name', 'Username', 'Email', 'Role', 'Locations', 'Status', 'Last seen']];
+  for (const user of filteredUsers()) {
+    const usage = state.usage.get(user.user_id);
+    const lastSeen = usage?.last_activity_at || user.last_sign_in_at;
+    rows.push([
+      user.full_name, user.username, user.email, user.role_name,
+      (user.location_names || []).join(' / ') || (user.role_code === 'system_admin' ? 'All' : ''),
+      !user.is_active ? 'Inactive' : user.must_change_password ? 'Invited' : 'Active',
+      lastSeen ? format.timestamp(lastSeen, state.context.location) : '',
+    ]);
+  }
+  const csv = rows.map(row => row.map(value => `"${String(value ?? '').replaceAll('"', '""')}"`).join(',')).join('\n');
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+  link.download = 'maxdock-users.csv';
+  link.click();
+  URL.revokeObjectURL(link.href);
+}
+
 function buildShell(root) {
   const canAdd = state.isSystemAdmin;
   root.innerHTML = `
-    <div class="pagehead"><div><h1 class="pagehead__title">Users</h1><p class="pagehead__sub" data-subtitle></p></div>
-      <div class="pagehead__actions">${canAdd ? '<button class="btn btn--primary" type="button" data-add-user><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"></path></svg>Add user</button>' : ''}</div>
-    </div>
+    ${pageHead('Users', { actions: ['export', 'print', ['addUser', canAdd]] })}
     <div class="controls">
       <div class="ctrl-field"><label>Role</label><select class="select" data-role-filter></select></div>
       <div class="ctrl-field"><label>Location</label><select class="select" data-location-filter></select></div>
@@ -393,6 +412,8 @@ function wireEvents(root) {
   state.elements.search.addEventListener('input', event => { state.filters.search = event.target.value; renderTable(); });
 
   root.addEventListener('click', event => {
+    if (event.target.closest('[data-export]')) { exportCsv(); return; }
+    if (event.target.closest('[data-print]')) { globalThis.print(); return; }
     if (event.target.closest('[data-add-user]')) { openAddModal(); return; }
     if (event.target.closest('[data-close-add]')) { state.addModal.close(); return; }
     const editTrigger = event.target.closest('[data-edit-user]');

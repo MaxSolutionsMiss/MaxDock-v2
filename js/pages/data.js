@@ -2,6 +2,7 @@ import { startPage } from '../router.js';
 import { db } from '../db.js';
 import { toast } from '../ui/toast.js';
 import { renderState } from '../ui/empty.js';
+import { pageHead } from '../ui/pagehead.js';
 import { format } from '../format.js';
 
 const DATABASE_TYPES = [
@@ -213,6 +214,7 @@ async function saveMisSettings(event) {
 
 function wireEvents(root) {
   root.addEventListener('click', event => {
+    if (event.target.closest('[data-print]')) { globalThis.print(); return; }
     if (event.target.closest('[data-run-import]')) { runImport(); return; }
     if (event.target.closest('[data-download-template]')) { downloadTemplate(); return; }
     const toggle = event.target.closest('.switch');
@@ -247,7 +249,7 @@ const page = {
       });
       return;
     }
-    context.pageRoot.innerHTML = `<div class="pagehead"><div><h1 class="pagehead__title">Data integration</h1><p class="pagehead__sub">System · MIS imports & connections</p></div></div><div data-data-host></div>`;
+    context.pageRoot.innerHTML = `${pageHead('Data integration', { subtitle: 'System · MIS imports & connections', actions: ['print'] })}<div data-data-host></div>`;
     state.elements = { host: context.pageRoot.querySelector('[data-data-host]') };
     wireEvents(context.pageRoot);
     await fetchAll();

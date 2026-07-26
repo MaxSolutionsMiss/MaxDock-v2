@@ -2,6 +2,7 @@ import { startPage } from '../router.js';
 import { db } from '../db.js';
 import { toast } from '../ui/toast.js';
 import { createModal } from '../ui/modal.js';
+import { pageHead } from '../ui/pagehead.js';
 import { format } from '../format.js';
 
 const DAY_LABELS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -403,7 +404,7 @@ async function submitDock(event) {
 
 function buildShell(root) {
   root.innerHTML = `
-    <div class="pagehead"><div><h1 class="pagehead__title">Locations & docks</h1><p class="pagehead__sub" data-subtitle></p></div></div>
+    ${pageHead('Locations & docks', { actions: ['print'] })}
     <div class="setlayout">
       <nav class="setnav" data-set-nav aria-label="Settings sections"></nav>
       <div class="setpanel" data-set-panel></div>
@@ -441,6 +442,7 @@ function wireEvents(root) {
   root.addEventListener('click', event => {
     const navButton = event.target.closest('[data-set-nav] button');
     if (navButton) { switchSection(navButton.dataset.section); return; }
+    if (event.target.closest('[data-print]')) { globalThis.print(); return; }
     if (event.target.closest('[data-reset]')) { renderPanel(); return; }
     const toggle = event.target.closest('.switch');
     if (toggle && !toggle.disabled) {

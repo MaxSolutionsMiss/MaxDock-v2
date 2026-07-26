@@ -4,6 +4,7 @@ import { toast } from '../ui/toast.js';
 import { renderState } from '../ui/empty.js';
 import { format } from '../format.js';
 import { createCustomizePanel } from '../ui/customize.js';
+import { pageHead } from '../ui/pagehead.js';
 
 const LATE_GRACE_MINUTES = 15;
 const BACK_TO_BACK_MINUTES = 20;
@@ -275,15 +276,9 @@ async function changeStatus(appointmentId, newStatus) {
 
 function buildShell(root) {
   root.innerHTML = `
-    <div class="pagehead">
-      <div><h1 class="pagehead__title">Operations queue</h1><p class="pagehead__sub" data-subtitle></p></div>
-      <div class="pagehead__actions">
-        <button class="btn btn--quiet btn--icon" type="button" data-customize title="Customize this page" aria-label="Customize this page"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"></circle><path d="M12 2v3m0 14v3M4.2 4.2l2.1 2.1m11.4 11.4 2.1 2.1M2 12h3m14 0h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"></path></svg></button>
-        <button class="btn btn--quiet btn--icon" type="button" data-export title="Export CSV" aria-label="Export CSV"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0 4-4m-4 4-4-4M5 18v3h14v-3"></path></svg></button>
-        <button class="btn btn--quiet" type="button" data-fullscreen title="Full screen — opens a broadcast window"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"></path></svg><span>Full screen</span></button>
-        ${can('appointment.create') ? '<button class="btn btn--primary" type="button" data-open-booking><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>Book appointment</button>' : ''}
-      </div>
-    </div>
+    ${pageHead('Operations queue', {
+      actions: ['customize', 'export', 'print', 'fullscreen', ['book', can('appointment.create')]],
+    })}
     <div class="brief" data-brief></div>
     <div class="kpis" data-kpis></div>
     <div class="split">
@@ -321,6 +316,7 @@ function wireEvents(root) {
   root.addEventListener('click', async event => {
     if (event.target.closest('[data-open-booking]')) globalThis.dispatchEvent(new CustomEvent('maxdock:open-booking', { detail: { trigger: event.target } }));
     if (event.target.closest('[data-export]')) exportCsv();
+    if (event.target.closest('[data-print]')) globalThis.print();
     if (event.target.closest('[data-fullscreen]')) openBroadcastWindow();
     if (event.target.closest('[data-share-brief]')) shareBrief();
     if (event.target.closest('[data-customize]')) state.customizePanel.open(event.target.closest('[data-customize]'));

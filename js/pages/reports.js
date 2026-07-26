@@ -2,6 +2,7 @@ import { startPage } from '../router.js';
 import { db } from '../db.js';
 import { toast } from '../ui/toast.js';
 import { renderState } from '../ui/empty.js';
+import { pageHead } from '../ui/pagehead.js';
 import { format } from '../format.js';
 
 const VIEWS = [
@@ -192,13 +193,7 @@ function syncControls() {
 
 function buildShell(root) {
   root.innerHTML = `
-    <div class="pagehead">
-      <div><h1 class="pagehead__title">Reports</h1><p class="pagehead__sub" data-subtitle></p></div>
-      <div class="pagehead__actions">
-        <button class="btn btn--quiet btn--icon" type="button" data-export title="Export CSV" aria-label="Export CSV"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0 4-4m-4 4-4-4M5 18v3h14v-3"></path></svg></button>
-        <button class="btn btn--quiet btn--icon" type="button" data-print title="Print" aria-label="Print"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9V3h12v6M6 18H4v-7h16v7h-2M8 14h8v7H8z"></path></svg></button>
-      </div>
-    </div>
+    ${pageHead('Reports', { actions: ['export', 'print'] })}
     <section class="controls" aria-label="Report controls">
       <div class="ctrl-field"><label for="report-view">View</label><select class="select" id="report-view" data-view>${VIEWS.map(view => `<option value="${view.id}">${view.label}</option>`).join('')}</select></div>
       <div class="ctrl-field"><label for="report-preset">Range</label><select class="select" id="report-preset" data-preset>${PRESETS.map(preset => `<option value="${preset.id}">${preset.label}</option>`).join('')}</select></div>
