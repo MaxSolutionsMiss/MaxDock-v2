@@ -178,6 +178,7 @@ function openEditModal(userId) {
   state.elements.editTitle.textContent = user.full_name;
   state.elements.editSub.textContent = `${user.username} · ${user.email}`;
   form.elements.full_name.value = user.full_name;
+  form.elements.username.value = user.username;
   form.elements.role_code.innerHTML = roleOptions(user.role_code);
   form.querySelector('[data-location-fields] [data-checks]').innerHTML = locationChecks(user.location_ids);
   const activeSwitch = form.querySelector('[data-active-switch]');
@@ -227,6 +228,29 @@ async function submitEditUser(event) {
     toast(error.userMessage || error.message || 'The user could not be updated.', 'error');
   } finally {
     submit.disabled = false;
+  }
+}
+
+async function changeUsername() {
+  const form = state.elements.editForm;
+  const userId = state.editingUserId;
+  const username = form.elements.username.value.trim().toLowerCase();
+  const current = state.users.find(item => item.user_id === userId)?.username;
+  if (!username || username === current) return;
+  if (!/^[A-Za-z0-9._-]{3,50}$/.test(username)) {
+    toast('Use a username with 3–50 letters, numbers, dots, dashes or underscores.', 'error');
+    return;
+  }
+  try {
+    await db.edge('maxdock-invite-user', { action: 'update_username', userId, username }, { key: `users:username:${userId}:${crypto.randomUUID()}`, retry: 0 });
+    db.invalidate('users:list');
+    await fetchAll();
+    renderTable();
+    const user = state.users.find(item => item.user_id === userId);
+    if (user) state.elements.editSub.textContent = `${user.username} · ${user.email}`;
+    toast('Username updated.', 'success');
+  } catch (error) {
+    toast(error.userMessage || error.message || 'The username could not be updated.', 'error');
   }
 }
 
@@ -324,6 +348,10 @@ function buildShell(root) {
             </div>
             <fieldset class="dock-checks" data-location-fields><legend>Location access</legend><div data-checks></div></fieldset>
             <div class="setrow"><div><div class="setrow__t">Active</div><div class="setrow__d">Inactive accounts cannot sign in</div></div><button type="button" class="switch" data-active-switch data-self-locked aria-label="Active"></button></div>
+            <div class="frow">
+              <label class="field field--sm"><span class="field__label">Username</span><input class="input" name="username" maxlength="50" pattern="[A-Za-z0-9._-]{3,50}" title="3–50 letters, numbers, dots, dashes or underscores"></label>
+              <div style="align-self:end"><button class="btn btn--quiet btn--sm" type="button" data-change-username>Update username</button></div>
+            </div>
             <div data-edit-reset-result hidden></div>
           </div>
           <div class="modal__foot">
@@ -371,6 +399,7 @@ function wireEvents(root) {
     if (editTrigger) { openEditModal(editTrigger.dataset.editUser); return; }
     if (event.target.closest('[data-close-edit]')) { state.editModal.close(); return; }
     if (event.target.closest('[data-reset-password]')) { resetPassword(); return; }
+    if (event.target.closest('[data-change-username]')) { changeUsername(); return; }
     if (event.target.closest('[data-delete-user]')) { deleteUser(); return; }
     const copy = event.target.closest('[data-copy]');
     if (copy) { navigator.clipboard?.writeText(copy.dataset.copy); toast('Copied.', 'success'); return; }
