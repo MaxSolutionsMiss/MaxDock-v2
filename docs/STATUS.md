@@ -1,6 +1,6 @@
 # MaxDock Implementation Status
 
-**Updated:** 2026-07-25  
+**Updated:** 2026-07-26  
 **Current branch:** `feat/stage4-dock-board`  
 **Stage 4 pull request:** draft PR #11  
 **Production branch:** `main`  
@@ -34,7 +34,9 @@
 - Confirmed the board grid, slot, KPI, rail-width and field-cap rules are present.
 - Integrated the existing Stage 2–4 application component sections into the same canonical stylesheet so appointment cards, booking panels and operational board controls remain styled.
 - My Appointments uses the shared KPI component.
-- Booking Direction and Movement use `.field--md`; skids use `.field--xs`; PO / BOL / job number uses `.field--sm`.
+- Booking field widths were revised on 2026-07-26 so every form row totals the full
+  twelve columns — see "Form row widths" below. This line previously recorded the
+  earlier `.field--sm` PO / BOL width, which left a quarter of the row empty.
 - PR #11 remains draft and unmerged.
 
 ## Stage 4 acceptance gates
@@ -131,6 +133,81 @@ HEAD commit and a local static-file render (headless Chromium). Found several de
 - Per-slot dock/capacity detail in the booking Time step is only in a title-attribute tooltip (hidden
   on touch), a simplification versus the fuller detail the original two-column booking page showed.
 - QR check-in tokens remain local-only pending the Supabase migration noted in the handoff (unchanged).
+
+## Automated layout audit (2026-07-26)
+
+`scripts/audit-layout.mjs` renders every page, and every dialog opened from it, in
+headless Chromium against `scripts/audit-supabase-stub.js`, then checks the result
+against the layout rules the owner signed off across DB64–DB66. It runs in CI as the
+`layout` job with `AUDIT_STRICT=1`, so any finding fails the build. Coverage is seven
+widths (1440 / 1280 / 1024 / 834 / 768 / 430 / 390) across board, queue, my-appointments,
+settings, reports, users and data — 49 page renders — plus ten dialogs at four of those
+widths, including all five steps of the booking wizard.
+
+This exists because the owner had to point out each layout defect individually. The
+audit is the mechanism that catches them first.
+
+### Rules it enforces
+
+`page-did-not-render`, `page-error`, `page-scrolls-sideways`, `cut-off-by-hidden-overflow`,
+`content-clipped`, `band-collapsed`, `hit-target-too-small`, `side-by-side-heights-differ`,
+`form-row-leaves-dead-space`, `kpi-strip`, `inconsistent-vertical-rhythm`,
+`label-styles-differ`, `dialog-does-not-fit`, `modal-trigger-missing`,
+`modal-trigger-unreachable`, `modal-did-not-open`, `wizard-step-blocked`.
+
+### Form row widths
+
+`.frow` is a twelve-column grid. A row whose spans do not add up leaves the remainder
+blank, which is what produced the reported dead space. Every row now totals twelve:
+
+- Block dock time — date, start time, duration, reason: four × `.field--sm`.
+- Add dock — name `.field--lg`, sort order `.field--xs`, direction `.field--md`.
+- Add user — the lone invite email is `.field--full`.
+- Edit user — name and role are `.field--lg`; username `.field--xl` beside its button.
+- Booking Load — skids `.field--xs`, PO / BOL / job number `.field--xxl`.
+- Booking Time — three × `.field--md`.
+- Booking rows whose composition changes with the movement kind compute their spans
+  rather than hard-coding a width that only totals twelve in one of the three cases.
+
+`.field--xxl` (span 10) was added to the scale so a two-field row with one narrow
+field can still finish the line.
+
+### Defects it found, since fixed
+
+- Dialogs wrap their body and footer in a `form`, so the form — not the body — is the
+  dialog's flex child. Without `min-height:0` it would not shrink, the body never
+  scrolled, and Add user put its action row 191 px below the fold at 390 px.
+- `.board` collapsed to four pixels at 390 px and `.panel` to two pixels at 430 px:
+  the viewport-height flex column left no room for the only flexible band. Below
+  600 px the page scrolls and each scrolling band keeps a real height.
+- Requester name and requester email were the same width, cutting off a work address
+  at every width the dialog is used at.
+
+## The layout job was passing on a blank page (2026-07-26)
+
+Recorded because the failure mode matters more than the bug.
+
+The application loads the Supabase client from a CDN, and that bundle assigns the same
+global the audit stub uses. This sandbox cannot reach the CDN, so the stub survived and
+every page rendered. On a GitHub runner the CDN loads, replaces the stub with a real
+client that has no session, and every page redirects to the login screen.
+
+The audit then measured a login screen. Every rule it had was a "this must not be wrong"
+check, and an empty page satisfies all of them, so the job reported no findings and went
+green. The dialog rules are the first that assert something must *exist*, which is the
+only reason it surfaced. Earlier green `layout` runs on this branch proved less than they
+appeared to.
+
+Three changes: the stub installs its global with `Object.defineProperty` and
+`writable:false`; the audit blocks the CDN request so the run does not depend on network
+reachability; and it asserts each page actually drew — a `.page` element with at least
+three controls — before trusting a clean result. Verified by serving a bundle that
+assigns `window.supabase`: with the previous stub the page renders no `.page` element and
+no controls, matching the CI failure exactly; with the current one it renders all 58.
+
+**Rule for any future gate here: a suite made only of negative assertions cannot tell
+"correct" from "absent". Every renderer-based check needs a positive assertion that the
+thing under test was actually produced.**
 
 ### Verification method note
 
