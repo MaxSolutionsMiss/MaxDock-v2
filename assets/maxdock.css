@@ -66,7 +66,7 @@ body{background:var(--ground);color:var(--ink);font-family:var(--font-ui);font-s
 .avatar{width:28px;height:28px;border-radius:50%;background:var(--dock-wash);color:var(--dock-deep);display:grid;place-items:center;font-size:var(--t-small);font-weight:600}
 .who__name{font-size:var(--t-small);font-weight:600;line-height:1.2}
 .who__role{font-size:var(--t-micro);color:var(--ink-faint)}
-.linkBtn{font-family:inherit;font-size:var(--t-small);color:var(--dock);background:none;border:none;cursor:pointer;white-space:nowrap}
+.linkBtn{font-family:inherit;font-size:var(--t-small);color:var(--dock);background:none;border:none;cursor:pointer;white-space:nowrap;min-height:32px;padding:0 var(--s1);display:inline-flex;align-items:center}
 
 .page{display:flex;flex-direction:column;flex:1;min-height:0;padding:var(--s4) var(--s5) var(--s5)}
 .pagehead{display:flex;align-items:center;gap:var(--s4);margin-bottom:var(--s3);flex:none}
@@ -225,9 +225,11 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 .hours{display:flex;flex-direction:column;gap:6px}
 .hourrow{display:grid;grid-template-columns:90px 1fr 1fr auto;gap:var(--s2);align-items:center}
 .hourrow .day{font-size:var(--t-small);font-weight:600}
-.switch{width:36px;height:20px;border-radius:20px;background:var(--dock);position:relative;cursor:pointer;border:none}
-.switch::after{content:"";position:absolute;top:2px;right:2px;width:16px;height:16px;border-radius:50%;background:#fff}
-.switch--off{background:var(--rule-strong)} .switch--off::after{left:2px;right:auto}
+.switch{width:44px;height:32px;border:none;background:none;padding:0;position:relative;cursor:pointer;flex:none}
+.switch::before{content:"";position:absolute;left:4px;top:6px;width:36px;height:20px;border-radius:20px;background:var(--dock)}
+.switch::after{content:"";position:absolute;top:8px;left:22px;width:16px;height:16px;border-radius:50%;background:#fff;transition:left var(--motion)}
+.switch--off::before{background:var(--rule-strong)} .switch--off::after{left:6px}
+.switch:disabled{cursor:default;opacity:.55}
 .chart{height:160px;display:flex;align-items:flex-end;gap:6px;padding:var(--s3);border:1px solid var(--rule);border-radius:var(--radius);background:var(--surface)}
 .bar{flex:1;background:var(--dock);border-radius:3px 3px 0 0;min-height:4px}
 .bar--alt{background:var(--ok)}
@@ -308,6 +310,10 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 .dock-checks>div{display:contents}
 .dock-checks--roomy{--check-col:260px}
 .dock-check{display:flex;align-items:center;gap:8px;min-height:32px}
+input[type="checkbox"],input[type="radio"]{width:16px;height:16px;accent-color:var(--dock);flex:none;margin:0}
+.table input[type="checkbox"]{width:16px;height:16px}
+/* The whole cell toggles the row, not just the 16px box. */
+.cellcheck{display:flex;align-items:center;justify-content:center;min-height:32px;margin:-9px calc(var(--s4) * -1);padding:9px var(--s4);cursor:pointer}
 .broadcast{background:var(--rail);min-height:100vh}
 .field__hint{margin:0;font-size:var(--t-small);color:var(--ink-muted)}
 .login-card__sub{font-size:var(--t-small);color:var(--ink-muted)}

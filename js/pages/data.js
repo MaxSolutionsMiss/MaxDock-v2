@@ -65,21 +65,21 @@ function renderMisForm() {
     <form data-mis-form>
       <h3 class="card__title">MIS connection settings<button class="btn btn--primary btn--sm" type="submit">Save</button></h3>
       <div class="frow">
-        <div class="field field--sm"><span class="field__label">Database type</span><select class="select" name="database_type">${DATABASE_TYPES.map(([code, label]) => `<option value="${code}" ${s.database_type === code ? 'selected' : ''}>${label}</option>`).join('')}</select></div>
-        <div class="field field--sm"><span class="field__label">Sync mode</span><select class="select" name="sync_mode" data-sync-mode>
+        <div class="field field--md"><span class="field__label">Database type</span><select class="select" name="database_type">${DATABASE_TYPES.map(([code, label]) => `<option value="${code}" ${s.database_type === code ? 'selected' : ''}>${label}</option>`).join('')}</select></div>
+        <div class="field field--md"><span class="field__label">Sync mode</span><select class="select" name="sync_mode" data-sync-mode>
           <option value="manual_csv" ${s.sync_mode === 'manual_csv' ? 'selected' : ''}>Manual CSV import</option>
           <option value="secure_bridge" ${isBridge ? 'selected' : ''}>Secure database bridge</option>
         </select></div>
-        <div class="field field--sm"><span class="field__label">Daily sync time</span><input class="input" type="time" name="daily_sync_time" value="${escapeHtml(s.daily_sync_time || '05:00')}"></div>
+        <div class="field field--md"><span class="field__label">Daily sync time</span><input class="input" type="time" name="daily_sync_time" value="${escapeHtml(s.daily_sync_time || '05:00')}"></div>
       </div>
       <div class="frow" data-bridge-fields ${isBridge ? '' : 'hidden'}>
-        <div class="field field--md"><span class="field__label">Server name</span><input class="input" name="server_name" value="${escapeHtml(s.server_name || '')}"></div>
+        <div class="field field--lg"><span class="field__label">Server name</span><input class="input" name="server_name" value="${escapeHtml(s.server_name || '')}"></div>
         <div class="field field--xs"><span class="field__label">Port</span><input class="input" type="number" min="1" max="65535" name="server_port" value="${s.server_port ?? ''}"></div>
         <div class="field field--md"><span class="field__label">Database name</span><input class="input" name="database_name" value="${escapeHtml(s.database_name || '')}"></div>
       </div>
       <div class="frow" data-bridge-fields ${isBridge ? '' : 'hidden'}>
-        <div class="field field--md"><span class="field__label">Source table / view name</span><input class="input" name="source_name" value="${escapeHtml(s.source_name || '')}"></div>
-        <div class="field field--md"><span class="field__label">Credential secret name</span><input class="input" name="credential_secret_name" value="${escapeHtml(s.credential_secret_name || '')}" placeholder="e.g. mis-db-password"></div>
+        <div class="field field--lg"><span class="field__label">Source table / view name</span><input class="input" name="source_name" value="${escapeHtml(s.source_name || '')}"></div>
+        <div class="field field--lg"><span class="field__label">Credential secret name</span><input class="input" name="credential_secret_name" value="${escapeHtml(s.credential_secret_name || '')}" placeholder="e.g. mis-db-password"></div>
       </div>
       <p class="hint">The credential itself is never entered here — this is only the name of a secret stored server-side. The secure bridge is not active until a real network route and credential are configured with a MaxDock administrator.</p>
       <div class="setrow"><div><div class="setrow__t">Enabled</div><div class="setrow__d">Turn the MIS feed on for this connection mode</div></div><button type="button" class="switch ${s.is_enabled ? '' : 'switch--off'}" data-enabled-switch aria-pressed="${Boolean(s.is_enabled)}" aria-label="MIS feed enabled"></button></div>
@@ -93,8 +93,8 @@ function renderImport() {
     <h3 class="card__title">Inventory snapshot import<button class="btn btn--quiet btn--sm" type="button" data-download-template">Download CSV template</button></h3>
     <p class="hint">Columns: <code>location_code, snapshot_at, occupied_skids, total_skid_capacity, reserve_skids, notes</code>. Location codes: ${escapeHtml(codes)}. Up to 1,000 rows per import.</p>
     <div class="frow">
-      <label class="field field--md"><span class="field__label">CSV file</span><input class="input" type="file" accept=".csv,text/csv" data-import-file></label>
-      <div style="align-self:end"><button class="btn btn--primary" type="button" data-run-import>Run import now</button></div>
+      <label class="field field--xl"><span class="field__label">CSV file</span><input class="input" type="file" accept=".csv,text/csv" data-import-file></label>
+      <div class="field field--md" style="justify-content:end"><button class="btn btn--primary btn--block" type="button" data-run-import>Run import now</button></div>
     </div>
     <p class="form-message" data-import-message aria-live="polite"></p>
   </div>`;

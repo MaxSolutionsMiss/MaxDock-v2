@@ -62,3 +62,18 @@ jobs:
 
       - name: Test both verifiers against clean and bad fixtures
         run: node scripts/test-verifiers.mjs
+
+  layout:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Render every page and audit its layout
+        # Catches clipped fields, dead space in form rows, undersized hit targets,
+        # unequal KPI cards and inconsistent spacing before a person has to notice.
+        env:
+          AUDIT_STRICT: '1'
+          PLAYWRIGHT_BROWSERS_PATH: /home/runner/.cache/ms-playwright
+        run: |
+          npm i --no-save playwright@1.56.1
+          npx playwright install --with-deps chromium
+          node scripts/audit-layout.mjs

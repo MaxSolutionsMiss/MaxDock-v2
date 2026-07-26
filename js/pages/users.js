@@ -98,7 +98,7 @@ function renderTable() {
     const isSelf = user.user_id === state.context.user.id;
     const box = isSelf
       ? '<span class="sub" title="You cannot change your own status">—</span>'
-      : `<input type="checkbox" data-select-user="${user.user_id}" ${state.selected.has(user.user_id) ? 'checked' : ''} aria-label="Select ${escapeHtml(user.full_name)}">`;
+      : `<label class="cellcheck"><input type="checkbox" data-select-user="${user.user_id}" ${state.selected.has(user.user_id) ? 'checked' : ''} aria-label="Select ${escapeHtml(user.full_name)}"></label>`;
     return `<tr>
       <td>${box}</td>
       <td class="data--strong">${escapeHtml(user.full_name)}</td>
@@ -386,7 +386,7 @@ function buildShell(root) {
         <button class="btn btn--quiet btn--sm" type="button" data-bulk-deactivate>Deactivate</button>
         <button class="text-link" type="button" data-bulk-clear style="margin-left:auto">Clear selection</button>
       </div>
-      <div class="panel__scroll"><table class="table"><thead><tr><th><input type="checkbox" data-select-all aria-label="Select all users"></th><th>Name</th><th>Username</th><th>Email</th><th>Role</th><th>Locations</th><th>Status</th><th>Last seen</th><th></th></tr></thead><tbody data-rows></tbody></table></div>
+      <div class="panel__scroll"><table class="table"><thead><tr><th><label class="cellcheck"><input type="checkbox" data-select-all aria-label="Select all users"></label></th><th>Name</th><th>Username</th><th>Email</th><th>Role</th><th>Locations</th><th>Status</th><th>Last seen</th><th></th></tr></thead><tbody data-rows></tbody></table></div>
     </div>
     <div class="scrim" data-add-backdrop hidden aria-hidden="true">
       <section class="modal" role="dialog" aria-modal="true" aria-labelledby="add-user-title">
