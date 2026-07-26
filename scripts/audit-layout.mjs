@@ -265,6 +265,12 @@ for (const name of PAGES) {
     // and the audit would score a page it never actually drew.
     const context = await browser.newContext({ viewport: { width, height: 900 }, timezoneId: 'America/Toronto', locale: 'en-CA' });
     await context.addInitScript(STUB);
+    // The pages load the real Supabase client from a CDN, and it assigns the same
+    // global the stub uses. In this sandbox the CDN is unreachable so the stub
+    // survived; on a CI runner it loads, replaces the stub, finds no session and
+    // sends every page to the login screen — where the audit found nothing to
+    // measure and reported a clean run. Block it so both behave the same.
+    await context.route('**/cdn.jsdelivr.net/**', route => route.abort());
     const page = await context.newPage();
     const errors = [];
     page.on('pageerror', e => errors.push(e.message));
@@ -272,6 +278,20 @@ for (const name of PAGES) {
     await page.waitForTimeout(700);
 
     for (const e of errors) add(name, width, 'page-error', e.slice(0, 160));
+
+    // Every rule below is a "this must not be wrong" check, so a page that renders
+    // nothing satisfies all of them. Assert the page actually drew before trusting
+    // a clean result — a silent boot failure once made this whole job pass empty.
+    const rendered = await page.evaluate(() => {
+      const root = document.querySelector('.page');
+      return { has: Boolean(root), controls: document.querySelectorAll('.page .btn,.page .input,.page .select,.page td').length };
+    });
+    if (!rendered.has || rendered.controls < 3) {
+      add(name, width, 'page-did-not-render', rendered.has ? `.page holds ${rendered.controls} controls` : 'no .page element — the app never booted');
+      await context.close();
+      continue;
+    }
+
     report(name, width, await page.evaluate(collect, null));
 
     if (MODAL_WIDTHS.has(width)) {

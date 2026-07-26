@@ -94,7 +94,9 @@
     };
     return api;
   }
-  globalThis.supabase = {
+  // Locked down: the pages also pull the real client from a CDN into this same
+  // global, and if that load wins the audit silently measures a login screen.
+  Object.defineProperty(globalThis, 'supabase', { configurable: false, writable: false, value: {
     createClient: () => ({
       auth: {
         getSession: () => result({ session: { user: { id: UID, email: 'javadresa@maxpkgsolutions.com' } } }),
@@ -107,5 +109,5 @@
       rpc: (name) => result(RPC[name] ? RPC[name]() : null),
       functions: { invoke: () => result({ mode: 'rules', brief: { title: 'Pickering Operations Brief', summary: 'Three appointments today with 31 inbound and 10 outbound skids.', pressures: [], opportunities: [], actions: [] } }) },
     }),
-  };
+  } });
 })();
