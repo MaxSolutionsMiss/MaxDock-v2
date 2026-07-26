@@ -395,25 +395,25 @@ function buildShell(root) {
           <div class="modal__body">
             <div class="frow">
               <label class="field field--md"><span class="field__label">Full name</span><input class="input" name="full_name" maxlength="120" required></label>
-              <label class="field field--sm"><span class="field__label">Username</span><input class="input" name="username" maxlength="50" pattern="[A-Za-z0-9._-]{3,50}" title="3–50 letters, numbers, dots, dashes or underscores" required></label>
-              <label class="field field--sm"><span class="field__label">Role</span><select class="select" name="role_code" data-role-select required></select></label>
+              <label class="field field--md"><span class="field__label">Username</span><input class="input" name="username" maxlength="50" pattern="[A-Za-z0-9._-]{3,50}" title="3–50 letters, numbers, dots, dashes or underscores" required></label>
+              <label class="field field--md"><span class="field__label">Role</span><select class="select" name="role_code" data-role-select required></select></label>
             </div>
             <div data-customer-fields class="frow">
-              <label class="field field--sm"><span class="field__label">Account type</span><select class="select" name="external_party_type"><option value="Customer">Customer</option><option value="Vendor">Vendor</option></select></label>
-              <label class="field field--md"><span class="field__label">Company name</span><input class="input" name="organization_name" maxlength="120"></label>
+              <label class="field field--md"><span class="field__label">Account type</span><select class="select" name="external_party_type"><option value="Customer">Customer</option><option value="Vendor">Vendor</option></select></label>
+              <label class="field field--xl"><span class="field__label">Company name</span><input class="input" name="organization_name" maxlength="120"></label>
             </div>
             <fieldset class="dock-checks" data-location-fields><legend>Location access</legend><div data-checks></div></fieldset>
-            <fieldset class="dock-checks">
+            <fieldset class="dock-checks dock-checks--roomy">
               <legend>Account setup</legend>
               <label class="dock-check"><input type="radio" name="account_method" value="invite" checked><span>Send an email invitation link</span></label>
               <label class="dock-check"><input type="radio" name="account_method" value="password"><span>Set a temporary password directly</span></label>
             </fieldset>
-            <div data-invite-fields>
-              <label class="field field--md"><span class="field__label">Email</span><input class="input" type="email" name="email"></label>
+            <div class="frow" data-invite-fields>
+              <label class="field field--lg"><span class="field__label">Email</span><input class="input" type="email" name="email"></label>
             </div>
             <div data-password-fields class="frow">
-              <label class="field field--md"><span class="field__label">Contact email (optional)</span><input class="input" type="email" name="contact_email"></label>
-              <label class="field field--md"><span class="field__label">Temporary password</span><input class="input" name="temp_password" readonly></label>
+              <label class="field field--lg"><span class="field__label">Contact email (optional)</span><input class="input" type="email" name="contact_email"></label>
+              <label class="field field--lg"><span class="field__label">Temporary password</span><input class="input" name="temp_password" readonly></label>
             </div>
           </div>
           <div class="modal__foot" data-add-foot><button class="btn btn--quiet" type="button" data-close-add>Cancel</button><button class="btn btn--primary" type="submit">Create account</button></div>
@@ -432,8 +432,8 @@ function buildShell(root) {
               <label class="field field--sm"><span class="field__label">Role</span><select class="select" name="role_code" data-self-locked required></select></label>
             </div>
             <div data-customer-fields class="frow">
-              <label class="field field--sm"><span class="field__label">Account type</span><select class="select" name="external_party_type"><option value="Customer">Customer</option><option value="Vendor">Vendor</option></select></label>
-              <label class="field field--md"><span class="field__label">Company name</span><input class="input" name="organization_name" maxlength="120"></label>
+              <label class="field field--md"><span class="field__label">Account type</span><select class="select" name="external_party_type"><option value="Customer">Customer</option><option value="Vendor">Vendor</option></select></label>
+              <label class="field field--xl"><span class="field__label">Company name</span><input class="input" name="organization_name" maxlength="120"></label>
             </div>
             <fieldset class="dock-checks" data-location-fields><legend>Location access</legend><div data-checks></div></fieldset>
             <div class="setrow"><div><div class="setrow__t">Active</div><div class="setrow__d">Inactive accounts cannot sign in</div></div><button type="button" class="switch" data-active-switch data-self-locked aria-label="Active"></button></div>

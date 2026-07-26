@@ -222,7 +222,7 @@ function buildShell(root) {
               <label class="field field--sm"><span class="field__label">Direction</span><select class="select" name="direction"><option value="inbound">Inbound</option><option value="outbound">Outbound</option></select></label>
             </div>
             <div class="frow">
-              <label class="field field--sm"><span class="field__label">Appointment type</span><select class="select" name="appointment_type_code"></select></label>
+              <label class="field field--md"><span class="field__label">Appointment type</span><select class="select" name="appointment_type_code"></select></label>
               <label class="field field--sm"><span class="field__label">Truck type</span><select class="select" name="truck_type_code"></select></label>
               <label class="field field--sm"><span class="field__label">Handling</span><select class="select" name="handling_type_code"></select></label>
               <label class="field field--xs"><span class="field__label">Skids</span><input class="input" type="number" min="0" name="skid_count" required></label>
@@ -230,11 +230,11 @@ function buildShell(root) {
             <div class="frow">
               <label class="field field--md"><span class="field__label">Company</span><input class="input" name="company_name" maxlength="120"></label>
               <label class="field field--md"><span class="field__label">Carrier</span><input class="input" name="carrier_name" maxlength="120"></label>
-              <label class="field field--sm"><span class="field__label">PO / BOL / Job</span><input class="input" name="external_reference" maxlength="80" required></label>
+              <label class="field field--md"><span class="field__label">PO / BOL / Job</span><input class="input" name="external_reference" maxlength="80" required></label>
             </div>
             <div class="frow">
-              <label class="field field--md"><span class="field__label">Requester name</span><input class="input" name="requester_name" maxlength="120" required></label>
-              <label class="field field--md"><span class="field__label">Requester email</span><input class="input" type="email" name="requester_email" maxlength="160" required></label>
+              <label class="field field--lg"><span class="field__label">Requester name</span><input class="input" name="requester_name" maxlength="120" required></label>
+              <label class="field field--lg"><span class="field__label">Requester email</span><input class="input" type="email" name="requester_email" maxlength="160" required></label>
             </div>
             <div class="setrow"><div><div class="setrow__t">Priority load</div><div class="setrow__d">Applies this location's priority minimum duration</div></div><button type="button" class="switch" data-priority-switch aria-label="Priority load"></button></div>
             <label class="field field--full"><span class="field__label">Notes</span><textarea name="notes" rows="2" maxlength="500"></textarea></label>
