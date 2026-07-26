@@ -106,7 +106,6 @@ function visibleRecords() {
 
 function renderKpis() {
   const appointments = state.records.filter(record => record.entry_kind !== 'block');
-  state.elements.kpis.style.gridTemplateColumns = `repeat(${Math.max(1, state.visibleCards.length)},1fr)`;
   state.elements.kpis.innerHTML = KPI_CARDS.filter(card => state.visibleCards.includes(card.id)).map(card => {
     const value = card.compute(appointments);
     return `<article class="kpi ${card.className}"><span class="kpi__label">${card.label}</span><span class="kpi__value">${value}${card.suffix ? `<span>${card.suffix}</span>` : ''}</span></article>`;

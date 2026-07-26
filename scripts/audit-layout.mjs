@@ -13,7 +13,9 @@ import path from 'node:path';
 
 const ROOT = path.resolve(import.meta.dirname, '..');
 const PORT = 8731;
-const WIDTHS = [1440, 1280, 1024];
+// Phone and tablet widths included: the owner found mismatched field heights on a
+// phone that a desktop-only sweep never would have surfaced.
+const WIDTHS = [1440, 1280, 1024, 834, 768, 430, 390];
 const PAGES = ['board', 'queue', 'my-appointments', 'settings', 'reports', 'users', 'data'];
 
 const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.png': 'image/png', '.svg': 'image/svg+xml' };
@@ -58,6 +60,29 @@ for (const name of PAGES) {
         }
       });
 
+      // Content pushed outside an ancestor that hides its overflow. The page-level
+      // scrollWidth check cannot see this: overflow:hidden clips silently, with no
+      // scrollbar, so a button can sit half off-screen and nothing reports it.
+      out.cutOff = [];
+      document.querySelectorAll('.btn,.iconbtn,.tag,.kpi,.pagehead__title,.field,.notif').forEach(el => {
+        if (!vis(el)) return;
+        const r = el.getBoundingClientRect();
+        if (r.width === 0) return;
+        for (let a = el.parentElement; a; a = a.parentElement) {
+          const st = getComputedStyle(a);
+          const scrollable = /auto|scroll/.test(st.overflowX) || /auto|scroll/.test(st.overflow);
+          // Reachable by scrolling is not the same as cut off. Stop looking.
+          if (scrollable) break;
+          if (st.overflowX !== 'hidden' && st.overflow !== 'hidden') continue;
+          const ar = a.getBoundingClientRect();
+          const over = Math.round(Math.max(r.right - ar.right, ar.left - r.left));
+          if (over > 1) {
+            out.cutOff.push({ text: (el.textContent || '').trim().slice(0, 28) || el.className, over, by: a.className || a.tagName });
+          }
+          break;
+        }
+      });
+
       // Interactive controls below a comfortable hit size. A small checkbox inside a
       // padded <label> is fine — the label is what the pointer actually hits — so
       // measure the effective target, not just the control box.
@@ -67,6 +92,27 @@ for (const name of PAGES) {
         const target = wrapper && wrapper.contains(el) ? wrapper : el;
         const h = Math.round(Math.max(el.getBoundingClientRect().height, target.getBoundingClientRect().height));
         if (h > 0 && h < 32) out.smallTargets.push({ text: (el.textContent || el.getAttribute('aria-label') || el.type || '').trim().slice(0, 32), h, sel: el.className });
+      });
+
+      // Controls sitting side by side must be the same height and sit on the same
+      // baseline. A label that wraps to two lines silently makes its field taller.
+      out.rowUneven = [];
+      document.querySelectorAll('.frow, .controls, .pagehead__actions, .panel__actions').forEach(row => {
+        if (!vis(row)) return;
+        const kids = [...row.children].filter(vis);
+        if (kids.length < 2) return;
+        const tops = kids.map(k => Math.round(k.getBoundingClientRect().top));
+        const sameLine = Math.max(...tops) - Math.min(...tops) < 6;
+        if (!sameLine) return;
+        const boxes = kids.map(k => ({ h: Math.round(k.getBoundingClientRect().height), t: (k.textContent || '').trim().slice(0, 20) }));
+        const spread = Math.max(...boxes.map(b => b.h)) - Math.min(...boxes.map(b => b.h));
+        if (spread > 2) out.rowUneven.push({ spread, boxes: boxes.map(b => `${b.t || '?'}:${b.h}`) });
+        // The controls themselves must also line up, not just their wrappers.
+        const ctrls = kids.map(k => k.querySelector('.input,.select,textarea,.btn')).filter(Boolean).filter(vis);
+        if (ctrls.length > 1) {
+          const ct = ctrls.map(c => Math.round(c.getBoundingClientRect().top));
+          if (Math.max(...ct) - Math.min(...ct) > 2) out.rowUneven.push({ spread: Math.max(...ct) - Math.min(...ct), boxes: ['controls not on a shared baseline'] });
+        }
       });
 
       // A form row should use its width, not stop short and leave the rest empty.
@@ -116,8 +162,10 @@ for (const name of PAGES) {
     });
 
     if (result.overflowX > 1) add(name, width, 'page-scrolls-sideways', `${result.overflowX}px`);
+    for (const c of [...new Map((result.cutOff || []).map(c => [c.text + c.over, c])).values()].slice(0, 5)) add(name, width, 'cut-off-by-hidden-overflow', `"${c.text}" is ${c.over}px outside .${c.by}`);
     for (const c of result.clipped.slice(0, 6)) add(name, width, 'content-clipped', `"${c.text}" overflows by ${c.over}px (${c.sel})`);
     for (const t of [...new Map(result.smallTargets.map(t => [t.sel + t.h, t])).values()].slice(0, 6)) add(name, width, 'hit-target-too-small', `"${t.text}" is ${t.h}px tall (${t.sel})`);
+    for (const u of (result.rowUneven || []).slice(0, 4)) add(name, width, 'side-by-side-heights-differ', `${u.spread}px apart — ${u.boxes.join(', ')}`);
     for (const r of result.rowFill.slice(0, 4)) add(name, width, 'form-row-leaves-dead-space', `${r.unused}px unused of ${r.rowWidth}px across ${r.fields} fields`);
     for (const k of result.kpi.slice(0, 4)) add(name, width, 'kpi-strip', `${k.issue} ${JSON.stringify(k.widths || k.heights || k.unused)}`);
     for (const g of result.gaps) add(name, width, 'inconsistent-vertical-rhythm', `gaps ${g.distinctGaps.join(', ')}px between page sections`);

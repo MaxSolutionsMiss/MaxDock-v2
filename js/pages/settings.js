@@ -202,7 +202,7 @@ function renderDocks() {
 
   return `<div class="card">
       <h3 class="card__title">Docks${canEditDocks ? '<button class="btn btn--quiet btn--sm" type="button" data-add-dock>Add dock</button>' : ''}</h3>
-      <table class="table"><thead><tr><th>Dock</th><th>Direction</th><th>Truck types</th><th>Status</th><th></th></tr></thead><tbody>${rows}</tbody></table>
+      <div class="tablewrap"><table class="table"><thead><tr><th>Dock</th><th>Direction</th><th>Truck types</th><th>Status</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
     </div>
     <div class="card" style="margin-top:var(--s4)">
       <form data-section-form="truck-types">

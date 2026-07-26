@@ -111,7 +111,7 @@ function renderRuns() {
   </tr>`).join('') || '<tr><td colspan="6" class="data">No import runs yet.</td></tr>';
   return `<div class="card">
     <h3 class="card__title">Recent import runs</h3>
-    <table class="table"><thead><tr><th>Run</th><th>Started</th><th>File</th><th>Rows</th><th>Result</th><th>By</th></tr></thead><tbody>${rows}</tbody></table>
+    <div class="tablewrap"><table class="table"><thead><tr><th>Run</th><th>Started</th><th>File</th><th>Rows</th><th>Result</th><th>By</th></tr></thead><tbody>${rows}</tbody></table></div>
   </div>`;
 }
 

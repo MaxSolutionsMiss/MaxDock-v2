@@ -69,7 +69,10 @@ body{background:var(--ground);color:var(--ink);font-family:var(--font-ui);font-s
 .linkBtn{font-family:inherit;font-size:var(--t-small);color:var(--dock);background:none;border:none;cursor:pointer;white-space:nowrap;min-height:32px;padding:0 var(--s1);display:inline-flex;align-items:center}
 
 .page{display:flex;flex-direction:column;flex:1;min-height:0;padding:var(--s4) var(--s5) var(--s5)}
-.pagehead{display:flex;align-items:center;gap:var(--s4);margin-bottom:var(--s3);flex:none}
+/* Wraps rather than pushing its actions past the edge. Unwrapped, Book appointment
+   sat 309px outside the viewport on a phone — present in the DOM, unreachable. */
+.pagehead{display:flex;align-items:center;gap:var(--s3) var(--s4);margin-bottom:var(--s3);flex:none;flex-wrap:wrap}
+.pagehead__actions{flex-wrap:wrap}
 .pagehead__title{font-size:var(--t-title);font-weight:600;letter-spacing:-.015em;margin:0}
 .pagehead__sub{font-size:var(--t-small);color:var(--ink-muted);margin:1px 0 0}
 .pagehead__actions{margin-left:auto;display:flex;gap:var(--s2)}
@@ -80,7 +83,8 @@ body{background:var(--ground);color:var(--ink);font-family:var(--font-ui);font-s
 .btn--sm{min-height:34px;padding:0 10px;font-size:var(--t-small)}
 .btn--block{width:100%}
 
-.controls{display:flex;align-items:center;gap:var(--s3);padding:var(--s2) var(--s3);background:var(--surface);border:1px solid var(--rule);border-radius:var(--radius-lg);margin-bottom:var(--s3);flex:none}
+.controls{display:flex;align-items:center;gap:var(--s2) var(--s3);padding:var(--s2) var(--s3);background:var(--surface);border:1px solid var(--rule);border-radius:var(--radius-lg);margin-bottom:var(--s3);flex:none;flex-wrap:wrap}
+.controls__end{flex-wrap:wrap}
 .datenav{display:flex;align-items:center;gap:var(--s1)}
 .iconbtn{width:34px;min-height:34px;border:1px solid var(--rule-strong);background:var(--surface);border-radius:var(--radius);cursor:pointer;color:var(--ink-muted);font-size:16px;display:grid;place-items:center}
 .input,.select,textarea{font-family:inherit;font-size:var(--t-base);color:var(--ink);background:var(--surface);border:1px solid var(--rule-strong);border-radius:var(--radius);padding:0 10px;min-height:34px}
@@ -90,15 +94,20 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 .ctrl-field label{font-size:var(--t-micro);text-transform:uppercase;letter-spacing:.07em;color:var(--ink-muted);font-weight:600}
 .controls__end{margin-left:auto;display:flex;gap:var(--s2)}
 
-.kpis{display:grid;gap:var(--s3);margin-bottom:var(--s3);flex:none}
-.kpis--5{grid-template-columns:repeat(5,1fr)} .kpis--4{grid-template-columns:repeat(4,1fr)}
-.kpi{background:var(--surface);border:1px solid var(--rule);border-top:2px solid var(--rule-strong);border-radius:var(--radius-lg);padding:var(--s2) var(--s3);display:flex;flex-direction:column;gap:2px}
+/* Cards wrap to fit rather than being forced into a fixed column count. At 768px the
+   old repeat(5,1fr) squeezed them to 55-104px wide; on a wide screen the same rule
+   stretched them into empty horizontal slabs. */
+.kpis{display:grid;gap:var(--s3);margin-bottom:var(--s3);flex:none;grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}
+/* One rounded outline carrying a single accent edge, rather than a detached top rule
+   floating above the card — the treatment v1 settled on at DB66. */
+.kpi{background:var(--surface);border:1px solid var(--rule);border-left:3px solid var(--rule-strong);border-radius:var(--radius-lg);padding:var(--s3);display:flex;flex-direction:column;justify-content:center;gap:var(--s1);min-height:78px}
 .kpi__label{font-size:var(--t-micro);text-transform:uppercase;letter-spacing:.07em;color:var(--ink-muted);font-weight:600}
-.kpi__value{font-family:var(--font-data);font-size:var(--t-metric);font-weight:500;line-height:1.1}
-.kpi--ok{border-top-color:var(--ok)} .kpi--ok .kpi__value{color:var(--ok)}
-.kpi--signal{border-top-color:var(--signal)} .kpi--signal .kpi__value{color:var(--signal)}
-.kpi--out{border-top-color:var(--dock)} .kpi--out .kpi__value{color:var(--dock-deep)}
-.kpi--stop{border-top-color:var(--stop)} .kpi--stop .kpi__value{color:var(--stop)}
+.kpi__value{font-family:var(--font-data);font-size:var(--t-metric);font-weight:600;line-height:1.05;letter-spacing:-.02em}
+.kpi__value span{font-size:var(--t-small);font-weight:500;color:var(--ink-muted);margin-left:2px}
+.kpi--ok{border-left-color:var(--ok)} .kpi--ok .kpi__value{color:var(--ok)}
+.kpi--signal{border-left-color:var(--signal)} .kpi--signal .kpi__value{color:var(--signal)}
+.kpi--out{border-left-color:var(--dock)} .kpi--out .kpi__value{color:var(--dock-deep)}
+.kpi--stop{border-left-color:var(--stop)} .kpi--stop .kpi__value{color:var(--stop)}
 
 /* ===== DOCK BOARD — docks as ROWS, time across the TOP, frozen headers ===== */
 .board{background:var(--surface);border:1px solid var(--rule);border-radius:var(--radius-lg);display:flex;flex-direction:column;flex:1;min-height:0;overflow:hidden}
@@ -136,6 +145,7 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 .panel__actions{margin-left:auto;display:flex;gap:var(--s2);align-items:center}
 .panel__scroll{overflow:auto;flex:1;min-height:0}
 .table{width:100%;border-collapse:collapse}
+.tablewrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
 .table th{position:sticky;top:0;font-size:var(--t-micro);text-transform:uppercase;letter-spacing:.07em;color:var(--ink-muted);font-weight:600;text-align:left;padding:var(--s2) var(--s4);background:var(--surface-sunk);border-bottom:1px solid var(--rule);white-space:nowrap}
 .table td{padding:9px var(--s4);border-bottom:1px solid var(--rule);vertical-align:middle}
 .table tr:last-child td{border-bottom:none}
@@ -176,7 +186,8 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 
 .field{display:flex;flex-direction:column;gap:4px}
 .field__label{font-size:var(--t-micro);text-transform:uppercase;letter-spacing:.07em;color:var(--ink-muted);font-weight:600}
-.field .input,.field .select,.field textarea{width:100%}
+.field .input,.field .select,.field textarea{width:100%;min-width:0}
+.input[type="file"]{padding:6px 8px;min-width:0}
 .field--xs{max-width:120px} .field--sm{max-width:180px} .field--md{max-width:280px} .field--lg{max-width:420px}
 /* Form rows share one 12-column grid. Previously .frow was flex with per-field
    max-widths, so every row distributed leftover space differently and no two rows
@@ -195,9 +206,17 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 .modal__body,.card{container-type:inline-size}
 @container (max-width:560px){
   .frow{grid-template-columns:repeat(6,1fr)}
-  .frow>*,.frow>.field--md,.frow>.field--lg{grid-column:span 6}
+  .frow>*,.frow>.field--md,.frow>.field--lg,.frow>.field--xl{grid-column:span 6}
   .frow>.field--xs{grid-column:span 2}
   .frow>.field--sm{grid-column:span 3}
+}
+/* Below this a two-up row cannot hold a label and its control without clipping.
+   The span classes are listed explicitly: .frow>* alone loses to .frow>.field--xs
+   on specificity, so the single-column rule would never have applied. */
+@container (max-width:380px){
+  .frow>*,
+  .frow>.field--xs,.frow>.field--sm,.frow>.field--md,
+  .frow>.field--lg,.frow>.field--xl,.frow>.field--full{grid-column:1/-1}
 }
 .choice{display:grid;grid-template-columns:1fr 1fr;gap:var(--s2)}
 .choice button{font-family:inherit;text-align:left;padding:9px 12px;border:1px solid var(--rule-strong);border-radius:var(--radius);background:var(--surface);cursor:pointer;min-height:var(--tap)}
@@ -412,4 +431,35 @@ body.modal-open{overflow:hidden}
   .appointment-card__details{grid-template-columns:1fr;gap:var(--s3)}
   .appointment-card__actions{justify-content:stretch}
   .appointment-card__actions .btn{flex:1 1 100%}
+}
+
+/* ---------------------------------------------------------------- narrow screens
+   The rail is a fixed 196px. On a 390px phone that left 194px for the entire
+   application and 146px for a card, which is why fields looked squeezed and
+   clipped there. Below 900px the rail keeps its icons and drops its labels; the
+   labels stay in the DOM for screen readers rather than being removed. */
+@media (max-width:900px){
+  :root{--rail-w:60px}
+  .rail__brand{padding:0;justify-content:center}
+  .rail__name{display:none}
+  .rail__label{display:none}
+  .rail__link{justify-content:center;padding:0;gap:0}
+  .rail__link span{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+  .rail__cta{margin:var(--s3) var(--s1) 0;padding:var(--s2) 0}
+  .rail__cta .btn{padding:0;gap:0}
+  .rail__cta .btn span{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip-path:inset(50%)}
+  .rail__foot{padding:var(--s2);text-align:center;font-size:var(--t-micro);overflow:hidden}
+  .rail__foot strong{display:none}
+  .page{padding:var(--s3) var(--s3) var(--s4)}
+  .top{padding:0 var(--s3);gap:var(--s2)}
+  .top__date{display:none}
+  .top__loc{min-width:0;flex:1}
+}
+/* On a phone the secondary top-bar controls cost more room than they return. */
+@media (max-width:600px){
+  .seg{display:none}
+  .top__conn span:not(.dot){display:none}
+  .who__name,.who__role{display:none}
+  .controls{flex-wrap:wrap}
+  .split{grid-template-columns:1fr}
 }
