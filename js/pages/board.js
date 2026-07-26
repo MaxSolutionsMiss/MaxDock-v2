@@ -15,7 +15,23 @@ const state = {
   filters: { direction: 'all', status: 'all' },
   elements: {},
   blockModal: null,
+  editModal: null,
+  editingRecord: null,
+  reference: null,
 };
+
+const TERMINAL_STATUSES = new Set(['completed', 'cancelled', 'no_show']);
+
+// update_appointment_details is restricted to System Admin / Site Admin server-side.
+// A linked movement is the mirrored view of another site's appointment, so it must be
+// edited from the site that physically owns it.
+function canEditRecord(record) {
+  if (!record || record.entry_kind !== 'appointment') return false;
+  if (record.is_linked_movement) return false;
+  if (TERMINAL_STATUSES.has(record.status)) return false;
+  if (!can('appointment.update')) return false;
+  return ['system_admin', 'site_admin'].includes(state.context?.profile?.role_code);
+}
 
 const escapeHtml = value => String(value ?? '').replace(/[&<>'"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[char]));
 const can = permission => state.context?.can?.(permission);
@@ -49,6 +65,113 @@ async function fetchBoardData() {
       return format.sameLocalDate(record.start_at, selectedDate, state.context.location);
     }),
   };
+}
+
+async function loadEnabledTypes(mappingTable, codeColumn, masterTable) {
+  const locationId = state.context.location.id;
+  const mappings = await db.select(mappingTable, query => query.select(codeColumn).eq('location_id', locationId).eq('is_active', true), {
+    key: `board:${mappingTable}:${locationId}`, cache: 300000, retry: 1,
+  });
+  const codes = (mappings || []).map(row => row[codeColumn]);
+  if (!codes.length) return [];
+  return db.select(masterTable, query => query.select('code,name,sort_order').in('code', codes).eq('is_active', true).order('sort_order'), {
+    key: `board:${masterTable}:${locationId}`, cache: 300000, retry: 1,
+  });
+}
+
+async function loadEditReference() {
+  if (state.reference) return state.reference;
+  const [appointmentTypes, truckTypes, handlingTypes] = await Promise.all([
+    loadEnabledTypes('location_appointment_types', 'appointment_type_code', 'appointment_types'),
+    loadEnabledTypes('location_truck_types', 'truck_type_code', 'truck_types'),
+    loadEnabledTypes('location_handling_types', 'handling_type_code', 'handling_types'),
+  ]);
+  state.reference = { appointmentTypes: appointmentTypes || [], truckTypes: truckTypes || [], handlingTypes: handlingTypes || [] };
+  return state.reference;
+}
+
+function optionList(rows, selected) {
+  return rows.map(row => `<option value="${escapeHtml(row.code)}" ${row.code === selected ? 'selected' : ''}>${escapeHtml(row.name)}</option>`).join('');
+}
+
+async function openEditModal(record, trigger) {
+  state.editingRecord = record;
+  const reference = await loadEditReference();
+  const form = state.elements.editForm;
+  form.reset();
+  state.elements.editTitle.textContent = record.booking_reference || 'Edit appointment';
+  state.elements.editSub.textContent = `${format.role(record.direction)} · ${record.company_name || record.display_counterpart_location_name || 'Scheduled movement'}`;
+  form.elements.date.value = format.inputDate(record.start_at, state.context.location);
+  form.elements.start_time.value = format.inputTime(record.start_at, state.context.location);
+  form.elements.dock_id.innerHTML = state.docks.map(dock => `<option value="${dock.id}" ${dock.id === record.dock_id ? 'selected' : ''}>${escapeHtml(dock.name)}</option>`).join('');
+  form.elements.direction.value = record.direction;
+  form.elements.company_name.value = record.company_name || '';
+  form.elements.appointment_type_code.innerHTML = optionList(reference.appointmentTypes, record.appointment_type_code);
+  form.elements.truck_type_code.innerHTML = optionList(reference.truckTypes, record.truck_type_code);
+  form.elements.handling_type_code.innerHTML = optionList(reference.handlingTypes, record.handling_type_code);
+  form.elements.skid_count.value = record.skid_count ?? 0;
+  form.elements.requester_name.value = record.requester_name || '';
+  form.elements.requester_email.value = record.requester_email || '';
+  form.elements.carrier_name.value = record.carrier_name || '';
+  form.elements.external_reference.value = record.external_reference || '';
+  form.elements.notes.value = record.notes || '';
+  const prioritySwitch = form.querySelector('[data-priority-switch]');
+  prioritySwitch.classList.toggle('switch--off', !record.is_priority);
+  prioritySwitch.setAttribute('aria-pressed', String(Boolean(record.is_priority)));
+  state.elements.editMessage.textContent = '';
+  state.elements.editHistory.innerHTML = '<p class="hint">Loading history…</p>';
+  state.editModal.open({ trigger });
+
+  try {
+    const history = await db.rpc('get_appointment_history', { p_appointment_id: record.id }, { key: `board:history:${record.id}`, cache: 15000, retry: 1 });
+    state.elements.editHistory.innerHTML = (history || []).length
+      ? (history || []).map(entry => `<div class="watchitem"><span class="wdot" style="--c:var(--dock)"></span><div><b>${escapeHtml(format.role(entry.action))} · ${escapeHtml(entry.changed_by_name || 'MaxDock')}</b>${escapeHtml(entry.summary || '')} <span class="sub">${escapeHtml(format.timestamp(entry.changed_at, state.context.location))}</span></div></div>`).join('')
+      : '<p class="hint">No history recorded for this appointment.</p>';
+  } catch {
+    state.elements.editHistory.innerHTML = '<p class="hint">The change history could not be loaded.</p>';
+  }
+}
+
+async function submitEdit(event) {
+  event.preventDefault();
+  const form = state.elements.editForm;
+  const submit = form.querySelector('[type="submit"]');
+  const data = new FormData(form);
+  submit.disabled = true;
+  state.elements.editMessage.textContent = '';
+  try {
+    await db.rpc('update_appointment_details', {
+      p_appointment_id: state.editingRecord.id,
+      p_date: data.get('date'),
+      p_start_time: data.get('start_time'),
+      p_dock_id: data.get('dock_id'),
+      p_direction: data.get('direction'),
+      p_company_name: data.get('company_name') || null,
+      p_appointment_type_code: data.get('appointment_type_code'),
+      p_truck_type_code: data.get('truck_type_code'),
+      p_skid_count: Number(data.get('skid_count')),
+      p_handling_type_code: data.get('handling_type_code'),
+      p_is_priority: form.querySelector('[data-priority-switch]').getAttribute('aria-pressed') === 'true',
+      p_requester_name: data.get('requester_name'),
+      p_requester_email: data.get('requester_email'),
+      p_carrier_name: data.get('carrier_name') || null,
+      p_external_reference: data.get('external_reference'),
+      p_notes: data.get('notes') || null,
+    }, { key: `board:edit:${state.editingRecord.id}:${crypto.randomUUID()}`, retry: 0 });
+    db.invalidate('rpc:list_location_schedule');
+    db.invalidate('board:schedule:');
+    db.invalidate('queue:schedule:');
+    db.invalidate(`board:history:${state.editingRecord.id}`);
+    state.editModal.close();
+    toast('Appointment updated.', 'success');
+    patchData(await fetchBoardData());
+  } catch (error) {
+    // The RPC rejects hour, slot-alignment, capacity and conflict violations by name;
+    // surface its own wording rather than a generic failure.
+    state.elements.editMessage.textContent = error.userMessage || error.message || 'The appointment could not be updated.';
+  } finally {
+    submit.disabled = false;
+  }
 }
 
 function buildShell(root) {
@@ -86,6 +209,42 @@ function buildShell(root) {
           <div class="modal__foot"><button class="btn btn--quiet" type="button" data-close-block>Cancel</button><button class="btn btn--primary" type="submit">Block selected docks</button></div>
         </form>
       </section>
+    </div>
+    <div class="scrim" data-edit-backdrop hidden aria-hidden="true">
+      <section class="modal" role="dialog" aria-modal="true" aria-labelledby="edit-appointment-title">
+        <div class="modal__head"><div><h2 class="modal__title" id="edit-appointment-title" data-edit-title>Edit appointment</h2><p class="modal__sub" data-edit-sub></p></div><button class="modal__x" type="button" data-close-edit aria-label="Close">×</button></div>
+        <form data-edit-form>
+          <div class="modal__body">
+            <div class="frow">
+              <label class="field field--sm"><span class="field__label">Date</span><input class="input" type="date" name="date" required></label>
+              <label class="field field--sm"><span class="field__label">Start time</span><input class="input" type="time" name="start_time" required></label>
+              <label class="field field--sm"><span class="field__label">Dock</span><select class="select" name="dock_id" required></select></label>
+              <label class="field field--sm"><span class="field__label">Direction</span><select class="select" name="direction"><option value="inbound">Inbound</option><option value="outbound">Outbound</option></select></label>
+            </div>
+            <div class="frow">
+              <label class="field field--sm"><span class="field__label">Appointment type</span><select class="select" name="appointment_type_code"></select></label>
+              <label class="field field--sm"><span class="field__label">Truck type</span><select class="select" name="truck_type_code"></select></label>
+              <label class="field field--sm"><span class="field__label">Handling</span><select class="select" name="handling_type_code"></select></label>
+              <label class="field field--xs"><span class="field__label">Skids</span><input class="input" type="number" min="0" name="skid_count" required></label>
+            </div>
+            <div class="frow">
+              <label class="field field--md"><span class="field__label">Company</span><input class="input" name="company_name" maxlength="120"></label>
+              <label class="field field--md"><span class="field__label">Carrier</span><input class="input" name="carrier_name" maxlength="120"></label>
+              <label class="field field--sm"><span class="field__label">PO / BOL / Job</span><input class="input" name="external_reference" maxlength="80" required></label>
+            </div>
+            <div class="frow">
+              <label class="field field--md"><span class="field__label">Requester name</span><input class="input" name="requester_name" maxlength="120" required></label>
+              <label class="field field--md"><span class="field__label">Requester email</span><input class="input" type="email" name="requester_email" maxlength="160" required></label>
+            </div>
+            <div class="setrow"><div><div class="setrow__t">Priority load</div><div class="setrow__d">Applies this location's priority minimum duration</div></div><button type="button" class="switch" data-priority-switch aria-label="Priority load"></button></div>
+            <label class="field field--full"><span class="field__label">Notes</span><textarea name="notes" rows="2" maxlength="500"></textarea></label>
+            <p class="form-message" data-edit-message aria-live="polite"></p>
+            <h3 class="watch__t" style="margin-top:var(--s4)">Change history</h3>
+            <div data-edit-history></div>
+          </div>
+          <div class="modal__foot"><button class="btn btn--quiet" type="button" data-close-edit>Cancel</button><button class="btn btn--primary" type="submit">Save changes</button></div>
+        </form>
+      </section>
     </div>`;
   state.elements = {
     root,
@@ -97,8 +256,15 @@ function buildShell(root) {
     blockBackdrop: root.querySelector('[data-block-backdrop]'),
     blockForm: root.querySelector('[data-block-form]'),
     dockChecks: root.querySelector('[data-dock-checks]'),
+    editBackdrop: root.querySelector('[data-edit-backdrop]'),
+    editForm: root.querySelector('[data-edit-form]'),
+    editTitle: root.querySelector('[data-edit-title]'),
+    editSub: root.querySelector('[data-edit-sub]'),
+    editMessage: root.querySelector('[data-edit-message]'),
+    editHistory: root.querySelector('[data-edit-history]'),
   };
   state.blockModal = createModal(state.elements.blockBackdrop, { onRequestClose: () => state.blockModal.close() });
+  state.editModal = createModal(state.elements.editBackdrop, { onRequestClose: () => state.editModal.close() });
 }
 function visibleRecords() {
   return state.records.filter(record => {
@@ -148,7 +314,9 @@ function card(record) {
   const title = isBlock ? (record.block_reason || 'Dock blocked') : (record.booking_reference || 'Appointment');
   const who = isBlock ? (record.notes || 'Unavailable') : (record.company_name || record.display_counterpart_location_name || record.requester_name || 'Scheduled movement');
   const meta = isBlock ? `${format.time(record.start_at, state.context.location)}–${format.time(record.end_at, state.context.location)}` : `${record.direction} · ${Number(record.skid_count || 0)} skids`;
-  return `<article class="slot ${isBlock ? 'slot--blk' : record.direction === 'outbound' ? 'slot--out' : record.is_priority ? 'slot--pri' : 'slot--in'}" data-record-id="${escapeHtml(record.id)}" tabindex="0" title="${escapeHtml(`${title} · ${who}`)}"><div class="slot__ref">${escapeHtml(title)}</div><div class="slot__who">${escapeHtml(who)}</div><div class="slot__meta">${escapeHtml(meta)}</div></article>`;
+  const editable = canEditRecord(record);
+  const hint = editable ? ' · Enter or click to edit' : '';
+  return `<article class="slot ${isBlock ? 'slot--blk' : record.direction === 'outbound' ? 'slot--out' : record.is_priority ? 'slot--pri' : 'slot--in'}" data-record-id="${escapeHtml(record.id)}"${editable ? ' data-edit-record role="button"' : ''} tabindex="0" title="${escapeHtml(`${title} · ${who}${hint}`)}"><div class="slot__ref">${escapeHtml(title)}</div><div class="slot__who">${escapeHtml(who)}</div><div class="slot__meta">${escapeHtml(meta)}</div></article>`;
 }
 
 function renderBoard() {
@@ -252,9 +420,28 @@ function wireEvents(root) {
     const block = event.target.closest('[data-block-time]');
     if (block) openBlockModal(block);
     if (event.target.closest('[data-close-block]')) state.blockModal.close();
+    if (event.target.closest('[data-close-edit]')) state.editModal.close();
     if (event.target.closest('[data-export]')) exportCsv();
     if (event.target.closest('[data-print]')) globalThis.print();
     if (event.target.closest('[data-fullscreen]')) openBroadcastWindow();
+    const priority = event.target.closest('[data-priority-switch]');
+    if (priority) {
+      const off = priority.classList.toggle('switch--off');
+      priority.setAttribute('aria-pressed', String(!off));
+    }
+    const editTarget = event.target.closest('[data-edit-record]');
+    if (editTarget) {
+      const record = state.records.find(item => String(item.id) === editTarget.dataset.recordId);
+      if (record) openEditModal(record, editTarget);
+    }
+  });
+  root.addEventListener('keydown', event => {
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+    const editTarget = event.target.closest('[data-edit-record]');
+    if (!editTarget) return;
+    event.preventDefault();
+    const record = state.records.find(item => String(item.id) === editTarget.dataset.recordId);
+    if (record) openEditModal(record, editTarget);
   });
   root.addEventListener('change', async event => {
     if (event.target.matches('[data-board-date]')) { state.date = event.target.value; patchData(await fetchBoardData()); }
@@ -262,6 +449,7 @@ function wireEvents(root) {
     if (event.target.matches('[data-filter-status]')) { state.filters.status = event.target.value; renderBoard(); }
   });
   state.elements.blockForm?.addEventListener('submit', submitBlock);
+  state.elements.editForm?.addEventListener('submit', submitEdit);
 }
 
 const page = {
@@ -277,7 +465,7 @@ const page = {
   },
   poll: { interval: 5000, fetch: fetchBoardData },
   async refresh(data) { patchData(data); },
-  destroy() { state.blockModal?.destroy(); },
+  destroy() { state.blockModal?.destroy(); state.editModal?.destroy(); },
 };
 
 startPage(page);
