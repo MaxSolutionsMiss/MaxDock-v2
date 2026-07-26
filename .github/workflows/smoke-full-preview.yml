@@ -69,3 +69,36 @@ jobs:
           grep -q 'book_appointment' /tmp/booking.js
           ! grep -q '<iframe' /tmp/router.js
           ! grep -q 'bookingModalMarkup' /tmp/router.js
+      - name: Verify deployed pages are backend-wired, not mockups
+        env:
+          BASE: https://maxsolutionsmiss.github.io/MaxDock-v2/stage4-preview
+        run: |
+          set -euo pipefail
+          # A 200 on these modules only proves a file exists. Assert the deployed
+          # bytes carry the real backend wiring so a stale Pages artifact fails here
+          # instead of looking healthy.
+          for page in queue reports settings users data; do
+            curl --fail --silent --show-error --location --retry 8 --retry-delay 3 \
+              "${BASE}/js/pages/${page}.js?sha=${GITHUB_SHA}" -o "/tmp/page-${page}.js"
+            grep -Eq "db\.(rpc|select|insert|update|remove|edge)\(" "/tmp/page-${page}.js"
+            ! grep -q 'mountComposedPage' "/tmp/page-${page}.js"
+          done
+          grep -q 'change_appointment_status' /tmp/page-queue.js
+          grep -q 'maxdock-ai-brief' /tmp/page-queue.js
+          grep -q 'list_return_load_opportunities' /tmp/page-queue.js
+          grep -q 'get_ai_operations_context' /tmp/page-reports.js
+          grep -q 'admin_list_users_with_identity' /tmp/page-users.js
+          grep -q 'maxdock-invite-user' /tmp/page-users.js
+          grep -q 'admin_import_inventory_snapshots' /tmp/page-data.js
+          grep -q 'location_operating_hours' /tmp/page-settings.js
+          # Header controls must come from the shared helper on every page that has them.
+          curl --fail --silent --show-error --location --retry 8 --retry-delay 3 \
+            "${BASE}/js/ui/pagehead.js?sha=${GITHUB_SHA}" -o /tmp/pagehead.js
+          for label in 'Export CSV' 'Print' 'Full screen' 'Book appointment'; do
+            grep -Fq "$label" /tmp/pagehead.js
+          done
+          for page in board queue reports users; do
+            curl --fail --silent --show-error --location --retry 8 --retry-delay 3 \
+              "${BASE}/js/pages/${page}.js?sha=${GITHUB_SHA}" -o "/tmp/head-${page}.js"
+            grep -q 'pageHead(' "/tmp/head-${page}.js"
+          done
