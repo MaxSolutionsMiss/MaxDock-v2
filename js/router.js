@@ -286,6 +286,23 @@ function bookingModalMarkup(context) {
     <div class="modal__foot"><button class="btn btn--quiet" type="button" data-close-booking>Cancel</button><button class="btn btn--primary" type="button" data-booking-next>Continue</button></div>`;
 }
 
+function bookingModalMarkup(context) {
+  const roleCode = String(context?.profile?.role_code || '').toLowerCase();
+  const isCustomer = roleCode.includes('customer') || roleCode.includes('vendor');
+  if (isCustomer) {
+    return `
+      <div class="modal__head"><div><h2 class="modal__title" id="booking-modal-title">Book a shipment</h2><span class="modal__sub">Sending to Max Solutions</span></div><button class="modal__x" type="button" data-close-booking aria-label="Close booking">×</button></div>
+      <div class="steps"><div class="step step--now">1 · Load</div><div class="step">2 · Vehicle</div><div class="step">3 · Time</div><div class="step">4 · Confirm</div></div>
+      <div class="modal__body"><div class="frow" style="margin-bottom:var(--s4)"><div class="field" style="flex:1 1 100%"><span class="field__label">Direction</span><div class="choice"><button type="button" aria-pressed="true" disabled><strong>Outbound to Max</strong><small>Shipping to the selected Max location</small></button></div></div></div><div class="frow"><div class="field field--sm"><span class="field__label">Appointment type</span><select class="select"><option>Choose a type</option><option>Finished goods</option><option>Raw material</option></select></div><div class="field field--xs"><span class="field__label">Skids</span><input class="input" type="number" min="0" value="0"></div><div class="field field--sm"><span class="field__label">PO / reference</span><input class="input"></div></div><p class="hint">Your company and contact details are already on file. Tell us what is moving and continue to choose a time.</p></div>
+      <div class="modal__foot"><button class="btn btn--quiet" type="button" data-close-booking>Cancel</button><button class="btn btn--primary" type="button" data-booking-next>Continue</button></div>`;
+  }
+  return `
+    <div class="modal__head"><div><h2 class="modal__title" id="booking-modal-title">Book appointment</h2><span class="modal__sub">Booking for a customer, vendor or Max location</span></div><button class="modal__x" type="button" data-close-booking aria-label="Close booking">×</button></div>
+    <div class="steps"><div class="step step--now">1 · Load</div><div class="step">2 · Vehicle</div><div class="step">3 · Time</div><div class="step">4 · Contact</div><div class="step">5 · Confirm</div></div>
+    <div class="modal__body"><div class="field field--md" style="margin-bottom:var(--s4)"><span class="field__label">Direction</span><div class="choice"><button type="button" aria-pressed="true" data-booking-choice><strong>Inbound</strong><small>Receiving at the selected location</small></button><button type="button" aria-pressed="false" data-booking-choice><strong>Outbound</strong><small>Shipping from the selected location</small></button></div></div><div class="field field--md" style="margin-bottom:var(--s4)"><span class="field__label">Movement</span><div class="choice"><button type="button" aria-pressed="true" data-booking-choice><strong>External</strong><small>Customer, vendor or carrier</small></button><button type="button" aria-pressed="false" data-booking-choice><strong>Max-to-Max</strong><small>Reserve both Max docks</small></button></div></div><div class="frow"><div class="field field--sm"><span class="field__label">Appointment type</span><select class="select"><option>Choose a type</option><option>Finished goods</option><option>Raw material</option><option>Sister-plant transfer</option></select></div><div class="field field--xs"><span class="field__label">Skids</span><input class="input" type="number" min="0" value="0"></div><div class="field field--sm"><span class="field__label">PO / BOL</span><input class="input"></div></div></div>
+    <div class="modal__foot"><button class="btn btn--quiet" type="button" data-close-booking>Cancel</button><button class="btn btn--primary" type="button" data-booking-next>Continue</button></div>`;
+}
+
 function openBookingModal(event) {
   if (document.getElementById('booking-modal')) return;
   const backdrop = document.createElement('div');
@@ -299,27 +316,17 @@ function openBookingModal(event) {
   modal.innerHTML = bookingModalMarkup(activeContext);
   backdrop.append(modal);
   document.body.append(backdrop);
-  const close = () => {
-    globalThis.removeEventListener('keydown', onKey);
-    backdrop.remove();
-    event?.detail?.trigger?.focus?.();
-  };
+  const onKey = key => { if (key.key === 'Escape') close(); };
+  const close = () => { globalThis.removeEventListener('keydown', onKey); backdrop.remove(); event?.detail?.trigger?.focus?.(); };
   backdrop.addEventListener('click', click => {
     const choice = click.target.closest('[data-booking-choice]');
     if (choice) {
-      const group = choice.closest('.choice');
-      group?.querySelectorAll('[data-booking-choice]').forEach(button => button.setAttribute('aria-pressed', String(button === choice)));
+      choice.closest('.choice')?.querySelectorAll('[data-booking-choice]').forEach(button => button.setAttribute('aria-pressed', String(button === choice)));
       return;
     }
-    if (click.target.closest('[data-booking-next]')) {
-      toast.info('Continue through the approved booking steps.');
-      return;
-    }
+    if (click.target.closest('[data-booking-next]')) { toast.info('Continue through the approved booking steps.'); return; }
     if (click.target === backdrop || click.target.closest('[data-close-booking]')) close();
   });
-  const onKey = key => {
-    if (key.key === 'Escape') close();
-  };
   globalThis.addEventListener('keydown', onKey);
   modal.querySelector('button, input, select')?.focus();
 }
