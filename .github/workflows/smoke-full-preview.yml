@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Wait for Pages propagation
-        run: sleep 20
+        run: sleep 25
       - name: Verify deployed routes and assets
         env:
           BASE: https://maxsolutionsmiss.github.io/MaxDock-v2/stage4-preview
@@ -35,5 +35,30 @@ jobs:
             /js/pages/users.js \
             /js/pages/data.js; do
             echo "Checking ${BASE}${path}"
-            curl --fail --silent --show-error --location --retry 4 --retry-delay 3 --output /dev/null "${BASE}${path}"
+            curl --fail --silent --show-error --location --retry 6 --retry-delay 3 --output /dev/null "${BASE}${path}?sha=${GITHUB_SHA}"
           done
+      - name: Verify deployed Supabase loaders
+        env:
+          BASE: https://maxsolutionsmiss.github.io/MaxDock-v2/stage4-preview
+        run: |
+          set -euo pipefail
+          expected='<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.52.1/dist/umd/supabase.min.js"></script>'
+          for page in queue reports settings users data; do
+            curl --fail --silent --show-error --location --retry 6 --retry-delay 3 "${BASE}/app/${page}.html?sha=${GITHUB_SHA}" -o "/tmp/${page}.html"
+            grep -Fq "$expected" "/tmp/${page}.html"
+            grep -Fq 'id="page-root"' "/tmp/${page}.html"
+            grep -Fq 'type="module"' "/tmp/${page}.html"
+          done
+      - name: Verify deployed canonical CSS and direct modal
+        env:
+          BASE: https://maxsolutionsmiss.github.io/MaxDock-v2/stage4-preview
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --location --retry 6 --retry-delay 3 "${BASE}/assets/maxdock.css?sha=${GITHUB_SHA}" -o /tmp/maxdock.css
+          curl --fail --silent --show-error --location --retry 6 --retry-delay 3 "${BASE}/js/router.js?sha=${GITHUB_SHA}" -o /tmp/router.js
+          test "$(grep -c '\.brief' /tmp/maxdock.css)" -gt 0
+          test "$(grep -c '\.capbar' /tmp/maxdock.css)" -gt 0
+          test "$(grep -c '\.passwordReveal' /tmp/maxdock.css)" -gt 0
+          grep -q 'bookingModalMarkup' /tmp/router.js
+          grep -q 'modal.innerHTML = bookingModalMarkup' /tmp/router.js
+          ! grep -q '<iframe' /tmp/router.js
