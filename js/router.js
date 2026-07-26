@@ -80,36 +80,68 @@ function appendRouteGroup(fragment, context, pageCode, routeGroup) {
     const icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     icon.setAttribute('class', 'rail__icon');
     icon.setAttribute('viewBox', '0 0 24 24');
+    icon.setAttribute('aria-hidden', 'true');
     icon.innerHTML = item.icon;
-    link.append(icon, document.createTextNode(item.label));
+    const text = document.createElement('span');
+    text.textContent = item.label;
+    link.append(icon, text);
     group.append(link);
   }
   fragment.append(group);
 }
 
-function buildRail(context, pageCode) {
-  const rail = document.getElementById('rail');
-  rail.replaceChildren();
-  const brand = document.createElement('div');
-  brand.className = 'rail__brand';
-  brand.innerHTML = '<span class="rail__mark"><svg viewBox="0 0 40 28" aria-hidden="true"><path d="M4 24 L14 6 L20 17 M20 17 L26 6 L36 24" stroke="#fff" stroke-width="2.4" fill="none" stroke-linejoin="round"></path></svg></span><span class="rail__name">MaxDock</span>';
-  rail.append(brand);
-  const routes = context.isCustomer ? CUSTOMER_ROUTES : STAFF_ROUTES;
-  const operations = routes.filter(group => !group.admin);
-  const administration = routes.filter(group => group.admin);
+function appendBookingButton(fragment, context) {
+  if (!context.can('appointment.create')) return;
+  const cta = document.createElement('div');
+  cta.className = 'rail__cta';
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'btn btn--primary btn--block';
+  button.dataset.openBooking = '';
+  button.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg><span>Book appointment</span>';
+  cta.append(button);
+  fragment.append(cta);
+}
+
+function createNav(context, pageCode) {
   const fragment = document.createDocumentFragment();
-  for (const routeGroup of operations) appendRouteGroup(fragment, context, pageCode, routeGroup);
-  if (!context.isCustomer) {
-    const cta = document.createElement('div');
-    cta.className = 'rail__cta';
-    cta.innerHTML = '<button class="btn btn--primary btn--block" type="button" data-open-booking><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>Book appointment</button>';
-    fragment.append(cta);
-    const spacer = document.createElement('div');
-    spacer.className = 'rail__spacer';
-    fragment.append(spacer);
-    for (const routeGroup of administration) appendRouteGroup(fragment, context, pageCode, routeGroup);
+  if (context.customerShell) {
+    appendRouteGroup(fragment, context, pageCode, CUSTOMER_ROUTES[0]);
+    appendBookingButton(fragment, context);
+    return fragment;
   }
-  rail.append(fragment);
+  appendRouteGroup(fragment, context, pageCode, STAFF_ROUTES[0]);
+  appendBookingButton(fragment, context);
+  const spacer = document.createElement('div');
+  spacer.className = 'rail__spacer';
+  spacer.setAttribute('aria-hidden', 'true');
+  fragment.append(spacer);
+  appendRouteGroup(fragment, context, pageCode, STAFF_ROUTES[1]);
+  return fragment;
+}
+
+function createShell(context, page) {
+  const root = document.getElementById('app-root');
+  root.className = 'shell';
+  root.textContent = '';
+
+  const rail = document.createElement('nav');
+  rail.className = 'rail';
+  rail.setAttribute('aria-label', 'MaxDock navigation');
+
+  const brand = document.createElement('a');
+  brand.className = 'rail__brand';
+  brand.href = session.defaultPath(context);
+  brand.setAttribute('aria-label', 'MaxDock home');
+  const mark = document.createElement('span');
+  mark.className = 'rail__mark';
+  mark.innerHTML = '<svg viewBox="0 0 40 28" aria-hidden="true"><path d="M4 24 L14 6 L20 17 M20 17 L26 6 L36 24" stroke="#fff" stroke-width="2.4" fill="none" stroke-linejoin="round"></path></svg>';
+  const brandName = document.createElement('span');
+  brandName.className = 'rail__name';
+  brandName.textContent = 'MaxDock';
+  brand.append(mark, brandName);
+  rail.append(brand, createNav(context, page.code));
+
   const railFoot = document.createElement('div');
   railFoot.className = 'rail__foot';
   const person = document.createElement('strong');
@@ -117,51 +149,69 @@ function buildRail(context, pageCode) {
   const role = document.createTextNode(context.role?.name || format.role(context.profile.role_code));
   railFoot.append(person, role);
   rail.append(railFoot);
-}
 
-function buildTop(context) {
-  const top = document.getElementById('top');
-  top.replaceChildren();
+  const main = document.createElement('div');
+  main.className = 'main';
+
+  const top = document.createElement('header');
+  top.className = 'top';
+
   const locationSelect = document.createElement('select');
   locationSelect.className = 'select top__loc';
-  locationSelect.setAttribute('aria-label', 'Location');
-  for (const location of context.locations) {
+  locationSelect.id = 'location-context';
+  locationSelect.setAttribute('aria-label', 'Current MaxDock location');
+  if (!context.locations.length) {
     const option = document.createElement('option');
-    option.value = location.id;
-    option.textContent = location.name;
-    option.selected = location.id === context.location.id;
+    option.textContent = 'No location access';
     locationSelect.append(option);
+    locationSelect.disabled = true;
+  } else {
+    for (const location of context.locations) {
+      const option = document.createElement('option');
+      option.value = location.id;
+      option.textContent = location.name;
+      option.selected = location.id === context.location?.id;
+      locationSelect.append(option);
+    }
   }
-  locationSelect.addEventListener('change', () => session.selectLocation(locationSelect.value));
+
   const date = document.createElement('span');
   date.className = 'top__date';
-  date.textContent = format.longDate(new Date());
+  date.textContent = format.date(null, context.location);
+
   const spacer = document.createElement('div');
   spacer.className = 'top__spacer';
+
   const sizeControl = document.createElement('div');
   sizeControl.className = 'seg';
-  for (const [size, label] of [['normal', 'A'], ['large', 'A+'], ['larger', 'A++']]) {
+  sizeControl.setAttribute('aria-label', 'Text size');
+  for (const size of ['normal', 'large', 'larger']) {
     const button = document.createElement('button');
     button.type = 'button';
-    button.textContent = label;
-    button.setAttribute('aria-pressed', String(document.documentElement.dataset.text === size));
+    button.dataset.textSize = size;
     button.setAttribute('aria-label', `${format.role(size)} text`);
-    button.addEventListener('click', () => {
-      document.documentElement.dataset.text = size;
-      localStorage.setItem('maxdock:text-size', size);
-      sizeControl.querySelectorAll('button').forEach(item => item.setAttribute('aria-pressed', String(item === button)));
-    });
+    button.setAttribute('aria-pressed', String(document.documentElement.dataset.text === size));
+    button.textContent = size === 'normal' ? 'A' : size === 'large' ? 'A+' : 'A++';
     sizeControl.append(button);
   }
+
   const connected = document.createElement('div');
   connected.className = 'top__conn';
-  connected.innerHTML = '<span class="dot"></span><span>Connected</span>';
+  const pulse = document.createElement('span');
+  pulse.className = 'dot';
+  pulse.id = 'connection-pulse';
+  const connectedText = document.createElement('span');
+  connectedText.id = 'connection-label';
+  connectedText.textContent = 'Connected';
+  connected.append(pulse, connectedText);
+
   const profile = document.createElement('div');
   profile.className = 'who';
   const avatar = document.createElement('span');
   avatar.className = 'avatar';
   avatar.textContent = format.initials(context.profile.full_name);
   const profileText = document.createElement('span');
+  profileText.className = '';
   const profileName = document.createElement('span');
   profileName.className = 'who__name';
   profileName.textContent = context.profile.full_name;
@@ -170,65 +220,203 @@ function buildTop(context) {
   profileRole.textContent = context.role?.name || format.role(context.profile.role_code);
   profileText.append(profileName, profileRole);
   const signOut = document.createElement('button');
-  signOut.className = 'linkBtn';
   signOut.type = 'button';
+  signOut.className = 'linkBtn';
+  signOut.id = 'sign-out';
   signOut.textContent = 'Sign out';
-  signOut.addEventListener('click', () => session.signOut());
   profile.append(avatar, profileText, signOut);
-  top.append(locationSelect, date, spacer, sizeControl, connected, profile);
-  const onConnection = event => {
-    const online = event.detail?.state !== 'offline';
-    connected.lastElementChild.textContent = online ? 'Connected' : 'Reconnecting';
-    connected.firstElementChild.style.background = online ? 'var(--ok)' : 'var(--signal)';
-  };
-  globalThis.addEventListener('maxdock:connection', onConnection);
-  cleanup.push(() => globalThis.removeEventListener('maxdock:connection', onConnection));
-}
 
-function installShellActions() {
-  const onClick = event => {
+  top.append(locationSelect, date, spacer, sizeControl, connected, profile);
+
+  const banner = document.createElement('div');
+  banner.className = 'sub';
+  banner.id = 'network-banner';
+  banner.hidden = true;
+
+  const pageRoot = document.createElement('main');
+  pageRoot.className = 'page';
+  pageRoot.id = 'page-content';
+  pageRoot.tabIndex = -1;
+
+  main.append(top, banner, pageRoot);
+  root.append(rail, main);
+
+  rail.addEventListener('click', event => {
     const trigger = event.target.closest('[data-open-booking]');
     if (!trigger) return;
     globalThis.dispatchEvent(new CustomEvent('maxdock:open-booking', { detail: { trigger } }));
-  };
-  document.addEventListener('click', onClick);
-  cleanup.push(() => document.removeEventListener('click', onClick));
+  });
+
+  return { root, pageRoot, locationSelect, sizeControl, signOut, banner, pulse, connectedText };
 }
 
 function renderFatal(error) {
-  const root = document.getElementById('page-root');
+  const root = document.getElementById('app-root');
+  root.className = 'login-page';
   renderState(root, {
-    title: 'MaxDock could not load this page',
-    message: error?.message || 'Try refreshing the page. If the issue continues, contact your MaxDock administrator.',
-    tone: 'error',
+    type: 'error',
+    title: 'MaxDock could not start',
+    message: error?.userMessage || 'The application shell could not be loaded. Your information has not been changed.',
+    actions: [
+      { id: 'retry', label: 'Try again', primary: true, onClick: () => globalThis.location.reload() },
+      { id: 'sign-out', label: 'Sign out', onClick: () => session.signOut() },
+    ],
   });
+}
+
+function showSessionModal(context) {
+  if (document.getElementById('session-modal')) return;
+  poll.suspend('session-expired');
+  const backdrop = document.createElement('div');
+  backdrop.className = 'modal-backdrop';
+  backdrop.id = 'session-modal';
+  const modal = document.createElement('section');
+  modal.className = 'modal';
+  modal.setAttribute('role', 'dialog');
+  modal.setAttribute('aria-modal', 'true');
+  modal.setAttribute('aria-labelledby', 'session-title');
+  modal.innerHTML = `
+    <h2 class="modal__title" id="session-title">Your session expired</h2>
+    <p class="modal__message">Sign in again to continue. The current screen will stay in place.</p>
+    <form id="session-form">
+      <div class="field field--lg">
+        <label class="field__label" for="session-email">Email</label>
+        <input class="input" id="session-email" name="email" type="email" autocomplete="username" required>
+      </div>
+      <div class="field field--lg">
+        <label class="field__label" for="session-password">Password</label>
+        <input class="input" id="session-password" name="password" type="password" autocomplete="current-password" required>
+      </div>
+      <p class="form-message" id="session-message" aria-live="polite"></p>
+      <div class="form-actions form-actions--stack">
+        <button class="btn btn--primary btn--block" id="session-submit" type="submit">Sign in</button>
+      </div>
+    </form>`;
+  backdrop.append(modal);
+  document.body.append(backdrop);
+
+  const email = modal.querySelector('#session-email');
+  const password = modal.querySelector('#session-password');
+  const form = modal.querySelector('#session-form');
+  const submit = modal.querySelector('#session-submit');
+  const message = modal.querySelector('#session-message');
+  email.value = context.profile.contact_email || context.user.email || '';
+
+  form.addEventListener('submit', async event => {
+    event.preventDefault();
+    submit.disabled = true;
+    message.textContent = '';
+    try {
+      await db.auth.signIn(email.value.trim(), password.value);
+      backdrop.remove();
+      poll.resume('session-expired');
+      toast('Signed in again.', 'success');
+      globalThis.location.reload();
+    } catch (error) {
+      message.textContent = error.userMessage || 'Sign-in failed.';
+      password.focus();
+    } finally {
+      submit.disabled = false;
+    }
+  });
+
+  password.focus();
+}
+
+function wireShell(elements, context) {
+  const onLocation = async event => {
+    elements.locationSelect.disabled = true;
+    try {
+      await session.chooseLocation(event.target.value);
+    } catch (error) {
+      toast(error.userMessage || 'The location could not be changed.', 'error');
+      elements.locationSelect.disabled = false;
+    }
+  };
+  elements.locationSelect.addEventListener('change', onLocation);
+  cleanup.push(() => elements.locationSelect.removeEventListener('change', onLocation));
+
+  const onSize = async event => {
+    const button = event.target.closest('[data-text-size]');
+    if (!button) return;
+    const value = button.dataset.textSize;
+    document.documentElement.dataset.text = value;
+    for (const item of elements.sizeControl.querySelectorAll('[data-text-size]')) {
+      item.setAttribute('aria-pressed', String(item === button));
+    }
+    try {
+      await session.setTextSize(value);
+      toast('Text size saved.', 'success');
+    } catch (error) {
+      toast(error.userMessage || 'The text size could not be saved.', 'error');
+    }
+  };
+  elements.sizeControl.addEventListener('click', onSize);
+  cleanup.push(() => elements.sizeControl.removeEventListener('click', onSize));
+
+  const onSignOut = () => session.signOut();
+  elements.signOut.addEventListener('click', onSignOut);
+  cleanup.push(() => elements.signOut.removeEventListener('click', onSignOut));
+
+  const onConnection = event => {
+    const offline = event.detail.state === 'offline';
+    elements.banner.hidden = !offline;
+    elements.pulse.classList.toggle('pulse--stale', offline);
+    elements.connectedText.textContent = offline ? 'Reconnecting' : 'Connected';
+    if (offline) {
+      elements.banner.textContent = `Showing the last loaded data — reconnecting. Location time ${format.time(null, context.location)}.`;
+    } else {
+      toast('MaxDock is up to date.', 'success');
+    }
+  };
+  globalThis.addEventListener('maxdock:connection', onConnection);
+  cleanup.push(() => globalThis.removeEventListener('maxdock:connection', onConnection));
+
+  const unsubscribe = session.onAuthChange((event, authSession) => {
+    if (event === 'SIGNED_OUT' || (!authSession && event !== 'INITIAL_SESSION')) showSessionModal(context);
+  });
+  cleanup.push(unsubscribe);
 }
 
 function startHeartbeat(pageCode) {
   globalThis.clearInterval(heartbeat);
-  heartbeat = globalThis.setInterval(() => db.recordUsage('page_heartbeat', pageCode), 60000);
+  heartbeat = globalThis.setInterval(() => {
+    if (document.visibilityState === 'visible') db.recordUsage('heartbeat', pageCode, 60);
+  }, 60000);
   cleanup.push(() => globalThis.clearInterval(heartbeat));
 }
 
-export async function mountShell(page) {
-  destroyPage();
-  const root = document.getElementById('page-root');
-  root.innerHTML = '';
+export async function startPage(page) {
+  activePage = page;
   try {
-    const context = await session.requireContext();
-    if (!pageAllowed(context, page)) throw new Error('You do not have permission to open this page.');
+    const context = await session.loadContext();
+    if (!context) return;
     activeContext = context;
-    activePage = page;
-    buildRail(context, page.code);
-    buildTop(context);
-    installShellActions();
-    const pageContext = {
-      ...context,
-      root,
-      navigate: path => { globalThis.location.href = appUrl(path); },
-      refresh: () => mountShell(page),
-    };
-    await page.mount(pageContext);
+    document.documentElement.dataset.text = context.preference?.text_size || 'normal';
+    const elements = createShell(context, page);
+    wireShell(elements, context);
+    context.pageRoot = elements.pageRoot;
+
+    if (!context.locations.length) {
+      renderState(elements.pageRoot, {
+        type: 'warning',
+        title: 'No location access',
+        message: 'Your account is active, but no MaxDock location is assigned. Ask a site or system administrator to add location access.',
+      });
+      return;
+    }
+
+    if (!pageAllowed(context, page)) {
+      renderState(elements.pageRoot, {
+        type: 'locked',
+        title: 'You do not have access to this screen',
+        message: 'The screen is not included in your current MaxDock permissions. Ask a MaxDock administrator if your responsibilities have changed.',
+        actions: [{ id: 'home', label: 'Go to my home screen', primary: true, onClick: () => globalThis.location.assign(session.defaultPath(context)) }],
+      });
+      return;
+    }
+
+    await page.mount(context);
     if (page.poll) {
       poll.start({
         ...page.poll,
@@ -239,7 +427,7 @@ export async function mountShell(page) {
     }
     db.recordUsage('page_view', page.code);
     startHeartbeat(page.code);
-    root.focus();
+    elements.pageRoot.focus();
   } catch (error) {
     renderFatal(error);
   }
@@ -251,85 +439,36 @@ export function destroyPage() {
   activePage = null;
   activeContext = null;
   for (const fn of cleanup.splice(0)) {
-    try { fn(); } catch { }
+    try { fn(); } catch { /* cleanup continues */ }
   }
 }
+
 
 function bookingModalMarkup(context) {
   const roleCode = String(context?.profile?.role_code || '').toLowerCase();
   const isCustomer = roleCode.includes('customer') || roleCode.includes('vendor');
-  if (isCustomer) {
-    return `
-      <div class="modal__head">
-        <div><h2 class="modal__title" id="booking-modal-title">Book a shipment</h2><span class="modal__sub">Sending to Max Solutions</span></div>
-        <button class="modal__x" type="button" data-close-booking aria-label="Close booking">×</button>
-      </div>
-      <div class="steps"><div class="step step--now">1 · Load</div><div class="step">2 · Vehicle</div><div class="step">3 · Time</div><div class="step">4 · Confirm</div></div>
-      <div class="modal__body">
-        <div class="frow" style="margin-bottom:var(--s4)"><div class="field" style="flex:1 1 100%"><span class="field__label">Direction</span><div class="choice"><button type="button" aria-pressed="true" disabled><strong>Outbound to Max</strong><small>Shipping to the selected Max location</small></button></div></div></div>
-        <div class="frow"><div class="field field--sm"><span class="field__label">Appointment type</span><select class="select"><option>Choose a type</option><option>Finished goods</option><option>Raw material</option></select></div><div class="field field--xs"><span class="field__label">Skids</span><input class="input" type="number" min="0" value="0"></div><div class="field field--sm"><span class="field__label">PO / reference</span><input class="input"></div></div>
-        <p class="hint">Your company and contact details are already on file. Tell us what is moving and continue to choose a time.</p>
-      </div>
-      <div class="modal__foot"><button class="btn btn--quiet" type="button" data-close-booking>Cancel</button><button class="btn btn--primary" type="button" data-booking-next>Continue</button></div>`;
-  }
-  return `
-    <div class="modal__head">
-      <div><h2 class="modal__title" id="booking-modal-title">Book appointment</h2><span class="modal__sub">Booking for a customer, vendor or Max location</span></div>
-      <button class="modal__x" type="button" data-close-booking aria-label="Close booking">×</button>
-    </div>
-    <div class="steps"><div class="step step--now">1 · Load</div><div class="step">2 · Vehicle</div><div class="step">3 · Time</div><div class="step">4 · Contact</div><div class="step">5 · Confirm</div></div>
-    <div class="modal__body">
-      <div class="field field--md" style="margin-bottom:var(--s4)"><span class="field__label">Direction</span><div class="choice"><button type="button" aria-pressed="true" data-booking-choice><strong>Inbound</strong><small>Receiving at the selected location</small></button><button type="button" aria-pressed="false" data-booking-choice><strong>Outbound</strong><small>Shipping from the selected location</small></button></div></div>
-      <div class="field field--md" style="margin-bottom:var(--s4)"><span class="field__label">Movement</span><div class="choice"><button type="button" aria-pressed="true" data-booking-choice><strong>External</strong><small>Customer, vendor or carrier</small></button><button type="button" aria-pressed="false" data-booking-choice><strong>Max-to-Max</strong><small>Reserve both Max docks</small></button></div></div>
-      <div class="frow"><div class="field field--sm"><span class="field__label">Appointment type</span><select class="select"><option>Choose a type</option><option>Finished goods</option><option>Raw material</option><option>Sister-plant transfer</option></select></div><div class="field field--xs"><span class="field__label">Skids</span><input class="input" type="number" min="0" value="0"></div><div class="field field--sm"><span class="field__label">PO / BOL</span><input class="input"></div></div>
-    </div>
-    <div class="modal__foot"><button class="btn btn--quiet" type="button" data-close-booking>Cancel</button><button class="btn btn--primary" type="button" data-booking-next>Continue</button></div>`;
-}
-
-function bookingModalMarkup(context) {
-  const roleCode = String(context?.profile?.role_code || '').toLowerCase();
-  const isCustomer = roleCode.includes('customer') || roleCode.includes('vendor');
-  if (isCustomer) {
-    return `
-      <div class="modal__head"><div><h2 class="modal__title" id="booking-modal-title">Book a shipment</h2><span class="modal__sub">Sending to Max Solutions</span></div><button class="modal__x" type="button" data-close-booking aria-label="Close booking">×</button></div>
-      <div class="steps"><div class="step step--now">1 · Load</div><div class="step">2 · Vehicle</div><div class="step">3 · Time</div><div class="step">4 · Confirm</div></div>
-      <div class="modal__body"><div class="frow" style="margin-bottom:var(--s4)"><div class="field" style="flex:1 1 100%"><span class="field__label">Direction</span><div class="choice"><button type="button" aria-pressed="true" disabled><strong>Outbound to Max</strong><small>Shipping to the selected Max location</small></button></div></div></div><div class="frow"><div class="field field--sm"><span class="field__label">Appointment type</span><select class="select"><option>Choose a type</option><option>Finished goods</option><option>Raw material</option></select></div><div class="field field--xs"><span class="field__label">Skids</span><input class="input" type="number" min="0" value="0"></div><div class="field field--sm"><span class="field__label">PO / reference</span><input class="input"></div></div><p class="hint">Your company and contact details are already on file. Tell us what is moving and continue to choose a time.</p></div>
-      <div class="modal__foot"><button class="btn btn--quiet" type="button" data-close-booking>Cancel</button><button class="btn btn--primary" type="button" data-booking-next>Continue</button></div>`;
-  }
-  return `
-    <div class="modal__head"><div><h2 class="modal__title" id="booking-modal-title">Book appointment</h2><span class="modal__sub">Booking for a customer, vendor or Max location</span></div><button class="modal__x" type="button" data-close-booking aria-label="Close booking">×</button></div>
-    <div class="steps"><div class="step step--now">1 · Load</div><div class="step">2 · Vehicle</div><div class="step">3 · Time</div><div class="step">4 · Contact</div><div class="step">5 · Confirm</div></div>
-    <div class="modal__body"><div class="field field--md" style="margin-bottom:var(--s4)"><span class="field__label">Direction</span><div class="choice"><button type="button" aria-pressed="true" data-booking-choice><strong>Inbound</strong><small>Receiving at the selected location</small></button><button type="button" aria-pressed="false" data-booking-choice><strong>Outbound</strong><small>Shipping from the selected location</small></button></div></div><div class="field field--md" style="margin-bottom:var(--s4)"><span class="field__label">Movement</span><div class="choice"><button type="button" aria-pressed="true" data-booking-choice><strong>External</strong><small>Customer, vendor or carrier</small></button><button type="button" aria-pressed="false" data-booking-choice><strong>Max-to-Max</strong><small>Reserve both Max docks</small></button></div></div><div class="frow"><div class="field field--sm"><span class="field__label">Appointment type</span><select class="select"><option>Choose a type</option><option>Finished goods</option><option>Raw material</option><option>Sister-plant transfer</option></select></div><div class="field field--xs"><span class="field__label">Skids</span><input class="input" type="number" min="0" value="0"></div><div class="field field--sm"><span class="field__label">PO / BOL</span><input class="input"></div></div></div>
-    <div class="modal__foot"><button class="btn btn--quiet" type="button" data-close-booking>Cancel</button><button class="btn btn--primary" type="button" data-booking-next>Continue</button></div>`;
+  if (isCustomer) return `<div class="modal__head"><div><h2 class="modal__title" id="booking-modal-title">Book a shipment</h2><span class="modal__sub">Sending to Max Solutions</span></div><button class="modal__x" type="button" data-close-booking aria-label="Close booking">×</button></div><div class="steps"><div class="step step--now">1 · Load</div><div class="step">2 · Vehicle</div><div class="step">3 · Time</div><div class="step">4 · Confirm</div></div><div class="modal__body"><div class="field"><span class="field__label">Direction</span><div class="choice"><button type="button" aria-pressed="true" disabled><strong>Outbound to Max</strong><small>Shipping to the selected Max location</small></button></div></div><div class="frow"><div class="field field--sm"><span class="field__label">Appointment type</span><select class="select"><option>Choose a type</option><option>Finished goods</option><option>Raw material</option></select></div><div class="field field--xs"><span class="field__label">Skids</span><input class="input" type="number" min="0" value="0"></div><div class="field field--sm"><span class="field__label">PO / reference</span><input class="input"></div></div><p class="hint">Your company and contact details are already on file.</p></div><div class="modal__foot"><button class="btn btn--quiet" type="button" data-close-booking>Cancel</button><button class="btn btn--primary" type="button" data-booking-next>Continue</button></div>`;
+  return `<div class="modal__head"><div><h2 class="modal__title" id="booking-modal-title">Book appointment</h2><span class="modal__sub">Booking for a customer, vendor or Max location</span></div><button class="modal__x" type="button" data-close-booking aria-label="Close booking">×</button></div><div class="steps"><div class="step step--now">1 · Load</div><div class="step">2 · Vehicle</div><div class="step">3 · Time</div><div class="step">4 · Contact</div><div class="step">5 · Confirm</div></div><div class="modal__body"><div class="field field--md"><span class="field__label">Direction</span><div class="choice"><button type="button" aria-pressed="true" data-booking-choice><strong>Inbound</strong><small>Receiving at the selected location</small></button><button type="button" aria-pressed="false" data-booking-choice><strong>Outbound</strong><small>Shipping from the selected location</small></button></div></div><div class="field field--md"><span class="field__label">Movement</span><div class="choice"><button type="button" aria-pressed="true" data-booking-choice><strong>External</strong><small>Customer, vendor or carrier</small></button><button type="button" aria-pressed="false" data-booking-choice><strong>Max-to-Max</strong><small>Reserve both Max docks</small></button></div></div><div class="frow"><div class="field field--sm"><span class="field__label">Appointment type</span><select class="select"><option>Choose a type</option><option>Finished goods</option><option>Raw material</option><option>Sister-plant transfer</option></select></div><div class="field field--xs"><span class="field__label">Skids</span><input class="input" type="number" min="0" value="0"></div><div class="field field--sm"><span class="field__label">PO / BOL</span><input class="input"></div></div></div><div class="modal__foot"><button class="btn btn--quiet" type="button" data-close-booking>Cancel</button><button class="btn btn--primary" type="button" data-booking-next>Continue</button></div>`;
 }
 
 function openBookingModal(event) {
   if (document.getElementById('booking-modal')) return;
   const backdrop = document.createElement('div');
-  backdrop.className = 'modal-backdrop';
-  backdrop.id = 'booking-modal';
+  backdrop.className = 'modal-backdrop'; backdrop.id = 'booking-modal';
   const modal = document.createElement('section');
-  modal.className = 'modal';
-  modal.setAttribute('role', 'dialog');
-  modal.setAttribute('aria-modal', 'true');
-  modal.setAttribute('aria-labelledby', 'booking-modal-title');
-  modal.innerHTML = bookingModalMarkup(activeContext);
-  backdrop.append(modal);
-  document.body.append(backdrop);
+  modal.className = 'modal'; modal.setAttribute('role','dialog'); modal.setAttribute('aria-modal','true'); modal.setAttribute('aria-labelledby','booking-modal-title');
+  modal.innerHTML = bookingModalMarkup(activeContext); backdrop.append(modal); document.body.append(backdrop);
   const onKey = key => { if (key.key === 'Escape') close(); };
   const close = () => { globalThis.removeEventListener('keydown', onKey); backdrop.remove(); event?.detail?.trigger?.focus?.(); };
   backdrop.addEventListener('click', click => {
     const choice = click.target.closest('[data-booking-choice]');
-    if (choice) {
-      choice.closest('.choice')?.querySelectorAll('[data-booking-choice]').forEach(button => button.setAttribute('aria-pressed', String(button === choice)));
-      return;
-    }
+    if (choice) { choice.closest('.choice')?.querySelectorAll('[data-booking-choice]').forEach(button => button.setAttribute('aria-pressed', String(button === choice))); return; }
     if (click.target.closest('[data-booking-next]')) { toast.info('Continue through the approved booking steps.'); return; }
     if (click.target === backdrop || click.target.closest('[data-close-booking]')) close();
   });
-  globalThis.addEventListener('keydown', onKey);
-  modal.querySelector('button, input, select')?.focus();
+  globalThis.addEventListener('keydown', onKey); modal.querySelector('button, input, select')?.focus();
 }
 
 globalThis.addEventListener('maxdock:open-booking', openBookingModal);
+
 globalThis.addEventListener('pagehide', destroyPage);
