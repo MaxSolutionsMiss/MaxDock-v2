@@ -415,9 +415,9 @@ function buildShell(root) {
         <form data-dock-form>
           <div class="modal__body">
             <div class="frow">
-              <label class="field field--md"><span class="field__label">Name</span><input class="input" name="name" maxlength="80" required></label>
+              <label class="field field--lg"><span class="field__label">Name</span><input class="input" name="name" maxlength="80" required></label>
               <label class="field field--xs"><span class="field__label">Sort order</span><input class="input" type="number" name="sort_order" min="1" required></label>
-              <label class="field field--sm"><span class="field__label">Direction</span><select class="select" name="direction_mode"><option value="both">Both</option><option value="inbound">Inbound</option><option value="outbound">Outbound</option></select></label>
+              <label class="field field--md"><span class="field__label">Direction</span><select class="select" name="direction_mode"><option value="both">Both</option><option value="inbound">Inbound</option><option value="outbound">Outbound</option></select></label>
             </div>
             <label class="field field--full"><span class="field__label">Description</span><input class="input" name="description" maxlength="200"></label>
             <div class="setrow"><div><div class="setrow__t">Active</div></div><button type="button" class="switch" data-dock-active-switch aria-label="Dock active"></button></div>

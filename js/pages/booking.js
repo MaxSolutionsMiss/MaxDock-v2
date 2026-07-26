@@ -300,6 +300,10 @@ function renderQuickRebook() {
 
 function renderLoadStep() {
   const customer = context.customerShell;
+  // The row's other fields change with the movement kind, so the appointment type
+  // takes whatever is left of the twelve columns rather than a fixed width that
+  // leaves the row unfinished in two of the three cases.
+  const typeSpan = customer ? 'field--full' : state.form.movement_kind === 'max' ? 'field--lg' : 'field--md';
   hosts.step.innerHTML = `
     ${renderQuickRebook()}
     ${customer ? '<div class="inline-note">Customer bookings are inbound to the selected MaxDock location and remain within normal operating hours.</div>' : `
@@ -323,12 +327,12 @@ function renderLoadStep() {
         <div class="field field--md"><span class="field__label">External party type</span><select class="select" data-field="requester_type"></select></div>
         <div class="field field--md"><span class="field__label">Company or organisation</span><input class="input" data-field="company_name" list="company-directory" maxlength="120" autocomplete="organization"><datalist id="company-directory"></datalist></div>` : ''}
       ${!customer && state.form.movement_kind === 'max' ? `
-        <div class="field field--md"><span class="field__label">Other Max Solutions location</span><select class="select" data-field="requester_location_id"></select><span class="hint">Same time reserved at both facilities.</span></div>` : ''}
-      <div class="field field--sm"><span class="field__label">Appointment type</span><select class="select" data-field="appointment_type_code"></select></div>
+        <div class="field field--lg"><span class="field__label">Other Max Solutions location</span><select class="select" data-field="requester_location_id"></select><span class="hint">Same time reserved at both facilities.</span></div>` : ''}
+      <div class="field ${typeSpan}"><span class="field__label">Appointment type</span><select class="select" data-field="appointment_type_code"></select></div>
     </div>
     <div class="frow">
       <div class="field field--xs"><span class="field__label">Skids</span><input class="input" data-field="skid_count" type="number" min="0" max="9999" inputmode="numeric"></div>
-      <div class="field field--sm"><span class="field__label">PO / BOL / job number</span><input class="input data" data-field="external_reference" maxlength="120" autocomplete="off"></div>
+      <div class="field field--xxl"><span class="field__label">PO / BOL / job number</span><input class="input data" data-field="external_reference" maxlength="120" autocomplete="off"></div>
     </div>
     ${customer ? '<p class="hint">Your company and contact details are already on file. Just tell us what\'s moving and pick a time.</p>' : ''}
     ${isStaff() ? '<label class="check-row" style="margin-top:var(--s4)"><input type="checkbox" data-field="is_priority"><span><strong>Priority load</strong><small>Apply the location’s configured priority timing rule.</small></span></label>' : ''}`;
@@ -427,9 +431,9 @@ function renderTimeStep() {
   const staff = isStaff();
   hosts.step.innerHTML = `
     <div class="frow">
-      <div class="field field--sm"><span class="field__label">Requested date</span><input class="input" data-field="date" type="date" min="${format.inputDate(null, receivingLocation())}"></div>
-      <div class="field field--sm"><span class="field__label">Preferred start</span><input class="input" data-field="preferred_start_time" type="time"></div>
-      <div class="field field--sm"><span class="field__label">Preferred end</span><input class="input" data-field="preferred_end_time" type="time"></div>
+      <div class="field field--md"><span class="field__label">Requested date</span><input class="input" data-field="date" type="date" min="${format.inputDate(null, receivingLocation())}"></div>
+      <div class="field field--md"><span class="field__label">Preferred start</span><input class="input" data-field="preferred_start_time" type="time"></div>
+      <div class="field field--md"><span class="field__label">Preferred end</span><input class="input" data-field="preferred_end_time" type="time"></div>
     </div>
     ${staff ? `
       <label class="check-row" style="margin-top:var(--s4)"><input type="checkbox" data-field="after_hours"><span><strong>Request an after-hours time</strong><small>Staff only. The booking RPC verifies the time and records your confirmation.</small></span></label>
@@ -455,12 +459,15 @@ function renderTimeStep() {
 }
 
 function renderContactStep() {
+  // The row always totals twelve columns, and the email gets the larger share of
+  // them either way — a work address runs past a field sized for a person's name.
+  const external = state.form.movement_kind === 'external';
   hosts.step.innerHTML = `
     <p class="hint" style="margin:0 0 var(--s4)">These details identify the requester and are included in the confirmation draft.</p>
     <div class="frow">
-      <div class="field field--md"><span class="field__label">Requester name</span><input class="input" data-field="requester_name" maxlength="120" autocomplete="name"></div>
-      <div class="field field--lg"><span class="field__label">Requester email</span><input class="input" data-field="requester_email" type="email" maxlength="180" autocomplete="email"></div>
-      ${state.form.movement_kind === 'external' ? '<div class="field field--md"><span class="field__label">Company or organisation</span><input class="input" data-field="company_name" maxlength="120" autocomplete="organization"></div>' : ''}
+      <div class="field ${external ? 'field--sm' : 'field--md'}"><span class="field__label">Requester name</span><input class="input" data-field="requester_name" maxlength="120" autocomplete="name"></div>
+      <div class="field ${external ? 'field--lg' : 'field--xl'}"><span class="field__label">Requester email</span><input class="input" data-field="requester_email" type="email" maxlength="180" autocomplete="email"></div>
+      ${external ? '<div class="field field--sm"><span class="field__label">Company or organisation</span><input class="input" data-field="company_name" maxlength="120" autocomplete="organization"></div>' : ''}
     </div>`;
   hosts.step.querySelector('[data-field="requester_name"]').value = state.form.requester_name;
   hosts.step.querySelector('[data-field="requester_email"]').value = state.form.requester_email;
@@ -533,8 +540,8 @@ function renderConfirmation() {
       <p class="hint">${currentLocation().name} · ${format.timestamp(result.start_at, receivingLocation())}</p>
     </div>
     <div class="frow">
-      <div class="card" style="flex:1 1 260px" data-confirmation-details></div>
-      <div class="card" style="flex:0 0 auto;text-align:center">
+      <div class="card field--xl" data-confirmation-details></div>
+      <div class="card field--md" style="text-align:center">
         <div class="qr-frame" data-qr></div>
         <p class="hint">QR check-in code<br>Generated locally in this browser.</p>
       </div>

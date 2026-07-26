@@ -201,7 +201,7 @@ function buildShell(root) {
               <label class="field field--sm"><span class="field__label">Date</span><input class="input" type="date" name="date" required></label>
               <label class="field field--sm"><span class="field__label">Start time</span><input class="input" type="time" name="start_time" required></label>
               <label class="field field--sm"><span class="field__label">Duration</span><select class="select" name="duration"><option value="30">30 minutes</option><option value="60" selected>1 hour</option><option value="90">90 minutes</option><option value="120">2 hours</option><option value="240">4 hours</option></select></label>
-              <label class="field"><span class="field__label">Reason</span><input class="input" name="reason" maxlength="120" required></label>
+              <label class="field field--sm"><span class="field__label">Reason</span><input class="input" name="reason" maxlength="120" required></label>
             </div>
             <fieldset class="dock-checks"><legend>Select docks</legend><div data-dock-checks></div></fieldset>
             <label class="field"><span class="field__label">Notes</span><textarea name="notes" rows="3" maxlength="500"></textarea></label>

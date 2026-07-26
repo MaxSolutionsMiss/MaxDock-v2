@@ -169,8 +169,11 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 .nextrip__ref{margin-left:auto;text-align:right}
 
 /* ===== MODAL ===== */
-.scrim{position:fixed;inset:0;background:rgba(22,32,42,.45);display:grid;place-items:center;padding:var(--s5);z-index:50}
-.modal{background:var(--surface);border-radius:var(--radius-lg);box-shadow:var(--shadow-overlay);width:min(760px,100%);max-height:calc(100vh - 48px);display:flex;flex-direction:column;overflow:hidden}
+/* "safe center" so a dialog taller than the screen anchors to the top and stays
+   scrollable — plain centring pushes its head above the viewport, where nothing
+   can reach it. */
+.scrim{position:fixed;inset:0;background:rgba(22,32,42,.45);display:grid;justify-items:center;align-items:safe center;overflow-y:auto;padding:var(--s5);z-index:50}
+.modal{background:var(--surface);border-radius:var(--radius-lg);box-shadow:var(--shadow-overlay);width:min(760px,100%);max-height:calc(100dvh - 48px);display:flex;flex-direction:column;overflow:hidden}
 .modal__head{display:flex;align-items:center;gap:var(--s3);padding:var(--s3) var(--s4);border-bottom:1px solid var(--rule);flex:none}
 .modal__title{font-size:var(--t-lead);font-weight:600;margin:0}
 .modal__sub{font-size:var(--t-small);color:var(--ink-muted)}
@@ -180,8 +183,15 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 .step{flex:1;font:inherit;font-size:var(--t-micro);text-transform:uppercase;letter-spacing:.06em;font-weight:600;color:var(--ink-faint);padding:8px 0 7px;border:none;border-bottom:2px solid transparent;background:none;text-align:center;cursor:pointer}
 .step:disabled{cursor:default}
 .step--done{color:var(--ok)} .step--now{color:var(--dock);border-bottom-color:var(--dock)}
-.modal__body{padding:var(--s4);overflow-y:auto}
-.modal__foot{display:flex;gap:var(--s2);padding:var(--s3) var(--s4);border-top:1px solid var(--rule);background:var(--surface-sunk);flex:none}
+/* min-height:0 is what makes the scroll work: a flex child will not shrink below
+   its content without it, so the dialog grew past its own max-height and pushed
+   the action row off the bottom of the screen instead of scrolling. */
+/* Most dialogs wrap their body and footer in a form, so the form — not the body —
+   is the dialog's flex child. Without this the form refuses to shrink, the body
+   never gets a chance to scroll, and the action row is pushed off the screen. */
+.modal>form{display:flex;flex-direction:column;flex:1 1 auto;min-height:0}
+.modal__body{padding:var(--s4);overflow-y:auto;flex:1 1 auto;min-height:0}
+.modal__foot{display:flex;flex-wrap:wrap;gap:var(--s2);padding:var(--s3) var(--s4);border-top:1px solid var(--rule);background:var(--surface-sunk);flex:none}
 .modal__foot .btn--primary{margin-left:auto}
 
 .field{display:flex;flex-direction:column;gap:4px}
@@ -200,13 +210,14 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 .frow>.field--md{grid-column:span 4}
 .frow>.field--lg{grid-column:span 6}
 .frow>.field--xl{grid-column:span 8}
+.frow>.field--xxl{grid-column:span 10}
 .frow>.field--full{grid-column:1/-1}
 /* Keyed to the container, not the viewport: a dialog is a fixed 760px wide however
    large the window is, so a viewport media query collapsed rows that had room. */
 .modal__body,.card{container-type:inline-size}
 @container (max-width:560px){
   .frow{grid-template-columns:repeat(6,1fr)}
-  .frow>*,.frow>.field--md,.frow>.field--lg,.frow>.field--xl{grid-column:span 6}
+  .frow>*,.frow>.field--md,.frow>.field--lg,.frow>.field--xl,.frow>.field--xxl{grid-column:span 6}
   .frow>.field--xs{grid-column:span 2}
   .frow>.field--sm{grid-column:span 3}
 }
@@ -216,7 +227,7 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 @container (max-width:380px){
   .frow>*,
   .frow>.field--xs,.frow>.field--sm,.frow>.field--md,
-  .frow>.field--lg,.frow>.field--xl,.frow>.field--full{grid-column:1/-1}
+  .frow>.field--lg,.frow>.field--xl,.frow>.field--xxl,.frow>.field--full{grid-column:1/-1}
 }
 .choice{display:grid;grid-template-columns:1fr 1fr;gap:var(--s2)}
 .choice button{font-family:inherit;text-align:left;padding:9px 12px;border:1px solid var(--rule-strong);border-radius:var(--radius);background:var(--surface);cursor:pointer;min-height:var(--tap)}
@@ -462,4 +473,14 @@ body.modal-open{overflow:hidden}
   .who__name,.who__role{display:none}
   .controls{flex-wrap:wrap}
   .split{grid-template-columns:1fr}
+  /* The desktop layout fits everything into one viewport-height column and lets
+     the board absorb the slack. On a phone the header, filters and KPI strip use
+     the whole column, so the board — the only flexible band — collapsed to four
+     pixels and the appointments could not be seen or tapped at all. Below this
+     width the page scrolls instead, and each scrolling band keeps a real height. */
+  .shell{height:auto;min-height:100dvh;overflow:visible}
+  .main{overflow:visible}
+  .page{min-height:0;flex:none}
+  .board,.panel{min-height:60vh}
+  .board__scroll,.panel__scroll{min-height:0}
 }

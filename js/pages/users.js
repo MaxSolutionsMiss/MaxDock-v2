@@ -409,7 +409,7 @@ function buildShell(root) {
               <label class="dock-check"><input type="radio" name="account_method" value="password"><span>Set a temporary password directly</span></label>
             </fieldset>
             <div class="frow" data-invite-fields>
-              <label class="field field--lg"><span class="field__label">Email</span><input class="input" type="email" name="email"></label>
+              <label class="field field--full"><span class="field__label">Email</span><input class="input" type="email" name="email"></label>
             </div>
             <div data-password-fields class="frow">
               <label class="field field--lg"><span class="field__label">Contact email (optional)</span><input class="input" type="email" name="contact_email"></label>
@@ -428,8 +428,8 @@ function buildShell(root) {
         <form data-edit-form>
           <div class="modal__body">
             <div class="frow">
-              <label class="field field--md"><span class="field__label">Full name</span><input class="input" name="full_name" maxlength="120" required></label>
-              <label class="field field--sm"><span class="field__label">Role</span><select class="select" name="role_code" data-self-locked required></select></label>
+              <label class="field field--lg"><span class="field__label">Full name</span><input class="input" name="full_name" maxlength="120" required></label>
+              <label class="field field--lg"><span class="field__label">Role</span><select class="select" name="role_code" data-self-locked required></select></label>
             </div>
             <div data-customer-fields class="frow">
               <label class="field field--md"><span class="field__label">Account type</span><select class="select" name="external_party_type"><option value="Customer">Customer</option><option value="Vendor">Vendor</option></select></label>
@@ -438,7 +438,7 @@ function buildShell(root) {
             <fieldset class="dock-checks" data-location-fields><legend>Location access</legend><div data-checks></div></fieldset>
             <div class="setrow"><div><div class="setrow__t">Active</div><div class="setrow__d">Inactive accounts cannot sign in</div></div><button type="button" class="switch" data-active-switch data-self-locked aria-label="Active"></button></div>
             <div class="frow">
-              <label class="field field--sm"><span class="field__label">Username</span><input class="input" name="username" maxlength="50" pattern="[A-Za-z0-9._-]{3,50}" title="3–50 letters, numbers, dots, dashes or underscores"></label>
+              <label class="field field--xl"><span class="field__label">Username</span><input class="input" name="username" maxlength="50" pattern="[A-Za-z0-9._-]{3,50}" title="3–50 letters, numbers, dots, dashes or underscores"></label>
               <div style="align-self:end"><button class="btn btn--quiet btn--sm" type="button" data-change-username>Update username</button></div>
             </div>
             <div data-edit-reset-result hidden></div>
