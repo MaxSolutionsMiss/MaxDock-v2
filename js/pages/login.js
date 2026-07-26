@@ -66,7 +66,7 @@ signInForm.addEventListener('submit', async event => {
     const context = await loadSignedInContext();
     if (context) await redirectAfterAuth(context);
   } catch (error) {
-    setMessage('sign-in-message', error.userMessage || 'The email or password is incorrect.');
+    setMessage('sign-in-message', error.userMessage || 'The email/username or password is incorrect.');
     document.getElementById('password').focus();
   } finally {
     signInButton.disabled = false;
@@ -74,10 +74,12 @@ signInForm.addEventListener('submit', async event => {
 });
 
 document.getElementById('forgot-link').addEventListener('click', () => {
-  const email = document.getElementById('email').value.trim();
-  document.getElementById('reset-email').value = email;
+  const identifier = document.getElementById('email').value.trim();
   setMessage('forgot-message', '');
   showPanel('forgot');
+  // Password reset always needs a real email address, even for accounts that sign in
+  // with a username, so only prefill it when what was typed already looks like one.
+  if (identifier.includes('@')) document.getElementById('reset-email').value = identifier;
 });
 
 document.getElementById('back-to-sign-in').addEventListener('click', () => showPanel('signIn'));

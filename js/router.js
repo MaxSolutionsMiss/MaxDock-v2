@@ -281,8 +281,8 @@ function showSessionModal(context) {
     <p class="modal__message">Sign in again to continue. The current screen will stay in place.</p>
     <form id="session-form">
       <div class="field field--lg">
-        <label class="field__label" for="session-email">Email</label>
-        <input class="input" id="session-email" name="email" type="email" autocomplete="username" required>
+        <label class="field__label" for="session-email">Email or username</label>
+        <input class="input" id="session-email" name="email" type="text" autocomplete="username" required>
       </div>
       <div class="field field--lg">
         <label class="field__label" for="session-password">Password</label>
