@@ -139,26 +139,41 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 .board__legend{display:flex;gap:var(--s3);margin-left:auto;font-size:var(--t-small);color:var(--ink-muted)}
 .lg{display:inline-flex;align-items:center;gap:5px}
 .lg::before{content:"";width:9px;height:9px;border-radius:2px;background:var(--c)}
-.board__scroll{flex:1;min-height:0;overflow:auto}
-.rowGrid{display:grid;grid-template-columns:104px repeat(var(--hours),minmax(64px,1fr));min-width:100%}
-/* frozen time header row */
-.rowGrid .corner{position:sticky;top:0;left:0;z-index:3;background:var(--surface-sunk);border-bottom:1px solid var(--rule-strong);border-right:1px solid var(--rule-strong)}
-.rowGrid .thead{position:sticky;top:0;z-index:2;background:var(--surface-sunk);border-bottom:1px solid var(--rule-strong);border-left:1px solid var(--rule);
-  font-family:var(--font-data);font-size:var(--t-small);color:var(--ink-muted);display:flex;align-items:center;justify-content:center;padding:6px 0}
-/* frozen dock label column */
-.rowGrid .dock{position:sticky;left:0;z-index:1;background:var(--surface-sunk);border-bottom:1px solid var(--rule);border-right:1px solid var(--rule-strong);
-  font-family:var(--font-data);font-size:var(--t-base);font-weight:600;display:flex;flex-direction:column;justify-content:center;padding:0 var(--s3);min-height:52px}
-.rowGrid .dock small{font-family:var(--font-ui);font-size:var(--t-micro);color:var(--ink-faint);font-weight:400}
-.rowGrid .cell{border-bottom:1px solid var(--rule);border-left:1px solid var(--rule);padding:3px;min-height:52px;position:relative}
-.slot{position:absolute;inset:3px;border-radius:4px;padding:3px 7px;border-left:3px solid;overflow:hidden;cursor:pointer;display:flex;flex-direction:column;gap:1px}
-.slot__ref{font-family:var(--font-data);font-weight:600;font-size:var(--t-small);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.slot__who{font-size:var(--t-small);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.slot__meta{font-family:var(--font-data);font-size:var(--t-micro);color:var(--ink-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.slot--in{background:var(--dock-wash);border-left-color:var(--dock)}
-.slot--out{background:var(--ok-wash);border-left-color:var(--ok)}
-.slot--pri{background:var(--signal-wash);border-left-color:var(--signal)}
-.slot--blk{background:repeating-linear-gradient(45deg,var(--surface-sunk),var(--surface-sunk) 5px,#E4E9EC 5px,#E4E9EC 10px);border-left-color:var(--rule-strong);color:var(--ink-muted);cursor:default;align-items:center;justify-content:center}
-.slot--w2{width:calc(200% - 6px)} .slot--w3{width:calc(300% - 6px)}
+/* The timeline scrolls its lanes internally and never overflows sideways —
+   the board is always compressed to fit the window. */
+.board__scroll{flex:1;min-height:0;overflow:hidden;container-type:inline-size}
+/* Timeline. Every lane spans the same window and every block is placed by its own
+   start and end, so a four-hour call looks four times a one-hour call. The whole
+   day is compressed to fit — these screens are broadcast on wall displays where
+   nobody can scroll, so there is no horizontal overflow at any width. */
+.tl{display:flex;flex-direction:column;min-height:0;height:100%;--tl-label:clamp(96px,9vw,150px)}
+.tl__ruler{display:grid;grid-template-columns:var(--tl-label) minmax(0,1fr);border-bottom:1px solid var(--rule-strong);background:var(--surface-sunk);flex:none}
+.tl__corner{padding:6px var(--s3);font-size:var(--t-micro);text-transform:uppercase;letter-spacing:.07em;color:var(--ink-muted);font-weight:600;border-right:1px solid var(--rule-strong);display:flex;align-items:center}
+.tl__scale{position:relative;height:26px}
+.tl__scale .tl__tick{top:0;height:100%;display:flex;align-items:center;padding-left:4px;font-size:var(--t-micro);color:var(--ink-muted);font-variant-numeric:tabular-nums;white-space:nowrap}
+.tl__lanes{flex:1;min-height:0;overflow-y:auto}
+.tl__lane{display:grid;grid-template-columns:var(--tl-label) minmax(0,1fr);border-bottom:1px solid var(--rule);min-height:calc(38px * var(--rows,1))}
+.tl__lane:last-child{border-bottom:none}
+.tl__label{padding:6px var(--s3);border-right:1px solid var(--rule-strong);background:var(--surface-sunk);display:flex;flex-direction:column;justify-content:center;min-width:0}
+.tl__label strong{font-size:var(--t-base);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tl__label small{font-size:var(--t-micro);color:var(--ink-faint)}
+.tl__track{position:relative;min-width:0;overflow:hidden}
+.tl__tick{position:absolute;top:0;bottom:0;width:1px;background:var(--rule)}
+.tl__tick--major{background:var(--rule-strong)}
+.tl__idle{position:absolute;inset:0;display:flex;align-items:center;padding-left:var(--s3);font-size:var(--t-small);color:var(--ink-faint)}
+/* Blocks are absolutely placed, so their box is the appointment's real extent. */
+.tlb{position:absolute;border-radius:4px;border-left:3px solid;padding:2px 6px;margin:2px;overflow:hidden;cursor:pointer;display:flex;flex-direction:column;justify-content:center;gap:0;min-width:10px}
+.tlb__time{font-size:var(--t-micro);font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden}
+.tlb__title{font-size:var(--t-small);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tlb__meta{font-size:var(--t-micro);color:var(--ink-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tlb--in{background:var(--dock-wash);border-left-color:var(--dock)}
+.tlb--out{background:var(--ok-wash);border-left-color:var(--ok)}
+.tlb--pri{background:var(--signal-wash);border-left-color:var(--signal)}
+.tlb--done{background:var(--surface-sunk);border-left-color:var(--rule-strong);color:var(--ink-muted)}
+.tlb--blk{background:repeating-linear-gradient(45deg,var(--surface-sunk),var(--surface-sunk) 5px,#E4E9EC 5px,#E4E9EC 10px);border-left-color:var(--rule-strong);color:var(--ink-muted);cursor:default}
+.tlb:focus-visible{outline:2px solid var(--dock);outline-offset:1px}
+/* Below this a block cannot hold three lines of text legibly. */
+@container (max-width:900px){.tlb__meta{display:none}}
 
 /* ===== tables (My appts, Reports, Users) ===== */
 .panel{background:var(--surface);border:1px solid var(--rule);border-radius:var(--radius-lg);display:flex;flex-direction:column;min-height:0;overflow:hidden}

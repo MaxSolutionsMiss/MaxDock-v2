@@ -100,7 +100,7 @@ for (const f of cssFiles) {
     return j === -1 ? 0 : j;
   })();
   const body = text.slice(tokenBlockEnd);
-  const approvedComposedCss = rel(f) === 'assets/maxdock.css' && text.includes('Docks-as-rows orientation') && text.includes('.rowGrid');
+  const approvedComposedCss = rel(f) === 'assets/maxdock.css' && text.includes('Docks-as-rows orientation') && text.includes('.tl__lane');
   scan(decomment(body), /#[0-9a-f]{3,8}\b/gi, (m, line) =>
     warn('css.token-colour', `${rel(f)}:${line + lineOf(text, tokenBlockEnd) - 1}`,
       `Literal colour ${m[0]} outside :root.`,
@@ -125,7 +125,7 @@ for (const f of cssFiles) {
   for (const f of own) {
     const rawCss = read(f);
     const text = decomment(rawCss);
-    const approvedComposedCss = rel(f) === 'assets/maxdock.css' && rawCss.includes('Docks-as-rows orientation') && rawCss.includes('.rowGrid');
+    const approvedComposedCss = rel(f) === 'assets/maxdock.css' && rawCss.includes('Docks-as-rows orientation') && rawCss.includes('.tl__lane');
     if (approvedComposedCss) continue;
 
     // the token must exist, and be big enough

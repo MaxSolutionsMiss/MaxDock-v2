@@ -6,6 +6,7 @@ import { renderState } from '../ui/empty.js';
 import { pageHead, controlsBar } from '../ui/pagehead.js';
 import { createCustomizePanel } from '../ui/customize.js';
 import { openWall, paintWall } from '../ui/wall.js';
+import { renderTimeline, clockLabel } from '../ui/timeline.js';
 import { format } from '../format.js';
 
 const state = {
@@ -23,6 +24,7 @@ const state = {
   customizePanel: null,
   visibleCards: [],
   wall: null,
+  granularity: 30,
 };
 
 const KPI_CARDS = [
@@ -321,33 +323,53 @@ function renderKpis() {
     .join('');
 }
 
-function slotTimes() {
-  const open = state.hours?.is_open !== false ? (state.hours?.open_time || '06:00:00') : '06:00:00';
-  const close = state.hours?.is_open !== false ? (state.hours?.close_time || '22:00:00') : '22:00:00';
-  const start = format.clockMinutes(open);
-  const end = format.clockMinutes(close);
-  const slots = [];
-  for (let minute = start; minute < end; minute += 60) slots.push(minute);
-  return slots;
+// The window the timeline spans. Operating hours where they exist, widened just
+// enough to contain anything booked outside them — an after-hours movement must
+// still appear on the board, not fall off the end of the axis.
+function boardWindow() {
+  const open = format.clockMinutes(state.hours?.open_time || '06:00:00');
+  const close = format.clockMinutes(state.hours?.close_time || '18:00:00');
+  let start = Math.min(open, close - 60);
+  let end = Math.max(close, start + 60);
+  for (const record of visibleRecords()) {
+    if (!record.start_at || !record.end_at) continue;
+    const from = format.localTimeMinutes(record.start_at, state.context.location);
+    const to = from + Math.max(5, format.minutesBetween(record.start_at, record.end_at));
+    start = Math.min(start, Math.floor(from / 60) * 60);
+    end = Math.max(end, Math.ceil(to / 60) * 60);
+  }
+  return { start: Math.max(0, start), end: Math.min(24 * 60, end) };
 }
 
-function recordsForCell(dockId, minute) {
-  return visibleRecords().filter(record => {
-    if (record.dock_id !== dockId || !record.start_at || !record.end_at) return false;
-    const startMinute = format.localTimeMinutes(record.start_at, state.context.location);
-    const duration = Math.max(1, format.minutesBetween(record.start_at, record.end_at));
-    return startMinute < minute + 60 && startMinute + duration > minute;
-  });
+function blockTone(record) {
+  if (record.entry_kind === 'block') return 'tlb--blk';
+  if (record.is_priority) return 'tlb--pri';
+  if (['completed'].includes(record.status)) return 'tlb--done';
+  return record.direction === 'outbound' ? 'tlb--out' : 'tlb--in';
 }
 
-function card(record) {
-  const isBlock = record.entry_kind === 'block';
-  const title = isBlock ? (record.block_reason || 'Dock blocked') : (record.booking_reference || 'Appointment');
-  const who = isBlock ? (record.notes || 'Unavailable') : (record.company_name || record.display_counterpart_location_name || record.requester_name || 'Scheduled movement');
-  const meta = isBlock ? `${format.time(record.start_at, state.context.location)}–${format.time(record.end_at, state.context.location)}` : `${record.direction} · ${Number(record.skid_count || 0)} skids`;
-  const editable = canEditRecord(record);
-  const hint = editable ? ' · Enter or click to edit' : '';
-  return `<article class="slot ${isBlock ? 'slot--blk' : record.direction === 'outbound' ? 'slot--out' : record.is_priority ? 'slot--pri' : 'slot--in'}" data-record-id="${escapeHtml(record.id)}"${editable ? ' data-edit-record role="button"' : ''} tabindex="0" title="${escapeHtml(`${title} · ${who}${hint}`)}"><div class="slot__ref">${escapeHtml(title)}</div><div class="slot__who">${escapeHtml(who)}</div><div class="slot__meta">${escapeHtml(meta)}</div></article>`;
+function timelineBlocks() {
+  return visibleRecords()
+    .filter(record => record.start_at && record.end_at)
+    .map(record => {
+      const isBlock = record.entry_kind === 'block';
+      const startMin = format.localTimeMinutes(record.start_at, state.context.location);
+      const editable = canEditRecord(record);
+      return {
+        laneId: record.dock_id,
+        startMin,
+        endMin: startMin + Math.max(5, format.minutesBetween(record.start_at, record.end_at)),
+        tone: blockTone(record),
+        title: isBlock
+          ? (record.block_reason || 'Dock blocked')
+          : (record.company_name || record.display_counterpart_location_name || record.requester_name || 'Scheduled movement'),
+        subtitle: record.booking_reference || '',
+        meta: isBlock
+          ? (record.notes || 'Unavailable')
+          : `${record.booking_reference || ''} · ${format.role(record.direction || '')} · ${Number(record.skid_count || 0)} skids`,
+        attrs: `data-record-id="${escapeHtml(record.id)}"${editable ? ' data-edit-record role="button" tabindex="0"' : ''}`,
+      };
+    });
 }
 
 function renderBoard() {
@@ -363,14 +385,20 @@ function renderBoard() {
     renderState(state.elements.host, { type: 'empty', title: 'No active docks', message: 'This location has no active dock doors configured.' });
     return;
   }
-  const hours = slotTimes();
-  const labels = hours.map(minute => `${String(Math.floor(minute / 60)).padStart(2, '0')}:${String(minute % 60).padStart(2, '0')}`);
-  const header = `<div class="corner"></div>${labels.map(label => `<div class="thead">${label}</div>`).join('')}`;
-  const rows = state.docks.map(dock => {
-    const cells = hours.map(minute => `<div class="cell" data-dock-id="${dock.id}" data-minute="${minute}">${recordsForCell(dock.id, minute).map(record => card(record)).join('')}</div>`).join('');
-    return `<div class="dock">${escapeHtml(dock.name)}<small>${escapeHtml(dock.direction_mode || 'both')}</small></div>${cells}`;
-  }).join('');
-  state.elements.host.innerHTML = `<div class="board__head"><span class="board__title">${format.longDateInput(state.date, state.context.location)}</span><div class="board__legend"><span class="lg" style="--c:var(--dock)">Inbound</span><span class="lg" style="--c:var(--ok)">Outbound</span><span class="lg" style="--c:var(--signal)">Priority</span><span class="lg" style="--c:var(--rule-strong)">Blocked</span></div></div><div class="board__scroll"><div class="rowGrid" style="--hours:${hours.length}">${header}${rows}</div></div>`;
+  const window = boardWindow();
+  const timeline = renderTimeline({
+    lanes: state.docks.map(dock => ({ id: dock.id, name: dock.name, note: dock.direction_mode || 'both' })),
+    blocks: timelineBlocks(),
+    windowStart: window.start,
+    windowEnd: window.end,
+    granularity: state.granularity,
+  });
+  state.elements.host.innerHTML = `<div class="board__head">
+      <span class="board__title">${format.longDateInput(state.date, state.context.location)}</span>
+      <div class="board__legend"><span class="lg" style="--c:var(--dock)">Inbound</span><span class="lg" style="--c:var(--ok)">Outbound</span><span class="lg" style="--c:var(--signal)">Priority</span><span class="lg" style="--c:var(--rule-strong)">Blocked</span></div>
+      <label class="ctrl-field ctrl-field--inline"><span>Timeline</span><select class="select select--sm" data-granularity>${[15, 30, 60].map(value => `<option value="${value}" ${state.granularity === value ? 'selected' : ''}>${value} min</option>`).join('')}</select></label>
+    </div>
+    <div class="board__scroll">${timeline}</div>`;
 }
 function patchData(data) {
   state.docks = data.docks;
@@ -519,6 +547,7 @@ function wireEvents(root) {
       if (custom.disabled) custom.value = '';
       else custom.focus();
     }
+    if (event.target.matches('[data-granularity]')) { state.granularity = Number(event.target.value); renderBoard(); }
     if (event.target.matches('[data-filter-direction]')) { state.filters.direction = event.target.value; renderBoard(); }
     if (event.target.matches('[data-filter-status]')) { state.filters.status = event.target.value; renderBoard(); }
   });

@@ -20,7 +20,7 @@ const declared = ['export', 'print', 'fullscreen', 'block', 'book'].filter(actio
 if (declared.length) throw new Error(`Stage 4 board missing actions: ${declared.join(', ')}`);
 const labels = ['Export CSV', 'Print', 'Full screen', 'Block dock time', 'Book appointment'].filter(label => !pagehead.includes(label));
 if (labels.length) throw new Error(`pagehead.js missing action labels: ${labels.join(', ')}`);
-if (!css.includes('.rowGrid') || !css.includes('.board__scroll') || !css.includes('.wall__head')) throw new Error('Stage 4 approved board CSS missing.');
+if (!css.includes('.tl__lane') || !css.includes('.board__scroll') || !css.includes('.wall__head')) throw new Error('Stage 4 approved board CSS missing.');
 if (/!important/.test(css)) throw new Error('!important is not permitted.');
 if (/MutationObserver/.test(board)) throw new Error('MutationObserver is not permitted for layout.');
 if (/supabase\.|createClient|\.from\(/.test(board)) throw new Error('Board bypasses db.js.');
