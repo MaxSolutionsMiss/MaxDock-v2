@@ -102,10 +102,10 @@ function renderImport() {
   const codes = state.locations.map(location => `${location.code} (${location.name})`).join(', ');
   return `<div class="card">
     <h3 class="card__title">Inventory snapshot import<button class="btn btn--quiet btn--sm" type="button" data-download-template">Download CSV template</button></h3>
-    <p class="hint">Columns: <code>location_code, snapshot_at, occupied_skids, total_skid_capacity, reserve_skids, notes</code>. Location codes: ${escapeHtml(codes)}. Up to 1,000 rows per import.</p>
-    <div class="frow">
-      <label class="field field--lg"><span class="field__label">CSV file</span><input class="input" type="file" accept=".csv,text/csv" data-import-file></label>
-      <div class="field field--sm" style="justify-content:end"><button class="btn btn--primary" type="button" data-run-import>Run import now</button></div>
+    <p class="hint hint--measure">Columns: <code>location_code, snapshot_at, occupied_skids, total_skid_capacity, reserve_skids, notes</code>. Location codes: ${escapeHtml(codes)}. Up to 1,000 rows per import.</p>
+    <div class="inline-controls">
+      <label class="field"><span class="field__label">CSV file</span><input class="input" type="file" accept=".csv,text/csv" data-import-file></label>
+      <button class="btn btn--primary" type="button" data-run-import>Run import now</button>
     </div>
     <p class="form-message" data-import-message aria-live="polite"></p>
   </div>`;
@@ -256,6 +256,7 @@ function wireEvents(root) {
 
 const page = {
   code: 'data',
+  permission: 'system.manage',
   async mount(context) {
     state.context = context;
     state.isSystemAdmin = context.profile.role_code === 'system_admin';

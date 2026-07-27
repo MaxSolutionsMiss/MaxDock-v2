@@ -25,6 +25,7 @@ const state = {
   visibleCards: [],
   wall: null,
   granularity: 30,
+  truckTypeNames: new Map(),
 };
 
 const KPI_CARDS = [
@@ -76,15 +77,17 @@ function normalizeRecord(row) {
 async function fetchBoardData() {
   const locationId = state.context.location.id;
   const day = format.dayOfWeek(state.date);
-  const [scheduleRows, docks, hours] = await Promise.all([
+  const [scheduleRows, docks, hours, truckTypes] = await Promise.all([
     db.rpc('list_location_schedule', { p_location_id: locationId }, { key: `board:schedule:${locationId}`, cache: 0, retry: 1 }),
     db.select('docks', query => query.select('id,name,description,sort_order,direction_mode,is_active').eq('location_id', locationId).eq('is_active', true).order('sort_order').order('name'), { key: `board:docks:${locationId}`, cache: 30000 }),
     db.select('location_operating_hours', query => query.select('day_of_week,is_open,open_time,close_time').eq('location_id', locationId).eq('day_of_week', day).maybeSingle(), { key: `board:hours:${locationId}:${day}`, cache: 30000 }),
+    db.select('truck_types', query => query.select('code,name').eq('is_active', true), { key: 'board:truck-type-names', cache: 300000 }),
   ]);
   const selectedDate = state.date;
   return {
     docks: docks || [],
     hours: hours || null,
+    truckTypeNames: new Map((truckTypes || []).map(type => [type.code, type.name])),
     records: (scheduleRows || []).map(normalizeRecord).filter(record => {
       if (!record.start_at) return false;
       return format.sameLocalDate(record.start_at, selectedDate, state.context.location);
@@ -355,10 +358,8 @@ function timelineBlocks() {
           ? (record.block_reason || 'Dock blocked')
           : (record.company_name || record.display_counterpart_location_name || record.requester_name || 'Scheduled movement'),
         subtitle: record.booking_reference || '',
-        // Direction is already the block's colour and is spelled out in the legend,
-        // so repeating it here only ate room the reference needed.
         meta: isBlock ? (record.notes || 'Unavailable') : (record.booking_reference || ''),
-        note: isBlock ? '' : `${Number(record.skid_count || 0)} skids`,
+        note: isBlock ? '' : [state.truckTypeNames?.get(record.truck_type_code), `${Number(record.skid_count || 0)} skids`].filter(Boolean).join(' · '),
         attrs: `data-record-id="${escapeHtml(record.id)}"${editable ? ' data-edit-record role="button" tabindex="0"' : ''}`,
       };
     });
@@ -395,6 +396,7 @@ function renderBoard() {
 function patchData(data) {
   state.docks = data.docks;
   state.hours = data.hours;
+  state.truckTypeNames = data.truckTypeNames || state.truckTypeNames;
   const before = new Map(state.records.map(record => [record.id, JSON.stringify(record)]));
   const after = new Map(data.records.map(record => [record.id, JSON.stringify(record)]));
   const structureChanged = state.records.length !== data.records.length || state.docks.length !== (data.docks || []).length || [...after].some(([id, value]) => before.get(id) !== value);

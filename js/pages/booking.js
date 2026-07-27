@@ -43,8 +43,16 @@ function currentLocation() {
   return context.location;
 }
 
+// The counterpart can be any active Max Solutions site, so it is resolved from
+// the directory first and only then from this account's own assignments. Getting
+// this wrong meant the receiving site's timezone fell back to the booking site's
+// and the confirmation named the counterpart "Max Solutions".
 function counterpartLocation() {
-  return context.locations.find(location => location.id === state.form.requester_location_id) || null;
+  const id = state.form.requester_location_id;
+  if (!id) return null;
+  return (state.reference?.maxLocations || []).find(location => location.id === id)
+    || context.locations.find(location => location.id === id)
+    || null;
 }
 
 function receivingLocation() {
@@ -169,6 +177,17 @@ async function loadReferenceData() {
         retry: 1,
         userMessage: 'Operating hours could not be loaded.',
       }),
+      // Every active Max Solutions site, not only the ones this account is
+      // assigned to. A coordinator is assigned one site, so filtering the
+      // counterpart picker by assignment left it with nothing to choose and
+      // Max-to-Max could not be booked at all. The booking RPCs only ever
+      // required access to the location being booked, never to the counterpart.
+      db.rpc('list_active_location_directory', {}, {
+        key: 'booking:location-directory',
+        cache: 300000,
+        retry: 1,
+        userMessage: 'The Max Solutions location list could not be loaded.',
+      }),
     );
   }
 
@@ -181,6 +200,7 @@ async function loadReferenceData() {
     templates: result[4] || [],
     externalCompanies: isStaff() ? result[5] || [] : [],
     operatingHours: isStaff() ? result[6] || [] : [],
+    maxLocations: isStaff() ? result[7] || [] : [],
   };
 }
 
@@ -345,7 +365,7 @@ function renderLoadStep() {
   if (!customer && state.form.movement_kind === 'max') {
     addOptions(
       hosts.step.querySelector('[data-field="requester_location_id"]'),
-      context.locations
+      (state.reference.maxLocations || [])
         .filter(location => location.id !== currentLocation().id)
         .map(location => ({ value: location.id, label: location.name })),
       state.form.requester_location_id,
@@ -624,7 +644,6 @@ function validateStep(step = state.step) {
     if (Number(form.skid_count) < 0 || !Number.isFinite(Number(form.skid_count))) return 'Enter a valid skid count.';
     if (!clean(form.external_reference)) return 'Enter the PO, BOL or job number.';
     if (form.movement_kind === 'max' && !form.requester_location_id) return 'Choose the other Max Solutions location.';
-    if (form.movement_kind === 'max' && !context.hasLocation(form.requester_location_id)) return 'Choose a Max Solutions location assigned to your account.';
     if (form.movement_kind === 'external' && !clean(form.requester_type)) return 'Choose the external party type.';
   }
   if (step === 1) {

@@ -107,7 +107,7 @@ function renderTable() {
       <td><span class="tag tag--quiet">${escapeHtml(user.role_name)}</span></td>
       <td>${statusTag}</td>
       <td class="data">${escapeHtml(lastSeen)}</td>
-      <td class="data cell-wrap">${(user.location_names || []).join(', ') || (user.role_code === 'system_admin' ? 'All' : '—')}</td>
+      <td class="data cell-elide" title="${escapeHtml((user.location_names || []).join(', '))}">${(user.location_names || []).join(', ') || (user.role_code === 'system_admin' ? 'All' : '—')}</td>
       <td><button class="btn btn--quiet btn--sm" type="button" data-edit-user="${user.user_id}">Edit</button></td>
     </tr>`;
   }).join('') || '<tr><td colspan="9" class="data">No users match these filters.</td></tr>';
@@ -393,7 +393,7 @@ function buildShell(root) {
         <button class="btn btn--quiet btn--sm" type="button" data-bulk-deactivate>Deactivate</button>
         <button class="text-link" type="button" data-bulk-clear style="margin-left:auto">Clear selection</button>
       </div>
-      <div class="panel__scroll"><table class="table"><thead><tr><th><label class="cellcheck"><input type="checkbox" data-select-all aria-label="Select all users"></label></th><th>Name</th><th>Username</th><th>Email</th><th>Role</th><th>Status</th><th>Last seen</th><th>Locations</th><th class="col-fill"></th></tr></thead><tbody data-rows></tbody></table></div>
+      <div class="panel__scroll"><table class="table"><thead><tr><th><label class="cellcheck"><input type="checkbox" data-select-all aria-label="Select all users"></label></th><th>Name</th><th>Username</th><th>Email</th><th>Role</th><th>Status</th><th>Last seen</th><th class="col-fill">Locations</th><th></th></tr></thead><tbody data-rows></tbody></table></div>
     </div>
     <div class="scrim" data-add-backdrop hidden aria-hidden="true">
       <section class="modal" role="dialog" aria-modal="true" aria-labelledby="add-user-title">
@@ -545,6 +545,7 @@ function wireEvents(root) {
 
 const page = {
   code: 'users',
+  permission: 'user.view',
   async mount(context) {
     state.context = context;
     state.isSystemAdmin = context.profile.role_code === 'system_admin';

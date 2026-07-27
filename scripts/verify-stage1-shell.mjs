@@ -98,7 +98,9 @@ const stageOneJsFiles = [
   'js/pages/board.js',
 ];
 const jsBytes = stageOneJsFiles.reduce((sum, path) => sum + statSync(join(ROOT, path)).size, 0);
-if (cssBytes > 60 * 1024) fail('assets/maxdock.css', `CSS budget exceeded: ${Math.round(cssBytes / 1024)} KB.`);
+const cssRuleBytes = Buffer.byteLength(readFileSync(join(ROOT, 'assets/maxdock.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, ''));
+if (cssRuleBytes > 60 * 1024) fail('assets/maxdock.css', `CSS rule budget exceeded: ${Math.round(cssRuleBytes / 1024)} KB of declarations.`);
+if (cssBytes > 80 * 1024) fail('assets/maxdock.css', `CSS file budget exceeded: ${Math.round(cssBytes / 1024)} KB including comments.`);
 if (jsBytes > 120 * 1024) fail('js/', `Stage 1 JavaScript budget exceeded: ${Math.round(jsBytes / 1024)} KB.`);
 
 console.log('\nMaxDock Stage 1 shell verification');

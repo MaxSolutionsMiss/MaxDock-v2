@@ -19,7 +19,8 @@
   const iso = (h, m = 0, addDays = 0) => { const d = new Date(); d.setDate(d.getDate() + addDays); d.setHours(h, m, 0, 0); return d.toISOString(); };
   // Display fields the appointment cards read straight through, rather than
   // resolving from the code tables.
-  const SHOWN = { location_name: 'Pickering', location_timezone: 'America/Toronto', appointment_type: 'Raw Material', truck_type: '53 ft Trailer', handling_type: 'Live unload' };
+  const SHOWN = { location_name: 'Pickering', location_timezone: 'America/Toronto' };
+  const RESOLVED = { appointment_type: 'Raw Material', truck_type: '53 ft Trailer', handling_type: 'Live unload' };
   // A month of report rows shaped exactly like get_ai_operations_context returns.
   const reportContext = () => {
     const today = new Date();
@@ -112,7 +113,7 @@
     save_user_preference: () => ({}),
     record_user_usage: () => ({}),
     list_location_schedule: () => APPTS.map(schedule_record => ({ schedule_record })),
-    list_my_appointments: () => APPTS,
+    list_my_appointments: () => APPTS.map(record => ({ ...record, ...RESOLVED })),
     list_return_load_opportunities: () => [{ first_booking_reference: 'MXD-2026-000140', second_booking_reference: 'MXD-2026-000141', recommendation: 'Guelph outbound could pair with a Guelph to Pickering inbound.', turnaround_minutes: 90, combined_skids: 35 }],
     get_appointment_history: () => [{ event_id: 1, action: 'created', changed_at: iso(6), changed_by_name: 'Javad Resa', summary: 'Appointment booked.', details: {} }],
     admin_list_users_with_identity: () => [

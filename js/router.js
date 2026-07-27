@@ -22,8 +22,11 @@ const STAFF_ROUTES = [
     group: 'Administration',
     admin: true,
     items: [
-      { code: 'users', label: 'Users', path: 'app/users.html', icon: '<circle cx="9" cy="8" r="3"></circle><path d="M3 20a6 6 0 0 1 12 0"></path>' },
-      { code: 'data', label: 'Data integration', path: 'app/data.html', icon: '<ellipse cx="12" cy="6" rx="8" ry="3"></ellipse><path d="M4 6v12c0 1.7 3.6 3 8 3s8-1.3 8-3V6"></path>' },
+      // Administration is not for everyone on staff. These two carried no
+      // permission at all, so a Coordinator saw both links and could open them —
+      // the RPCs behind them refuse, but the rail should never have offered them.
+      { code: 'users', label: 'Users', path: 'app/users.html', permission: 'user.view', icon: '<circle cx="9" cy="8" r="3"></circle><path d="M3 20a6 6 0 0 1 12 0"></path>' },
+      { code: 'data', label: 'Data integration', path: 'app/data.html', permission: 'system.manage', icon: '<ellipse cx="12" cy="6" rx="8" ry="3"></ellipse><path d="M4 6v12c0 1.7 3.6 3 8 3s8-1.3 8-3V6"></path>' },
     ],
   },
 ];
@@ -204,21 +207,16 @@ function createShell(context, page) {
   const avatar = document.createElement('span');
   avatar.className = 'avatar';
   avatar.textContent = format.initials(context.profile.full_name);
-  const profileText = document.createElement('span');
-  profileText.className = '';
   const profileName = document.createElement('span');
   profileName.className = 'who__name';
   profileName.textContent = context.profile.full_name;
-  const profileRole = document.createElement('span');
-  profileRole.className = 'who__role';
-  profileRole.textContent = context.role?.name || format.role(context.profile.role_code);
-  profileText.append(profileName, profileRole);
+  profileName.title = context.role?.name || format.role(context.profile.role_code);
   const signOut = document.createElement('button');
   signOut.type = 'button';
   signOut.className = 'linkBtn';
   signOut.id = 'sign-out';
   signOut.textContent = 'Sign out';
-  profile.append(avatar, profileText, signOut);
+  profile.append(avatar, profileName, signOut);
 
   // The bell returns null for roles without notifications.view, so it simply is not
   // rendered rather than appearing and failing on click.
@@ -231,8 +229,12 @@ function createShell(context, page) {
   banner.id = 'network-banner';
   banner.hidden = true;
 
+  // Screens whose main panel scrolls internally stay pinned to the window so they
+  // compress to fit — the owner's rule for anything broadcast on a wall display.
+  // Everything else scrolls the page when its content runs past the fold.
+  const FIXED_HEIGHT_PAGES = new Set(['board', 'queue']);
   const pageRoot = document.createElement('main');
-  pageRoot.className = 'page';
+  pageRoot.className = FIXED_HEIGHT_PAGES.has(page.code) ? 'page page--fixed' : 'page';
   pageRoot.id = 'page-content';
   pageRoot.tabIndex = -1;
 

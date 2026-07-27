@@ -191,7 +191,7 @@ function renderDocks() {
     <td class="data data--strong">${escapeHtml(dock.name)}</td>
     <td>${escapeHtml(dock.direction_mode === 'both' ? 'Both' : format.role(dock.direction_mode))}</td>
     <td>${dock.is_active ? '<span class="tag tag--ok">Active</span>' : '<span class="tag tag--quiet">Inactive</span>'}</td>
-    <td class="data cell-wrap">${escapeHtml(dockTruckLabels(dock.id))}</td>
+    <td class="data cell-elide" title="${escapeHtml(dockTruckLabels(dock.id))}">${escapeHtml(dockTruckLabels(dock.id))}</td>
     <td>${canEditDocks ? `<button class="btn btn--quiet btn--sm" type="button" data-edit-dock="${dock.id}">Edit</button>` : ''}</td>
   </tr>`).join('') || '<tr><td colspan="5" class="data">No docks configured for this location.</td></tr>';
 
@@ -209,7 +209,7 @@ function renderDocks() {
 
   return `<div class="card">
       <h3 class="card__title">Docks${canEditDocks ? '<button class="btn btn--quiet btn--sm" type="button" data-add-dock>Add dock</button>' : ''}</h3>
-      <div class="tablewrap"><table class="table"><thead><tr><th>Dock</th><th>Direction</th><th>Status</th><th>Truck types</th><th class="col-fill"></th></tr></thead><tbody>${rows}</tbody></table></div>
+      <div class="tablewrap"><table class="table"><thead><tr><th>Dock</th><th>Direction</th><th>Status</th><th class="col-fill">Truck types</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
     </div>
     <div class="card" style="margin-top:var(--s4)">
       <form data-section-form="truck-types">
@@ -368,7 +368,7 @@ function openDockModal(dockId) {
   const isActive = dock ? dock.is_active : true;
   activeSwitch.classList.toggle('switch--off', !isActive);
   activeSwitch.setAttribute('aria-pressed', String(isActive));
-  form.querySelector('[data-dock-checks]').innerHTML = state.truckTypes.map(type => `<label class="dock-check"><input type="checkbox" name="truck_type_code" value="${type.code}" ${enabledCodes.has(type.code) ? 'checked' : ''}><span>${escapeHtml(type.name)}</span></label>`).join('');
+  form.querySelector('[data-dock-checks]').innerHTML = state.truckTypes.map(type => `<label class="dock-check" title="${escapeHtml(type.name)}"><input type="checkbox" name="truck_type_code" value="${type.code}" ${enabledCodes.has(type.code) ? 'checked' : ''}><span>${escapeHtml(type.name)}</span></label>`).join('');
   state.dockModal.open({ trigger: document.activeElement });
 }
 
@@ -427,12 +427,12 @@ function buildShell(root) {
         <form data-dock-form>
           <div class="modal__body">
             <div class="frow">
-              <label class="field field--lg"><span class="field__label">Name</span><input class="input" name="name" maxlength="80" required></label>
-              <label class="field field--xs"><span class="field__label">Sort order</span><input class="input" type="number" name="sort_order" min="1" required></label>
-              <label class="field field--md"><span class="field__label">Direction</span><select class="select" name="direction_mode"><option value="both">Both</option><option value="inbound">Inbound</option><option value="outbound">Outbound</option></select></label>
+              <label class="field field--sm"><span class="field__label">Name</span><input class="input" name="name" maxlength="80" required></label>
+              <label class="field field--xs"><span class="field__label">Order</span><input class="input" type="number" name="sort_order" min="1" required></label>
+              <label class="field field--sm"><span class="field__label">Direction</span><select class="select" name="direction_mode"><option value="both">Both</option><option value="inbound">Inbound</option><option value="outbound">Outbound</option></select></label>
+              <label class="field field--md"><span class="field__label">Description <span class="field__opt">optional</span></span><input class="input" name="description" maxlength="200"></label>
             </div>
-            <label class="field field--full"><span class="field__label">Description</span><input class="input" name="description" maxlength="200"></label>
-            <div class="setrow"><div><div class="setrow__t">Active</div></div><button type="button" class="switch" data-dock-active-switch aria-label="Dock active"></button></div>
+            <div class="setrow setrow--tight"><div class="setrow__t">Active</div><button type="button" class="switch" data-dock-active-switch aria-label="Dock active"></button></div>
             <fieldset class="dock-checks"><legend>Truck types this dock accepts (none checked = all types)</legend><div data-dock-checks></div></fieldset>
           </div>
           <div class="modal__foot"><button class="btn btn--quiet" type="button" data-close-dock>Cancel</button><button class="btn btn--primary" type="submit">Save dock</button></div>

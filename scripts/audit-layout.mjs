@@ -98,7 +98,7 @@ const add = (where, width, rule, detail) => findings.push({ where, width, rule, 
 // belong to the page, not to a 560px panel floating above it.
 function collect(scope) {
   const root = scope ? document.querySelector(scope) : document;
-  const out = { clipped: [], smallTargets: [], ctlHeights: [], rawTimestamps: [], blockTextCut: [], hiddenButShown: [], rowFill: [], kpi: [], gaps: [], overflowX: 0, labelStyles: [], cutOff: [], rowUneven: [], modal: [], collapsed: [] };
+  const out = { clipped: [], smallTargets: [], ctlHeights: [], rawTimestamps: [], blockTextCut: [], hiddenButShown: [], unreachable: [], rowFill: [], kpi: [], gaps: [], overflowX: 0, labelStyles: [], cutOff: [], rowUneven: [], modal: [], collapsed: [] };
   if (!root) return out;
   const vis = el => el.offsetParent !== null || getComputedStyle(el).position === 'fixed';
 
@@ -106,7 +106,7 @@ function collect(scope) {
 
   // Content wider than its box — the "fields are cut off" defect.
   root.querySelectorAll('.input,.select,td,th,.field__label,.setrow__d,.kpi__label,.rail__link,.btn,.step').forEach(el => {
-    if (!vis(el)) return;
+    if (!vis(el) || (el.classList.contains('cell-elide') && el.title)) return;
     if (el.scrollWidth > el.clientWidth + 1) {
       out.clipped.push({ text: (el.textContent || el.value || '').trim().slice(0, 44), over: el.scrollWidth - el.clientWidth, sel: el.className });
     }
@@ -177,6 +177,27 @@ function collect(scope) {
     if (el.getClientRects().length === 0) return;
     out.hiddenButShown.push({ sel: el.className || el.tagName, text: (el.textContent || '').trim().slice(0, 40) });
   });
+
+  // Content that ends below the fold with nothing able to scroll to it. The
+  // owner hit this on Locations & docks: the truck-types panel simply stopped
+  // below the window and no ancestor scrolled, so it could not be reached at all.
+  if (!scope) {
+    const fold = document.documentElement.clientHeight;
+    const scrolls = el => {
+      for (let a = el; a; a = a.parentElement) {
+        const style = getComputedStyle(a);
+        if (/auto|scroll/.test(style.overflowY) && a.scrollHeight > a.clientHeight + 1) return true;
+      }
+      return document.documentElement.scrollHeight > document.documentElement.clientHeight + 1;
+    };
+    root.querySelectorAll('.page .card,.page .panel,.page .setrow,.page .form-actions').forEach(el => {
+      if (!vis(el)) return;
+      const below = Math.round(el.getBoundingClientRect().bottom - fold);
+      if (below > 1 && !scrolls(el)) {
+        out.unreachable.push({ below, sel: el.className, text: (el.textContent || '').trim().slice(0, 40) });
+      }
+    });
+  }
 
   // A timeline block showing half a line of text. The generic clipping rules
   // cannot see this: the block hides its overflow, so a partly-drawn last line
@@ -519,6 +540,7 @@ function report(where, width, result) {
   for (const t of [...new Map(result.smallTargets.map(t => [t.sel + t.h, t])).values()].slice(0, 6)) add(where, width, 'hit-target-too-small', `"${t.text}" is ${t.h}px tall (${t.sel})`);
   for (const c of [...new Map(result.ctlHeights.map(c => [c.sel + c.h, c])).values()].slice(0, 6)) add(where, width, 'control-height-differs', `"${c.text}" is ${c.h}px tall, every control is ${c.want}px (${c.sel})`);
   for (const t of [...new Map(result.rawTimestamps.map(t => [t.text, t])).values()].slice(0, 4)) add(where, width, 'raw-timestamp-on-screen', `"${t.text}" (${t.sel})`);
+  for (const u of [...new Map(result.unreachable.map(u => [u.sel, u])).values()].slice(0, 4)) add(where, width, 'content-below-the-fold-unreachable', `.${u.sel} ends ${u.below}px past the window and nothing scrolls — "${u.text}"`);
   for (const h of [...new Map(result.hiddenButShown.map(h => [h.sel, h])).values()].slice(0, 5)) add(where, width, 'hidden-element-still-visible', `.${h.sel} is marked hidden but still drawn — "${h.text}"`);
   for (const c of [...new Map(result.blockTextCut.map(c => [c.sel + c.why, c])).values()].slice(0, 5)) add(where, width, 'appointment-details-cut-off', `"${c.text}" ${c.why} by ${c.over}px (${c.sel})`);
   for (const u of result.rowUneven.slice(0, 4)) add(where, width, 'side-by-side-heights-differ', `${u.spread}px apart — ${u.boxes.join(', ')}`);

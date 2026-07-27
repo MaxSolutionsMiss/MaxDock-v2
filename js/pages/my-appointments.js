@@ -475,7 +475,7 @@ function buildPage(root, context) {
   // The view switcher and the page's output actions live in the same controls band
   // every other screen uses, so Print and the gear sit where they always sit.
   const controls = createElement('div');
-  controls.innerHTML = controlsBar({ label: 'Appointment controls', trailing: [['book', context.can('appointment.create')]] });
+  controls.innerHTML = controlsBar({ label: 'Appointment controls', actions: [['book', context.can('appointment.create')]] });
   const controlsHost = controls.firstElementChild;
   const views = createViewControls();
   const toolbarMeta = createElement('div', 'profile appointment-toolbar__meta');
@@ -484,7 +484,7 @@ function buildPage(root, context) {
   const updated = createElement('span', 'page-updated muted');
   toolbarMeta.append(count, updated);
   const lead = controlsHost.querySelector('.controls__lead') || controlsHost;
-  lead.prepend(views);
+  lead.append(views);
   lead.after(toolbarMeta);
 
   // Left column scrolls on its own so the appointments below the fold can be
