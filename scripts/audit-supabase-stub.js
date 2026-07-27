@@ -19,7 +19,7 @@
   const iso = (h, m = 0, addDays = 0) => { const d = new Date(); d.setDate(d.getDate() + addDays); d.setHours(h, m, 0, 0); return d.toISOString(); };
   // Display fields the appointment cards read straight through, rather than
   // resolving from the code tables.
-  const SHOWN = { location_name: 'Pickering', location_timezone: 'America/Toronto', appointment_type: 'Sister Plant Transfer', truck_type: '53 ft Trailer', handling_type: 'Live unload' };
+  const SHOWN = { location_name: 'Pickering', location_timezone: 'America/Toronto', appointment_type: 'Raw Material', truck_type: '53 ft Trailer', handling_type: 'Live unload' };
   // A month of report rows shaped exactly like get_ai_operations_context returns.
   const reportContext = () => {
     const today = new Date();
@@ -62,9 +62,9 @@
     };
   };
   const APPTS = [
-    { id: 'a1', appointment_id: 'a1', booking_reference: 'MXD-2026-000140', entry_kind: 'appointment', status: 'arrived', direction: 'inbound', dock_id: 'dock-1', start_at: iso(7), end_at: iso(8), skid_count: 25, company_name: 'Guelph transfer', requester_name: 'Sam Delgado', requester_email: 'sdelgado@maxpkgsolutions.com', carrier_name: 'Day & Ross', external_reference: 'PO-99213', appointment_type_code: 'sister_plant_transfer', truck_type_code: 'trailer_53', handling_type_code: 'live_unload', is_priority: false, notes: '', completed_at: null, location_id: 'loc-1', ...SHOWN },
+    { id: 'a1', appointment_id: 'a1', booking_reference: 'MXD-2026-000140', entry_kind: 'appointment', status: 'arrived', direction: 'inbound', dock_id: 'dock-1', start_at: iso(7), end_at: iso(8), skid_count: 25, company_name: 'Guelph transfer', requester_name: 'Sam Delgado', requester_email: 'sdelgado@maxpkgsolutions.com', carrier_name: 'Day & Ross', external_reference: 'PO-99213', appointment_type_code: 'raw_material', truck_type_code: 'trailer_53', handling_type_code: 'live_unload', is_priority: false, notes: '', completed_at: null, location_id: 'loc-1', ...SHOWN },
     { id: 'a2', appointment_id: 'a2', booking_reference: 'MXD-2026-000141', entry_kind: 'appointment', status: 'scheduled', direction: 'outbound', dock_id: 'dock-3', start_at: iso(8), end_at: iso(9), skid_count: 10, company_name: 'Haleon – Oakhill', requester_name: 'Maria Chen', requester_email: 'mchen@maxpkgsolutions.com', carrier_name: '', external_reference: 'BOL-4412', appointment_type_code: 'customer_pickup', truck_type_code: 'trailer_48', handling_type_code: 'drop_trailer', is_priority: true, notes: '', completed_at: null, location_id: 'loc-1', ...SHOWN },
-    { id: 'a3', appointment_id: 'a3', booking_reference: 'MXD-2026-000142', entry_kind: 'appointment', status: 'completed', direction: 'inbound', dock_id: 'dock-2', start_at: iso(10), end_at: iso(11), skid_count: 6, company_name: 'Mississauga', requester_name: 'Javad Resa', requester_email: 'javadresa@maxpkgsolutions.com', carrier_name: 'Purolator', external_reference: 'JOB-771', appointment_type_code: 'wip_transfer', truck_type_code: 'straight_truck_26', handling_type_code: 'live_load', is_priority: false, notes: '', completed_at: iso(11), location_id: 'loc-1', ...SHOWN },
+    { id: 'a3', appointment_id: 'a3', booking_reference: 'MXD-2026-000142', entry_kind: 'appointment', status: 'completed', direction: 'inbound', dock_id: 'dock-2', start_at: iso(10), end_at: iso(11), skid_count: 6, company_name: 'Mississauga', requester_name: 'Javad Resa', requester_email: 'javadresa@maxpkgsolutions.com', carrier_name: 'Purolator', external_reference: 'JOB-771', appointment_type_code: 'wip', truck_type_code: 'straight_truck_26', handling_type_code: 'live_load', is_priority: false, notes: '', completed_at: iso(11), location_id: 'loc-1', ...SHOWN },
     // Dated forward so the My appointments "Upcoming" view — the default — has a
     // record to render, and its detail card exposes the Cancel dialog.
     { id: 'a4', appointment_id: 'a4', booking_reference: 'MXD-2026-000143', entry_kind: 'appointment', status: 'scheduled', direction: 'outbound', dock_id: 'dock-4', start_at: iso(9, 0, 2), end_at: iso(10, 0, 2), skid_count: 18, company_name: 'Haleon – Oakhill', requester_name: 'Maria Chen', requester_email: 'mchen@maxpkgsolutions.com', carrier_name: 'Day & Ross', external_reference: 'PO-99310', appointment_type_code: 'customer_pickup', truck_type_code: 'trailer_53', handling_type_code: 'live_load', is_priority: false, notes: '', completed_at: null, location_id: 'loc-1', ...SHOWN },
@@ -79,7 +79,10 @@
   // without one this behaves exactly as it always has.
   const ROLE = globalThis.__auditRole || null;
   const ROLE_CODE = ROLE?.role || 'system_admin';
-  const ALL_PERMISSIONS = ['dock.view', 'operations.queue.view', 'appointment.view', 'appointment.view_own', 'appointment.create', 'appointment.update', 'appointment.complete', 'appointment.cancel', 'block.manage', 'settings.view', 'settings.manage', 'dock.manage', 'reports.view', 'user.view', 'user.manage', 'system.manage', 'notifications.view'];
+  // The live permission catalogue. This list was short of appointment.cancel_own,
+  // ai.insights and the location permissions, so the audit rendered an app that
+  // could never cancel an appointment and never load a report.
+  const ALL_PERMISSIONS = ['ai.insights', 'appointment.assign', 'appointment.cancel', 'appointment.cancel_own', 'appointment.complete', 'appointment.create', 'appointment.delete', 'appointment.update', 'appointment.view', 'appointment.view_own', 'audit.view', 'block.manage', 'dock.manage', 'dock.view', 'location.manage', 'location.view', 'notifications.view', 'operations.queue.view', 'reports.view', 'settings.manage', 'settings.view', 'system.manage', 'user.manage', 'user.view'];
   const PERMISSIONS = ROLE?.permissions || ALL_PERMISSIONS;
   const TABLE = {
     profiles: [{ id: UID, username: 'jresa', full_name: 'Javad Resa', contact_email: 'javadresa@maxpkgsolutions.com', role_code: ROLE_CODE, is_active: true, must_change_password: false, organization_name: ROLE_CODE === 'customer' ? 'Haleon' : null, external_party_type: ROLE_CODE === 'customer' ? 'Customer' : null }],
@@ -90,10 +93,12 @@
     location_operating_hours: [{ location_id: 'loc-1', day_of_week: new Date().getDay(), is_open: true, open_time: '07:00:00', close_time: '17:00:00' }],
     location_settings: [{ location_id: 'loc-1', slot_interval_minutes: 60, buffer_minutes: 10, base_minutes: 30, minutes_per_skid: 3, full_truck_minimum_minutes: 75, full_truck_skid_threshold: 24, priority_minimum_minutes: 75, minimum_notice_minutes: 240, maximum_advance_days: 30, auto_assign_dock: true, is_active: true, capacity_enabled: true, skid_capacity: 120, capacity_reserve_skids: 10, capacity_enforcement_mode: 'warn', current_occupied_skids: 67, inventory_as_of: iso(6), capacity_last_source: 'mis_csv', dock_assignment_strategy: 'balanced', max_concurrent_appointments: 2, suggest_same_day_consolidation: true, consolidation_window_hours: null }],
     truck_types: [{ code: 'trailer_53', name: '53 ft Trailer', sort_order: 1 }, { code: 'trailer_48', name: '48 ft Trailer', sort_order: 2 }, { code: 'straight_truck_26', name: '26 ft Straight Truck', sort_order: 3 }, { code: 'cube_van', name: 'Cube Van', sort_order: 4 }, { code: 'courier_van', name: 'Courier Van', sort_order: 5 }],
-    appointment_types: [{ code: 'sister_plant_transfer', name: 'Sister Plant Transfer', sort_order: 1 }, { code: 'customer_pickup', name: 'Customer Pickup', sort_order: 2 }, { code: 'wip_transfer', name: 'WIP Transfer', sort_order: 3 }, { code: 'vendor_delivery', name: 'Vendor Delivery', sort_order: 4 }],
+    // The live catalogue, minus the two the owner retired and minus VIP, which is
+    // deactivated and must never come back.
+    appointment_types: [{ code: 'raw_material', name: 'Raw Material', sort_order: 1 }, { code: 'finished_goods', name: 'Finished Goods', sort_order: 2 }, { code: 'wip', name: 'WIP', sort_order: 3 }, { code: 'customer_pickup', name: 'Customer Pickup', sort_order: 7 }, { code: 'return_rework', name: 'Return / Rework', sort_order: 8 }, { code: 'other', name: 'Other', sort_order: 9 }],
     handling_types: [{ code: 'live_unload', name: 'Live unload', sort_order: 1 }, { code: 'drop_trailer', name: 'Drop trailer', sort_order: 2 }, { code: 'live_load', name: 'Live load', sort_order: 3 }],
     location_truck_types: [{ location_id: 'loc-1', truck_type_code: 'trailer_53', setup_minutes: 20, is_active: true }, { location_id: 'loc-1', truck_type_code: 'trailer_48', setup_minutes: 18, is_active: true }],
-    location_appointment_types: [{ location_id: 'loc-1', appointment_type_code: 'sister_plant_transfer', is_active: true }, { location_id: 'loc-1', appointment_type_code: 'customer_pickup', is_active: true }, { location_id: 'loc-1', appointment_type_code: 'wip_transfer', is_active: true }],
+    location_appointment_types: ['raw_material', 'finished_goods', 'wip', 'customer_pickup', 'return_rework', 'other'].map(appointment_type_code => ({ location_id: 'loc-1', appointment_type_code, is_active: true })),
     location_handling_types: [{ location_id: 'loc-1', handling_type_code: 'live_unload', is_active: true }, { location_id: 'loc-1', handling_type_code: 'drop_trailer', is_active: true }],
     dock_truck_types: [{ dock_id: 'dock-1', location_id: 'loc-1', truck_type_code: 'trailer_53' }],
     booking_templates: [],
@@ -154,7 +159,8 @@
   Object.defineProperty(globalThis, 'supabase', { configurable: false, writable: false, value: {
     createClient: () => ({
       auth: {
-        getSession: () => result({ session: { user: { id: UID, email: 'javadresa@maxpkgsolutions.com' } } }),
+        // The sign-in page can only be looked at by a visitor who is not signed in.
+        getSession: () => result({ session: globalThis.__auditSignedOut ? null : { user: { id: UID, email: 'javadresa@maxpkgsolutions.com' } } }),
         getUser: () => result({ user: { id: UID } }),
         onAuthStateChange: () => ({ data: { subscription: { unsubscribe() {} } } }),
         signInWithPassword: () => result({}), setSession: () => result({}), signOut: () => result({}),

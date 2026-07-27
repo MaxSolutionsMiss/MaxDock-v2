@@ -320,14 +320,14 @@ function renderLoadStep() {
         <option value="max" ${state.form.movement_kind === 'max' ? 'selected' : ''}>Max-to-Max</option>
       </select></div>
       ${maxToMax
-        ? `<div class="field field--md"><span class="field__label">${state.form.direction === 'outbound' ? 'Sending to' : 'Receiving from'}</span><select class="select" data-field="requester_location_id"></select></div>`
-        : `<div class="field field--sm"><span class="field__label">Party type</span><select class="select" data-field="requester_type"></select></div>
+        ? `<div class="field field--md"><span class="field__label">${state.form.direction === 'outbound' ? 'Sending to' : 'Receiving from'}<span class="field__req" aria-hidden="true">*</span></span><select class="select" data-field="requester_location_id"></select></div>`
+        : `<div class="field field--sm"><span class="field__label">Party type<span class="field__req" aria-hidden="true">*</span></span><select class="select" data-field="requester_type"></select></div>
            <div class="field field--sm"><span class="field__label">Company</span><input class="input" data-field="company_name" list="company-directory" maxlength="120" autocomplete="organization"><datalist id="company-directory"></datalist></div>`}
     </div>`}
     <div class="frow">
-      <div class="field field--${customer ? 'lg' : 'md'}"><span class="field__label">Appointment type</span><select class="select" data-field="appointment_type_code"></select></div>
-      <div class="field field--num"><span class="field__label">Skids</span><input class="input" data-field="skid_count" type="number" min="0" max="9999" inputmode="numeric"></div>
-      <div class="field field--md"><span class="field__label">PO / BOL / job</span><input class="input" data-field="external_reference" maxlength="20" autocomplete="off"></div>
+      <div class="field field--${customer ? 'lg' : 'md'}"><span class="field__label">Appointment type<span class="field__req" aria-hidden="true">*</span></span><select class="select" data-field="appointment_type_code"></select></div>
+      <div class="field field--num"><span class="field__label">Skids<span class="field__req" aria-hidden="true">*</span></span><input class="input" data-field="skid_count" type="number" min="0" max="9999" inputmode="numeric"></div>
+      <div class="field field--md"><span class="field__label">PO / BOL / job<span class="field__req" aria-hidden="true">*</span></span><input class="input" data-field="external_reference" maxlength="20" autocomplete="off"></div>
       ${staff ? `<div class="field field--num"><span class="field__label">Priority</span><select class="select" data-field="is_priority"><option value="">No</option><option value="1" ${state.form.is_priority ? 'selected' : ''}>Yes</option></select></div>` : ''}
     </div>
     ${customer ? '<p class="hint">Your company and contact details are already on file.</p>' : ''}`;
@@ -366,8 +366,8 @@ function renderLoadStep() {
 function renderVehicleStep() {
   hosts.step.innerHTML = `
     <div class="frow">
-      <div class="field field--md"><span class="field__label">Truck type</span><select class="select" data-field="truck_type_code"></select></div>
-      <div class="field field--md"><span class="field__label">Handling</span><select class="select" data-field="handling_type_code"></select></div>
+      <div class="field field--md"><span class="field__label">Truck type<span class="field__req" aria-hidden="true">*</span></span><select class="select" data-field="truck_type_code"></select></div>
+      <div class="field field--md"><span class="field__label">Handling<span class="field__req" aria-hidden="true">*</span></span><select class="select" data-field="handling_type_code"></select></div>
       <div class="field field--md"><span class="field__label">Carrier or courier</span><input class="input" data-field="carrier_name" maxlength="120" autocomplete="organization"></div>
     </div>
 `;
@@ -425,7 +425,7 @@ function renderTimeStep() {
   const staff = isStaff();
   hosts.step.innerHTML = `
     <div class="frow">
-      <div class="field field--md"><span class="field__label">Requested date</span><input class="input" data-field="date" type="date" min="${format.inputDate(null, receivingLocation())}"></div>
+      <div class="field field--md"><span class="field__label">Requested date<span class="field__req" aria-hidden="true">*</span></span><input class="input" data-field="date" type="date" min="${format.inputDate(null, receivingLocation())}"></div>
       <div class="field field--xl" style="align-self:end"><span class="field__label">&nbsp;</span><p class="hint" style="margin:0">Pick a date, then choose one of the available times below.</p></div>
     </div>
     ${staff ? `
@@ -456,8 +456,8 @@ function renderContactStep() {
   hosts.step.innerHTML = `
     <p class="hint" style="margin:0 0 var(--s4)">These details identify the requester and are included in the confirmation draft.</p>
     <div class="frow">
-      <div class="field ${external ? 'field--sm' : 'field--md'}"><span class="field__label">Requester name</span><input class="input" data-field="requester_name" maxlength="120" autocomplete="name"></div>
-      <div class="field ${external ? 'field--lg' : 'field--xl'}"><span class="field__label">Requester email</span><input class="input" data-field="requester_email" type="email" maxlength="180" autocomplete="email"></div>
+      <div class="field ${external ? 'field--sm' : 'field--md'}"><span class="field__label">Requester name<span class="field__req" aria-hidden="true">*</span></span><input class="input" data-field="requester_name" maxlength="120" autocomplete="name"></div>
+      <div class="field ${external ? 'field--lg' : 'field--xl'}"><span class="field__label">Requester email<span class="field__req" aria-hidden="true">*</span></span><input class="input" data-field="requester_email" type="email" maxlength="180" autocomplete="email"></div>
       ${external ? '<div class="field field--sm"><span class="field__label">Company or organisation</span><input class="input" data-field="company_name" maxlength="120" autocomplete="organization"></div>' : ''}
     </div>`;
   hosts.step.querySelector('[data-field="requester_name"]').value = state.form.requester_name;
@@ -620,6 +620,7 @@ function validateStep(step = state.step) {
   if (step === 0) {
     if (!form.appointment_type_code) return 'Choose an appointment type.';
     if (!state.reference.appointmentTypes.some(item => item.code === form.appointment_type_code)) return 'Choose an appointment type enabled at this location.';
+    if (!clean(String(form.skid_count ?? ''))) return 'Enter the skid count.';
     if (Number(form.skid_count) < 0 || !Number.isFinite(Number(form.skid_count))) return 'Enter a valid skid count.';
     if (!clean(form.external_reference)) return 'Enter the PO, BOL or job number.';
     if (form.movement_kind === 'max' && !form.requester_location_id) return 'Choose the other Max Solutions location.';

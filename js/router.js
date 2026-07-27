@@ -124,9 +124,14 @@ function createShell(context, page) {
   brand.className = 'rail__brand';
   brand.href = session.defaultPath(context);
   brand.setAttribute('aria-label', 'MaxDock home');
+  // The real Max Solutions mark, the same file the sign-in page uses. This was a
+  // hand-drawn SVG approximation of it, which is not the company's logo.
   const mark = document.createElement('span');
   mark.className = 'rail__mark';
-  mark.innerHTML = '<svg viewBox="0 0 40 28" aria-hidden="true"><path d="M4 24 L14 6 L20 17 M20 17 L26 6 L36 24" stroke="#fff" stroke-width="2.4" fill="none" stroke-linejoin="round"></path></svg>';
+  const markImage = document.createElement('img');
+  markImage.src = new URL('../assets/logo-knockout.png', import.meta.url).href;
+  markImage.alt = '';
+  mark.append(markImage);
   const brandName = document.createElement('span');
   brandName.className = 'rail__name';
   brandName.textContent = 'MaxDock';
@@ -273,7 +278,7 @@ function showSessionModal(context) {
     <p class="modal__message">Sign in again to continue. The current screen will stay in place.</p>
     <form id="session-form">
       <div class="field field--lg">
-        <label class="field__label" for="session-email">Email or username</label>
+        <label class="field__label" for="session-email">Username</label>
         <input class="input" id="session-email" name="email" type="text" autocomplete="username" required>
       </div>
       <div class="field field--lg">

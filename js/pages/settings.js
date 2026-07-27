@@ -190,8 +190,8 @@ function renderDocks() {
   const rows = state.docks.map(dock => `<tr>
     <td class="data data--strong">${escapeHtml(dock.name)}</td>
     <td>${escapeHtml(dock.direction_mode === 'both' ? 'Both' : format.role(dock.direction_mode))}</td>
-    <td class="data">${escapeHtml(dockTruckLabels(dock.id))}</td>
     <td>${dock.is_active ? '<span class="tag tag--ok">Active</span>' : '<span class="tag tag--quiet">Inactive</span>'}</td>
+    <td class="data cell-wrap">${escapeHtml(dockTruckLabels(dock.id))}</td>
     <td>${canEditDocks ? `<button class="btn btn--quiet btn--sm" type="button" data-edit-dock="${dock.id}">Edit</button>` : ''}</td>
   </tr>`).join('') || '<tr><td colspan="5" class="data">No docks configured for this location.</td></tr>';
 
@@ -209,7 +209,7 @@ function renderDocks() {
 
   return `<div class="card">
       <h3 class="card__title">Docks${canEditDocks ? '<button class="btn btn--quiet btn--sm" type="button" data-add-dock>Add dock</button>' : ''}</h3>
-      <div class="tablewrap"><table class="table"><thead><tr><th>Dock</th><th>Direction</th><th>Truck types</th><th>Status</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
+      <div class="tablewrap"><table class="table"><thead><tr><th>Dock</th><th>Direction</th><th>Status</th><th>Truck types</th><th class="col-fill"></th></tr></thead><tbody>${rows}</tbody></table></div>
     </div>
     <div class="card" style="margin-top:var(--s4)">
       <form data-section-form="truck-types">

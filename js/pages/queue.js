@@ -346,7 +346,8 @@ function wallPayload() {
       tone: late ? 'tlb--pri' : record.status === 'completed' ? 'tlb--done' : record.direction === 'outbound' ? 'tlb--out' : 'tlb--in',
       title: record.company_name || record.display_counterpart_location_name || record.requester_name || 'Scheduled movement',
       subtitle: record.booking_reference || '',
-      meta: `${record.booking_reference || ''} · ${format.role(record.status || '')}${late ? ' · LATE' : ''}`,
+      meta: record.booking_reference || '',
+      note: `${format.role(record.status || '')}${late ? ' · LATE' : ''}`,
       attrs: '',
     };
   });

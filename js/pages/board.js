@@ -355,9 +355,10 @@ function timelineBlocks() {
           ? (record.block_reason || 'Dock blocked')
           : (record.company_name || record.display_counterpart_location_name || record.requester_name || 'Scheduled movement'),
         subtitle: record.booking_reference || '',
-        meta: isBlock
-          ? (record.notes || 'Unavailable')
-          : `${record.booking_reference || ''} · ${format.role(record.direction || '')} · ${Number(record.skid_count || 0)} skids`,
+        // Direction is already the block's colour and is spelled out in the legend,
+        // so repeating it here only ate room the reference needed.
+        meta: isBlock ? (record.notes || 'Unavailable') : (record.booking_reference || ''),
+        note: isBlock ? '' : `${Number(record.skid_count || 0)} skids`,
         attrs: `data-record-id="${escapeHtml(record.id)}"${editable ? ' data-edit-record role="button" tabindex="0"' : ''}`,
       };
     });

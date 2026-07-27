@@ -36,11 +36,17 @@ const TEXT_SIZES = ['normal', 'large', 'larger'];
 // A Customer sees fewer actions and different columns. That is exactly where a
 // header goes lopsided or a toolbar collapses, and one role proves nothing about
 // the others.
+// Copied from the live role_permissions table, not invented. The previous sets
+// were a guess and granted permissions no role actually holds while omitting
+// appointment.cancel_own, which every role does hold — so the role sweep was
+// exercising an app configuration that does not exist. site_admin included
+// because it is the role most Max Solutions sites are administered under.
 const ROLES = {
   system_admin: null,
-  coordinator: ['dock.view', 'operations.queue.view', 'appointment.view', 'appointment.view_own', 'appointment.create', 'appointment.cancel', 'reports.view', 'notifications.view'],
-  shipping_manager: ['dock.view', 'operations.queue.view', 'appointment.view', 'appointment.view_own', 'appointment.create', 'appointment.update', 'appointment.complete', 'appointment.cancel', 'block.manage', 'settings.view', 'reports.view', 'notifications.view'],
-  customer: ['appointment.view_own', 'appointment.create', 'appointment.cancel', 'notifications.view'],
+  site_admin: ['ai.insights', 'appointment.assign', 'appointment.cancel', 'appointment.cancel_own', 'appointment.complete', 'appointment.create', 'appointment.update', 'appointment.view', 'appointment.view_own', 'audit.view', 'block.manage', 'dock.manage', 'dock.view', 'location.view', 'notifications.view', 'operations.queue.view', 'reports.view', 'settings.manage', 'settings.view', 'user.manage', 'user.view'],
+  shipping_manager: ['ai.insights', 'appointment.assign', 'appointment.cancel', 'appointment.cancel_own', 'appointment.complete', 'appointment.create', 'appointment.update', 'appointment.view', 'appointment.view_own', 'audit.view', 'block.manage', 'dock.view', 'location.view', 'notifications.view', 'operations.queue.view', 'reports.view', 'settings.view'],
+  coordinator: ['ai.insights', 'appointment.assign', 'appointment.cancel_own', 'appointment.complete', 'appointment.create', 'appointment.update', 'appointment.view', 'appointment.view_own', 'audit.view', 'dock.view', 'location.view', 'notifications.view', 'operations.queue.view', 'reports.view'],
+  customer: ['appointment.cancel_own', 'appointment.create', 'appointment.view_own', 'location.view', 'notifications.view'],
 };
 
 // Dialogs reachable from each page, with the control that opens them. Every one of
@@ -92,7 +98,7 @@ const add = (where, width, rule, detail) => findings.push({ where, width, rule, 
 // belong to the page, not to a 560px panel floating above it.
 function collect(scope) {
   const root = scope ? document.querySelector(scope) : document;
-  const out = { clipped: [], smallTargets: [], ctlHeights: [], rawTimestamps: [], rowFill: [], kpi: [], gaps: [], overflowX: 0, labelStyles: [], cutOff: [], rowUneven: [], modal: [], collapsed: [] };
+  const out = { clipped: [], smallTargets: [], ctlHeights: [], rawTimestamps: [], blockTextCut: [], hiddenButShown: [], rowFill: [], kpi: [], gaps: [], overflowX: 0, labelStyles: [], cutOff: [], rowUneven: [], modal: [], collapsed: [] };
   if (!root) return out;
   const vis = el => el.offsetParent !== null || getComputedStyle(el).position === 'fixed';
 
@@ -162,6 +168,38 @@ function collect(scope) {
     if (!host || !vis(host) || host.closest('script,style')) continue;
     out.rawTimestamps.push({ text: text.slice(0, 48), sel: host.className || host.tagName });
   }
+
+  // An element the page has hidden that is still on screen. A component that sets
+  // its own `display` beats the browser's [hidden] rule at equal specificity, so
+  // `element.hidden = true` can silently do nothing — which is how the Add user
+  // dialog showed a Coordinator the customer-only fields.
+  root.querySelectorAll('[hidden]').forEach(el => {
+    if (el.getClientRects().length === 0) return;
+    out.hiddenButShown.push({ sel: el.className || el.tagName, text: (el.textContent || '').trim().slice(0, 40) });
+  });
+
+  // A timeline block showing half a line of text. The generic clipping rules
+  // cannot see this: the block hides its overflow, so a partly-drawn last line
+  // reports no scroll and no overflow anywhere. Two things have to hold — every
+  // line's box sits inside the block, and where text is being hidden, the box
+  // that hides it is a whole number of lines tall, so the reader either gets the
+  // line or does not see it started.
+  root.querySelectorAll('.tlb').forEach(block => {
+    if (!vis(block)) return;
+    const blockStyle = getComputedStyle(block);
+    const floor = block.getBoundingClientRect().bottom - parseFloat(blockStyle.paddingBottom || 0);
+    for (const line of block.children) {
+      const style = getComputedStyle(line);
+      if (style.display === 'none') continue;
+      const label = (line.textContent || '').trim().slice(0, 36);
+      const past = Math.round(line.getBoundingClientRect().bottom - floor);
+      if (past > 1) { out.blockTextCut.push({ over: past, text: label, sel: line.className, why: 'sits past the bottom of its block' }); continue; }
+      const lineHeight = parseFloat(style.lineHeight);
+      if (!(lineHeight > 0) || line.scrollHeight <= line.clientHeight + 1) continue;
+      const spare = line.clientHeight % lineHeight;
+      if (spare > 1 && lineHeight - spare > 1) out.blockTextCut.push({ over: Math.round(spare), text: label, sel: line.className, why: 'is cut mid-line' });
+    }
+  });
 
   // Controls sitting side by side must be the same height and sit on the same
   // baseline. A label that wraps to two lines silently makes its field taller.
@@ -346,7 +384,7 @@ for (const name of PAGES) {
     // a clean result — a silent boot failure once made this whole job pass empty.
     const rendered = await page.evaluate(() => {
       const root = document.querySelector('.page');
-      return { has: Boolean(root), controls: document.querySelectorAll('.page .btn,.page .input,.page .select,.page td').length };
+      return { has: Boolean(root), controls: document.querySelectorAll('.page .btn,.page .input,.page .select,.page td,.page .setnav button').length };
     });
     if (!rendered.has || rendered.controls < 3) {
       add(name, width, 'page-did-not-render', rendered.has ? `.page holds ${rendered.controls} controls` : 'no .page element — the app never booted');
@@ -481,6 +519,8 @@ function report(where, width, result) {
   for (const t of [...new Map(result.smallTargets.map(t => [t.sel + t.h, t])).values()].slice(0, 6)) add(where, width, 'hit-target-too-small', `"${t.text}" is ${t.h}px tall (${t.sel})`);
   for (const c of [...new Map(result.ctlHeights.map(c => [c.sel + c.h, c])).values()].slice(0, 6)) add(where, width, 'control-height-differs', `"${c.text}" is ${c.h}px tall, every control is ${c.want}px (${c.sel})`);
   for (const t of [...new Map(result.rawTimestamps.map(t => [t.text, t])).values()].slice(0, 4)) add(where, width, 'raw-timestamp-on-screen', `"${t.text}" (${t.sel})`);
+  for (const h of [...new Map(result.hiddenButShown.map(h => [h.sel, h])).values()].slice(0, 5)) add(where, width, 'hidden-element-still-visible', `.${h.sel} is marked hidden but still drawn — "${h.text}"`);
+  for (const c of [...new Map(result.blockTextCut.map(c => [c.sel + c.why, c])).values()].slice(0, 5)) add(where, width, 'appointment-details-cut-off', `"${c.text}" ${c.why} by ${c.over}px (${c.sel})`);
   for (const u of result.rowUneven.slice(0, 4)) add(where, width, 'side-by-side-heights-differ', `${u.spread}px apart — ${u.boxes.join(', ')}`);
   for (const r of result.rowFill.slice(0, 4)) add(where, width, 'form-row-leaves-dead-space', `${r.unused}px unused of ${r.rowWidth}px across ${r.fields} fields`);
   for (const k of result.kpi.slice(0, 4)) add(where, width, 'kpi-strip', `${k.issue} ${JSON.stringify(k.widths || k.heights || k.unused)}`);

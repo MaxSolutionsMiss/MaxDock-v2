@@ -41,7 +41,10 @@ function labelEvery(spanMinutes, granularity) {
 }
 
 // lanes: [{ id, name, note }]
-// blocks: [{ laneId, startMin, endMin, tone, title, subtitle, meta, attrs }]
+// blocks: [{ laneId, startMin, endMin, tone, title, subtitle, meta, note, attrs }]
+// `meta` and `note` are two separate lines on purpose. Run together they competed
+// for one narrow line and the tail — the skid count, the status — was the part
+// that got dropped, which is the part an operator is looking for.
 export function renderTimeline({ lanes, blocks, windowStart, windowEnd, granularity = 30, emptyLabel = 'Open' }) {
   const span = Math.max(60, windowEnd - windowStart);
   const step = labelEvery(span, granularity);
@@ -85,6 +88,7 @@ export function renderTimeline({ lanes, blocks, windowStart, windowEnd, granular
           <span class="tlb__time">${clockLabel(block.startMin)}–${clockLabel(block.endMin)}</span>
           <span class="tlb__title">${escapeHtml(block.title)}</span>
           <span class="tlb__meta">${escapeHtml(block.meta || '')}</span>
+          ${block.note ? `<span class="tlb__note">${escapeHtml(block.note)}</span>` : ''}
         </article>`;
       }).join('')
       : `<span class="tl__idle">${escapeHtml(emptyLabel)}</span>`;

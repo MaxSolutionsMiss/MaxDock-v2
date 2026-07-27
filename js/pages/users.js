@@ -105,9 +105,9 @@ function renderTable() {
       <td class="data">${escapeHtml(user.username)}</td>
       <td class="data">${escapeHtml(user.email)}</td>
       <td><span class="tag tag--quiet">${escapeHtml(user.role_name)}</span></td>
-      <td class="data">${(user.location_names || []).join(', ') || (user.role_code === 'system_admin' ? 'All' : '—')}</td>
       <td>${statusTag}</td>
       <td class="data">${escapeHtml(lastSeen)}</td>
+      <td class="data cell-wrap">${(user.location_names || []).join(', ') || (user.role_code === 'system_admin' ? 'All' : '—')}</td>
       <td><button class="btn btn--quiet btn--sm" type="button" data-edit-user="${user.user_id}">Edit</button></td>
     </tr>`;
   }).join('') || '<tr><td colspan="9" class="data">No users match these filters.</td></tr>';
@@ -176,6 +176,7 @@ function openAddModal() {
   const form = state.elements.addForm;
   form.reset();
   state.elements.addResult.hidden = true;
+  state.elements.addResultFoot.hidden = true;
   form.hidden = false;
   state.elements.addFoot.hidden = false;
   form.elements.role_code.innerHTML = roleOptions('coordinator');
@@ -218,6 +219,7 @@ async function submitAddUser(event) {
     form.hidden = true;
     state.elements.addFoot.hidden = true;
     state.elements.addResult.hidden = false;
+    state.elements.addResultFoot.hidden = false;
     state.elements.addResult.innerHTML = result.invitationLink
       ? `<p class="form-message form-message--success">Invitation link created for ${escapeHtml(result.user?.email || '')}.</p>
          <label class="field field--full"><span class="field__label">Invitation link</span><input class="input" readonly value="${escapeHtml(result.invitationLink)}"></label>
@@ -372,13 +374,16 @@ function exportCsv() {
 function buildShell(root) {
   const canAdd = state.isSystemAdmin;
   root.innerHTML = `
-    ${pageHead('Users', { actions: [['addUser', canAdd]] })}
+    ${pageHead('Users', { actions: ['export', 'print'] })}
     ${controlsBar({
       label: 'User controls',
-      lead: '<input class="input input--search" type="search" placeholder="Search name, username or email" data-search aria-label="Search users">',
-      filters: `<div class="ctrl-field"><label>Role</label><select class="select" data-role-filter></select></div>
-      <div class="ctrl-field"><label>Location</label><select class="select" data-location-filter></select></div>`,
-      actions: ['export', 'print'],
+      // Role, then Location, then the search box — the same left-to-right order
+      // the page is read in — and Add user at the far right of the band, where
+      // every other page keeps its primary action.
+      filters: `<div class="ctrl-field"><label for="user-role">Role</label><select class="select" id="user-role" data-role-filter></select></div>
+      <div class="ctrl-field"><label for="user-location">Location</label><select class="select" id="user-location" data-location-filter></select></div>
+      <div class="ctrl-field ctrl-field--grow"><label for="user-search">Search</label><input class="input" type="search" id="user-search" placeholder="Name, username or email" data-search></div>`,
+      trailing: [['addUser', canAdd]],
     })}
     <div class="panel panel--fill">
       <div class="panel__head"><h3 class="panel__title">People</h3><div class="panel__actions"><span class="sub" data-count></span></div></div>
@@ -388,7 +393,7 @@ function buildShell(root) {
         <button class="btn btn--quiet btn--sm" type="button" data-bulk-deactivate>Deactivate</button>
         <button class="text-link" type="button" data-bulk-clear style="margin-left:auto">Clear selection</button>
       </div>
-      <div class="panel__scroll"><table class="table"><thead><tr><th><label class="cellcheck"><input type="checkbox" data-select-all aria-label="Select all users"></label></th><th>Name</th><th>Username</th><th>Email</th><th>Role</th><th>Locations</th><th>Status</th><th>Last seen</th><th></th></tr></thead><tbody data-rows></tbody></table></div>
+      <div class="panel__scroll"><table class="table"><thead><tr><th><label class="cellcheck"><input type="checkbox" data-select-all aria-label="Select all users"></label></th><th>Name</th><th>Username</th><th>Email</th><th>Role</th><th>Status</th><th>Last seen</th><th>Locations</th><th class="col-fill"></th></tr></thead><tbody data-rows></tbody></table></div>
     </div>
     <div class="scrim" data-add-backdrop hidden aria-hidden="true">
       <section class="modal" role="dialog" aria-modal="true" aria-labelledby="add-user-title">
@@ -421,7 +426,7 @@ function buildShell(root) {
           <div class="modal__foot" data-add-foot><button class="btn btn--quiet" type="button" data-close-add>Cancel</button><button class="btn btn--primary" type="submit">Create account</button></div>
         </form>
         <div class="modal__body" data-add-result hidden></div>
-        <div class="modal__foot"><button class="btn btn--primary" type="button" data-close-add style="margin-left:auto">Done</button></div>
+        <div class="modal__foot" data-add-result-foot hidden><button class="btn btn--primary" type="button" data-close-add style="margin-left:auto">Done</button></div>
       </section>
     </div>
     <div class="scrim" data-edit-backdrop hidden aria-hidden="true">
@@ -471,6 +476,7 @@ function buildShell(root) {
     addForm: root.querySelector('[data-add-form]'),
     addFoot: root.querySelector('[data-add-foot]'),
     addResult: root.querySelector('[data-add-result]'),
+    addResultFoot: root.querySelector('[data-add-result-foot]'),
     editBackdrop: root.querySelector('[data-edit-backdrop]'),
     editForm: root.querySelector('[data-edit-form]'),
     editTitle: root.querySelector('[data-edit-title]'),
