@@ -46,8 +46,29 @@ async function fetchAll() {
   state.roles = roles || [];
 }
 
+const EXTERNAL_PARTY_TYPES = ['Customer', 'Vendor'];
+
+function roleChoices() {
+  return state.roles.flatMap(role => (role.code === 'customer'
+    ? EXTERNAL_PARTY_TYPES.map(party => ({ value: `customer:${party}`, label: party }))
+    : [{ value: role.code, label: role.name }]));
+}
+
+function roleValue(user) {
+  return user.role_code === 'customer' ? `customer:${user.external_party_type || 'Customer'}` : user.role_code;
+}
+
+function splitRoleValue(value) {
+  const [code, party] = String(value || '').split(':');
+  return { roleCode: code, partyType: code === 'customer' ? (party || 'Customer') : null };
+}
+
+function roleLabel(user) {
+  return user.role_code === 'customer' ? (user.external_party_type || 'Customer') : user.role_name;
+}
+
 function roleOptions(selected) {
-  return state.roles.map(role => `<option value="${role.code}" ${role.code === selected ? 'selected' : ''}>${escapeHtml(role.name)}</option>`).join('');
+  return roleChoices().map(choice => `<option value="${choice.value}" ${choice.value === selected ? 'selected' : ''}>${escapeHtml(choice.label)}</option>`).join('');
 }
 
 function locationChecks(checkedIds) {
@@ -59,7 +80,7 @@ function filteredUsers() {
   const { role, location, search } = state.filters;
   const term = search.trim().toLowerCase();
   return state.users.filter(user => {
-    if (role !== 'all' && user.role_code !== role) return false;
+    if (role !== 'all' && roleValue(user) !== role) return false;
     if (location !== 'all' && !(user.location_ids || []).includes(location)) return false;
     if (term && !`${user.full_name} ${user.email} ${user.username}`.toLowerCase().includes(term)) return false;
     return true;
@@ -104,7 +125,7 @@ function renderTable() {
       <td class="data--strong">${escapeHtml(user.full_name)}</td>
       <td class="data">${escapeHtml(user.username)}</td>
       <td class="data">${escapeHtml(user.email)}</td>
-      <td><span class="tag tag--quiet">${escapeHtml(user.role_name)}</span></td>
+      <td><span class="tag tag--quiet">${escapeHtml(roleLabel(user))}</span></td>
       <td>${statusTag}</td>
       <td class="data">${escapeHtml(lastSeen)}</td>
       <td class="data cell-elide" title="${escapeHtml((user.location_names || []).join(', '))}">${(user.location_names || []).join(', ') || (user.role_code === 'system_admin' ? 'All' : '—')}</td>
@@ -150,18 +171,18 @@ async function applyBulkStatus(makeActive) {
 }
 
 function renderFilters() {
-  state.elements.roleFilter.innerHTML = `<option value="all">All roles</option>${state.roles.map(role => `<option value="${role.code}">${escapeHtml(role.name)}</option>`).join('')}`;
+  state.elements.roleFilter.innerHTML = `<option value="all">All roles</option>${roleChoices().map(choice => `<option value="${choice.value}">${escapeHtml(choice.label)}</option>`).join('')}`;
   state.elements.locationFilter.innerHTML = `<option value="all">All locations</option>${state.context.locations.map(location => `<option value="${location.id}">${escapeHtml(location.name)}</option>`).join('')}`;
 }
 
 function toggleCustomerFields(form) {
-  const isCustomer = form.elements.role_code.value === 'customer';
+  const isCustomer = splitRoleValue(form.elements.role_code.value).roleCode === 'customer';
   form.querySelector('[data-customer-fields]').hidden = !isCustomer;
   form.querySelectorAll('[data-customer-fields] [name]').forEach(input => { input.required = isCustomer; });
 }
 
 function toggleLocationRequired(form) {
-  const isSystemAdmin = form.elements.role_code.value === 'system_admin';
+  const isSystemAdmin = splitRoleValue(form.elements.role_code.value).roleCode === 'system_admin';
   form.querySelector('[data-location-fields]').hidden = isSystemAdmin;
 }
 
@@ -193,7 +214,7 @@ async function submitAddUser(event) {
   const form = event.target;
   const submit = form.querySelector('[type="submit"]');
   const method = form.querySelector('input[name="account_method"]:checked').value;
-  const roleCode = form.elements.role_code.value;
+  const { roleCode, partyType } = splitRoleValue(form.elements.role_code.value);
   const locationIds = [...form.querySelectorAll('input[name="location_id"]:checked')].map(input => input.value);
   if (roleCode !== 'system_admin' && !locationIds.length) {
     toast('Select at least one location.', 'error');
@@ -206,7 +227,7 @@ async function submitAddUser(event) {
       username: form.elements.username.value.trim(),
       fullName: form.elements.full_name.value.trim(),
       roleCode,
-      externalPartyType: form.elements.external_party_type?.value || '',
+      externalPartyType: partyType || '',
       organizationName: form.elements.organization_name?.value || '',
       locationIds,
       email: method === 'invite' ? form.elements.email.value.trim() : form.elements.contact_email.value.trim(),
@@ -246,12 +267,11 @@ function openEditModal(userId) {
   state.elements.editSub.textContent = `${user.username} · ${user.email}`;
   form.elements.full_name.value = user.full_name;
   form.elements.username.value = user.username;
-  form.elements.role_code.innerHTML = roleOptions(user.role_code);
+  form.elements.role_code.innerHTML = roleOptions(roleValue(user));
   form.querySelector('[data-location-fields] [data-checks]').innerHTML = locationChecks(user.location_ids);
   const activeSwitch = form.querySelector('[data-active-switch]');
   activeSwitch.classList.toggle('switch--off', !user.is_active);
   activeSwitch.setAttribute('aria-pressed', String(user.is_active));
-  form.elements.external_party_type && (form.elements.external_party_type.value = user.external_party_type || 'Customer');
   form.elements.organization_name && (form.elements.organization_name.value = user.organization_name || '');
   toggleCustomerFields(form);
   toggleLocationRequired(form);
@@ -268,7 +288,7 @@ async function submitEditUser(event) {
   const form = event.target;
   const submit = form.querySelector('[type="submit"]');
   const userId = state.editingUserId;
-  const roleCode = form.elements.role_code.value;
+  const { roleCode, partyType } = splitRoleValue(form.elements.role_code.value);
   const locationIds = [...form.querySelectorAll('input[name="location_id"]:checked')].map(input => input.value);
   const isActive = form.querySelector('[data-active-switch]').getAttribute('aria-pressed') === 'true';
   if (roleCode !== 'system_admin' && !locationIds.length) {
@@ -283,7 +303,7 @@ async function submitEditUser(event) {
       p_role_code: roleCode,
       p_is_active: isActive,
       p_location_ids: locationIds,
-      p_external_party_type: roleCode === 'customer' ? form.elements.external_party_type.value : null,
+      p_external_party_type: partyType,
       p_organization_name: roleCode === 'customer' ? form.elements.organization_name.value.trim() : null,
     }, { key: `users:update:${userId}:${crypto.randomUUID()}`, retry: 0 });
     db.invalidate('users:list');
@@ -406,8 +426,7 @@ function buildShell(root) {
               <label class="field field--md"><span class="field__label">Role</span><select class="select" name="role_code" data-role-select required></select></label>
             </div>
             <div data-customer-fields class="frow">
-              <label class="field field--md"><span class="field__label">Account type</span><select class="select" name="external_party_type"><option value="Customer">Customer</option><option value="Vendor">Vendor</option></select></label>
-              <label class="field field--xl"><span class="field__label">Company name</span><input class="input" name="organization_name" maxlength="120"></label>
+              <label class="field field--lg"><span class="field__label">Company name</span><input class="input" name="organization_name" maxlength="120"></label>
             </div>
             <fieldset class="dock-checks" data-location-fields><legend>Location access</legend><div data-checks></div></fieldset>
             <fieldset class="dock-checks dock-checks--roomy">
@@ -439,8 +458,7 @@ function buildShell(root) {
               <label class="field field--lg"><span class="field__label">Role</span><select class="select" name="role_code" data-self-locked required></select></label>
             </div>
             <div data-customer-fields class="frow">
-              <label class="field field--md"><span class="field__label">Account type</span><select class="select" name="external_party_type"><option value="Customer">Customer</option><option value="Vendor">Vendor</option></select></label>
-              <label class="field field--xl"><span class="field__label">Company name</span><input class="input" name="organization_name" maxlength="120"></label>
+              <label class="field field--lg"><span class="field__label">Company name</span><input class="input" name="organization_name" maxlength="120"></label>
             </div>
             <fieldset class="dock-checks" data-location-fields><legend>Location access</legend><div data-checks></div></fieldset>
             <div class="setrow"><div><div class="setrow__t">Active</div><div class="setrow__d">Inactive accounts cannot sign in</div></div><button type="button" class="switch" data-active-switch data-self-locked aria-label="Active"></button></div>

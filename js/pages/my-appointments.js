@@ -173,7 +173,14 @@ function createAppointmentCard(record) {
   const location = createElement('h3', 'appointment-card__title');
   identity.append(reference, location);
   const status = createElement('span', 'status');
-  head.append(identity, status);
+  const actions = createElement('div', 'appointment-card__actions');
+  const copy = createElement('button', 'btn btn--quiet btn--sm', 'Copy');
+  copy.type = 'button';
+  copy.title = 'Copy confirmation';
+  const cancel = createElement('button', 'btn btn--danger btn--sm', 'Cancel');
+  cancel.type = 'button';
+  actions.append(copy, cancel);
+  head.append(identity, status, actions);
 
   const when = createElement('p', 'appointment-card__time');
   const details = createElement('div', 'appointment-card__details');
@@ -189,14 +196,8 @@ function createAppointmentCard(record) {
   ].map(([key, label]) => ({ key, ...createDetail(label) }));
   details.append(...detailRefs.map(detail => detail.element));
 
-  const actions = createElement('div', 'appointment-card__actions');
-  const copy = createElement('button', 'btn btn--quiet', 'Copy confirmation');
-  copy.type = 'button';
   copy.addEventListener('click', () => copyConfirmation(currentRecord));
-  const cancel = createElement('button', 'btn btn--danger', 'Cancel appointment');
-  cancel.type = 'button';
   cancel.addEventListener('click', () => openCancelModal(currentRecord, cancel));
-  actions.append(copy, cancel);
 
   function update(nextRecord) {
     currentRecord = nextRecord;
@@ -217,7 +218,7 @@ function createAppointmentCard(record) {
     cancel.hidden = !(activeContext?.can('appointment.cancel_own') && CANCELLABLE_STATUSES.has(nextStatus) && isUpcoming(nextRecord));
   }
 
-  element.append(head, when, details, actions);
+  element.append(head, when, details);
   update(record);
   return Object.freeze({ element, update, destroy: () => element.remove() });
 }

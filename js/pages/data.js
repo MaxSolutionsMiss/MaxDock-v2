@@ -52,17 +52,17 @@ function renderConnections() {
     <h3 class="card__title">Connections</h3>
     <div class="integ">
       <span class="integ__ico">MIS</span>
-      <div><div class="integ__name">MIS inventory feed</div><div class="integ__meta">${enabled ? `Enabled · last import ${escapeHtml(lastSuccess)}` : 'Not enabled'}</div></div>
-      <span class="integ__st">${enabled ? '<span class="tag tag--ok">Enabled</span>' : '<span class="tag tag--quiet">Off</span>'}</span>
+      <div><div class="integ__name">MIS inventory feed</div><div class="integ__meta">${enabled ? `Last import ${escapeHtml(lastSuccess)}` : 'Not enabled'}</div></div>
+      <span class="integ__st"><button type="button" class="switch ${enabled ? '' : 'switch--off'}" data-feed-switch aria-pressed="${Boolean(enabled)}" aria-label="MIS inventory feed enabled"></button></span>
     </div>
     <div class="integ">
       <span class="integ__ico">@</span>
-      <div><div class="integ__name">Transactional email</div><div class="integ__meta">No provider connected — invitation links and confirmations are delivered by copying a link or opening a mailto draft</div></div>
+      <div><div class="integ__name">Transactional email</div><div class="integ__meta">No provider connected</div></div>
       <span class="integ__st"><span class="tag tag--stop">Not configured</span></span>
     </div>
     <div class="integ">
       <span class="integ__ico">QR</span>
-      <div><div class="integ__name">Check-in codes</div><div class="integ__meta">Generated locally in the browser, no third-party service — a dedicated scan-in verification page has not been built yet</div></div>
+      <div><div class="integ__name">Check-in codes</div><div class="integ__meta">Generated in the browser</div></div>
       <span class="integ__st"><span class="tag tag--quiet">Partial</span></span>
     </div>
   </div>`;
@@ -99,10 +99,9 @@ function renderMisForm() {
 }
 
 function renderImport() {
-  const codes = state.locations.map(location => `${location.code} (${location.name})`).join(', ');
   return `<div class="card">
     <h3 class="card__title">Inventory snapshot import<button class="btn btn--quiet btn--sm" type="button" data-download-template">Download CSV template</button></h3>
-    <p class="hint hint--measure">Columns: <code>location_code, snapshot_at, occupied_skids, total_skid_capacity, reserve_skids, notes</code>. Location codes: ${escapeHtml(codes)}. Up to 1,000 rows per import.</p>
+    <p class="hint">Up to 1,000 rows. Download the template for the column names and location codes.</p>
     <div class="inline-controls">
       <label class="field"><span class="field__label">CSV file</span><input class="input" type="file" accept=".csv,text/csv" data-import-file></label>
       <button class="btn btn--primary" type="button" data-run-import>Run import now</button>
@@ -201,6 +200,29 @@ async function runImport() {
   }
 }
 
+async function setFeedEnabled(enabled) {
+  const previous = state.settings;
+  try {
+    state.settings = await db.rpc('admin_save_mis_integration_settings', {
+      p_database_type: previous.database_type,
+      p_server_name: previous.server_name || null,
+      p_server_port: previous.server_port ?? null,
+      p_database_name: previous.database_name || null,
+      p_source_name: previous.source_name || null,
+      p_sync_mode: previous.sync_mode,
+      p_daily_sync_time: previous.daily_sync_time,
+      p_is_enabled: enabled,
+      p_credential_secret_name: previous.credential_secret_name || null,
+    }, { key: `data:feed:${crypto.randomUUID()}`, retry: 0 });
+    render();
+    toast(`MIS inventory feed ${enabled ? 'enabled' : 'turned off'}.`, 'success');
+  } catch (error) {
+    state.settings = previous;
+    render();
+    toast(error.userMessage || error.message || 'The MIS feed could not be changed.', 'error');
+  }
+}
+
 async function saveMisSettings(event) {
   event.preventDefault();
   const form = event.target;
@@ -237,6 +259,11 @@ function wireEvents(root) {
     if (section) { state.section = section.dataset.section; render(); return; }
     if (event.target.closest('[data-run-import]')) { runImport(); return; }
     if (event.target.closest('[data-download-template]')) { downloadTemplate(); return; }
+    const feedSwitch = event.target.closest('[data-feed-switch]');
+    if (feedSwitch && !feedSwitch.disabled) {
+      setFeedEnabled(feedSwitch.getAttribute('aria-pressed') !== 'true');
+      return;
+    }
     const toggle = event.target.closest('.switch');
     if (toggle && !toggle.disabled) {
       const off = toggle.classList.toggle('switch--off');

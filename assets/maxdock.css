@@ -54,6 +54,7 @@ body{background:var(--ground);color:var(--ink);font-family:var(--font-ui);font-s
 .top__date{font-family:var(--font-data);font-size:var(--t-small);color:var(--ink-muted);white-space:nowrap}
 .top__spacer{flex:1}
 .seg{display:inline-flex;border:1px solid var(--rule-strong);border-radius:var(--radius);overflow:hidden;background:var(--surface)}
+.controls__lead>.btn+.seg{margin-left:var(--s3);padding-left:var(--s4);border-left:1px solid var(--rule)}
 .seg button{font-family:inherit;font-size:var(--t-small);font-weight:600;border:none;background:transparent;color:var(--ink-muted);min-height:var(--ctl-h);height:var(--ctl-h);padding:0 10px;cursor:pointer;border-right:1px solid var(--rule)}
 .seg button:last-child{border-right:none}
 .seg button[aria-pressed="true"]{background:var(--dock);color:#fff}
@@ -194,11 +195,11 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
    the block can ask for: the clock, two lines of company name, two of detail.
    Derived from the type tokens rather than a magic number, so it still holds when
    the reader turns the text size up. */
-.tl{display:flex;flex-direction:column;min-height:0;height:100%;--tl-label:clamp(96px,9vw,150px);--tl-line:calc(var(--t-base) * 1.35);--tl-lines:5;--tl-row:calc(var(--tl-line) * var(--tl-lines) + 14px)}
+.tl{display:flex;flex-direction:column;min-height:0;height:100%;--tl-label:clamp(110px,10vw,190px);--tl-type:clamp(var(--t-base), .95vw, calc(var(--t-base) * 1.7));--tl-line:calc(var(--tl-type) * 1.35);--tl-lines:5;--tl-row:calc(var(--tl-line) * var(--tl-lines) + 14px)}
 .tl__ruler{display:grid;grid-template-columns:var(--tl-label) minmax(0,1fr);border-bottom:1px solid var(--rule-strong);background:var(--surface-sunk);flex:none}
 .tl__corner{padding:6px var(--s3);font-size:var(--t-micro);text-transform:uppercase;letter-spacing:.07em;color:var(--ink-muted);font-weight:600;border-right:1px solid var(--rule-strong);display:flex;align-items:center}
 .tl__scale{position:relative;height:26px}
-.tl__scale .tl__tick{top:0;height:100%;display:flex;align-items:center;padding-left:4px;font-size:var(--t-small);color:var(--ink-muted);font-variant-numeric:tabular-nums;white-space:nowrap}
+.tl__scale .tl__tick{top:0;height:100%;display:flex;align-items:center;padding-left:4px;font-size:calc(var(--tl-type) * .9);color:var(--ink-muted);font-variant-numeric:tabular-nums;white-space:nowrap}
 .tl__lanes{flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column}
 /* Lanes take the height they need, then share whatever is left over rather than
    leaving half the panel blank — a five-dock board used to draw a short strip of
@@ -207,8 +208,8 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 .tl__lane{display:grid;grid-template-columns:var(--tl-label) minmax(0,1fr);border-bottom:1px solid var(--rule);flex:var(--rows,1) 1 auto;min-height:calc(var(--tl-row) * var(--rows,1));max-height:calc(var(--tl-row) * var(--rows,1) * 2)}
 .tl__lane:last-child{border-bottom:none}
 .tl__label{padding:6px var(--s3);border-right:1px solid var(--rule-strong);background:var(--surface-sunk);display:flex;flex-direction:column;justify-content:center;min-width:0}
-.tl__label strong{font-size:var(--t-base);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.tl__label small{font-size:var(--t-small);color:var(--ink-faint)}
+.tl__label strong{font-size:calc(var(--tl-type) * 1.05);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tl__label small{font-size:calc(var(--tl-type) * .85);color:var(--ink-faint)}
 .tl__track{position:relative;min-width:0;overflow:hidden}
 .tl__tick{position:absolute;top:0;bottom:0;width:1px;background:var(--rule)}
 .tl__tick--major{background:var(--rule-strong)}
@@ -221,12 +222,12 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
    as space rather than tempting a partial row. */
 .tlb{position:absolute;border-radius:4px;border-left:3px solid;padding:3px 6px;overflow:hidden;cursor:pointer;display:grid;grid-auto-rows:var(--tl-line);align-content:start;line-height:var(--tl-line);min-width:10px}
 .tlb>*{min-width:0;overflow:hidden;display:-webkit-box;-webkit-box-orient:vertical;overflow-wrap:anywhere}
-.tlb__time{font-size:var(--t-small);font-weight:700;font-variant-numeric:tabular-nums;-webkit-line-clamp:1}
+.tlb__time{font-size:calc(var(--tl-type) * .92);font-weight:700;font-variant-numeric:tabular-nums;-webkit-line-clamp:1}
 /* The company name is what an operator reads off the board, so it gets two lines
    before it gives up rather than being cut after eight characters. */
-.tlb__title{font-size:var(--t-base);font-weight:600;grid-row:span 2;-webkit-line-clamp:2}
-.tlb__meta{font-size:var(--t-small);color:var(--ink-muted);grid-row:span 1;-webkit-line-clamp:1}
-.tlb__note{font-size:var(--t-small);color:var(--ink-muted);grid-row:span 1;-webkit-line-clamp:1}
+.tlb__title{font-size:var(--tl-type);font-weight:600;grid-row:span 2;-webkit-line-clamp:2}
+.tlb__meta{font-size:calc(var(--tl-type) * .88);color:var(--ink-muted);grid-row:span 1;-webkit-line-clamp:1}
+.tlb__note{font-size:calc(var(--tl-type) * .88);color:var(--ink-muted);grid-row:span 1;-webkit-line-clamp:1}
 .tlb--in{background:var(--dock-wash);border-left-color:var(--dock)}
 .tlb--out{background:var(--ok-wash);border-left-color:var(--ok)}
 .tlb--pri{background:var(--signal-wash);border-left-color:var(--signal)}
@@ -402,12 +403,12 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 .trend__col .trend__bar:last-child{border-radius:0 0 2px 2px}
 .trend__col .trend__bar:only-child{border-radius:2px 2px 0 0}
 .trend__axis{display:flex;justify-content:space-between;gap:var(--s2);font-size:var(--t-micro);color:var(--ink-faint);white-space:nowrap;font-variant-numeric:tabular-nums}
-.setlayout{display:grid;grid-template-columns:200px minmax(0,1fr);gap:var(--s4);align-items:start}
+.setlayout{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:var(--s4);align-items:start}
 .setnav{display:flex;flex-direction:column;gap:2px;background:var(--surface);border:1px solid var(--rule);border-radius:var(--radius-lg);padding:var(--s2);align-self:start}
-.setnav button{font-family:inherit;text-align:left;font-size:var(--t-base);color:var(--ink-muted);background:none;border:none;border-radius:var(--radius);padding:10px var(--s3);cursor:pointer}
+.setnav button{font-family:inherit;text-align:left;font-size:var(--t-base);color:var(--ink-muted);background:none;border:none;border-radius:var(--radius);padding:8px var(--s3);cursor:pointer;white-space:nowrap}
 .setnav button:hover{background:var(--surface-sunk);color:var(--ink)}
 .setnav button[aria-current="true"]{background:var(--dock-wash);color:var(--dock-deep);font-weight:600}
-.setpanel{min-width:0}
+.setpanel{min-width:0;max-width:1040px}
 .card{background:var(--surface);border:1px solid var(--rule);border-radius:var(--radius-lg);padding:var(--s4)}
 /* One vertical rhythm inside cards, dialogs and wizard steps. A .frow spaces its
    own children but carried no margin of its own, so two stacked rows read as a
@@ -634,11 +635,11 @@ body.modal-open{overflow:hidden}
    the card feel busy and put text where the eye was looking for the button. */
 .login-card__title{margin:var(--s3) 0 0;font-size:var(--t-lead);font-weight:600}
 .login-card__intro{margin:var(--s1) 0 var(--s6);color:var(--ink-muted);font-size:var(--t-small)}
-.login-card .field{margin-bottom:var(--s4)}
+.login-card .field{margin-bottom:var(--s3)}
 /* Sits directly under the password field, where someone who cannot get in looks
    for it, rather than below the Sign in button — and centred, so the credentials,
    the way out and the button read as one stack down the middle of the card. */
-.login-forgot{display:flex;justify-content:center;margin:var(--s2) 0 var(--s5)}
+.login-forgot{display:flex;justify-content:center;margin:0 0 var(--s4)}
 .login-divider{display:flex;align-items:center;gap:var(--s3);margin:var(--s5) 0 var(--s3);color:var(--ink-faint);font-size:var(--t-micro);text-transform:uppercase;letter-spacing:.09em}
 .login-divider::before,.login-divider::after{content:"";height:1px;background:var(--rule);flex:1}
 .login-owner{text-align:center}
@@ -668,15 +669,15 @@ body.modal-open{overflow:hidden}
 /* A card is a row of an operational list, not a page. It was three screens tall
    for four values, so a customer scrolled to find the booking they came for. */
 .appointment-card{background:var(--surface);border:1px solid var(--rule);border-radius:var(--radius-lg);padding:var(--s3)}
-.appointment-card__head{display:flex;align-items:flex-start;justify-content:space-between;gap:var(--s3)}
+.appointment-card__head{display:flex;align-items:center;justify-content:space-between;gap:var(--s2);flex-wrap:wrap}
 .appointment-card__reference{margin-bottom:2px;color:var(--dock-deep);font-size:var(--t-small);font-weight:600}
 .appointment-card__title{margin:0;font-size:var(--t-base);font-weight:600}
-.appointment-card__time{margin:2px 0 var(--s2);color:var(--ink-muted);font-size:var(--t-small)}
-.appointment-card__details{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:var(--s1) var(--s4);padding:var(--s2) 0;border-top:1px solid var(--rule);border-bottom:1px solid var(--rule)}
+.appointment-card__time{margin:2px 0 var(--s2);color:var(--ink-muted);font-size:var(--t-small);width:100%}
+.appointment-card__details{display:grid;grid-template-columns:repeat(auto-fit,minmax(96px,1fr));gap:var(--s1) var(--s3);padding:var(--s2) 0 0;border-top:1px solid var(--rule)}
 .appointment-detail{min-width:0;display:grid;gap:2px}
 .appointment-detail__label{color:var(--ink-muted);font-size:var(--t-micro)}
 .appointment-detail__value{overflow-wrap:anywhere}
-.appointment-card__actions{margin-top:var(--s2);display:flex;justify-content:flex-end;gap:var(--s2);flex-wrap:wrap}
+.appointment-card__actions{display:flex;gap:var(--s2);margin-left:auto}
 .status{min-height:28px;padding:4px 9px;border-radius:999px;display:inline-flex;align-items:center;background:var(--surface-sunk);color:var(--ink-muted);font-size:var(--t-micro);font-weight:600;white-space:nowrap}
 .status--scheduled,.status--confirmed{background:var(--dock-wash);color:var(--dock-deep)}
 .status--arrived,.status--in_progress{background:var(--signal-wash);color:var(--signal)}

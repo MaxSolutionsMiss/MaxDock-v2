@@ -87,7 +87,7 @@
   const PERMISSIONS = ROLE?.permissions || ALL_PERMISSIONS;
   const TABLE = {
     profiles: [{ id: UID, username: 'jresa', full_name: 'Javad Resa', contact_email: 'javadresa@maxpkgsolutions.com', role_code: ROLE_CODE, is_active: true, must_change_password: false, organization_name: ROLE_CODE === 'customer' ? 'Haleon' : null, external_party_type: ROLE_CODE === 'customer' ? 'Customer' : null }],
-    roles: [{ code: 'system_admin', name: 'System Admin', rank: 100 }, { code: 'site_admin', name: 'Site Admin', rank: 80 }, { code: 'shipping_manager', name: 'Shipping Manager', rank: 60 }, { code: 'coordinator', name: 'Coordinator', rank: 40 }, { code: 'customer', name: 'Customer', rank: 20 }],
+    roles: [{ code: 'system_admin', name: 'System Admin', rank: 100 }, { code: 'site_admin', name: 'Site Admin', rank: 80 }, { code: 'shipping_manager', name: 'Manager / Supervisor', rank: 60 }, { code: 'coordinator', name: 'Coordinator', rank: 40 }, { code: 'customer', name: 'Customer', rank: 20 }],
     role_permissions: PERMISSIONS.map(permission_code => ({ permission_code, role_code: ROLE_CODE })),
     locations: LOC,
     docks: DOCKS,
@@ -118,7 +118,7 @@
     get_appointment_history: () => [{ event_id: 1, action: 'created', changed_at: iso(6), changed_by_name: 'Javad Resa', summary: 'Appointment booked.', details: {} }],
     admin_list_users_with_identity: () => [
       { user_id: UID, username: 'jresa', full_name: 'Javad Resa', email: 'javadresa@maxpkgsolutions.com', role_code: 'system_admin', role_name: 'System Admin', is_active: true, must_change_password: false, location_ids: ['loc-1'], location_names: ['Pickering'], created_at: iso(6), last_sign_in_at: iso(6), external_party_type: null, organization_name: null },
-      { user_id: 'u2', username: 'mchen', full_name: 'Maria Chen', email: 'mchen@maxpkgsolutions.com', role_code: 'shipping_manager', role_name: 'Shipping Manager', is_active: true, must_change_password: false, location_ids: ['loc-1', 'loc-2', 'loc-3'], location_names: ['Pickering', 'Guelph', 'Mississauga'], created_at: iso(6), last_sign_in_at: iso(7), external_party_type: null, organization_name: null },
+      { user_id: 'u2', username: 'mchen', full_name: 'Maria Chen', email: 'mchen@maxpkgsolutions.com', role_code: 'shipping_manager', role_name: 'Manager / Supervisor', is_active: true, must_change_password: false, location_ids: ['loc-1', 'loc-2', 'loc-3'], location_names: ['Pickering', 'Guelph', 'Mississauga'], created_at: iso(6), last_sign_in_at: iso(7), external_party_type: null, organization_name: null },
       { user_id: 'u3', username: 'haleon.orders', full_name: 'Haleon Oakhill', email: 'orders@haleon.com', role_code: 'customer', role_name: 'Customer', is_active: true, must_change_password: true, location_ids: ['loc-1'], location_names: ['Pickering'], created_at: iso(6), last_sign_in_at: null, external_party_type: 'Customer', organization_name: 'Haleon' },
     ],
     admin_list_user_usage: () => [{ user_id: UID, tracked_logins: 12, active_days: 9, active_days_7: 5, active_days_30: 9, page_views_30: 140, active_seconds_30: 5400, first_activity_at: iso(6), last_activity_at: iso(8) }],

@@ -208,7 +208,7 @@ function renderDocks() {
   }).join('');
 
   return `<div class="card">
-      <h3 class="card__title">Docks${canEditDocks ? '<button class="btn btn--quiet btn--sm" type="button" data-add-dock>Add dock</button>' : ''}</h3>
+      <h3 class="card__title">Docks${canEditDocks ? '<button class="btn btn--primary btn--sm" type="button" data-add-dock>Add dock</button>' : ''}</h3>
       <div class="tablewrap"><table class="table"><thead><tr><th>Dock</th><th>Direction</th><th>Status</th><th class="col-fill">Truck types</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
     </div>
     <div class="card" style="margin-top:var(--s4)">
@@ -327,10 +327,20 @@ async function saveTruckTypes(form) {
   db.invalidate(`settings:location-truck-types:${state.locationId}`);
 }
 
+// Everything on this page applies to whichever site is selected in the top bar.
+// An administrator who works across sites can change the wrong one without ever
+// looking at the picker, so the save names the site and asks first. Single-site
+// accounts have nothing to get wrong and are not interrupted.
+function confirmLocation() {
+  if (state.context.locations.length <= 1) return true;
+  return globalThis.confirm(`Apply these changes to ${state.context.location.name}?`);
+}
+
 async function submitSection(event) {
   event.preventDefault();
   const form = event.target;
   const kind = form.dataset.sectionForm;
+  if (!confirmLocation()) return;
   const submit = form.querySelector('[type="submit"]');
   submit.disabled = true;
   try {
@@ -374,6 +384,7 @@ function openDockModal(dockId) {
 
 async function submitDock(event) {
   event.preventDefault();
+  if (!confirmLocation()) return;
   const form = event.target;
   const submit = form.querySelector('[type="submit"]');
   const name = form.elements.name.value.trim();
