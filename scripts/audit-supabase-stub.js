@@ -143,6 +143,7 @@
     }],
     check_in_appointment: () => ({ appointment_id: 'a2', booking_reference: 'MXD-2026-000141', status: 'arrived', checked_in_at: iso(8), driver_name: 'A. Driver', end_at: iso(9) }),
     settle_due_appointments: () => 0,
+    reschedule_my_appointment: () => ({ appointment_id: 'a4', booking_reference: 'MXD-2026-000143', start_at: iso(11, 0, 3), end_at: iso(12, 0, 3), dock_name: 'Dock 2' }),
     // The booking wizard is only reachable past step 3 if slots come back, so the
     // audit cannot render the time, contact or confirm steps without these.
     list_routed_appointment_slots: () => SLOTS,

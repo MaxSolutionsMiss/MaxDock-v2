@@ -25,6 +25,8 @@ let activeView = 'upcoming';
 let hosts = null;
 let cancelTarget = null;
 let cancelModal = null;
+let moveTarget = null;
+let moveModal = null;
 let interactionCleanup = [];
 let cards = new Map();
 let nextAppointmentSignature = '';
@@ -119,6 +121,44 @@ async function copyConfirmation(record) {
   }
 }
 
+function openMoveModal(record, trigger) {
+  moveTarget = record;
+  const location = { timezone: record.location_timezone };
+  hosts.moveReference.textContent = `${record.booking_reference} · now ${format.timestamp(record.start_at, location)}`;
+  hosts.moveDate.value = format.inputDate(record.start_at, location);
+  hosts.moveDate.min = format.todayInput(location);
+  hosts.moveTime.value = format.inputTime(record.start_at, location);
+  hosts.moveMessage.textContent = '';
+  moveModal.open({ trigger });
+}
+
+function closeMoveModal(options) {
+  moveTarget = null;
+  moveModal?.close(options);
+}
+
+async function confirmMove() {
+  if (!moveTarget) return;
+  const appointmentId = moveTarget.appointment_id;
+  hosts.moveConfirm.disabled = true;
+  hosts.moveMessage.textContent = '';
+  try {
+    const result = await db.rpc('reschedule_my_appointment', {
+      p_appointment_id: appointmentId,
+      p_date: hosts.moveDate.value,
+      p_start_time: hosts.moveTime.value,
+    }, { key: `appointment:move:${appointmentId}:${format.nowEpoch()}`, retry: 0, userMessage: 'The appointment could not be moved.' });
+    db.invalidate('appointments:mine');
+    closeMoveModal({ restoreFocus: false });
+    toast(`${result.booking_reference} moved to ${format.timestamp(result.start_at, { timezone: moveTarget?.location_timezone })}.`, 'success');
+    await refreshData(true);
+  } catch (error) {
+    hosts.moveMessage.textContent = error.userMessage || error.message || 'The appointment could not be moved.';
+  } finally {
+    hosts.moveConfirm.disabled = false;
+  }
+}
+
 function openCancelModal(record, trigger) {
   cancelTarget = record;
   hosts.cancelReference.textContent = record.booking_reference;
@@ -177,9 +217,13 @@ function createAppointmentCard(record) {
   const copy = createElement('button', 'btn btn--quiet btn--sm', 'Copy');
   copy.type = 'button';
   copy.title = 'Copy confirmation';
+  const move = createElement('button', 'btn btn--quiet btn--sm', 'Move');
+  move.type = 'button';
+  move.title = 'Move to another time';
+  move.dataset.moveAppointment = '';
   const cancel = createElement('button', 'btn btn--danger btn--sm', 'Cancel');
   cancel.type = 'button';
-  actions.append(copy, cancel);
+  actions.append(copy, move, cancel);
   head.append(identity, status, actions);
 
   const when = createElement('p', 'appointment-card__time');
@@ -197,6 +241,7 @@ function createAppointmentCard(record) {
   details.append(...detailRefs.map(detail => detail.element));
 
   copy.addEventListener('click', () => copyConfirmation(currentRecord));
+  move.addEventListener('click', () => openMoveModal(currentRecord, move));
   cancel.addEventListener('click', () => openCancelModal(currentRecord, cancel));
 
   function update(nextRecord) {
@@ -215,7 +260,9 @@ function createAppointmentCard(record) {
       detail.value.textContent = detailValue(rawValue);
     }
 
-    cancel.hidden = !(activeContext?.can('appointment.cancel_own') && CANCELLABLE_STATUSES.has(nextStatus) && isUpcoming(nextRecord));
+    const changeable = CANCELLABLE_STATUSES.has(nextStatus) && isUpcoming(nextRecord);
+    cancel.hidden = !(activeContext?.can('appointment.cancel_own') && changeable);
+    move.hidden = !(activeContext?.can('appointment.create') && changeable);
   }
 
   element.append(head, when, details);
@@ -522,7 +569,30 @@ function buildPage(root, context) {
   dialog.append(modalTitle, modalMessage, modalActions);
   cancelBackdrop.append(dialog);
 
-  root.append(head, controlsHost, metrics, split, cancelBackdrop);
+  // Moving a booking rather than cancelling it and losing the slot. The same
+  // rules a new booking passes apply, including this location's minimum notice,
+  // so the answer comes back from the server rather than being guessed here.
+  const moveBackdrop = createElement('div', 'scrim');
+  moveBackdrop.hidden = true;
+  const moveDialog = createElement('section', 'modal');
+  moveDialog.style.width = 'min(460px,100%)';
+  moveDialog.setAttribute('role', 'dialog');
+  moveDialog.setAttribute('aria-modal', 'true');
+  moveDialog.setAttribute('aria-labelledby', 'move-appointment-title');
+  moveDialog.innerHTML = `
+    <div class="modal__head"><div><h2 class="modal__title" id="move-appointment-title">Move this appointment</h2><p class="modal__sub" data-move-reference></p></div><button class="modal__x" type="button" data-move-dismiss aria-label="Close">×</button></div>
+    <div class="modal__body">
+      <div class="frow">
+        <label class="field field--lg"><span class="field__label">New date</span><input class="input" type="date" data-move-date required></label>
+        <label class="field field--lg"><span class="field__label">New start time</span><input class="input" type="time" data-move-time required></label>
+      </div>
+      <p class="hint">The new time has to clear this location's notice period and have a compatible dock free.</p>
+      <p class="form-message" data-move-message aria-live="polite"></p>
+    </div>
+    <div class="modal__foot"><button class="btn btn--quiet" type="button" data-move-dismiss>Keep the current time</button><button class="btn btn--primary" type="button" data-move-confirm>Move appointment</button></div>`;
+  moveBackdrop.append(moveDialog);
+
+  root.append(head, controlsHost, metrics, split, cancelBackdrop, moveBackdrop);
 
   Object.assign(hosts, {
     metrics,
@@ -535,11 +605,26 @@ function buildPage(root, context) {
     cancelReference,
     cancelConfirm,
     cancelDismiss,
+    moveBackdrop,
+    moveReference: moveDialog.querySelector('[data-move-reference]'),
+    moveDate: moveDialog.querySelector('[data-move-date]'),
+    moveTime: moveDialog.querySelector('[data-move-time]'),
+    moveMessage: moveDialog.querySelector('[data-move-message]'),
+    moveConfirm: moveDialog.querySelector('[data-move-confirm]'),
   });
 
   cancelModal = createModal(cancelBackdrop, {
     initialFocus: cancelConfirm,
     onRequestClose: () => closeCancelModal(),
+  });
+
+  moveModal = createModal(moveBackdrop, {
+    initialFocus: hosts.moveDate,
+    onRequestClose: () => closeMoveModal(),
+  });
+  moveBackdrop.addEventListener('click', event => {
+    if (event.target.closest('[data-move-dismiss]')) closeMoveModal();
+    if (event.target.closest('[data-move-confirm]')) confirmMove();
   });
 }
 

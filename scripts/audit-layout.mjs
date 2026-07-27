@@ -66,6 +66,7 @@ const MODALS = {
   queue: [{ name: 'customize', trigger: '[data-customize]' }],
   'my-appointments': [
     { name: 'cancel-appointment', trigger: '.btn--danger' },
+    { name: 'move-appointment', trigger: '[data-move-appointment]' },
     { name: 'book-appointment', trigger: '[data-open-booking]', walkSteps: 5 },
     { name: 'customize', trigger: '[data-customize]' },
   ],
