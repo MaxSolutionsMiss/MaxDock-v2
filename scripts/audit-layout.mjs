@@ -28,8 +28,9 @@ const WIDTHS = FAST ? [1440, 768, 390] : [1440, 1280, 1024, 834, 768, 430, 390];
 const MODAL_WIDTHS = new Set([1440, 1024, 768, 390]);
 // Login is where every user starts and book.html is the standalone booking route a
 // customer is sent to; neither was audited at all until now.
-const PAGES = ['board', 'queue', 'my-appointments', 'settings', 'reports', 'users', 'data', 'book'];
+const PAGES = ['board', 'queue', 'my-appointments', 'settings', 'reports', 'users', 'data', 'book', 'receiving'];
 const ROOT_PAGES = { login: 'index.html' };
+const PAGE_QUERY = { receiving: '?t=00000000-0000-4000-8000-0000000000c0' };
 // The owner's own acceptance gate requires the rail to hold one line at Normal,
 // Large and Larger. Nothing checked that, so every run only ever proved Normal.
 const TEXT_SIZES = ['normal', 'large', 'larger'];
@@ -43,9 +44,9 @@ const TEXT_SIZES = ['normal', 'large', 'larger'];
 // because it is the role most Max Solutions sites are administered under.
 const ROLES = {
   system_admin: null,
-  site_admin: ['ai.insights', 'appointment.assign', 'appointment.cancel', 'appointment.cancel_own', 'appointment.complete', 'appointment.create', 'appointment.update', 'appointment.view', 'appointment.view_own', 'audit.view', 'block.manage', 'dock.manage', 'dock.view', 'location.view', 'notifications.view', 'operations.queue.view', 'reports.view', 'settings.manage', 'settings.view', 'user.manage', 'user.view'],
-  shipping_manager: ['ai.insights', 'appointment.assign', 'appointment.cancel', 'appointment.cancel_own', 'appointment.complete', 'appointment.create', 'appointment.update', 'appointment.view', 'appointment.view_own', 'audit.view', 'block.manage', 'dock.view', 'location.view', 'notifications.view', 'operations.queue.view', 'reports.view', 'settings.view'],
-  coordinator: ['ai.insights', 'appointment.assign', 'appointment.cancel_own', 'appointment.complete', 'appointment.create', 'appointment.update', 'appointment.view', 'appointment.view_own', 'audit.view', 'dock.view', 'location.view', 'notifications.view', 'operations.queue.view', 'reports.view'],
+  site_admin: ['ai.insights', 'appointment.assign', 'appointment.cancel', 'appointment.cancel_own', 'appointment.complete', 'appointment.create', 'appointment.update', 'appointment.view', 'appointment.view_own', 'audit.view', 'block.manage', 'dock.manage', 'dock.view', 'location.view', 'notifications.view', 'operations.queue.view', 'reports.view', 'settings.manage', 'settings.view', 'user.manage', 'user.view', 'appointment.check_in'],
+  shipping_manager: ['ai.insights', 'appointment.assign', 'appointment.cancel', 'appointment.cancel_own', 'appointment.complete', 'appointment.create', 'appointment.update', 'appointment.view', 'appointment.view_own', 'audit.view', 'block.manage', 'dock.view', 'location.view', 'notifications.view', 'operations.queue.view', 'reports.view', 'settings.view', 'appointment.check_in'],
+  coordinator: ['ai.insights', 'appointment.assign', 'appointment.cancel_own', 'appointment.complete', 'appointment.create', 'appointment.update', 'appointment.view', 'appointment.view_own', 'audit.view', 'dock.view', 'location.view', 'notifications.view', 'operations.queue.view', 'reports.view', 'appointment.check_in'],
   customer: ['appointment.cancel_own', 'appointment.create', 'appointment.view_own', 'location.view', 'notifications.view'],
 };
 
@@ -395,7 +396,7 @@ for (const name of PAGES) {
     const page = await context.newPage();
     const errors = [];
     page.on('pageerror', e => errors.push(e.message));
-    await page.goto(`http://127.0.0.1:${PORT}/app/${name}.html`, { waitUntil: 'networkidle' });
+    await page.goto(`http://127.0.0.1:${PORT}/app/${name}.html${PAGE_QUERY[name] || ''}`, { waitUntil: 'networkidle' });
     await page.waitForTimeout(700);
 
     for (const e of errors) add(name, width, 'page-error', e.slice(0, 160));
@@ -508,7 +509,7 @@ for (const textSize of ROLE_TEXT_SIZES) {
       const page = await context.newPage();
       const errors = [];
       page.on('pageerror', e => errors.push(e.message));
-      await page.goto(`http://127.0.0.1:${PORT}/app/${name}.html`, { waitUntil: 'networkidle' });
+      await page.goto(`http://127.0.0.1:${PORT}/app/${name}.html${PAGE_QUERY[name] || ''}`, { waitUntil: 'networkidle' });
       await page.waitForTimeout(600);
       // Set after boot, not in an init script: at document-start there is no
       // documentElement to set it on, and the app writes this attribute itself

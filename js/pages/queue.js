@@ -67,7 +67,11 @@ function normalizeRecord(row) {
 async function fetchQueueData() {
   const locationId = state.context.location.id;
   const day = format.dayOfWeek(state.date);
-  const [scheduleRows, docks, hours, returnLoads] = await Promise.all([
+  const [, scheduleRows, docks, hours, returnLoads] = await Promise.all([
+    // Settle first, so the schedule that comes back already reflects any load whose
+    // booked time has run out. There is no pg_cron on this project, so the screens
+    // that are always open are what move a received truck to complete.
+    db.rpc('settle_due_appointments', { p_location_id: locationId }, { key: `queue:settle:${locationId}`, cache: 0, retry: 0 }).catch(() => 0),
     db.rpc('list_location_schedule', { p_location_id: locationId }, { key: `queue:schedule:${locationId}`, cache: 0, retry: 1 }),
     db.select('docks', q => q.select('id,name,sort_order').eq('location_id', locationId).eq('is_active', true).order('sort_order').order('name'), { key: `queue:docks:${locationId}`, cache: 30000 }),
     db.select('location_operating_hours', q => q.select('is_open,open_time,close_time').eq('location_id', locationId).eq('day_of_week', day).maybeSingle(), { key: `queue:hours:${locationId}:${day}`, cache: 30000 }),

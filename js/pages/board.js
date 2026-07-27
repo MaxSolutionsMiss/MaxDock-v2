@@ -77,7 +77,8 @@ function normalizeRecord(row) {
 async function fetchBoardData() {
   const locationId = state.context.location.id;
   const day = format.dayOfWeek(state.date);
-  const [scheduleRows, docks, hours, truckTypes] = await Promise.all([
+  const [, scheduleRows, docks, hours, truckTypes] = await Promise.all([
+    db.rpc('settle_due_appointments', { p_location_id: locationId }, { key: `board:settle:${locationId}`, cache: 0, retry: 0 }).catch(() => 0),
     db.rpc('list_location_schedule', { p_location_id: locationId }, { key: `board:schedule:${locationId}`, cache: 0, retry: 1 }),
     db.select('docks', query => query.select('id,name,description,sort_order,direction_mode,is_active').eq('location_id', locationId).eq('is_active', true).order('sort_order').order('name'), { key: `board:docks:${locationId}`, cache: 30000 }),
     db.select('location_operating_hours', query => query.select('day_of_week,is_open,open_time,close_time').eq('location_id', locationId).eq('day_of_week', day).maybeSingle(), { key: `board:hours:${locationId}:${day}`, cache: 30000 }),

@@ -19,6 +19,14 @@ const STAFF_ROUTES = [
     ],
   },
   {
+    // Its own module directly under Reports, not a page inside them. This is what
+    // a receiver opens on a phone at the dock and nothing else.
+    group: 'Receiving',
+    items: [
+      { code: 'receiving', label: 'Receiving', path: 'app/receiving.html', permission: 'appointment.check_in', icon: '<rect x="3" y="3" width="7" height="7" rx="1"></rect><rect x="14" y="3" width="7" height="7" rx="1"></rect><rect x="3" y="14" width="7" height="7" rx="1"></rect><path d="M14 14h3v3h-3zM19 19h2v2h-2z"></path>' },
+    ],
+  },
+  {
     group: 'Administration',
     admin: true,
     items: [
@@ -106,11 +114,14 @@ function createNav(context, pageCode) {
     return fragment;
   }
   appendRouteGroup(fragment, context, pageCode, STAFF_ROUTES[0]);
-  const spacer = document.createElement('div');
-  spacer.className = 'rail__spacer';
-  spacer.setAttribute('aria-hidden', 'true');
-  fragment.append(spacer);
-  appendRouteGroup(fragment, context, pageCode, STAFF_ROUTES[1]);
+  for (const routeGroup of STAFF_ROUTES.slice(1)) {
+    if (!routeGroup.items.some(item => routeAllowed(context, item))) continue;
+    const spacer = document.createElement('div');
+    spacer.className = 'rail__spacer';
+    spacer.setAttribute('aria-hidden', 'true');
+    fragment.append(spacer);
+    appendRouteGroup(fragment, context, pageCode, routeGroup);
+  }
   return fragment;
 }
 

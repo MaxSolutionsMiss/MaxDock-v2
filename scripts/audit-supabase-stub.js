@@ -83,7 +83,7 @@
   // The live permission catalogue. This list was short of appointment.cancel_own,
   // ai.insights and the location permissions, so the audit rendered an app that
   // could never cancel an appointment and never load a report.
-  const ALL_PERMISSIONS = ['ai.insights', 'appointment.assign', 'appointment.cancel', 'appointment.cancel_own', 'appointment.complete', 'appointment.create', 'appointment.delete', 'appointment.update', 'appointment.view', 'appointment.view_own', 'audit.view', 'block.manage', 'dock.manage', 'dock.view', 'location.manage', 'location.view', 'notifications.view', 'operations.queue.view', 'reports.view', 'settings.manage', 'settings.view', 'system.manage', 'user.manage', 'user.view'];
+  const ALL_PERMISSIONS = ['ai.insights', 'appointment.assign', 'appointment.cancel', 'appointment.cancel_own', 'appointment.complete', 'appointment.create', 'appointment.delete', 'appointment.update', 'appointment.view', 'appointment.view_own', 'audit.view', 'block.manage', 'dock.manage', 'dock.view', 'location.manage', 'location.view', 'notifications.view', 'operations.queue.view', 'reports.view', 'settings.manage', 'settings.view', 'system.manage', 'user.manage', 'user.view', 'appointment.check_in'];
   const PERMISSIONS = ROLE?.permissions || ALL_PERMISSIONS;
   const TABLE = {
     profiles: [{ id: UID, username: 'jresa', full_name: 'Javad Resa', contact_email: 'javadresa@maxpkgsolutions.com', role_code: ROLE_CODE, is_active: true, must_change_password: false, organization_name: ROLE_CODE === 'customer' ? 'Haleon' : null, external_party_type: ROLE_CODE === 'customer' ? 'Customer' : null }],
@@ -131,6 +131,18 @@
     get_ai_operations_context: () => reportContext(),
     list_external_company_directory: () => [{ company_name: 'Haleon – Oakhill' }],
     list_active_location_directory: () => LOC,
+    // Receiving. The lookup returns a row so the page renders the load rather than
+    // its empty state, which is the only version worth auditing.
+    lookup_appointment_by_check_in_token: () => [{
+      appointment_id: 'a2', booking_reference: 'MXD-2026-000141', location_id: 'loc-1',
+      location_name: 'Pickering', location_timezone: 'America/Toronto', dock_name: 'Dock 3',
+      start_at: iso(8), end_at: iso(9), direction: 'outbound', status: 'scheduled',
+      company_name: 'Haleon – Oakhill', carrier_name: 'Day & Ross', skid_count: 10,
+      truck_type: '48 ft Trailer', external_reference: 'BOL-4412',
+      driver_name: null, checked_in_at: null, already_checked_in: false,
+    }],
+    check_in_appointment: () => ({ appointment_id: 'a2', booking_reference: 'MXD-2026-000141', status: 'arrived', checked_in_at: iso(8), driver_name: 'A. Driver', end_at: iso(9) }),
+    settle_due_appointments: () => 0,
     // The booking wizard is only reachable past step 3 if slots come back, so the
     // audit cannot render the time, contact or confirm steps without these.
     list_routed_appointment_slots: () => SLOTS,

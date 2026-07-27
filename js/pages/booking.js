@@ -310,6 +310,31 @@ function renderSteps() {
   });
 }
 
+// The QR is a link to Receiving carrying this appointment's own check-in token,
+// so the phone's own camera app opens it — the only route that works on iOS,
+// where the browser has no barcode reader at all. The booking reference is
+// printed on every document in the load and could never be what checks a truck
+// in, so it is deliberately not what the code carries.
+async function renderCheckInCode(result) {
+  const host = hosts.step.querySelector('[data-qr]');
+  if (!host) return;
+  let token = null;
+  try {
+    const row = await db.select('appointments', query => query
+      .select('check_in_token')
+      .eq('id', result.appointment_id)
+      .maybeSingle(), { key: `booking:token:${result.appointment_id}`, cache: 0, retry: 1 });
+    token = row?.check_in_token || null;
+  } catch { token = null; }
+  if (!token) {
+    host.innerHTML = '<p class="hint">The check-in code is not available for this booking yet.</p>';
+    return;
+  }
+  const url = new URL('receiving.html', globalThis.location.href);
+  url.searchParams.set('t', token);
+  renderQr(host, url.href, { label: `Check-in code for MaxDock appointment ${result.booking_reference}` });
+}
+
 function renderQuickRebook() {
   if (!state.reference.templates.length) return '';
   const items = state.reference.templates.slice(0, 4).map(template => {
@@ -596,9 +621,7 @@ function renderConfirmation() {
     row.append(element('div', 'setrow__d', label), element('strong', '', value));
     details.append(row);
   }
-  renderQr(hosts.step.querySelector('[data-qr]'), `MAXDOCK|${result.appointment_id}|${result.booking_reference}`, {
-    label: `QR code for MaxDock appointment ${result.booking_reference}`,
-  });
+  renderCheckInCode(result);
   const subject = encodeURIComponent(`MaxDock appointment ${result.booking_reference}`);
   const body = encodeURIComponent(text);
   hosts.step.querySelector('[data-email-draft]').href = `mailto:${encodeURIComponent(state.form.requester_email)}?subject=${subject}&body=${body}`;
