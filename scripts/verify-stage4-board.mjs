@@ -9,12 +9,15 @@ const required = [
 const missing = required.filter(token => !board.includes(token));
 if (missing.length) throw new Error(`Stage 4 board missing: ${missing.join(', ')}`);
 
-// The board declares its header controls through the shared pageHead helper, so
-// assert both that it asks for them and that the helper still renders each one.
-const headMatch = board.match(/pageHead\('Dock board'[\s\S]*?\n\s*\}\)/);
-if (!headMatch) throw new Error('Stage 4 board must build its header with pageHead().');
-const declared = ['export', 'print', 'fullscreen', 'block', 'book'].filter(action => !headMatch[0].includes(`'${action}'`));
-if (declared.length) throw new Error(`Stage 4 board header missing actions: ${declared.join(', ')}`);
+// Every board action must still be declared through the shared helpers, and the
+// helpers must still render each one. Which of the two bands an action sits in is
+// a placement decision the owner makes — the operational actions moved to the page
+// header and the output controls to the controls band — so this asserts presence
+// and the shared helper, not the band.
+if (!/pageHead\('Dock board'/.test(board)) throw new Error('Stage 4 board must build its header with pageHead().');
+if (!/controlsBar\(/.test(board)) throw new Error('Stage 4 board must build its controls band with controlsBar().');
+const declared = ['export', 'print', 'fullscreen', 'block', 'book'].filter(action => !board.includes(`'${action}'`));
+if (declared.length) throw new Error(`Stage 4 board missing actions: ${declared.join(', ')}`);
 const labels = ['Export CSV', 'Print', 'Full screen', 'Block dock time', 'Book appointment'].filter(label => !pagehead.includes(label));
 if (labels.length) throw new Error(`pagehead.js missing action labels: ${labels.join(', ')}`);
 if (!css.includes('.rowGrid') || !css.includes('.board__scroll') || !css.includes('.wall__head')) throw new Error('Stage 4 approved board CSS missing.');

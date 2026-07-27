@@ -34,11 +34,14 @@ const MODALS = {
     { name: 'book-appointment', trigger: '[data-open-booking]', walkSteps: 5 },
     { name: 'notifications', trigger: '.notif__btn' },
   ],
-  queue: [
+  // The queue is a status screen, not a booking screen — it deliberately has no
+  // Book appointment action.
+  queue: [{ name: 'customize', trigger: '[data-customize]' }],
+  'my-appointments': [
+    { name: 'cancel-appointment', trigger: '.btn--danger' },
     { name: 'book-appointment', trigger: '[data-open-booking]', walkSteps: 5 },
     { name: 'customize', trigger: '[data-customize]' },
   ],
-  'my-appointments': [{ name: 'cancel-appointment', trigger: '.btn--danger' }],
   // Add dock lives in the Docks & truck types section, so the section has to be
   // opened before the control exists.
   settings: [{ name: 'add-dock', prepare: '[data-section="docks"]', trigger: '[data-add-dock]' }],

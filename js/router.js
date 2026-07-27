@@ -92,28 +92,17 @@ function appendRouteGroup(fragment, context, pageCode, routeGroup) {
   fragment.append(group);
 }
 
-function appendBookingButton(fragment, context) {
-  if (!context.can('appointment.create')) return;
-  const cta = document.createElement('div');
-  cta.className = 'rail__cta';
-  const button = document.createElement('button');
-  button.type = 'button';
-  button.className = 'btn btn--primary btn--block';
-  button.dataset.openBooking = '';
-  button.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg><span>Book appointment</span>';
-  cta.append(button);
-  fragment.append(cta);
-}
-
+// The rail is navigation only. Book appointment used to sit here as a call to
+// action, which made the sidebar a mix of "where to go" and "what to do" and put
+// the control somewhere different from every other page action. It now lives at
+// the top right of the pages that offer it, like every other page action.
 function createNav(context, pageCode) {
   const fragment = document.createDocumentFragment();
   if (context.customerShell) {
     appendRouteGroup(fragment, context, pageCode, CUSTOMER_ROUTES[0]);
-    appendBookingButton(fragment, context);
     return fragment;
   }
   appendRouteGroup(fragment, context, pageCode, STAFF_ROUTES[0]);
-  appendBookingButton(fragment, context);
   const spacer = document.createElement('div');
   spacer.className = 'rail__spacer';
   spacer.setAttribute('aria-hidden', 'true');

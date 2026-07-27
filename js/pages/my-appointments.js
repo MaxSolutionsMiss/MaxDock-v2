@@ -4,7 +4,7 @@ import { poll } from '../poll.js';
 import { startPage } from '../router.js';
 import { renderState } from '../ui/empty.js';
 import { createModal } from '../ui/modal.js';
-import { controlsBar } from '../ui/pagehead.js';
+import { controlsBar, pageHeadActions } from '../ui/pagehead.js';
 import { createCustomizePanel } from '../ui/customize.js';
 import { toast } from '../ui/toast.js';
 
@@ -31,11 +31,13 @@ let nextAppointmentSignature = '';
 let customizePanel = null;
 let visibleCards = [];
 
+// Same markup, same element types and the same accent colours the board and the
+// queue use, so a metric card reads identically wherever it appears.
 const METRIC_CARDS = [
-  { id: 'upcoming', label: 'Upcoming' },
-  { id: 'past', label: 'Past' },
-  { id: 'cancelled', label: 'Cancelled' },
-  { id: 'total', label: 'Total' },
+  { id: 'upcoming', label: 'Upcoming', className: 'kpi--out' },
+  { id: 'past', label: 'Past', className: 'kpi--ok' },
+  { id: 'cancelled', label: 'Cancelled', className: 'kpi--stop' },
+  { id: 'total', label: 'Total', className: '' },
 ];
 
 function createElement(tag, className, text) {
@@ -393,9 +395,9 @@ async function refreshData(force = false) {
   }
 }
 
-function createMetric(label, key) {
-  const card = createElement('div', 'kpi kpi--ok');
-  const value = createElement('strong', 'kpi__value data', '0');
+function createMetric(label, key, className = '') {
+  const card = createElement('article', `kpi ${className}`.trim());
+  const value = createElement('span', 'kpi__value', '0');
   const caption = createElement('span', 'kpi__label', label);
   card.append(caption, value);
   hosts.metricValues[key] = value;
@@ -457,10 +459,15 @@ function buildPage(root, context) {
     : `${context.location.name} · Your bookings`);
   heading.append(title, subtitle);
   head.append(heading);
+  if (context.can('appointment.create')) {
+    const headActions = createElement('div', 'pagehead__actions');
+    headActions.innerHTML = pageHeadActions(['book']);
+    head.append(headActions);
+  }
 
   const metrics = createElement('section', 'kpis');
   metrics.setAttribute('aria-label', 'Appointment summary');
-  metrics.append(...METRIC_CARDS.map(card => createMetric(card.label, card.id)));
+  metrics.append(...METRIC_CARDS.map(card => createMetric(card.label, card.id, card.className)));
 
   const next = createElement('section', 'panel next-appointment');
   next.setAttribute('aria-label', 'Next appointment');
@@ -562,6 +569,8 @@ function bindInteractions() {
     if (event.target.closest('[data-print]')) globalThis.print();
     const customize = event.target.closest('[data-customize]');
     if (customize) customizePanel?.open(customize);
+    const booking = event.target.closest('[data-open-booking]');
+    if (booking) globalThis.dispatchEvent(new CustomEvent('maxdock:open-booking', { detail: { trigger: booking } }));
   };
 
   hosts.views.addEventListener('click', onViewClick);

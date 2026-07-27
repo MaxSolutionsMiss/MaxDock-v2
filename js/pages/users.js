@@ -372,13 +372,13 @@ function exportCsv() {
 function buildShell(root) {
   const canAdd = state.isSystemAdmin;
   root.innerHTML = `
-    ${pageHead('Users')}
+    ${pageHead('Users', { actions: [['addUser', canAdd]] })}
     ${controlsBar({
       label: 'User controls',
       lead: '<input class="input input--search" type="search" placeholder="Search name, username or email" data-search aria-label="Search users">',
       filters: `<div class="ctrl-field"><label>Role</label><select class="select" data-role-filter></select></div>
       <div class="ctrl-field"><label>Location</label><select class="select" data-location-filter></select></div>`,
-      actions: ['export', 'print', ['addUser', canAdd]],
+      actions: ['export', 'print'],
     })}
     <div class="panel panel--fill">
       <div class="panel__head"><h3 class="panel__title">People</h3><div class="panel__actions"><span class="sub" data-count></span></div></div>

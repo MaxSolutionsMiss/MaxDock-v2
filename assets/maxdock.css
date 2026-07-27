@@ -110,7 +110,10 @@ body{background:var(--ground);color:var(--ink);font-family:var(--font-ui);font-s
 .input,.select,textarea{font-family:inherit;font-size:var(--t-base);color:var(--ink);background:var(--surface);border:1px solid var(--rule-strong);border-radius:var(--radius);padding:0 10px;min-height:34px}
 textarea{padding:8px 10px;min-height:70px;resize:vertical}
 .input--date{font-family:var(--font-data)}
-.ctrl-field{display:flex;align-items:center;gap:6px}
+/* Label above its control, not beside it: side by side the two filters ran into
+   each other, and the uppercase label competed with the select next to it for the
+   same horizontal space. */
+.ctrl-field{display:flex;flex-direction:column;align-items:stretch;gap:3px;min-width:150px}
 .ctrl-field label{font-size:var(--t-micro);text-transform:uppercase;letter-spacing:.07em;color:var(--ink-muted);font-weight:600}
 .controls__end{grid-column:3;justify-self:end;display:flex;gap:var(--s2)}
 
@@ -399,7 +402,10 @@ body.modal-open{overflow:hidden}
 /* Wraps like .modal__foot does: on a phone two full-width buttons will not sit
    side by side, and unwrapped the confirm button ran past the dialog edge. */
 .form-actions{display:flex;flex-wrap:wrap;align-items:center;gap:var(--s2);margin-top:var(--s5)}
-.form-actions>.btn--primary{margin-left:auto}
+/* Save sits next to Reset. Pushed to the opposite edge it read as a separate,
+   unrelated control on a wide card. */
+.form-actions>.btn--primary{margin-left:0}
+.modal__foot>.btn--primary{margin-left:auto}
 .form-actions--stack{display:grid}
 .form-actions--stack>.btn--primary{margin-left:0}
 .form-message{min-height:1.5em;margin:var(--s3) 0 0;color:var(--stop);font-size:var(--t-small)}

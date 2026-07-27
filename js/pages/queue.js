@@ -313,7 +313,7 @@ function buildShell(root) {
     ${pageHead('Operations queue')}
     ${controlsBar({
       label: 'Queue controls',
-      actions: ['export', 'print', 'fullscreen', 'customize', ['book', can('appointment.create')]],
+      actions: ['export', 'print', 'fullscreen', 'customize'],
     })}
     <div class="brief" data-brief></div>
     <div class="kpis" data-kpis></div>
