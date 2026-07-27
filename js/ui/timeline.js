@@ -76,7 +76,11 @@ export function renderTimeline({ lanes, blocks, windowStart, windowEnd, granular
         const left = ((block.startMin - windowStart) / span) * 100;
         const width = ((block.endMin - block.startMin) / span) * 100;
         const height = 100 / rowCount;
-        return `<article class="tlb ${block.tone}" style="left:${left}%;width:${width}%;top:${block.row * height}%;height:${height}%"
+        // The gutter is taken out of the block, not added around it. A margin on a
+        // percentage-sized box pushes it past its row, which is how appointment
+        // details were being cut off at the bottom of a lane.
+        const geometry = `left:calc(${left}% + 1px);width:calc(${width}% - 2px);top:calc(${block.row * height}% + 2px);height:calc(${height}% - 4px)`;
+        return `<article class="tlb ${block.tone}" style="${geometry}"
           ${block.attrs || ''} title="${escapeHtml(`${block.title} · ${block.subtitle} · ${clockLabel(block.startMin)}–${clockLabel(block.endMin)}`)}">
           <span class="tlb__time">${clockLabel(block.startMin)}–${clockLabel(block.endMin)}</span>
           <span class="tlb__title">${escapeHtml(block.title)}</span>

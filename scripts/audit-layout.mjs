@@ -92,7 +92,7 @@ const add = (where, width, rule, detail) => findings.push({ where, width, rule, 
 // belong to the page, not to a 560px panel floating above it.
 function collect(scope) {
   const root = scope ? document.querySelector(scope) : document;
-  const out = { clipped: [], smallTargets: [], rowFill: [], kpi: [], gaps: [], overflowX: 0, labelStyles: [], cutOff: [], rowUneven: [], modal: [], collapsed: [] };
+  const out = { clipped: [], smallTargets: [], ctlHeights: [], rawTimestamps: [], rowFill: [], kpi: [], gaps: [], overflowX: 0, labelStyles: [], cutOff: [], rowUneven: [], modal: [], collapsed: [] };
   if (!root) return out;
   const vis = el => el.offsetParent !== null || getComputedStyle(el).position === 'fixed';
 
@@ -136,6 +136,32 @@ function collect(scope) {
     const h = Math.round(Math.max(el.getBoundingClientRect().height, target.getBoundingClientRect().height));
     if (h > 0 && h < 32) out.smallTargets.push({ text: (el.textContent || el.getAttribute('aria-label') || el.type || '').trim().slice(0, 32), h, sel: el.className });
   });
+
+  // One control height everywhere. The owner's first rule of consistency: every
+  // button, select and single-line input is exactly --ctl-h tall on every page,
+  // in every dialog, for every role. The wall display is exempt — it scales its
+  // whole type ramp to the screen it is broadcast on.
+  const ctlH = Math.round(parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--ctl-h')) || 0);
+  if (ctlH) {
+    root.querySelectorAll('.btn,.select,.input,.seg button,.iconbtn,.notif__btn,.linkBtn,.modal__x').forEach(el => {
+      if (!vis(el) || el.closest('.wall') || el.tagName === 'TEXTAREA') return;
+      const h = Math.round(el.getBoundingClientRect().height);
+      if (Math.abs(h - ctlH) > 1) {
+        out.ctlHeights.push({ h, want: ctlH, text: (el.textContent || el.getAttribute('aria-label') || el.value || el.type || '').trim().slice(0, 28), sel: el.className });
+      }
+    });
+  }
+
+  // A raw ISO timestamp printed at an operator. Dates on screen go through the
+  // format helpers; one that skipped them is a defect, not a style preference.
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+    const text = (node.nodeValue || '').trim();
+    if (!/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(text)) continue;
+    const host = node.parentElement;
+    if (!host || !vis(host) || host.closest('script,style')) continue;
+    out.rawTimestamps.push({ text: text.slice(0, 48), sel: host.className || host.tagName });
+  }
 
   // Controls sitting side by side must be the same height and sit on the same
   // baseline. A label that wraps to two lines silently makes its field taller.
@@ -453,6 +479,8 @@ function report(where, width, result) {
   for (const c of [...new Map(result.cutOff.map(c => [c.text + c.over, c])).values()].slice(0, 5)) add(where, width, 'cut-off-by-hidden-overflow', `"${c.text}" is ${c.over}px outside .${c.by}`);
   for (const c of result.clipped.slice(0, 6)) add(where, width, 'content-clipped', `"${c.text}" overflows by ${c.over}px (${c.sel})`);
   for (const t of [...new Map(result.smallTargets.map(t => [t.sel + t.h, t])).values()].slice(0, 6)) add(where, width, 'hit-target-too-small', `"${t.text}" is ${t.h}px tall (${t.sel})`);
+  for (const c of [...new Map(result.ctlHeights.map(c => [c.sel + c.h, c])).values()].slice(0, 6)) add(where, width, 'control-height-differs', `"${c.text}" is ${c.h}px tall, every control is ${c.want}px (${c.sel})`);
+  for (const t of [...new Map(result.rawTimestamps.map(t => [t.text, t])).values()].slice(0, 4)) add(where, width, 'raw-timestamp-on-screen', `"${t.text}" (${t.sel})`);
   for (const u of result.rowUneven.slice(0, 4)) add(where, width, 'side-by-side-heights-differ', `${u.spread}px apart — ${u.boxes.join(', ')}`);
   for (const r of result.rowFill.slice(0, 4)) add(where, width, 'form-row-leaves-dead-space', `${r.unused}px unused of ${r.rowWidth}px across ${r.fields} fields`);
   for (const k of result.kpi.slice(0, 4)) add(where, width, 'kpi-strip', `${k.issue} ${JSON.stringify(k.widths || k.heights || k.unused)}`);

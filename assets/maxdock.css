@@ -19,6 +19,10 @@
   --t-lead:calc(17px*var(--scale)); --t-title:calc(21px*var(--scale)); --t-metric:calc(27px*var(--scale));
   --s1:4px; --s2:8px; --s3:12px; --s4:16px; --s5:24px; --s6:32px; --s7:48px;
   --radius:5px; --radius-lg:7px; --rail-w:196px; --topbar-h:52px; --tap:44px; --motion:.12s;
+  /* Every interactive control in the portal is this tall — buttons, inputs,
+     selects, tabs and icon buttons alike. One number, so a row of mixed controls
+     is bottom-aligned without anyone arranging it. */
+  --ctl-h:36px;
   --shadow-overlay:0 12px 32px rgba(22,32,42,.16),0 2px 6px rgba(22,32,42,.08);
 }
 html[data-text="large"]{--scale:1.15; --rail-w:214px}
@@ -51,14 +55,14 @@ body{background:var(--ground);color:var(--ink);font-family:var(--font-ui);font-s
 .top__date{font-family:var(--font-data);font-size:var(--t-small);color:var(--ink-muted);white-space:nowrap}
 .top__spacer{flex:1}
 .seg{display:inline-flex;border:1px solid var(--rule-strong);border-radius:var(--radius);overflow:hidden;background:var(--surface)}
-.seg button{font-family:inherit;font-size:var(--t-small);font-weight:600;border:none;background:transparent;color:var(--ink-muted);min-height:32px;padding:0 10px;cursor:pointer;border-right:1px solid var(--rule)}
+.seg button{font-family:inherit;font-size:var(--t-small);font-weight:600;border:none;background:transparent;color:var(--ink-muted);min-height:var(--ctl-h);height:var(--ctl-h);padding:0 10px;cursor:pointer;border-right:1px solid var(--rule)}
 .seg button:last-child{border-right:none}
 .seg button[aria-pressed="true"]{background:var(--dock);color:#fff}
 .top__conn{display:flex;align-items:center;gap:6px;font-size:var(--t-small);color:var(--ink-muted);white-space:nowrap}
 .dot{width:7px;height:7px;border-radius:50%;background:var(--ok)}
 .bulkbar{display:flex;align-items:center;gap:var(--s2);padding:var(--s2) var(--s4);background:var(--dock-wash);border-bottom:1px solid var(--rule);flex:none}
 .notif{position:relative;display:flex;align-items:center}
-.notif__btn{width:34px;height:34px;border:1px solid var(--rule-strong);background:var(--surface);border-radius:var(--radius);cursor:pointer;color:var(--ink-muted);display:grid;place-items:center;position:relative}
+.notif__btn{width:var(--ctl-h);height:var(--ctl-h);border:1px solid var(--rule-strong);background:var(--surface);border-radius:var(--radius);cursor:pointer;color:var(--ink-muted);display:grid;place-items:center;position:relative}
 .notif__btn:hover{color:var(--ink);background:var(--surface-sunk)}
 .notif__btn svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
 .notif__dot{position:absolute;top:-5px;right:-5px;min-width:16px;height:16px;padding:0 4px;border-radius:9px;background:var(--stop);color:#fff;font-size:var(--t-micro);font-weight:700;display:grid;place-items:center;line-height:1}
@@ -73,7 +77,7 @@ body{background:var(--ground);color:var(--ink);font-family:var(--font-ui);font-s
 .avatar{width:28px;height:28px;border-radius:50%;background:var(--dock-wash);color:var(--dock-deep);display:grid;place-items:center;font-size:var(--t-small);font-weight:600}
 .who__name{font-size:var(--t-small);font-weight:600;line-height:1.2}
 .who__role{font-size:var(--t-micro);color:var(--ink-faint)}
-.linkBtn{font-family:inherit;font-size:var(--t-small);color:var(--dock);background:none;border:none;cursor:pointer;white-space:nowrap;min-height:32px;padding:0 var(--s1);display:inline-flex;align-items:center}
+.linkBtn{font-family:inherit;font-size:var(--t-small);color:var(--dock);background:none;border:none;cursor:pointer;white-space:nowrap;min-height:var(--ctl-h);padding:0 var(--s1);display:inline-flex;align-items:center}
 
 .page{display:flex;flex-direction:column;flex:1;min-height:0;padding:var(--s4) var(--s5) var(--s5)}
 /* Wraps rather than pushing its actions past the edge. Unwrapped, Book appointment
@@ -83,40 +87,48 @@ body{background:var(--ground);color:var(--ink);font-family:var(--font-ui);font-s
 .pagehead__title{font-size:var(--t-title);font-weight:600;letter-spacing:-.015em;margin:0}
 .pagehead__sub{font-size:var(--t-small);color:var(--ink-muted);margin:1px 0 0}
 .pagehead__actions{margin-left:auto;display:flex;gap:var(--s2)}
-.btn{font-family:inherit;font-size:var(--t-base);font-weight:500;border-radius:var(--radius);border:1px solid transparent;padding:0 14px;min-height:var(--tap);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:7px;white-space:nowrap}
+.btn{font-family:inherit;font-size:var(--t-base);font-weight:500;border-radius:var(--radius);border:1px solid transparent;padding:0 14px;min-height:var(--ctl-h);height:var(--ctl-h);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:7px;white-space:nowrap}
 .btn svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.7}
 .btn--primary{background:var(--dock);color:#fff} .btn--primary:hover{background:var(--dock-hover)}
 .btn--quiet{background:var(--surface);color:var(--ink);border-color:var(--rule-strong)} .btn--quiet:hover{background:var(--surface-sunk)}
-.btn--sm{min-height:34px;padding:0 10px;font-size:var(--t-small)}
+.btn--sm{padding:0 10px;font-size:var(--t-small)}
 .btn--block{width:100%}
 
 /* A grid, not a wrapping flex row: as flex, the right-hand utilities were the
    first thing to lose the line and dropped onto a row of their own under a band
    of empty white. Three columns keep them pinned top-right at every width while
    the filters wrap inside their own cell. */
-.controls{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:var(--s2) var(--s3);padding:var(--s2) var(--s3);background:var(--surface);border:1px solid var(--rule);border-radius:var(--radius-lg);margin-bottom:var(--s3);flex:none}
+.controls{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:end;gap:var(--s2) var(--s3);padding:var(--s2) var(--s3);background:var(--surface);border:1px solid var(--rule);border-radius:var(--radius-lg);margin-bottom:var(--s3);flex:none}
 .controls__end{flex-wrap:wrap}
 /* The band's two fixed anchors: the page's context control and its operational
    actions at the start, output and view controls at the far right. Everything
    between is that page's own filters. */
-.controls__lead{grid-column:1;display:flex;align-items:center;gap:var(--s2) var(--s3);flex-wrap:wrap}
+.controls__lead{grid-column:1;display:flex;align-items:end;gap:var(--s2) var(--s3);flex-wrap:wrap}
 .controls__lead .btn{white-space:nowrap}
 /* The filters take the slack and wrap inside themselves. Left as loose children
    they competed with the right-hand group for the same line, so the utilities
    dropped to a row of their own and left a band of empty white above them. */
-.controls__filters{grid-column:2;display:flex;align-items:center;gap:var(--s2) var(--s3);flex-wrap:wrap;min-width:0}
+.controls__filters{grid-column:2;display:flex;align-items:end;gap:var(--s2) var(--s3);flex-wrap:wrap;min-width:0}
 .input--search{min-width:min(260px,100%)}
 .datenav{display:flex;align-items:center;gap:var(--s1)}
-.iconbtn{width:34px;min-height:34px;border:1px solid var(--rule-strong);background:var(--surface);border-radius:var(--radius);cursor:pointer;color:var(--ink-muted);font-size:16px;display:grid;place-items:center}
-.input,.select,textarea{font-family:inherit;font-size:var(--t-base);color:var(--ink);background:var(--surface);border:1px solid var(--rule-strong);border-radius:var(--radius);padding:0 10px;min-height:34px}
+.iconbtn{width:var(--ctl-h);min-height:var(--ctl-h);height:var(--ctl-h);border:1px solid var(--rule-strong);background:var(--surface);border-radius:var(--radius);cursor:pointer;color:var(--ink-muted);font-size:16px;display:grid;place-items:center}
+.input,.select,textarea{font-family:inherit;font-size:var(--t-base);color:var(--ink);background:var(--surface);border:1px solid var(--rule-strong);border-radius:var(--radius);padding:0 10px;min-height:var(--ctl-h)}
 textarea{padding:8px 10px;min-height:70px;resize:vertical}
 .input--date{font-family:var(--font-data)}
+/* A file input sizes itself to its browser-drawn button, which grew past every
+   other control once the reader turned the text size up. Pinned to the same
+   height, with the button sized inside it. */
+.input[type=file]{height:var(--ctl-h);padding:0 8px;display:flex;align-items:center;font-size:var(--t-small);overflow:hidden}
+.input[type=file]::file-selector-button{font-family:inherit;font-size:var(--t-small);font-weight:500;height:calc(var(--ctl-h) - 12px);padding:0 10px;margin-right:var(--s2);border:1px solid var(--rule-strong);border-radius:var(--radius);background:var(--surface-sunk);color:var(--ink);cursor:pointer}
 /* Label above its control, not beside it: side by side the two filters ran into
    each other, and the uppercase label competed with the select next to it for the
    same horizontal space. */
 .ctrl-field{display:flex;flex-direction:column;align-items:stretch;gap:3px;min-width:150px}
-.ctrl-field label{font-size:var(--t-micro);text-transform:uppercase;letter-spacing:.07em;color:var(--ink-muted);font-weight:600}
-.controls__end{grid-column:3;justify-self:end;display:flex;gap:var(--s2)}
+.ctrl-field label,.ctrl-field>span{font-size:var(--t-micro);text-transform:uppercase;letter-spacing:.07em;color:var(--ink-muted);font-weight:600}
+/* Label beside the control instead of above it, for bands that are a single
+   line of their own — the whole row then shares one centre line. */
+.ctrl-field--inline{flex-direction:row;align-items:center;gap:var(--s2);min-width:0}
+.controls__end{grid-column:3;justify-self:end;display:flex;align-items:end;gap:var(--s2)}
 
 /* Cards wrap to fit rather than being forced into a fixed column count. At 768px the
    old repeat(5,1fr) squeezed them to 55-104px wide; on a wide screen the same rule
@@ -125,15 +137,12 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
    between the list and the side column lands exactly on a card boundary rather
    than somewhere arbitrary. --kpi-cols is set from the visible card count, so the
    strip still fills its row whichever cards are turned off. */
-.kpis{display:grid;gap:var(--s3);margin-bottom:var(--s3);flex:none;grid-template-columns:repeat(var(--kpi-cols,4),minmax(0,1fr)) var(--kpi-gear,0px)}
+.kpis{display:grid;gap:var(--s3);margin-bottom:var(--s3);flex:none;grid-template-columns:repeat(var(--kpi-cols,4),minmax(0,1fr))}
 /* The customize control belongs to the cards, so it sits at the end of their row
    at their height rather than up in the page header where nothing said what it
    applied to. It occupies its own narrow column, which the panels below share, so
    the side column still starts on a card boundary. */
-.kpis__gear{grid-column:-2;align-self:stretch;width:38px;min-height:0;padding:0;display:grid;place-items:center;background:var(--surface);border:1px solid var(--rule);border-radius:var(--radius-lg);color:var(--ink-muted);cursor:pointer}
-.kpis__gear:hover{background:var(--surface-sunk);color:var(--ink)}
-.kpis__gear svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.7}
-@media (max-width:900px){.kpis{grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}.kpis__gear{grid-column:auto;width:auto;min-height:38px}}
+@media (max-width:900px){.kpis{grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}}
 /* One rounded outline carrying a single accent edge, rather than a detached top rule
    floating above the card — the treatment v1 settled on at DB66. */
 .kpi{background:var(--surface);border:1px solid var(--rule);border-left:3px solid var(--rule-strong);border-radius:var(--radius-lg);padding:var(--s3) var(--s2) var(--s3) var(--s3);min-width:0;display:flex;flex-direction:column;justify-content:center;gap:var(--s1);min-height:78px}
@@ -147,9 +156,19 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 
 /* ===== DOCK BOARD — docks as ROWS, time across the TOP, frozen headers ===== */
 .board{background:var(--surface);border:1px solid var(--rule);border-radius:var(--radius-lg);display:flex;flex-direction:column;flex:1;min-height:0;overflow:hidden}
-.board__head{display:flex;align-items:center;gap:var(--s3);padding:var(--s2) var(--s4);border-bottom:1px solid var(--rule);flex:none}
-.board__title{font-weight:600;font-size:var(--t-lead)}
-.board__legend{display:flex;gap:var(--s3);margin-left:auto;font-size:var(--t-small);color:var(--ink-muted)}
+/* Date on the left, legend in the middle, granularity on the right — three
+   columns rather than a flex row, so the legend sits centred in the band and on
+   the same centre line as the Timeline control instead of crowding it. */
+.board__head{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;gap:var(--s2) var(--s3);padding:var(--s2) var(--s4);border-bottom:1px solid var(--rule);flex:none;min-height:calc(var(--ctl-h) + var(--s4))}
+.board__title{font-weight:600;font-size:var(--t-lead);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.board__legend{display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:var(--s1) var(--s3);font-size:var(--t-small);color:var(--ink-muted)}
+.board__gran{justify-self:end}
+/* Too narrow for three columns: the legend takes its own line rather than
+   squeezing the date and the control off the band. */
+@media (max-width:860px){
+  .board__head{grid-template-columns:minmax(0,1fr) auto}
+  .board__legend{grid-column:1/-1;justify-content:flex-start}
+}
 .lg{display:inline-flex;align-items:center;gap:5px}
 .lg::before{content:"";width:9px;height:9px;border-radius:2px;background:var(--c)}
 /* The timeline scrolls its lanes internally and never overflows sideways —
@@ -159,13 +178,20 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
    start and end, so a four-hour call looks four times a one-hour call. The whole
    day is compressed to fit — these screens are broadcast on wall displays where
    nobody can scroll, so there is no horizontal overflow at any width. */
-.tl{display:flex;flex-direction:column;min-height:0;height:100%;--tl-label:clamp(96px,9vw,150px)}
+/* One stacked row is exactly as tall as the three lines a block carries plus its
+   own padding and gap, derived from the type tokens rather than a magic number —
+   so nothing clips when the reader turns the text size up. */
+.tl{display:flex;flex-direction:column;min-height:0;height:100%;--tl-label:clamp(96px,9vw,150px);--tl-row:calc((var(--t-micro) * 2 + var(--t-small)) * 1.3 + 14px)}
 .tl__ruler{display:grid;grid-template-columns:var(--tl-label) minmax(0,1fr);border-bottom:1px solid var(--rule-strong);background:var(--surface-sunk);flex:none}
 .tl__corner{padding:6px var(--s3);font-size:var(--t-micro);text-transform:uppercase;letter-spacing:.07em;color:var(--ink-muted);font-weight:600;border-right:1px solid var(--rule-strong);display:flex;align-items:center}
 .tl__scale{position:relative;height:26px}
 .tl__scale .tl__tick{top:0;height:100%;display:flex;align-items:center;padding-left:4px;font-size:var(--t-micro);color:var(--ink-muted);font-variant-numeric:tabular-nums;white-space:nowrap}
-.tl__lanes{flex:1;min-height:0;overflow-y:auto}
-.tl__lane{display:grid;grid-template-columns:var(--tl-label) minmax(0,1fr);border-bottom:1px solid var(--rule);min-height:calc(52px * var(--rows,1))}
+.tl__lanes{flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column}
+/* Lanes take the height they need, then share whatever is left over rather than
+   leaving half the panel blank — a five-dock board used to draw a short strip of
+   rows above an empty white field. Capped at twice the row height so a two-dock
+   site does not get two enormous bands. */
+.tl__lane{display:grid;grid-template-columns:var(--tl-label) minmax(0,1fr);border-bottom:1px solid var(--rule);flex:var(--rows,1) 1 auto;min-height:calc(var(--tl-row) * var(--rows,1));max-height:calc(var(--tl-row) * var(--rows,1) * 2)}
 .tl__lane:last-child{border-bottom:none}
 .tl__label{padding:6px var(--s3);border-right:1px solid var(--rule-strong);background:var(--surface-sunk);display:flex;flex-direction:column;justify-content:center;min-width:0}
 .tl__label strong{font-size:var(--t-base);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -175,7 +201,7 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 .tl__tick--major{background:var(--rule-strong)}
 .tl__idle{position:absolute;inset:0;display:flex;align-items:center;padding-left:var(--s3);font-size:var(--t-small);color:var(--ink-faint)}
 /* Blocks are absolutely placed, so their box is the appointment's real extent. */
-.tlb{position:absolute;border-radius:4px;border-left:3px solid;padding:2px 6px;margin:2px;overflow:hidden;cursor:pointer;display:flex;flex-direction:column;justify-content:center;gap:0;min-width:10px}
+.tlb{position:absolute;border-radius:4px;border-left:3px solid;padding:3px 6px;overflow:hidden;cursor:pointer;display:flex;flex-direction:column;justify-content:center;gap:0;line-height:1.3;min-width:10px}
 .tlb__time{font-size:var(--t-micro);font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden}
 .tlb__title{font-size:var(--t-small);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .tlb__meta{font-size:var(--t-micro);color:var(--ink-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -185,8 +211,12 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 .tlb--done{background:var(--surface-sunk);border-left-color:var(--rule-strong);color:var(--ink-muted)}
 .tlb--blk{background:repeating-linear-gradient(45deg,var(--surface-sunk),var(--surface-sunk) 5px,#E4E9EC 5px,#E4E9EC 10px);border-left-color:var(--rule-strong);color:var(--ink-muted);cursor:default}
 .tlb:focus-visible{outline:2px solid var(--dock);outline-offset:1px}
-/* Below this a block cannot hold three lines of text legibly. */
-@container (max-width:900px){.tlb__meta{display:none}}
+/* Below this a block cannot hold three lines of text legibly. The row height
+   drops with the line it loses rather than keeping the space empty. */
+@container (max-width:900px){
+  .tlb__meta{display:none}
+  .tl{--tl-row:calc((var(--t-micro) + var(--t-small)) * 1.3 + 14px)}
+}
 
 /* ===== tables (My appts, Reports, Users) ===== */
 .panel{background:var(--surface);border:1px solid var(--rule);border-radius:var(--radius-lg);display:flex;flex-direction:column;min-height:0;overflow:hidden}
@@ -195,6 +225,8 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 .panel__title{font-weight:600;font-size:var(--t-lead);margin:0}
 .panel__actions{margin-left:auto;display:flex;gap:var(--s2);align-items:center}
 .panel__scroll{overflow:auto;flex:1;min-height:0}
+.panel__body{padding:var(--s3) var(--s4);flex:none;border-bottom:1px solid var(--rule)}
+.panel__body:last-child{border-bottom:none}
 .table{width:100%;border-collapse:collapse}
 .tablewrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
 .table th{position:sticky;top:0;font-size:var(--t-micro);text-transform:uppercase;letter-spacing:.07em;color:var(--ink-muted);font-weight:600;text-align:left;padding:var(--s2) var(--s4);background:var(--surface-sunk);border-bottom:1px solid var(--rule);white-space:nowrap}
@@ -228,7 +260,7 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 .modal__head{display:flex;align-items:center;gap:var(--s3);padding:var(--s3) var(--s4);border-bottom:1px solid var(--rule);flex:none}
 .modal__title{font-size:var(--t-lead);font-weight:600;margin:0}
 .modal__sub{font-size:var(--t-small);color:var(--ink-muted)}
-.modal__x{margin-left:auto;width:34px;height:34px;border:none;background:none;border-radius:var(--radius);cursor:pointer;color:var(--ink-muted);font-size:20px;display:grid;place-items:center}
+.modal__x{margin-left:auto;width:var(--ctl-h);height:var(--ctl-h);border:none;background:none;border-radius:var(--radius);cursor:pointer;color:var(--ink-muted);font-size:20px;display:grid;place-items:center}
 .modal__x:hover{background:var(--surface-sunk)}
 .steps{display:flex;gap:2px;padding:0 var(--s4);border-bottom:1px solid var(--rule);flex:none}
 .step{flex:1;font:inherit;font-size:var(--t-micro);text-transform:uppercase;letter-spacing:.06em;font-weight:600;color:var(--ink-faint);padding:8px 0 7px;border:none;border-bottom:2px solid transparent;background:none;text-align:center;cursor:pointer}
@@ -271,7 +303,7 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
    out — and a bare number with no unit beside it tells you nothing. */
 .inputwrap{display:flex;align-items:stretch;min-width:0}
 .inputwrap .input{border-top-right-radius:0;border-bottom-right-radius:0;min-width:0}
-.input__unit{display:flex;align-items:center;padding:0 10px;border:1px solid var(--rule-strong);border-left:none;border-radius:0 var(--radius) var(--radius) 0;background:var(--surface-sunk);color:var(--ink-muted);font-size:var(--t-small);white-space:nowrap}
+.input__unit{display:flex;align-items:center;min-height:var(--ctl-h);padding:0 10px;border:1px solid var(--rule-strong);border-left:none;border-radius:0 var(--radius) var(--radius) 0;background:var(--surface-sunk);color:var(--ink-muted);font-size:var(--t-small);white-space:nowrap}
 .frow>.field--num{grid-column:span 2;min-width:96px}
 .frow>.field--num .input{text-align:left;min-width:48px}
 .frow>.field--full{grid-column:1/-1}
@@ -319,6 +351,22 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 .spark__fill{width:45%;background:var(--dock);border-radius:2px 2px 0 0;min-height:2px}
 .spark__fill--alt{background:repeating-linear-gradient(45deg,var(--ok),var(--ok) 3px,#8FC7AC 3px,#8FC7AC 6px)}
 .spark__l{font-size:9px;color:var(--ink-faint);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+/* Three short trends side by side rather than one tall block of bars: truckloads,
+   skid movement and booked dock time, each with its own total and unit. The table
+   below is where the exact numbers are read; this is only the shape. */
+.trends{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:var(--s3)}
+.trend{border:1px solid var(--rule);border-radius:var(--radius);padding:var(--s3);display:flex;flex-direction:column;gap:var(--s2);min-width:0}
+.trend__head{display:flex;align-items:baseline;justify-content:space-between;gap:var(--s2);min-width:0}
+.trend__label{font-size:var(--t-micro);text-transform:uppercase;letter-spacing:.03em;color:var(--ink-muted);font-weight:600;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.trend__total{font-family:var(--font-data);font-size:var(--t-lead);font-weight:600;line-height:1.1;white-space:nowrap}
+.trend__total span{font-family:var(--font-ui);font-size:var(--t-micro);font-weight:500;color:var(--ink-muted);margin-left:3px}
+.trend__plot{display:flex;align-items:flex-end;gap:1px;height:52px}
+.trend__col{flex:1 1 0;min-width:0;display:flex;flex-direction:column;justify-content:flex-end;height:100%}
+.trend__bar{width:100%;background:var(--dock);border-radius:2px 2px 0 0;min-height:1px}
+.trend__bar--alt{background:var(--ok);border-radius:0}
+.trend__col .trend__bar:last-child{border-radius:0 0 2px 2px}
+.trend__col .trend__bar:only-child{border-radius:2px 2px 0 0}
+.trend__axis{display:flex;justify-content:space-between;gap:var(--s2);font-size:var(--t-micro);color:var(--ink-faint);white-space:nowrap;font-variant-numeric:tabular-nums}
 .setlayout{display:grid;grid-template-columns:200px minmax(0,1fr);gap:var(--s4);align-items:start}
 .setnav{display:flex;flex-direction:column;gap:2px;background:var(--surface);border:1px solid var(--rule);border-radius:var(--radius-lg);padding:var(--s2);align-self:start}
 .setnav button{font-family:inherit;text-align:left;font-size:var(--t-base);color:var(--ink-muted);background:none;border:none;border-radius:var(--radius);padding:10px var(--s3);cursor:pointer}
@@ -333,6 +381,12 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 .card>*+*,.modal__body>*+*,[data-booking-step]>*+*{margin-top:var(--s4)}
 .card>.card__title+*,.modal__body>.card__title+*{margin-top:0}
 .card>.setrow+.setrow,.modal__body>.setrow+.setrow,[data-booking-step]>.setrow+.setrow{margin-top:0}
+/* Pairs, close together, two or three across — not one row per value with the
+   label and the value pushed to opposite edges. */
+.confirmgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:var(--s2) var(--s4);padding:var(--s3)}
+.confirmgrid__cell{display:flex;flex-direction:column;gap:0;min-width:0}
+.confirmgrid__l{font-size:var(--t-micro);text-transform:uppercase;letter-spacing:.03em;color:var(--ink-muted);font-weight:600}
+.confirmgrid__v{font-size:var(--t-base);font-weight:600;overflow-wrap:anywhere}
 .card__title{font-size:var(--t-base);font-weight:600;margin:0 0 var(--s3);display:flex;align-items:center;gap:var(--s2)}
 .card__title .btn{margin-left:auto}
 .hours{display:flex;flex-direction:column;gap:6px}
@@ -367,11 +421,9 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 /* Wall type is one step up from the operator screen — same timeline, read from
    across a room rather than from a desk. */
 .wall .tl{--tl-label:clamp(120px,10vw,240px)}
-.wall .tl__lanes{display:flex;flex-direction:column}
-/* Lanes share the height rather than being fixed: a site with three docks gets
-   three tall lanes instead of three short ones above a band of empty screen, and
-   the extra height is what stops the block text being cut off. */
-.wall .tl__lane{flex:var(--rows,1) 1 0;min-height:clamp(56px,7vh,150px)}
+/* The board caps lane growth so a small site does not get enormous bands; the
+   wall has no such cap — filling the screen is the whole point of a wall display. */
+.wall .tl__lane{flex:var(--rows,1) 1 0;min-height:clamp(56px,7vh,150px);max-height:none}
 .wall .tlb{padding:clamp(4px,.5vw,10px) clamp(6px,.7vw,14px)}
 .wall .tlb__title{white-space:normal;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
 .wall .tl__label strong{font-size:clamp(16px,1.3vw,28px)}
@@ -383,7 +435,7 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 .wall .tlb__meta{font-size:clamp(11px,.8vw,17px)}
 
 /* ===== additions: icon buttons, rail admin-at-bottom, queue, data, fullscreen ===== */
-.btn--icon{padding:0;width:34px;min-height:34px;color:var(--ink-muted)}
+.btn--icon{padding:0;width:var(--ctl-h);color:var(--ink-muted)}
 .btn--icon svg{width:16px;height:16px}
 .btn--icon:hover{color:var(--ink)}
 /* rail admin pinned lower */
@@ -423,18 +475,23 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 .brieffig--stop{border-left-color:var(--stop)} .brieffig--stop .brieffig__v{color:var(--stop)}
 .brieffig__v{font-size:var(--t-lead);font-weight:700;line-height:1.1;font-variant-numeric:tabular-nums}
 .brieffig__l{font-size:var(--t-micro);text-transform:uppercase;letter-spacing:.07em;color:var(--ink-muted);font-weight:600}
+/* Separate points, not one running line — the owner has to be able to pick a fact
+   out of this at a glance in a morning meeting. */
+.briefpoints{margin:0;padding-left:1.1em;display:grid;gap:2px}
+.briefpoints li{font-size:var(--t-small);color:var(--ink-muted)}
 .brief__ico{width:32px;height:32px;border-radius:8px;background:var(--dock);color:#fff;display:grid;place-items:center;flex:none;font-weight:700;font-size:14px}
 .brief__body{flex:1}.brief__t{font-weight:600;margin-bottom:2px}.brief__x{color:var(--ink);font-size:var(--t-base)}.brief__x b{color:var(--dock-deep)}
-.split{display:grid;grid-template-columns:repeat(var(--kpi-cols,4),minmax(0,1fr)) var(--kpi-gear,0px);gap:var(--s3);flex:1;min-height:0}
+.split{display:grid;grid-template-columns:repeat(var(--kpi-cols,4),minmax(0,1fr));gap:var(--s3);flex:1;min-height:0}
 .split>*:first-child{grid-column:span calc(var(--kpi-cols,4) - 1)}
-.split>*:last-child{grid-column:-3/-1;min-width:0}
+.split>*:last-child{grid-column:span 1;min-width:0}
 .heat{background:var(--surface);border:1px solid var(--rule);border-radius:var(--radius-lg);padding:var(--s3) var(--s4);display:flex;flex-direction:column}
 .heat__t{font-size:var(--t-base);font-weight:600;margin:0 0 var(--s2);display:flex;align-items:center}.heat__t .btn{margin-left:auto}
 .heatgrid{display:grid;grid-template-columns:44px repeat(10,1fr);gap:2px}.heatgrid .hh{font-family:var(--font-data);font-size:9px;color:var(--ink-faint);text-align:center}.heatgrid .hd{font-family:var(--font-data);font-size:10px;color:var(--ink-muted);display:flex;align-items:center}.hc{height:20px;border-radius:2px;background:var(--dock);opacity:calc(var(--v)/5)}
 .watch{background:var(--surface);border:1px solid var(--rule);border-radius:var(--radius-lg);padding:var(--s3) var(--s4);overflow:auto}.watch__t{font-size:var(--t-base);font-weight:600;margin:0 0 var(--s3)}.watchitem{display:flex;gap:var(--s2);padding:var(--s2) 0;border-bottom:1px solid var(--rule);font-size:var(--t-small)}.watchitem:last-child{border:none}.watchitem b{display:block}.wdot{width:8px;height:8px;border-radius:50%;flex:none;margin-top:4px;background:var(--c)}
 
 /* Capacity components — approved page-5-settings.html */
-.cap{display:flex;flex-direction:column;gap:var(--s2)}.capbar{height:26px;border-radius:4px;background:var(--surface-sunk);position:relative;overflow:hidden;display:flex}.capbar__in{background:var(--dock);height:100%}.capbar__out{background:var(--ok);height:100%}.caplegend{display:flex;gap:var(--s4);font-size:var(--t-small);color:var(--ink-muted)}.caplegend span{display:inline-flex;align-items:center;gap:5px}.caplegend i{width:9px;height:9px;border-radius:2px;display:inline-block}.setrow{display:grid;grid-template-columns:1fr auto;gap:var(--s3);align-items:center;padding:8px 0;border-bottom:1px solid var(--rule)}.setrow:last-child{border:none}.setrow__t{font-size:var(--t-base);font-weight:500}.setrow__d{font-size:var(--t-small);color:var(--ink-muted)}
+.cap{display:flex;flex-direction:column;gap:var(--s2)}.capbar{height:26px;border-radius:4px;background:var(--surface-sunk);position:relative;overflow:hidden;display:flex}.capbar__in{background:var(--dock);height:100%}.capbar__out{background:var(--ok);height:100%}.caplegend{display:flex;gap:var(--s4);font-size:var(--t-small);color:var(--ink-muted)}.caplegend span{display:inline-flex;align-items:center;gap:5px}.caplegend i{width:9px;height:9px;border-radius:2px;display:inline-block}.setrow{display:grid;grid-template-columns:minmax(0,220px) auto;justify-content:start;gap:var(--s4);align-items:center;padding:6px 0;border-bottom:1px solid var(--rule)}
+.setrow__ctl{display:flex;align-items:center;gap:var(--s3)}.setrow:last-child{border:none}.setrow__t{font-size:var(--t-base);font-weight:500}.setrow__d{font-size:var(--t-small);color:var(--ink-muted)}
 
 /* Password reveal — approved production stylesheet */
 .passwordField{position:relative;display:flex;align-items:center}.passwordField .input{padding-right:calc(var(--tap) + 2px)}.passwordReveal{position:absolute;right:0;top:0;height:100%;width:var(--tap);display:flex;align-items:center;justify-content:center;border:none;background:none;color:var(--ink-muted);cursor:pointer;border-radius:var(--radius)}.passwordReveal:hover{color:var(--ink)}.passwordReveal svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.7}

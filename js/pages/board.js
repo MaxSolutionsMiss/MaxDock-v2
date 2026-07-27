@@ -3,7 +3,7 @@ import { db } from '../db.js';
 import { createModal } from '../ui/modal.js';
 import { toast } from '../ui/toast.js';
 import { renderState } from '../ui/empty.js';
-import { pageHead, controlsBar, kpiGearButton } from '../ui/pagehead.js';
+import { pageHead, controlsBar } from '../ui/pagehead.js';
 import { createCustomizePanel } from '../ui/customize.js';
 import { openWall, paintWall } from '../ui/wall.js';
 import { renderTimeline, clockLabel } from '../ui/timeline.js';
@@ -36,10 +36,13 @@ const KPI_CARDS = [
 ];
 const DEFAULT_CARDS = KPI_CARDS.map(card => card.id);
 
-// A dock can be out of service for a shift, a day or a rebuild, so the presets run
-// well past an afternoon and anything they miss is entered as hours.
-// Reasons a dock actually goes out of service, so the common case is one click and
-// the note carries anything specific.
+const GRANULARITIES = [
+  { minutes: 15, label: '15 minutes' },
+  { minutes: 30, label: '30 minutes' },
+  { minutes: 60, label: '1 hour' },
+  { minutes: 120, label: '2 hours' },
+];
+
 const BLOCK_REASONS = ['Maintenance', 'Cleaning', 'Staff break', 'Shift change', 'Event', 'Inventory count', 'Equipment down', 'Weather', 'Other'];
 
 const TERMINAL_STATUSES = new Set(['completed', 'cancelled', 'no_show']);
@@ -198,7 +201,7 @@ async function submitEdit(event) {
 
 function buildShell(root) {
   root.innerHTML = `
-    ${pageHead('Dock board', { subtitleAttribute: 'data-board-subtitle', actions: ['export', 'print', 'fullscreen'] })}
+    ${pageHead('Dock board', { subtitleAttribute: 'data-board-subtitle', actions: ['export', 'print', 'fullscreen', 'customize'] })}
     ${controlsBar({
       label: 'Dock board controls',
       lead: `<div class="ctrl-field"><label for="board-date">Date</label><div class="datenav">
@@ -209,7 +212,7 @@ function buildShell(root) {
       </div></div>`,
       filters: `<div class="ctrl-field"><label for="board-direction">Direction</label><select class="select" id="board-direction" data-filter-direction><option value="all">All movements</option><option value="inbound">Inbound</option><option value="outbound">Outbound</option></select></div>
       <div class="ctrl-field"><label for="board-status">Status</label><select class="select" id="board-status" data-filter-status><option value="all">All statuses</option><option value="scheduled">Scheduled</option><option value="arrived">Arrived</option><option value="complete">Complete</option><option value="cancelled">Cancelled</option></select></div>`,
-      actions: [['block', can('block.manage')], ['book', can('appointment.create')]],
+      trailing: [['block', can('block.manage')], ['book', can('appointment.create')]],
     })}
     <section class="kpis" aria-label="Dock board summary" data-kpis></section>
     <section class="board" data-board-host aria-label="Dock schedule"></section>
@@ -306,10 +309,9 @@ function renderKpis() {
   state.elements.kpis.hidden = cards.length === 0;
   const page = state.elements.kpis.closest('.page');
   page?.style.setProperty('--kpi-cols', String(Math.max(2, cards.length)));
-  page?.style.setProperty('--kpi-gear', '38px');
   state.elements.kpis.innerHTML = cards
     .map(card => `<article class="kpi ${card.className}"><span class="kpi__label">${card.label}</span><span class="kpi__value">${card.compute(appointments, blocks)}</span></article>`)
-    .join('') + kpiGearButton();
+    .join('');
 }
 
 // The window the timeline spans. Operating hours where they exist, widened just
@@ -385,7 +387,7 @@ function renderBoard() {
   state.elements.host.innerHTML = `<div class="board__head">
       <span class="board__title">${format.longDateInput(state.date, state.context.location)}</span>
       <div class="board__legend"><span class="lg" style="--c:var(--dock)">Inbound</span><span class="lg" style="--c:var(--ok)">Outbound</span><span class="lg" style="--c:var(--signal)">Priority</span><span class="lg" style="--c:var(--rule-strong)">Blocked</span></div>
-      <label class="ctrl-field ctrl-field--inline"><span>Timeline</span><select class="select select--sm" data-granularity>${[15, 30, 60].map(value => `<option value="${value}" ${state.granularity === value ? 'selected' : ''}>${value} min</option>`).join('')}</select></label>
+      <label class="ctrl-field ctrl-field--inline board__gran"><span>Timeline</span><select class="select" data-granularity>${GRANULARITIES.map(option => `<option value="${option.minutes}" ${state.granularity === option.minutes ? 'selected' : ''}>${option.label}</option>`).join('')}</select></label>
     </div>
     <div class="board__scroll">${timeline}</div>`;
 }

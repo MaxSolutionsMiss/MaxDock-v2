@@ -5,7 +5,7 @@ import { renderState } from '../ui/empty.js';
 import { format } from '../format.js';
 import { createCustomizePanel } from '../ui/customize.js';
 import { openWall, paintWall } from '../ui/wall.js';
-import { pageHead, kpiGearButton } from '../ui/pagehead.js';
+import { pageHead } from '../ui/pagehead.js';
 
 const LATE_GRACE_MINUTES = 15;
 const BACK_TO_BACK_MINUTES = 20;
@@ -114,11 +114,10 @@ function renderKpis() {
   state.elements.kpis.hidden = cards.length === 0;
   const page = state.elements.kpis.closest('.page');
   page?.style.setProperty('--kpi-cols', String(Math.max(2, cards.length)));
-  page?.style.setProperty('--kpi-gear', '38px');
   state.elements.kpis.innerHTML = cards.map(card => {
     const value = card.compute(appointments);
     return `<article class="kpi ${card.className}"><span class="kpi__label">${card.label}</span><span class="kpi__value">${value}${card.suffix ? `<span>${card.suffix}</span>` : ''}</span></article>`;
-  }).join('') + kpiGearButton();
+  }).join('');
 }
 
 function dockName(dockId) {
@@ -262,7 +261,7 @@ function localNarrative() {
   ];
   if (late.length) sentences.push(`${late.length} running late — check ${late.slice(0, 2).map(record => record.booking_reference || 'an unreferenced booking').join(' and ')}.`);
   else if (heaviest && Number(heaviest.skid_count || 0) > 0) sentences.push(`Heaviest load is ${heaviest.booking_reference || 'an unreferenced booking'} at ${heaviest.skid_count} skids.`);
-  return sentences.join(' ');
+  return sentences;
 }
 
 function renderBriefCard() {
@@ -270,9 +269,10 @@ function renderBriefCard() {
   const figures = briefFigures()
     .map(item => `<div class="brieffig${item.tone ? ` brieffig--${item.tone}` : ''}"><span class="brieffig__v">${escapeHtml(String(item.value))}</span><span class="brieffig__l">${escapeHtml(item.label)}</span></div>`)
     .join('');
+  const points = [...localNarrative(), ...(state.brief?.brief?.summary ? [state.brief.brief.summary] : [])];
   const narrative = state.briefLoading
     ? '<span class="brief__x">Generating today’s narrative…</span>'
-    : `<span class="brief__x">${escapeHtml(localNarrative())}${state.brief?.brief?.summary ? ` ${escapeHtml(state.brief.brief.summary)}` : ''} ${state.brief?.brief ? `<span class="tag tag--quiet">${escapeHtml(state.brief.mode === 'ai' ? 'AI-generated' : 'MaxDock rules analysis')}</span>` : ''}</span>`;
+    : `<ul class="briefpoints">${points.map(point => `<li>${escapeHtml(point)}</li>`).join('')}</ul>${state.brief?.brief ? `<span class="tag tag--quiet">${escapeHtml(state.brief.mode === 'ai' ? 'AI-generated' : 'MaxDock rules analysis')}</span>` : ''}`;
   host.innerHTML = `<div class="brief__head"><span class="brief__ico">AI</span><div class="brief__t">${escapeHtml(state.context.location.name)} · today at a glance</div><button class="linkBtn" type="button" data-share-brief style="margin-left:auto">Share with team</button></div>
     <div class="brieffigs">${figures}</div>
     <div class="brief__body">${narrative}</div>`;
@@ -283,6 +283,7 @@ function shareBrief() {
   const lines = [
     ...briefFigures().map(item => `${item.label}: ${item.value}`),
     '',
+    ...localNarrative(),
     brief.summary,
     '',
     ...(brief.pressures || []).map(item => `• ${item}`),
@@ -395,7 +396,7 @@ async function changeStatus(appointmentId, newStatus) {
 
 function buildShell(root) {
   root.innerHTML = `
-    ${pageHead('Operations queue', { actions: ['export', 'print', 'fullscreen'] })}
+    ${pageHead('Operations queue', { actions: ['export', 'print', 'fullscreen', 'customize'] })}
     <div class="brief" data-brief></div>
     <div class="kpis" data-kpis></div>
     <div class="split">

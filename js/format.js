@@ -58,8 +58,11 @@ export const format = Object.freeze({
   // location's zone returned the same date, so the board's forward button did
   // nothing and the back button skipped two days. Stepping the components keeps
   // the result independent of the zone, which is what a calendar day should be.
+  // A full ISO timestamp is accepted and read as the calendar day it starts on:
+  // a caller that hands over `2026-07-27T12:00:00Z` used to get its own string
+  // back unchanged, which is how the Reports range start came up blank.
   addDaysInput(value, days) {
-    const [year, month, day] = String(value || '').split('-').map(Number);
+    const [year, month, day] = String(value || '').slice(0, 10).split('-').map(Number);
     if (!year || !month || !day) return String(value || '');
     const stepped = new Date(Date.UTC(year, month - 1, day + Number(days || 0)));
     const pad = number => String(number).padStart(2, '0');
@@ -93,6 +96,15 @@ export const format = Object.freeze({
       weekday: 'long', month: 'long', day: 'numeric', year: 'numeric',
       timeZone: location?.timezone || DEFAULT_TIMEZONE,
     }).format(makeDate(`${dateInput}T12:00:00Z`));
+  },
+
+  // "27 Jul 2026" — short enough for a subtitle, unambiguous about the month,
+  // and never a bare ISO string in front of an operator.
+  shortDateInput(dateInput, location) {
+    return new Intl.DateTimeFormat('en-CA', {
+      month: 'short', day: 'numeric', year: 'numeric',
+      timeZone: location?.timezone || DEFAULT_TIMEZONE,
+    }).format(makeDate(`${String(dateInput).slice(0, 10)}T12:00:00Z`));
   },
 
   currentTimeLabel() {

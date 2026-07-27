@@ -26,6 +26,16 @@ for (const timezone of ['America/Toronto', 'America/Vancouver', 'America/Los_Ang
   // Stepping forward and back must land where it started, at a DST boundary too.
   const forward = format.addDaysInput('2026-03-08', 1, location);
   check(`${timezone} round trip over DST`, format.addDaysInput(forward, -1, location), '2026-03-08');
+  // A full timestamp is read as the calendar day it starts on. Reports passed one
+  // and got its own string back, which left the range start blank on the page.
+  check(`${timezone} timestamp`, format.addDaysInput('2026-07-27T12:00:00Z', -29, location), '2026-06-28');
+  check(`${timezone} timestamp no step`, format.addDaysInput('2026-07-27T00:00:00.000Z', 0, location), '2026-07-27');
+}
+
+// Every date the app hands to the API or prints on screen is a plain calendar day.
+// A timestamp leaking through is the defect this catches.
+for (const [label, value] of [['last7', format.addDaysInput('2026-07-27', -6)], ['last30', format.addDaysInput('2026-07-27', -29)]]) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) failures.push(`${label}: ${value} is not a plain calendar day`);
 }
 
 if (failures.length) {

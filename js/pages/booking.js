@@ -426,8 +426,7 @@ function renderTimeStep() {
   hosts.step.innerHTML = `
     <div class="frow">
       <div class="field field--md"><span class="field__label">Requested date</span><input class="input" data-field="date" type="date" min="${format.inputDate(null, receivingLocation())}"></div>
-      <div class="field field--md"><span class="field__label">Preferred start</span><input class="input" data-field="preferred_start_time" type="time"></div>
-      <div class="field field--md"><span class="field__label">Preferred end</span><input class="input" data-field="preferred_end_time" type="time"></div>
+      <div class="field field--xl" style="align-self:end"><span class="field__label">&nbsp;</span><p class="hint" style="margin:0">Pick a date, then choose one of the available times below.</p></div>
     </div>
     ${staff ? `
       <label class="check-row" style="margin-top:var(--s4)"><input type="checkbox" data-field="after_hours"><span><strong>Request an after-hours time</strong><small>Staff only. The booking RPC verifies the time and records your confirmation.</small></span></label>
@@ -441,8 +440,6 @@ function renderTimeStep() {
       <div data-slot-list></div>` : ''}`;
 
   hosts.step.querySelector('[data-field="date"]').value = state.form.date;
-  hosts.step.querySelector('[data-field="preferred_start_time"]').value = state.form.preferred_start_time;
-  hosts.step.querySelector('[data-field="preferred_end_time"]').value = state.form.preferred_end_time;
   const afterHours = hosts.step.querySelector('[data-field="after_hours"]');
   if (afterHours) afterHours.checked = state.form.after_hours;
   const customTime = hosts.step.querySelector('[data-field="custom_time"]');
@@ -504,10 +501,14 @@ function renderConfirmStep() {
     </div>`;
 
   const grid = hosts.step.querySelector('[data-confirm-grid]');
+  // Two columns of label-and-value pairs rather than one full-width row each: the
+  // summary was a tall ladder with the label at one edge and the value at the
+  // other, which is the empty middle the owner objected to.
+  grid.className = 'card confirmgrid';
   for (const [label, value] of summaryRows()) {
-    const row = element('div', 'setrow');
-    row.append(element('div', 'setrow__d', label), element('strong', '', value));
-    grid.append(row);
+    const cell = element('div', 'confirmgrid__cell');
+    cell.append(element('span', 'confirmgrid__l', label), element('strong', 'confirmgrid__v', value));
+    grid.append(cell);
   }
   hosts.step.querySelector('[data-field="notes"]').value = state.form.notes;
   // Naming it is what saves it — a separate checkbox asked the same question twice.
@@ -963,7 +964,7 @@ function updateField(target) {
   state.form[field] = value;
 
   const slotFields = new Set([
-    'date', 'preferred_start_time', 'preferred_end_time', 'after_hours', 'custom_time',
+    'date', 'after_hours', 'custom_time',
     'appointment_type_code', 'truck_type_code', 'skid_count', 'handling_type_code', 'is_priority', 'requester_location_id',
   ]);
   const slotFieldChanged = slotFields.has(field) && previous !== value;
@@ -973,7 +974,10 @@ function updateField(target) {
     state.form.after_hours_acknowledged = false;
   }
   if (field === 'after_hours' || field === 'movement_kind' || field === 'direction') renderStep();
-  if (slotFieldChanged && field !== 'after_hours' && state.step === 2 && !state.form.after_hours) findSlots();
+  // Turning after-hours back off has to re-fetch: switching it on cleared the
+  // slot list, and this branch used to exclude the very field that emptied it, so
+  // the times never came back until the date was changed.
+  if (slotFieldChanged && state.step === 2 && !state.form.after_hours) findSlots();
 }
 
 async function handleAction(button) {

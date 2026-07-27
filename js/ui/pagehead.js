@@ -55,26 +55,23 @@ export function pageHead(title, { subtitleAttribute = 'data-subtitle', subtitle 
   </div>`;
 }
 
-// The customize control lives at the end of the metric row, not in the page header:
-// it applies to those cards and nothing else, and the header gave no clue what it
-// was for. Pages append it to their strip and set --kpi-gear so the grid leaves it
-// a column.
-export function kpiGearButton() {
-  return `<button class="kpis__gear" type="button" data-customize title="Customize these cards" aria-label="Customize these cards"><svg viewBox="0 0 24 24" aria-hidden="true">${ICONS.customize}</svg></button>`;
-}
-
 // The single controls band every page carries directly under its title. `lead` is
 // the page's own context control (a date stepper, a view switcher); `filters` are
 // its selects. Actions are placed by role, not by the order they are passed, so the
 // same control is in the same place on every screen.
-export function controlsBar({ label = 'Page controls', lead = '', filters = '', actions = [] } = {}) {
+export function controlsBar({ label = 'Page controls', lead = '', filters = '', actions = [], trailing = [] } = {}) {
   const enabled = enabledSet(actions);
+  const trailingEnabled = enabledSet(trailing);
   const leadButtons = LEAD_ORDER.filter(name => enabled.has(name)).map(actionButton).join('');
+  // Page actions sit at the far right of the band, after the filters, bottom
+  // aligned with them — the owner's arrangement, and it keeps the left edge of
+  // every band a context control rather than a button.
+  const trailingButtons = LEAD_ORDER.filter(name => trailingEnabled.has(name)).map(actionButton).join('');
   const endButtons = END_ORDER.filter(name => enabled.has(name)).map(actionButton).join('');
-  if (!lead && !filters && !leadButtons && !endButtons) return '';
+  if (!lead && !filters && !leadButtons && !endButtons && !trailingButtons) return '';
   return `<section class="controls" aria-label="${escapeHtml(label)}">
     ${lead || leadButtons ? `<div class="controls__lead">${lead}${leadButtons}</div>` : ''}
     ${filters ? `<div class="controls__filters">${filters}</div>` : ''}
-    ${endButtons ? `<div class="controls__end">${endButtons}</div>` : ''}
+    ${trailingButtons || endButtons ? `<div class="controls__end">${trailingButtons}${endButtons}</div>` : ''}
   </section>`;
 }

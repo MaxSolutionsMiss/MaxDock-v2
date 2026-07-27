@@ -2,7 +2,7 @@ import { startPage } from '../router.js';
 import { db } from '../db.js';
 import { toast } from '../ui/toast.js';
 import { renderState } from '../ui/empty.js';
-import { pageHead, controlsBar, kpiGearButton } from '../ui/pagehead.js';
+import { pageHead, controlsBar } from '../ui/pagehead.js';
 import { createCustomizePanel } from '../ui/customize.js';
 import { format } from '../format.js';
 
@@ -44,8 +44,11 @@ function compact(value) {
 function applyPreset(presetId) {
   state.preset = presetId;
   const today = format.todayInput(state.context.location);
-  if (presetId === 'last7') { state.from = format.addDaysInput(`${today}T12:00:00Z`, -6, state.context.location); state.to = today; }
-  else if (presetId === 'last30') { state.from = format.addDaysInput(`${today}T12:00:00Z`, -29, state.context.location); state.to = today; }
+  // addDaysInput takes a calendar day, not an instant. Passing a timestamp left
+  // the range start unparsed, so From came up blank and the report asked the RPC
+  // for a range it could not read.
+  if (presetId === 'last7') { state.from = format.addDaysInput(today, -6); state.to = today; }
+  else if (presetId === 'last30') { state.from = format.addDaysInput(today, -29); state.to = today; }
   else if (presetId === 'month') { state.from = `${today.slice(0, 7)}-01`; state.to = today; }
 }
 
@@ -70,7 +73,7 @@ function kpiRow() {
   const summary = state.data?.summary || {};
   const cards = KPI_CARDS.filter(card => state.visibleCards.includes(card.id));
   if (!cards.length) return '';
-  return `<div class="kpis" style="--kpi-cols:${Math.max(2, cards.length)};--kpi-gear:38px">${cards.map(card => `<article class="kpi ${card.className}"><span class="kpi__label">${escapeHtml(card.label)}</span><span class="kpi__value">${escapeHtml(card.compute(summary))}</span></article>`).join('')}${kpiGearButton()}</div>`;
+  return `<div class="kpis" style="--kpi-cols:${Math.max(2, cards.length)}">${cards.map(card => `<article class="kpi ${card.className}"><span class="kpi__label">${escapeHtml(card.label)}</span><span class="kpi__value">${escapeHtml(card.compute(summary))}</span></article>`).join('')}</div>`;
 }
 
 // A compact strip rather than a tall block of bars. The previous chart was a wall
@@ -96,6 +99,41 @@ function barChart(rows, valueKey, altKey) {
   }).join('')}</div>`;
 }
 
+// Three readings side by side instead of one tall wall of bars in the middle of
+// the page: trucks a day, skids a day split inbound/outbound, and dock hours
+// booked a day. Each carries its own total and unit, and the table underneath is
+// still the exact record — the strip is for the shape, not for reading numbers off.
+function trend(title, unit, rows, series, total) {
+  const max = Math.max(1, ...rows.map(row => series.reduce((sum, key) => sum + num(row[key]), 0)));
+  const day = row => String(row.date || '').slice(5);
+  const columns = rows.map(row => {
+    const parts = series.map(key => num(row[key]));
+    const readout = series.length > 1 ? `${parts[0]} in / ${parts[1]} out` : String(parts[0]);
+    return `<span class="trend__col" title="${escapeHtml(`${day(row)}: ${readout}`)}">${
+      parts.map((value, index) => `<span class="trend__bar${index ? ' trend__bar--alt' : ''}" style="height:${(value / max * 100).toFixed(1)}%"></span>`).reverse().join('')
+    }</span>`;
+  }).join('');
+  return `<article class="trend">
+    <div class="trend__head"><span class="trend__label">${escapeHtml(title)}</span><span class="trend__total">${escapeHtml(total)}<span>${escapeHtml(unit)}</span></span></div>
+    <div class="trend__plot">${columns}</div>
+    <div class="trend__axis"><span>${escapeHtml(day(rows[0]) || '')}</span><span>peak ${max}</span><span>${escapeHtml(day(rows[rows.length - 1]) || '')}</span></div>
+  </article>`;
+}
+
+function trendStrip(byDay) {
+  if (!byDay.length) return '<p class="hint">No data in this range.</p>';
+  const sum = key => byDay.reduce((total, row) => total + num(row[key]), 0);
+  return `<div class="trends">
+    ${trend('Truckloads per day', 'trucks', byDay, ['appointments'], compact(sum('appointments')))}
+    ${trend('Skid movement per day', 'skids', byDay, ['inbound_skids', 'outbound_skids'], compact(sum('inbound_skids') + sum('outbound_skids')))}
+    ${trend('Dock time booked per day', 'hours', byDay.map(row => ({ date: row.date, hours: Math.round(num(row.booked_minutes) / 60) })), ['hours'], compact(sum('booked_minutes') / 60))}
+  </div>`;
+}
+
+// Dates are read by people here, not by the API. Never print the ISO string.
+const dayLabel = value => format.shortDateInput(value, state.context?.location);
+const rangeLabel = () => `${format.shortDateInput(state.from, state.context?.location)} – ${format.shortDateInput(state.to, state.context?.location)}`;
+
 function table(headers, rows) {
   return `<table class="table"><thead><tr>${headers.map(header => `<th>${escapeHtml(header)}</th>`).join('')}</tr></thead><tbody>${
     rows.length ? rows.map(cells => `<tr>${cells.map((cell, index) => `<td class="${index === 0 ? 'data data--strong' : 'data'}">${escapeHtml(cell)}</td>`).join('')}</tr>`).join('')
@@ -107,9 +145,9 @@ function renderOverview() {
   const byDay = state.data.by_day || [];
   return `${kpiRow()}
     <div class="panel panel--fill">
-      <div class="panel__head"><h3 class="panel__title">Appointments per day</h3><div class="panel__actions"><span class="sub">${escapeHtml(state.from)} – ${escapeHtml(state.to)}</span></div></div>
-      <div style="padding:var(--s4)">${barChart(byDay, 'inbound_skids', 'outbound_skids')}<p class="hint">Skids per day — solid is inbound, hatched is outbound. Totals above each day.</p></div>
-      <div class="panel__scroll">${table(['Date', 'Appointments', 'Cancelled', 'Priority', 'Inbound skids', 'Outbound skids'], byDay.map(row => [row.date, num(row.appointments), num(row.cancelled), num(row.priority), num(row.inbound_skids), num(row.outbound_skids)]))}</div>
+      <div class="panel__head"><h3 class="panel__title">Daily shape</h3><div class="panel__actions"><span class="sub">${escapeHtml(rangeLabel())}</span></div></div>
+      <div class="panel__body">${trendStrip(byDay)}</div>
+      <div class="panel__scroll">${table(['Date', 'Appointments', 'Cancelled', 'Priority', 'Inbound skids', 'Outbound skids'], byDay.map(row => [dayLabel(row.date), num(row.appointments), num(row.cancelled), num(row.priority), num(row.inbound_skids), num(row.outbound_skids)]))}</div>
     </div>`;
 }
 
@@ -117,8 +155,8 @@ function renderTruckFlow() {
   const byVehicle = state.data.by_vehicle || [];
   return `${kpiRow()}
     <div class="panel panel--fill">
-      <div class="panel__head"><h3 class="panel__title">Vehicle mix</h3><div class="panel__actions"><span class="sub">${escapeHtml(state.from)} – ${escapeHtml(state.to)}</span></div></div>
-      <div style="padding:var(--s4)">${barChart(byVehicle, 'appointments')}<p class="hint">Appointments by truck type across the selected range.</p></div>
+      <div class="panel__head"><h3 class="panel__title">Vehicle mix</h3><div class="panel__actions"><span class="sub">${escapeHtml(rangeLabel())}</span></div></div>
+      <div class="panel__body">${barChart(byVehicle, 'appointments')}<p class="hint">Appointments by truck type across the selected range.</p></div>
       <div class="panel__scroll">${table(['Truck type', 'Appointments', 'Skids'], byVehicle.map(row => [row.name, num(row.appointments), num(row.skids)]))}</div>
     </div>`;
 }
@@ -129,8 +167,8 @@ function renderSkidMovement() {
   return `${kpiRow()}
     <div class="panel panel--fill">
       <div class="panel__head"><h3 class="panel__title">Skid movement per day</h3><div class="panel__actions"><span class="sub">${compact(s.inbound_skids)} in · ${compact(s.outbound_skids)} out</span></div></div>
-      <div style="padding:var(--s4)">${barChart(byDay, 'inbound_skids', 'outbound_skids')}<p class="hint">Blue = inbound, green = outbound.</p></div>
-      <div class="panel__scroll">${table(['Date', 'Inbound skids', 'Outbound skids', 'Net change'], byDay.map(row => [row.date, num(row.inbound_skids), num(row.outbound_skids), num(row.inbound_skids) - num(row.outbound_skids)]))}</div>
+      <div class="panel__body">${barChart(byDay, 'inbound_skids', 'outbound_skids')}<p class="hint">Blue = inbound, green = outbound.</p></div>
+      <div class="panel__scroll">${table(['Date', 'Inbound skids', 'Outbound skids', 'Net change'], byDay.map(row => [dayLabel(row.date), num(row.inbound_skids), num(row.outbound_skids), num(row.inbound_skids) - num(row.outbound_skids)]))}</div>
     </div>`;
 }
 
@@ -141,7 +179,7 @@ function renderDockUtilisation() {
   const warnings = [];
   if (num(compatibility.docks_without_vehicle_types) > 0) warnings.push(`${compatibility.docks_without_vehicle_types} active dock(s) accept no configured truck type.`);
   if (num(compatibility.vehicle_types_without_docks) > 0) warnings.push(`${compatibility.vehicle_types_without_docks} enabled truck type(s) have no compatible dock.`);
-  return `<div class="kpis kpis--4">
+  return `<div class="kpis" style="--kpi-cols:4">
       <article class="kpi kpi--signal"><span class="kpi__label">Occupied utilisation</span><span class="kpi__value">${num(s.occupied_utilization_percent).toFixed(1)}<span>%</span></span></article>
       <article class="kpi"><span class="kpi__label">Booked hours</span><span class="kpi__value">${compact(num(s.booked_minutes) / 60)}</span></article>
       <article class="kpi kpi--stop"><span class="kpi__label">Blocked hours</span><span class="kpi__value">${compact(num(s.blocked_minutes) / 60)}</span></article>
@@ -149,7 +187,7 @@ function renderDockUtilisation() {
     </div>
     <div class="panel panel--fill">
       <div class="panel__head"><h3 class="panel__title">Busiest start hours</h3><div class="panel__actions"><span class="sub">${compact(num(s.available_dock_minutes) / 60)} dock-hours available</span></div></div>
-      <div style="padding:var(--s4)">${barChart(byHour, 'appointments')}<p class="hint">Appointment start times across the selected range.</p>
+      <div class="panel__body">${barChart(byHour, 'appointments')}<p class="hint">Appointment start times across the selected range.</p>
         ${warnings.length ? `<p class="form-message">${warnings.map(escapeHtml).join(' ')}</p>` : ''}</div>
       <div class="panel__scroll">${table(['Hour', 'Appointments', 'Skids'], byHour.map(row => [row.label, num(row.appointments), num(row.skids)]))}</div>
     </div>`;
@@ -206,19 +244,19 @@ function syncControls() {
   const custom = state.preset === 'custom';
   state.elements.from.disabled = !custom;
   state.elements.to.disabled = !custom;
-  state.elements.subtitle.textContent = `${state.context.location.name} · ${state.from} – ${state.to}`;
+  state.elements.subtitle.textContent = `${state.context.location.name} · ${rangeLabel()}`;
 }
 
 function buildShell(root) {
   root.innerHTML = `
-    ${pageHead('Reports', { actions: ['export', 'print'] })}
+    ${pageHead('Reports', { actions: ['export', 'print', 'customize'] })}
     ${controlsBar({
       label: 'Report controls',
       filters: `<div class="ctrl-field"><label for="report-view">View</label><select class="select" id="report-view" data-view>${VIEWS.map(view => `<option value="${view.id}">${view.label}</option>`).join('')}</select></div>
       <div class="ctrl-field"><label for="report-preset">Range</label><select class="select" id="report-preset" data-preset>${PRESETS.map(preset => `<option value="${preset.id}">${preset.label}</option>`).join('')}</select></div>
       <div class="ctrl-field"><label for="report-from">From</label><input class="input input--date" type="date" id="report-from" data-from></div>
       <div class="ctrl-field"><label for="report-to">To</label><input class="input input--date" type="date" id="report-to" data-to></div>
-      <div class="ctrl-field"><label>&nbsp;</label><button class="btn btn--primary btn--sm" type="button" data-apply>Apply</button></div>`,
+      <button class="btn btn--primary" type="button" data-apply>Apply</button>`,
       actions: [],
     })}
     <div data-report-host></div>`;

@@ -20,6 +20,47 @@
   // Display fields the appointment cards read straight through, rather than
   // resolving from the code tables.
   const SHOWN = { location_name: 'Pickering', location_timezone: 'America/Toronto', appointment_type: 'Sister Plant Transfer', truck_type: '53 ft Trailer', handling_type: 'Live unload' };
+  // A month of report rows shaped exactly like get_ai_operations_context returns.
+  const reportContext = () => {
+    const today = new Date();
+    const days = [...Array(30)].map((_, index) => {
+      const date = new Date(today);
+      date.setDate(today.getDate() - (29 - index));
+      const weekend = date.getDay() === 0 || date.getDay() === 6;
+      const appointments = weekend ? 1 + (index % 2) : 4 + (index % 5);
+      return {
+        date: date.toISOString().slice(0, 10),
+        appointments,
+        cancelled: index % 7 === 0 ? 1 : 0,
+        priority: index % 5 === 0 ? 1 : 0,
+        booked_minutes: appointments * 75,
+        inbound_skids: appointments * (6 + (index % 4)),
+        outbound_skids: appointments * (3 + (index % 3)),
+      };
+    });
+    const total = key => days.reduce((sum, day) => sum + day[key], 0);
+    return {
+      location: { id: 'loc-1', name: 'Pickering', timezone: 'America/Toronto' },
+      range: { start_date: days[0].date, end_date: days[days.length - 1].date, days: days.length },
+      summary: {
+        appointments: total('appointments'), non_cancelled: total('appointments') - total('cancelled'),
+        cancelled: total('cancelled'), priority: total('priority'),
+        booked_minutes: total('booked_minutes'), blocked_minutes: 540,
+        available_dock_minutes: 30 * 5 * 660, occupied_utilization_percent: 47.3,
+        inbound_skids: total('inbound_skids'), outbound_skids: total('outbound_skids'), active_docks: 5,
+      },
+      by_day: days,
+      by_hour: [6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16].map(hour => ({ hour, label: `${String(hour).padStart(2, '0')}:00`, appointments: 3 + (hour % 6), skids: 30 + (hour % 7) * 9 })),
+      by_vehicle: [
+        { code: 'trailer_53', name: '53 ft Trailer', appointments: 61, skids: 1240 },
+        { code: 'trailer_48', name: '48 ft Trailer', appointments: 24, skids: 430 },
+        { code: 'straight_truck_26', name: '26 ft Straight Truck', appointments: 17, skids: 138 },
+        { code: 'cube_van', name: 'Cube Van', appointments: 6, skids: 22 },
+      ],
+      by_status: { scheduled: 44, arrived: 12, completed: 46, cancelled: total('cancelled') },
+      compatibility: { active_docks: 5, mapped_pairs: 14, docks_without_vehicle_types: 0, vehicle_types_without_docks: 1 },
+    };
+  };
   const APPTS = [
     { id: 'a1', appointment_id: 'a1', booking_reference: 'MXD-2026-000140', entry_kind: 'appointment', status: 'arrived', direction: 'inbound', dock_id: 'dock-1', start_at: iso(7), end_at: iso(8), skid_count: 25, company_name: 'Guelph transfer', requester_name: 'Sam Delgado', requester_email: 'sdelgado@maxpkgsolutions.com', carrier_name: 'Day & Ross', external_reference: 'PO-99213', appointment_type_code: 'sister_plant_transfer', truck_type_code: 'trailer_53', handling_type_code: 'live_unload', is_priority: false, notes: '', completed_at: null, location_id: 'loc-1', ...SHOWN },
     { id: 'a2', appointment_id: 'a2', booking_reference: 'MXD-2026-000141', entry_kind: 'appointment', status: 'scheduled', direction: 'outbound', dock_id: 'dock-3', start_at: iso(8), end_at: iso(9), skid_count: 10, company_name: 'Haleon – Oakhill', requester_name: 'Maria Chen', requester_email: 'mchen@maxpkgsolutions.com', carrier_name: '', external_reference: 'BOL-4412', appointment_type_code: 'customer_pickup', truck_type_code: 'trailer_48', handling_type_code: 'drop_trailer', is_priority: true, notes: '', completed_at: null, location_id: 'loc-1', ...SHOWN },
@@ -77,7 +118,11 @@
     admin_list_user_usage: () => [{ user_id: UID, tracked_logins: 12, active_days: 9, active_days_7: 5, active_days_30: 9, page_views_30: 140, active_seconds_30: 5400, first_activity_at: iso(6), last_activity_at: iso(8) }],
     admin_get_mis_integration_settings: () => ({ database_type: 'sql_server', server_name: '', server_port: null, database_name: '', source_name: '', sync_mode: 'manual_csv', daily_sync_time: '05:00', is_enabled: false, credential_secret_name: '', last_success_at: null }),
     admin_list_mis_import_runs: () => [{ id: 2048, import_type: 'inventory_snapshot', file_name: 'inventory-2026-07-26.csv', row_count: 1204, status: 'completed', summary: '1204 rows imported.', imported_by_name: 'Javad Resa', created_at: iso(6) }],
-    get_ai_operations_context: () => ({}),
+    // Reports used to be audited against an empty object, so every rule passed on a
+    // page that drew nothing but its empty states — the same trap as a blank page
+    // passing a suite of negative assertions. This mirrors the real RPC's shape:
+    // a month of daily rows, start hours, vehicle mix, status counts.
+    get_ai_operations_context: () => reportContext(),
     list_external_company_directory: () => [{ company_name: 'Haleon – Oakhill' }],
     list_active_location_directory: () => LOC,
     // The booking wizard is only reachable past step 3 if slots come back, so the

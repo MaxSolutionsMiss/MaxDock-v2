@@ -200,8 +200,8 @@ function renderDocks() {
     const enabled = locationTypes.find(row => row.truck_type_code === type.code);
     return `<div class="setrow" data-truck-code="${type.code}">
       <div><div class="setrow__t">${escapeHtml(type.name)}</div></div>
-      <div class="frow" style="align-items:center;gap:var(--s2)">
-        <input class="input" type="number" min="0" style="max-width:90px" name="setup_minutes" value="${enabled ? enabled.setup_minutes : 0}" ${state.canManage ? '' : 'disabled'} aria-label="${escapeHtml(type.name)} setup minutes">
+      <div class="setrow__ctl">
+        <span class="inputwrap"><input class="input" type="number" min="0" style="width:74px" name="setup_minutes" value="${enabled ? enabled.setup_minutes : 0}" ${state.canManage ? '' : 'disabled'} aria-label="${escapeHtml(type.name)} setup minutes"><span class="input__unit">min setup</span></span>
         <button type="button" class="switch ${enabled?.is_active !== false && enabled ? '' : 'switch--off'}" data-truck-switch aria-pressed="${Boolean(enabled)}" aria-label="Enable ${escapeHtml(type.name)}" ${state.canManage ? '' : 'disabled'}></button>
       </div>
     </div>`;
