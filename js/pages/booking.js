@@ -40,6 +40,10 @@ function isStaff() {
 }
 
 function currentLocation() {
+  if (context.customerShell && state?.form?.destination_location_id) {
+    const chosen = context.locations.find(location => location.id === state.form.destination_location_id);
+    if (chosen) return chosen;
+  }
   return context.location;
 }
 
@@ -82,6 +86,7 @@ function createInitialForm() {
     location_id: context.location.id,
     direction: 'inbound',
     movement_kind: 'external',
+    destination_location_id: null,
     requester_type: customer ? clean(context.profile.external_party_type) || 'Customer' : 'Customer',
     company_name: customer ? clean(context.profile.organization_name) : '',
     requester_location_id: null,
@@ -330,6 +335,9 @@ function renderLoadStep() {
   // way every time whatever kind of movement it is.
   hosts.step.innerHTML = `
     ${renderQuickRebook()}
+    ${customer ? `<div class="frow">
+      <div class="field field--full"><span class="field__label">Sending to<span class="field__req" aria-hidden="true">*</span></span><select class="select" data-field="destination_location_id"></select></div>
+    </div>` : ''}
     ${customer ? '' : `<div class="frow">
       <div class="field field--${maxToMax ? 'md' : 'sm'}"><span class="field__label">Direction</span><select class="select" data-field="direction">
         <option value="inbound" ${state.form.direction === 'inbound' ? 'selected' : ''}>Inbound</option>
@@ -369,6 +377,15 @@ function renderLoadStep() {
         .filter(location => location.id !== currentLocation().id)
         .map(location => ({ value: location.id, label: location.name })),
       state.form.requester_location_id,
+      'Choose a Max Solutions location',
+    );
+  }
+  const destination = hosts.step.querySelector('[data-field="destination_location_id"]');
+  if (destination) {
+    addOptions(
+      destination,
+      context.locations.map(location => ({ value: location.id, label: location.name })),
+      currentLocation().id,
       'Choose a Max Solutions location',
     );
   }
@@ -638,6 +655,7 @@ function clearSlotSelection() {
 function validateStep(step = state.step) {
   const form = state.form;
   if (step === 0) {
+    if (context.customerShell && context.locations.length > 1 && !form.destination_location_id) return 'Choose the Max Solutions location you are sending to.';
     if (!form.appointment_type_code) return 'Choose an appointment type.';
     if (!state.reference.appointmentTypes.some(item => item.code === form.appointment_type_code)) return 'Choose an appointment type enabled at this location.';
     if (!clean(String(form.skid_count ?? ''))) return 'Enter the skid count.';
@@ -971,6 +989,15 @@ async function removeTemplate() {
   }
 }
 
+async function reloadReferenceForLocation() {
+  try {
+    state.reference = await loadReferenceData();
+  } catch (error) {
+    toast(error.userMessage || 'This location’s booking options could not be loaded.', 'error');
+  }
+  renderStep();
+}
+
 function updateField(target) {
   const field = target.dataset.field;
   if (!field) return;
@@ -992,6 +1019,16 @@ function updateField(target) {
   if (field === 'after_hours' && !value) {
     state.form.custom_time = '';
     state.form.after_hours_acknowledged = false;
+  }
+  if (field === 'destination_location_id') {
+    state.form.location_id = currentLocation().id;
+    state.form.appointment_type_code = '';
+    state.form.truck_type_code = '';
+    state.form.handling_type_code = '';
+    state.form.date = format.inputDate(null, currentLocation());
+    clearSlotSelection();
+    reloadReferenceForLocation();
+    return;
   }
   if (field === 'after_hours' || field === 'movement_kind' || field === 'direction') renderStep();
   // Turning after-hours back off has to re-fetch: switching it on cleared the

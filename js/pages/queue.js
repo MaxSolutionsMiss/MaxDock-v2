@@ -38,6 +38,7 @@ const state = {
   brief: null,
   briefLoading: false,
   visibleCards: DEFAULT_CARDS,
+  visibleBriefFigures: [],
   elements: {},
   customizePanel: null,
   wall: null,
@@ -212,6 +213,11 @@ function renderWatch() {
 // is already late. Counted locally from the same records the page is showing, so
 // it is right even when the AI service is unavailable — that call only supplies
 // the narrative on top.
+function applyVisible(selected) {
+  state.visibleBriefFigures = selected.filter(id => id.startsWith('brief:')).map(id => id.slice(6));
+  state.visibleCards = selected.filter(id => !id.startsWith('brief:'));
+}
+
 function briefFigures() {
   const appointments = state.records.filter(record => record.entry_kind !== 'block');
   const skids = rows => rows.reduce((sum, row) => sum + Number(row.skid_count || 0), 0);
@@ -229,17 +235,32 @@ function briefFigures() {
     return map;
   }, new Map())].sort((a, b) => b[1] - a[1])[0];
   return [
-    { label: 'Trucks today', value: appointments.length },
-    { label: 'Inbound', value: `${inbound.length} · ${skids(inbound)} skids` },
-    { label: 'Outbound', value: `${outbound.length} · ${skids(outbound)} skids` },
-    { label: 'Still to come', value: expected.length },
-    { label: 'On site now', value: onSite.length },
-    { label: 'Completed', value: done.length },
-    ...(priority.length ? [{ label: 'Priority', value: priority.length, tone: 'signal' }] : []),
-    ...(late.length ? [{ label: 'Running late', value: late.length, tone: 'stop' }] : []),
-    ...(busiest ? [{ label: 'Busiest hour', value: `${String(busiest[0]).padStart(2, '0')}:00 · ${busiest[1]}` }] : []),
-  ];
+    { id: 'trucks', label: 'Trucks today', value: appointments.length },
+    { id: 'inbound', label: 'Inbound', value: `${inbound.length} · ${skids(inbound)} skids` },
+    { id: 'outbound', label: 'Outbound', value: `${outbound.length} · ${skids(outbound)} skids` },
+    { id: 'expected', label: 'Still to come', value: expected.length },
+    { id: 'onsite', label: 'On site now', value: onSite.length },
+    { id: 'completed', label: 'Completed', value: done.length },
+    ...(priority.length ? [{ id: 'priority', label: 'Priority', value: priority.length, tone: 'signal' }] : []),
+    ...(late.length ? [{ id: 'late', label: 'Running late', value: late.length, tone: 'stop' }] : []),
+    ...(busiest ? [{ id: 'busiest', label: 'Busiest hour', value: `${String(busiest[0]).padStart(2, '0')}:00 · ${busiest[1]}` }] : []),
+  ].filter(item => state.visibleBriefFigures.includes(item.id));
 }
+
+// Every figure the brief can show, listed independently of today's data so the
+// picker offers all of them even on a quiet day.
+const BRIEF_FIGURES = [
+  { id: 'trucks', label: 'Trucks today' },
+  { id: 'inbound', label: 'Inbound' },
+  { id: 'outbound', label: 'Outbound' },
+  { id: 'expected', label: 'Still to come' },
+  { id: 'onsite', label: 'On site now' },
+  { id: 'completed', label: 'Completed' },
+  { id: 'priority', label: 'Priority' },
+  { id: 'late', label: 'Running late' },
+  { id: 'busiest', label: 'Busiest hour' },
+];
+const DEFAULT_BRIEF_FIGURES = BRIEF_FIGURES.map(figure => figure.id);
 
 // Two or three sentences someone can read out in a morning meeting, built from the
 // schedule rather than a service call, so the brief is never empty.
@@ -462,14 +483,19 @@ const page = {
     buildShell(context.pageRoot);
     wireEvents(context.pageRoot);
     state.elements.subtitle.textContent = `${context.location.name} · today · live`;
+    // One gear, both rows: the brief's figures at a glance and the metric cards
+    // under it. They were two strips of numbers with only one of them adjustable.
     state.customizePanel = await createCustomizePanel({
       preferenceKey: 'queue-cards',
-      options: KPI_CARDS.map(card => ({ id: card.id, label: card.label })),
-      defaultIds: DEFAULT_CARDS,
-      max: KPI_CARDS.length,
-      onChange: selected => { state.visibleCards = selected; renderKpis(); },
+      options: [
+        ...BRIEF_FIGURES.map(figure => ({ id: `brief:${figure.id}`, label: `At a glance · ${figure.label}` })),
+        ...KPI_CARDS.map(card => ({ id: card.id, label: `Metric card · ${card.label}` })),
+      ],
+      defaultIds: [...DEFAULT_BRIEF_FIGURES.map(id => `brief:${id}`), ...DEFAULT_CARDS],
+      max: BRIEF_FIGURES.length + KPI_CARDS.length,
+      onChange: selected => { applyVisible(selected); renderKpis(); renderBriefCard(); },
     });
-    state.visibleCards = state.customizePanel.selected;
+    applyVisible(state.customizePanel.selected);
     await refreshData();
     if (can('ai.insights')) fetchBrief();
     else state.elements.brief.hidden = true;

@@ -40,15 +40,17 @@ const timeInput = value => (value ? String(value).slice(0, 5) : '');
 
 async function fetchAll() {
   const locationId = state.locationId;
-  const [hours, settings, docks, truckTypes, locationTruckTypes, dockTruckTypes] = await Promise.all([
+  const [hours, settings, docks, truckTypes, locationTruckTypes, dockTruckTypes, capacity] = await Promise.all([
     db.select('location_operating_hours', q => q.select('location_id,day_of_week,is_open,open_time,close_time').eq('location_id', locationId), { key: `settings:hours:${locationId}`, cache: 0 }),
     db.select('location_settings', q => q.select('*').eq('location_id', locationId).maybeSingle(), { key: `settings:row:${locationId}`, cache: 0 }),
     db.select('docks', q => q.select('id,name,description,sort_order,direction_mode,is_active').eq('location_id', locationId).order('sort_order').order('name'), { key: `settings:docks:${locationId}`, cache: 0 }),
     db.select('truck_types', q => q.select('code,name').eq('is_active', true).order('sort_order'), { key: 'truck-types:active', cache: 60000 }),
     db.select('location_truck_types', q => q.select('truck_type_code,setup_minutes,is_active').eq('location_id', locationId), { key: `settings:location-truck-types:${locationId}`, cache: 0 }),
     db.select('dock_truck_types', q => q.select('dock_id,truck_type_code').eq('location_id', locationId), { key: `settings:dock-truck-types:${locationId}`, cache: 0 }),
+    db.rpc('get_location_capacity_projection', { p_location_id: locationId, p_at: format.nowIso(), p_direction: 'inbound', p_skid_count: 0 }, { key: `settings:capacity:${locationId}`, cache: 0, retry: 1 }).catch(() => null),
   ]);
   state.hours = hours || [];
+  state.capacity = Array.isArray(capacity) ? capacity[0] || null : capacity || null;
   state.settings = settings || null;
   state.docks = docks || [];
   state.truckTypes = truckTypes || [];
@@ -140,7 +142,11 @@ function renderCapacity() {
         <option value="enforce" ${s.capacity_enforcement_mode === 'enforce' ? 'selected' : ''}>Block booking</option>
       </select></div>
     </div>
-    <p class="hint">Currently ${s.current_occupied_skids ?? 0} skids occupied${s.inventory_as_of ? ` as of ${format.timestamp(s.inventory_as_of, state.context.location)}` : ''} (${s.capacity_last_source === 'mis' ? 'from MIS import' : 'manual entry'}).</p>
+    <div class="frow">
+      <div class="field field--num"><span class="field__label">Occupied now</span><span class="inputwrap"><input class="input" value="${state.capacity?.projected_before ?? s.current_occupied_skids ?? 0}" readonly><span class="input__unit">skids</span></span></div>
+      <div class="field field--num"><span class="field__label">Free now</span><span class="inputwrap"><input class="input" value="${state.capacity?.available_after ?? '—'}" readonly><span class="input__unit">skids</span></span></div>
+    </div>
+    <p class="hint">Counted from ${s.current_occupied_skids ?? 0} skids${s.inventory_as_of ? ` as of ${format.timestamp(s.inventory_as_of, state.context.location)}` : ''} (${s.capacity_last_source === 'mis' ? 'from MIS import' : 'manual entry'}), then every booked inbound added and every outbound subtracted.</p>
     ${saveFoot(canEdit)}
   </form>`;
 }

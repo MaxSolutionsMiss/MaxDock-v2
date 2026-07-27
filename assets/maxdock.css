@@ -54,7 +54,7 @@ body{background:var(--ground);color:var(--ink);font-family:var(--font-ui);font-s
 .top__date{font-family:var(--font-data);font-size:var(--t-small);color:var(--ink-muted);white-space:nowrap}
 .top__spacer{flex:1}
 .seg{display:inline-flex;border:1px solid var(--rule-strong);border-radius:var(--radius);overflow:hidden;background:var(--surface)}
-.controls__lead>.btn+.seg{margin-left:var(--s3);padding-left:var(--s4);border-left:1px solid var(--rule)}
+.controls__lead>.btn+.seg{margin-left:var(--s5)}
 .seg button{font-family:inherit;font-size:var(--t-small);font-weight:600;border:none;background:transparent;color:var(--ink-muted);min-height:var(--ctl-h);height:var(--ctl-h);padding:0 10px;cursor:pointer;border-right:1px solid var(--rule)}
 .seg button:last-child{border-right:none}
 .seg button[aria-pressed="true"]{background:var(--dock);color:#fff}
@@ -460,7 +460,7 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 /* The board caps lane growth so a small site does not get enormous bands; the
    wall has no such cap — filling the screen is the whole point of a wall display. */
 .wall .tl__lane{flex:var(--rows,1) 1 0;min-height:clamp(56px,7vh,150px);max-height:none}
-.wall .tlb{padding:clamp(4px,.5vw,10px) clamp(6px,.7vw,14px)}
+.wall .tlb{padding:clamp(4px,.5vw,10px) clamp(6px,.7vw,14px);align-content:center}
 .wall .tlb__title{white-space:normal;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
 .wall .tl__label strong{font-size:clamp(16px,1.3vw,28px)}
 .wall .tl__label small{font-size:clamp(11px,.75vw,16px)}
@@ -678,7 +678,7 @@ body.modal-open{overflow:hidden}
 .appointment-detail__label{color:var(--ink-muted);font-size:var(--t-micro)}
 .appointment-detail__value{overflow-wrap:anywhere}
 .appointment-card__actions{display:flex;gap:var(--s2);margin-left:auto}
-.status{min-height:28px;padding:4px 9px;border-radius:999px;display:inline-flex;align-items:center;background:var(--surface-sunk);color:var(--ink-muted);font-size:var(--t-micro);font-weight:600;white-space:nowrap}
+.status{min-height:24px;padding:3px 8px;border-radius:var(--radius);display:inline-flex;align-items:center;background:var(--surface-sunk);color:var(--ink-muted);font-size:var(--t-micro);font-weight:600;white-space:nowrap;margin-left:var(--s3)}
 .status--scheduled,.status--confirmed{background:var(--dock-wash);color:var(--dock-deep)}
 .status--arrived,.status--in_progress{background:var(--signal-wash);color:var(--signal)}
 .status--completed{color:var(--ok)}

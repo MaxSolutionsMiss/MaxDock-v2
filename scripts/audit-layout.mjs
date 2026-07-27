@@ -496,10 +496,12 @@ for (const name of PAGES) {
 // see a different set of controls. One width each — these look for a different
 // class of fault than the width sweep, and repeating seven widths per combination
 // would treble the job for no extra signal.
-for (const textSize of (FAST ? [] : TEXT_SIZES)) {
+const ROLE_PAGES = FAST ? ['board', 'my-appointments', 'book'] : PAGES;
+const ROLE_TEXT_SIZES = FAST ? ['normal'] : TEXT_SIZES;
+for (const textSize of ROLE_TEXT_SIZES) {
   for (const [role, permissions] of Object.entries(ROLES)) {
     if (textSize !== 'normal' && role !== 'system_admin') continue;
-    for (const name of PAGES) {
+    for (const name of (textSize === 'normal' ? ROLE_PAGES : PAGES)) {
       const context = await browser.newContext({ viewport: { width: 1280, height: 900 }, timezoneId: 'America/Toronto', locale: 'en-CA' });
       await context.addInitScript(roleScript(role, permissions) + STUB);
       await context.route('**/cdn.jsdelivr.net/**', route => route.abort());
@@ -515,8 +517,12 @@ for (const textSize of (FAST ? [] : TEXT_SIZES)) {
       await page.waitForTimeout(250);
       const where = `${name} · ${role}${textSize === 'normal' ? '' : ` · ${textSize}`}`;
       for (const e of errors) add(where, 1280, 'page-error', e.slice(0, 160));
-      const rendered = await page.evaluate(() => Boolean(document.querySelector('.page') || document.querySelector('.state')));
-      if (!rendered) { add(where, 1280, 'page-did-not-render', 'no .page and no explicit state'); await context.close(); continue; }
+      const rendered = await page.evaluate(() => ({
+        page: Boolean(document.querySelector('.page')),
+        failure: document.querySelector('.state--error, .state--warning')?.textContent?.trim().slice(0, 90) || '',
+      }));
+      if (rendered.failure) { add(where, 1280, 'page-shows-an-error', rendered.failure); await context.close(); continue; }
+      if (!rendered.page) { add(where, 1280, 'page-did-not-render', 'no .page element'); await context.close(); continue; }
       // The rail must hold one line at every text size — the owner's own gate.
       const wrapped = await page.evaluate(() => [...document.querySelectorAll('.rail__link')]
         .filter(el => el.offsetParent !== null && el.getBoundingClientRect().height > 60)
