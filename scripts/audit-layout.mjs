@@ -16,7 +16,12 @@ const ROOT = path.resolve(import.meta.dirname, '..');
 const PORT = 8731;
 // Phone and tablet widths included: the owner found mismatched field heights on a
 // phone that a desktop-only sweep never would have surfaced.
-const WIDTHS = [1440, 1280, 1024, 834, 768, 430, 390];
+// AUDIT_FAST trims the sweep to the widths that catch most faults, for use while
+// iterating. The full sweep — every width, plus the role and text-size passes —
+// runs before a push and in CI. Running the full thing after every small edit cost
+// more waiting than it caught.
+const FAST = Boolean(process.env.AUDIT_FAST);
+const WIDTHS = FAST ? [1440, 768, 390] : [1440, 1280, 1024, 834, 768, 430, 390];
 // Dialogs are audited at a subset — one desktop, one laptop, one tablet, one phone.
 // They are opened inside the page load that is already running, so this costs
 // interactions rather than navigations.
@@ -402,7 +407,7 @@ for (const name of PAGES) {
 // see a different set of controls. One width each — these look for a different
 // class of fault than the width sweep, and repeating seven widths per combination
 // would treble the job for no extra signal.
-for (const textSize of TEXT_SIZES) {
+for (const textSize of (FAST ? [] : TEXT_SIZES)) {
   for (const [role, permissions] of Object.entries(ROLES)) {
     if (textSize !== 'normal' && role !== 'system_admin') continue;
     for (const name of PAGES) {
