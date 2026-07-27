@@ -30,14 +30,20 @@
     capacity_warning: index === 3, alternative_date: null,
     recommended_dock_name: 'Dock 1', counterpart_dock_name: 'Dock 2', available_docks: 3,
   }));
+  // The audit injects a role to render the app as somebody other than an admin;
+  // without one this behaves exactly as it always has.
+  const ROLE = globalThis.__auditRole || null;
+  const ROLE_CODE = ROLE?.role || 'system_admin';
+  const ALL_PERMISSIONS = ['dock.view', 'operations.queue.view', 'appointment.view', 'appointment.view_own', 'appointment.create', 'appointment.update', 'appointment.complete', 'appointment.cancel', 'block.manage', 'settings.view', 'settings.manage', 'dock.manage', 'reports.view', 'user.view', 'user.manage', 'system.manage', 'notifications.view'];
+  const PERMISSIONS = ROLE?.permissions || ALL_PERMISSIONS;
   const TABLE = {
-    profiles: [{ id: UID, username: 'jresa', full_name: 'Javad Resa', contact_email: 'javadresa@maxpkgsolutions.com', role_code: 'system_admin', is_active: true, must_change_password: false, organization_name: null, external_party_type: null }],
+    profiles: [{ id: UID, username: 'jresa', full_name: 'Javad Resa', contact_email: 'javadresa@maxpkgsolutions.com', role_code: ROLE_CODE, is_active: true, must_change_password: false, organization_name: ROLE_CODE === 'customer' ? 'Haleon' : null, external_party_type: ROLE_CODE === 'customer' ? 'Customer' : null }],
     roles: [{ code: 'system_admin', name: 'System Admin', rank: 100 }, { code: 'site_admin', name: 'Site Admin', rank: 80 }, { code: 'shipping_manager', name: 'Shipping Manager', rank: 60 }, { code: 'coordinator', name: 'Coordinator', rank: 40 }, { code: 'customer', name: 'Customer', rank: 20 }],
-    role_permissions: ['dock.view', 'operations.queue.view', 'appointment.view', 'appointment.view_own', 'appointment.create', 'appointment.update', 'appointment.complete', 'appointment.cancel', 'block.manage', 'settings.view', 'settings.manage', 'dock.manage', 'reports.view', 'user.view', 'user.manage', 'system.manage', 'notifications.view'].map(permission_code => ({ permission_code, role_code: 'system_admin' })),
+    role_permissions: PERMISSIONS.map(permission_code => ({ permission_code, role_code: ROLE_CODE })),
     locations: LOC,
     docks: DOCKS,
     location_operating_hours: [{ location_id: 'loc-1', day_of_week: new Date().getDay(), is_open: true, open_time: '07:00:00', close_time: '17:00:00' }],
-    location_settings: [{ location_id: 'loc-1', slot_interval_minutes: 60, buffer_minutes: 10, base_minutes: 30, minutes_per_skid: 3, full_truck_minimum_minutes: 75, full_truck_skid_threshold: 24, priority_minimum_minutes: 75, minimum_notice_minutes: 240, maximum_advance_days: 30, auto_assign_dock: true, is_active: true, capacity_enabled: true, skid_capacity: 120, capacity_reserve_skids: 10, capacity_enforcement_mode: 'warn', current_occupied_skids: 67, inventory_as_of: iso(6), capacity_last_source: 'mis_csv', dock_assignment_strategy: 'balanced', max_concurrent_appointments: 2, suggest_same_day_consolidation: true }],
+    location_settings: [{ location_id: 'loc-1', slot_interval_minutes: 60, buffer_minutes: 10, base_minutes: 30, minutes_per_skid: 3, full_truck_minimum_minutes: 75, full_truck_skid_threshold: 24, priority_minimum_minutes: 75, minimum_notice_minutes: 240, maximum_advance_days: 30, auto_assign_dock: true, is_active: true, capacity_enabled: true, skid_capacity: 120, capacity_reserve_skids: 10, capacity_enforcement_mode: 'warn', current_occupied_skids: 67, inventory_as_of: iso(6), capacity_last_source: 'mis_csv', dock_assignment_strategy: 'balanced', max_concurrent_appointments: 2, suggest_same_day_consolidation: true, consolidation_window_hours: null }],
     truck_types: [{ code: 'trailer_53', name: '53 ft Trailer', sort_order: 1 }, { code: 'trailer_48', name: '48 ft Trailer', sort_order: 2 }, { code: 'straight_truck_26', name: '26 ft Straight Truck', sort_order: 3 }, { code: 'cube_van', name: 'Cube Van', sort_order: 4 }, { code: 'courier_van', name: 'Courier Van', sort_order: 5 }],
     appointment_types: [{ code: 'sister_plant_transfer', name: 'Sister Plant Transfer', sort_order: 1 }, { code: 'customer_pickup', name: 'Customer Pickup', sort_order: 2 }, { code: 'wip_transfer', name: 'WIP Transfer', sort_order: 3 }, { code: 'vendor_delivery', name: 'Vendor Delivery', sort_order: 4 }],
     handling_types: [{ code: 'live_unload', name: 'Live unload', sort_order: 1 }, { code: 'drop_trailer', name: 'Drop trailer', sort_order: 2 }, { code: 'live_load', name: 'Live load', sort_order: 3 }],

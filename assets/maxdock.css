@@ -295,12 +295,15 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 .hint{font-size:var(--t-small);color:var(--ink-muted);margin:var(--s2) 0 0}
 
 /* settings + reports specifics */
-.setlayout{display:grid;grid-template-columns:220px 1fr;gap:var(--s4);flex:1;min-height:0}
+/* The panel sizes to its content and the page stops stretching it. A short section
+   in a full-height panel left a large empty area under the Save button, which is
+   the wasted vertical space the owner objected to. */
+.setlayout{display:grid;grid-template-columns:200px minmax(0,1fr);gap:var(--s4);align-items:start}
 .setnav{display:flex;flex-direction:column;gap:2px;background:var(--surface);border:1px solid var(--rule);border-radius:var(--radius-lg);padding:var(--s2);align-self:start}
 .setnav button{font-family:inherit;text-align:left;font-size:var(--t-base);color:var(--ink-muted);background:none;border:none;border-radius:var(--radius);padding:10px var(--s3);cursor:pointer}
 .setnav button:hover{background:var(--surface-sunk);color:var(--ink)}
 .setnav button[aria-current="true"]{background:var(--dock-wash);color:var(--dock-deep);font-weight:600}
-.setpanel{overflow:auto;min-height:0}
+.setpanel{min-width:0}
 .card{background:var(--surface);border:1px solid var(--rule);border-radius:var(--radius-lg);padding:var(--s4)}
 /* One vertical rhythm inside cards, dialogs and wizard steps. A .frow spaces its
    own children but carried no margin of its own, so two stacked rows read as a

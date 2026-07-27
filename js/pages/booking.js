@@ -141,7 +141,7 @@ async function loadReferenceData() {
     loadEnabledRows('location_truck_types', 'truck_type_code', 'truck_types', locationId),
     loadEnabledRows('location_handling_types', 'handling_type_code', 'handling_types', locationId),
     db.select('location_settings', query => query
-      .select('slot_interval_minutes, suggest_same_day_consolidation')
+      .select('slot_interval_minutes, suggest_same_day_consolidation, consolidation_window_hours')
       .eq('location_id', locationId)
       .single(), {
       key: `booking:settings:${locationId}`,
@@ -735,6 +735,16 @@ function partyMatches(record) {
   return clean(record.company_name).toLowerCase() === company;
 }
 
+// Two loads are combinable if they land close enough together. "Close enough" is
+// the same calendar day by default, or a window of N hours either side when the
+// location has configured one.
+function withinConsolidationWindow(startAt, targetDate, timezone) {
+  const hours = Number(state.reference.settings.consolidation_window_hours || 0);
+  if (!hours) return format.sameLocalDate(startAt, targetDate, { timezone });
+  const target = state.form.selected_slot?.slot_start || `${targetDate}T${selectedTime() || '00:00'}`;
+  return Math.abs(format.minutesBetween(target, startAt)) <= hours * 60;
+}
+
 async function findSameDayAppointments() {
   if (!state.reference.settings.suggest_same_day_consolidation) return [];
   const targetDate = selectedDate();
@@ -750,7 +760,7 @@ async function findSameDayAppointments() {
       !TERMINAL_STATUSES.has(clean(record.status).toLowerCase())
       && record.location_name === currentLocation().name
       && clean(record.direction).toLowerCase() === state.form.direction
-      && format.sameLocalDate(record.start_at, targetDate, { timezone: record.location_timezone })
+      && withinConsolidationWindow(record.start_at, targetDate, record.location_timezone)
     );
   }
 
@@ -763,7 +773,7 @@ async function findSameDayAppointments() {
     record.entry_kind === 'appointment'
     && !TERMINAL_STATUSES.has(clean(record.status).toLowerCase())
     && clean(record.display_direction || record.direction).toLowerCase() === state.form.direction
-    && format.sameLocalDate(record.start_at, targetDate, currentLocation())
+    && withinConsolidationWindow(record.start_at, targetDate, currentLocation().timezone)
     && partyMatches(record)
   );
 }

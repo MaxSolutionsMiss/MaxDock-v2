@@ -165,8 +165,15 @@ function renderAssignment() {
       <div class="field field--num"><span class="field__label">Max concurrent</span><span class="inputwrap"><input class="input" type="number" min="1" name="max_concurrent_appointments" value="${s.max_concurrent_appointments ?? ''}" placeholder="∞" ${disabled}><span class="input__unit">at once</span></span></div>
     </div>
     <div class="setrow">
-      <div><div class="setrow__t">Same-day consolidation warning</div><div class="setrow__d">Flag same-destination bookings on the same day for review</div></div>
-      <button type="button" class="switch ${consolidation ? '' : 'switch--off'}" data-consolidation-switch aria-pressed="${consolidation}" aria-label="Same-day consolidation warning" ${disabled}></button>
+      <div><div class="setrow__t">Consolidation warning</div><div class="setrow__d">Flag combinable same-destination bookings for review</div></div>
+      <button type="button" class="switch ${consolidation ? '' : 'switch--off'}" data-consolidation-switch aria-pressed="${consolidation}" aria-label="Consolidation warning" ${disabled}></button>
+    </div>
+    <div class="frow">
+      <div class="field field--sm"><span class="field__label">Look for loads</span><select class="select" name="consolidation_window_mode" data-consolidation-mode ${disabled}>
+        <option value="day" ${s.consolidation_window_hours ? '' : 'selected'}>On the same day</option>
+        <option value="hours" ${s.consolidation_window_hours ? 'selected' : ''}>Within a set window</option>
+      </select></div>
+      <div class="field field--num"><span class="field__label">Window</span><span class="inputwrap"><input class="input" type="number" min="1" max="168" name="consolidation_window_hours" value="${s.consolidation_window_hours ?? ''}" placeholder="8" ${s.consolidation_window_hours ? '' : 'disabled'} ${disabled}><span class="input__unit">hours</span></span></div>
     </div>
     ${saveFoot(canEdit)}
   </form>`;
@@ -297,6 +304,11 @@ async function saveAssignment(form) {
     dock_assignment_strategy: data.get('dock_assignment_strategy'),
     max_concurrent_appointments: maxConcurrent ? Number(maxConcurrent) : null,
     suggest_same_day_consolidation: consolidation,
+    // NULL is the same-day behaviour this setting has always had; a number narrows
+    // or widens it to that many hours either side of the proposed appointment.
+    consolidation_window_hours: data.get('consolidation_window_mode') === 'hours' && data.get('consolidation_window_hours')
+      ? Number(data.get('consolidation_window_hours'))
+      : null,
   });
 }
 
@@ -439,6 +451,15 @@ function buildShell(root) {
 }
 
 function wireEvents(root) {
+  // The hours field only means anything when the window mode asks for one.
+  root.addEventListener('change', event => {
+    const mode = event.target.closest('[data-consolidation-mode]');
+    if (!mode) return;
+    const hours = mode.closest('form').elements.consolidation_window_hours;
+    hours.disabled = mode.value !== 'hours';
+    if (hours.disabled) hours.value = '';
+    else hours.focus();
+  });
   root.addEventListener('click', event => {
     const navButton = event.target.closest('[data-set-nav] button');
     if (navButton) { switchSection(navButton.dataset.section); return; }

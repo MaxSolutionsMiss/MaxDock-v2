@@ -21,7 +21,21 @@ const WIDTHS = [1440, 1280, 1024, 834, 768, 430, 390];
 // They are opened inside the page load that is already running, so this costs
 // interactions rather than navigations.
 const MODAL_WIDTHS = new Set([1440, 1024, 768, 390]);
-const PAGES = ['board', 'queue', 'my-appointments', 'settings', 'reports', 'users', 'data'];
+// Login is where every user starts and book.html is the standalone booking route a
+// customer is sent to; neither was audited at all until now.
+const PAGES = ['board', 'queue', 'my-appointments', 'settings', 'reports', 'users', 'data', 'book'];
+const ROOT_PAGES = { login: 'index.html' };
+// The owner's own acceptance gate requires the rail to hold one line at Normal,
+// Large and Larger. Nothing checked that, so every run only ever proved Normal.
+const TEXT_SIZES = ['normal', 'large', 'larger'];
+// A Customer sees fewer actions and different columns. That is exactly where a
+// header goes lopsided or a toolbar collapses, and one role proves nothing about
+// the others.
+const ROLES = {
+  system_admin: null,
+  coordinator: ['dock.view', 'operations.queue.view', 'appointment.view', 'appointment.view_own', 'appointment.create', 'appointment.cancel', 'reports.view', 'notifications.view'],
+  customer: ['appointment.view_own', 'appointment.create', 'appointment.cancel', 'notifications.view'],
+};
 
 // Dialogs reachable from each page, with the control that opens them. Every one of
 // these is a place a field can clip or a row can fall out of alignment, and until
@@ -263,7 +277,14 @@ function fillOpenDialog() {
   root.querySelector('[data-slot]')?.click();
 }
 
+function roleScript(role, permissions) {
+  if (!permissions) return '';
+  return `globalThis.__auditRole = ${JSON.stringify({ role, permissions })};`;
+}
+
 const browser = await chromium.launch();
+
+// Sweep one: every page at every width, as System Admin at normal text.
 for (const name of PAGES) {
   for (const width of WIDTHS) {
     // Pinned so the run is identical on a UTC CI runner and a laptop: the board
@@ -376,6 +397,43 @@ for (const name of PAGES) {
     await context.close();
   }
 }
+
+// Sweep two: the text sizes the owner's acceptance gate names, and the roles that
+// see a different set of controls. One width each — these look for a different
+// class of fault than the width sweep, and repeating seven widths per combination
+// would treble the job for no extra signal.
+for (const textSize of TEXT_SIZES) {
+  for (const [role, permissions] of Object.entries(ROLES)) {
+    if (textSize !== 'normal' && role !== 'system_admin') continue;
+    for (const name of PAGES) {
+      const context = await browser.newContext({ viewport: { width: 1280, height: 900 }, timezoneId: 'America/Toronto', locale: 'en-CA' });
+      await context.addInitScript(roleScript(role, permissions) + STUB);
+      await context.route('**/cdn.jsdelivr.net/**', route => route.abort());
+      const page = await context.newPage();
+      const errors = [];
+      page.on('pageerror', e => errors.push(e.message));
+      await page.goto(`http://127.0.0.1:${PORT}/app/${name}.html`, { waitUntil: 'networkidle' });
+      await page.waitForTimeout(600);
+      // Set after boot, not in an init script: at document-start there is no
+      // documentElement to set it on, and the app writes this attribute itself
+      // from the saved preference, so an early write would be overwritten anyway.
+      await page.evaluate(size => { document.documentElement.dataset.text = size; }, textSize);
+      await page.waitForTimeout(250);
+      const where = `${name} · ${role}${textSize === 'normal' ? '' : ` · ${textSize}`}`;
+      for (const e of errors) add(where, 1280, 'page-error', e.slice(0, 160));
+      const rendered = await page.evaluate(() => Boolean(document.querySelector('.page') || document.querySelector('.state')));
+      if (!rendered) { add(where, 1280, 'page-did-not-render', 'no .page and no explicit state'); await context.close(); continue; }
+      // The rail must hold one line at every text size — the owner's own gate.
+      const wrapped = await page.evaluate(() => [...document.querySelectorAll('.rail__link')]
+        .filter(el => el.offsetParent !== null && el.getBoundingClientRect().height > 60)
+        .map(el => el.textContent.trim().slice(0, 24)));
+      for (const label of wrapped) add(where, 1280, 'rail-label-wraps', `"${label}" wraps at ${textSize}`);
+      report(where, 1280, await page.evaluate(collect, null));
+      await context.close();
+    }
+  }
+}
+
 await browser.close();
 server.close();
 
