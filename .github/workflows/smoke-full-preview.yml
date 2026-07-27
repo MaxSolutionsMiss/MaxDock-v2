@@ -58,8 +58,12 @@ jobs:
           curl --fail --silent --show-error --location --retry 8 --retry-delay 3 "${BASE}/assets/maxdock.css?sha=${GITHUB_SHA}" -o /tmp/maxdock.css
           curl --fail --silent --show-error --location --retry 8 --retry-delay 3 "${BASE}/js/router.js?sha=${GITHUB_SHA}" -o /tmp/router.js
           curl --fail --silent --show-error --location --retry 8 --retry-delay 3 "${BASE}/js/pages/booking.js?sha=${GITHUB_SHA}" -o /tmp/booking.js
+          # Components the app actually renders, so a truncated or stale stylesheet
+          # fails here. .capbar used to be on this list and was reached by nothing —
+          # the assertion only froze dead bytes in a budgeted file.
           test "$(grep -c '\.brief' /tmp/maxdock.css)" -gt 0
-          test "$(grep -c '\.capbar' /tmp/maxdock.css)" -gt 0
+          test "$(grep -c '\.tlb' /tmp/maxdock.css)" -gt 0
+          test "$(grep -c '\.kpis' /tmp/maxdock.css)" -gt 0
           test "$(grep -c '\.passwordReveal' /tmp/maxdock.css)" -gt 0
           test "$(grep -c '\.login-page' /tmp/maxdock.css)" -gt 0
           test "$(grep -c '\.toast-region' /tmp/maxdock.css)" -gt 0
