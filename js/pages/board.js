@@ -465,40 +465,26 @@ async function submitBlock(event) {
 }
 
 function wallPayload() {
-  const lanes = state.docks.map(dock => ({ id: dock.id, name: dock.name, note: dock.direction_mode || '' }));
-  const entries = visibleRecords().map(record => ({
-    laneId: record.dock_id,
-    time: `${format.time(record.start_at, state.context.location)}–${format.time(record.end_at, state.context.location)}`,
-    title: record.entry_kind === 'block'
-      ? (record.block_reason || 'Dock blocked')
-      : (record.company_name || record.display_counterpart_location_name || record.requester_name || 'Scheduled movement'),
-    meta: record.entry_kind === 'block'
-      ? (record.notes || 'Unavailable')
-      : `${record.booking_reference || ''} · ${format.role(record.direction || '')} · ${Number(record.skid_count || 0)} skids`,
-    status: record.status,
-    kind: record.entry_kind,
-    isPriority: Boolean(record.is_priority),
-  }));
-  const appointments = entries.filter(entry => entry.kind !== 'block').length;
+  const window = boardWindow();
+  const appointments = visibleRecords().filter(record => record.entry_kind !== 'block').length;
   return {
-    lanes,
-    entries,
+    lanes: state.docks.map(dock => ({ id: dock.id, name: dock.name, note: dock.direction_mode || '' })),
+    blocks: timelineBlocks(),
+    windowStart: window.start,
+    windowEnd: window.end,
+    granularity: state.granularity,
     subtitle: `${format.longDateInput(state.date, state.context.location)} · ${appointments} scheduled · ${state.docks.length} docks`,
     clock: format.currentTimeLabel(),
   };
 }
 
 function openBroadcastWindow() {
-  const payload = wallPayload();
   state.wall = openWall({
     name: 'maxdock-broadcast',
     title: `${state.context.location.name} · Dock board`,
-    subtitle: payload.subtitle,
-    lanes: payload.lanes,
-    entries: payload.entries,
-    clock: payload.clock,
     cssHref: new URL('../assets/maxdock.css', globalThis.location.href).href,
     onNoWindow: () => toast('Allow pop-ups to open the broadcast board.', 'error'),
+    ...wallPayload(),
   });
 }
 

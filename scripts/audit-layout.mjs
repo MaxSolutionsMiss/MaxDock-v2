@@ -324,6 +324,18 @@ for (const name of PAGES) {
             if (step === 0) add(where, width, 'modal-did-not-open', `clicking ${spec.trigger} opened nothing`);
             break;
           }
+          // A dialog that opened but only contains an error message is a failure the
+          // rules below cannot see — they check that nothing is misplaced, and a
+          // one-line apology is perfectly well laid out. This is how a syntax error
+          // in the booking page reached a browser with the audit still clean.
+          const broken = await page.evaluate(() => {
+            const root = document.querySelector('[data-audit-open]');
+            if (!root) return null;
+            const controls = root.querySelectorAll('input,select,textarea,.slotpick button,[data-action]').length;
+            const message = root.querySelector('.form-message')?.textContent?.trim() || '';
+            return controls < 2 && message ? message.slice(0, 120) : null;
+          });
+          if (broken) { add(where, width, 'modal-failed-to-load', broken); break; }
           const label = steps > 1 ? `${where} (step ${step + 1})` : where;
           report(label, width, await page.evaluate(collect, '[data-audit-open]'));
           if (step === steps - 1) break;

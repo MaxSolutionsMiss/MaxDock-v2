@@ -470,6 +470,7 @@ async function openBookingModal(event) {
     bookingPage = await import('./pages/booking.js');
     await bookingPage.mount({ ...activeContext, pageRoot: modal, onClose: closeBookingModal });
   } catch (error) {
+    console.error('booking mount failed', error);
     modal.innerHTML = '<div class="modal__body"><p class="form-message">The booking form could not be loaded. Close this window and try again.</p></div>';
   }
   bookingModalHandle = { backdrop, modalControls, bookingPage };

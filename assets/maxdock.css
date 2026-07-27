@@ -234,6 +234,10 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 
 .field{display:flex;flex-direction:column;gap:4px}
 .field__label{font-size:var(--t-micro);text-transform:uppercase;letter-spacing:.07em;color:var(--ink-muted);font-weight:600}
+.field__opt{text-transform:none;letter-spacing:0;font-weight:400;color:var(--ink-faint)}
+/* The field being edited is visible at a glance — the owner asked for the outline
+   v1 had. Applied once here rather than per control. */
+.input:focus-visible,.select:focus-visible,textarea:focus-visible{outline:2px solid var(--dock);outline-offset:1px;border-color:var(--dock)}
 .field .input,.field .select,.field textarea{width:100%;min-width:0}
 .input[type="file"]{padding:6px 8px;min-width:0}
 .field--xs{max-width:120px} .field--sm{max-width:180px} .field--md{max-width:280px} .field--lg{max-width:420px}
@@ -249,6 +253,14 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 .frow>.field--lg{grid-column:span 6}
 .frow>.field--xl{grid-column:span 8}
 .frow>.field--xxl{grid-column:span 10}
+/* A field is sized by what goes in it. A two-digit minute count had the same width
+   as a company name, which is the "long fields for two numbers" the owner called
+   out — and a bare number with no unit beside it tells you nothing. */
+.inputwrap{display:flex;align-items:stretch;min-width:0}
+.inputwrap .input{border-top-right-radius:0;border-bottom-right-radius:0;min-width:0}
+.input__unit{display:flex;align-items:center;padding:0 10px;border:1px solid var(--rule-strong);border-left:none;border-radius:0 var(--radius) var(--radius) 0;background:var(--surface-sunk);color:var(--ink-muted);font-size:var(--t-small);white-space:nowrap}
+.frow>.field--num{grid-column:span 2}
+.frow>.field--num .input{text-align:right}
 .frow>.field--full{grid-column:1/-1}
 /* Keyed to the container, not the viewport: a dialog is a fixed 760px wide however
    large the window is, so a viewport media query collapsed rows that had room. */
@@ -256,6 +268,7 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 @container (max-width:560px){
   .frow{grid-template-columns:repeat(6,1fr)}
   .frow>*,.frow>.field--md,.frow>.field--lg,.frow>.field--xl,.frow>.field--xxl{grid-column:span 6}
+  .frow>.field--num{grid-column:span 2}
   .frow>.field--xs{grid-column:span 2}
   .frow>.field--sm{grid-column:span 3}
 }
@@ -266,6 +279,7 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
   .frow>*,
   .frow>.field--xs,.frow>.field--sm,.frow>.field--md,
   .frow>.field--lg,.frow>.field--xl,.frow>.field--xxl,.frow>.field--full{grid-column:1/-1}
+  .frow>.field--num{grid-column:span 3}
 }
 .choice{display:grid;grid-template-columns:1fr 1fr;gap:var(--s2)}
 .choice button{font-family:inherit;text-align:left;padding:9px 12px;border:1px solid var(--rule-strong);border-radius:var(--radius);background:var(--surface);cursor:pointer;min-height:var(--tap)}
@@ -319,23 +333,18 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 .wall__title{font-size:clamp(22px,2vw,40px);font-weight:700;letter-spacing:-.015em}
 .wall__sub{font-size:clamp(13px,1vw,20px);color:var(--ink-muted);margin-top:2px}
 .wall__clock{margin-left:auto;font-size:clamp(24px,2.2vw,44px);font-weight:600;font-variant-numeric:tabular-nums}
-.wall__lanes{flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:clamp(6px,.6vw,12px)}
-.wall-lane{display:grid;grid-template-columns:clamp(120px,11vw,220px) 1fr;gap:clamp(8px,.8vw,16px);background:var(--surface);border:1px solid var(--rule);border-radius:10px;padding:clamp(8px,.7vw,14px);min-height:clamp(72px,8vh,120px)}
-.wall-lane__label{display:flex;flex-direction:column;justify-content:center;padding-right:clamp(8px,.8vw,16px);border-right:1px solid var(--rule)}
-.wall-lane__label strong{font-size:clamp(16px,1.3vw,28px);font-weight:700}
-.wall-lane__label small{font-size:clamp(11px,.75vw,16px);color:var(--ink-faint)}
-.wall-lane__track{display:flex;align-items:stretch;gap:clamp(6px,.6vw,12px);overflow-x:auto;min-width:0}
-.wall-lane__idle{margin:0;align-self:center;color:var(--ink-faint);font-size:clamp(13px,1vw,20px)}
-.wall-card{display:flex;flex-direction:column;justify-content:center;gap:2px;flex:1 1 clamp(150px,14vw,280px);min-width:clamp(150px,14vw,280px);padding:clamp(6px,.6vw,12px) clamp(8px,.8vw,16px);border-radius:8px;border-left:5px solid var(--rule-strong);background:var(--surface-sunk)}
-.wall-card__time{font-size:clamp(15px,1.2vw,26px);font-weight:700;font-variant-numeric:tabular-nums}
-.wall-card__title{font-size:clamp(13px,1vw,21px);font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.wall-card__meta{font-size:clamp(11px,.8vw,17px);color:var(--ink-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.wall-card--next{border-left-color:var(--dock);background:var(--dock-wash)}
-.wall-card--now{border-left-color:var(--ok);background:var(--ok-wash)}
-.wall-card--priority{border-left-color:var(--signal);background:var(--signal-wash)}
-.wall-card--done{border-left-color:var(--rule-strong);background:var(--surface-sunk);color:var(--ink-muted)}
-.wall-card--off{border-left-color:var(--stop);background:var(--stop-wash)}
-.wall-card--block{border-left-color:var(--ink-faint);background:repeating-linear-gradient(135deg,var(--surface-sunk),var(--surface-sunk) 8px,#E3E8EC 8px,#E3E8EC 16px)}
+.wall__body{flex:1;min-height:0;background:var(--surface);border:1px solid var(--rule);border-radius:10px;overflow:hidden;container-type:inline-size}
+/* Wall type is one step up from the operator screen — same timeline, read from
+   across a room rather than from a desk. */
+.wall .tl{--tl-label:clamp(120px,10vw,240px)}
+.wall .tl__lane{min-height:calc(clamp(56px,7vh,110px) * var(--rows,1))}
+.wall .tl__label strong{font-size:clamp(16px,1.3vw,28px)}
+.wall .tl__label small{font-size:clamp(11px,.75vw,16px)}
+.wall .tl__scale{height:clamp(28px,3vh,44px)}
+.wall .tl__scale .tl__tick{font-size:clamp(12px,.9vw,18px)}
+.wall .tlb__time{font-size:clamp(13px,1vw,22px)}
+.wall .tlb__title{font-size:clamp(13px,1vw,21px)}
+.wall .tlb__meta{font-size:clamp(11px,.8vw,17px)}
 
 /* ===== additions: icon buttons, rail admin-at-bottom, queue, data, fullscreen ===== */
 .btn--icon{padding:0;width:34px;min-height:34px;color:var(--ink-muted)}
@@ -368,7 +377,16 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 .rebook__det{font-size:var(--t-small);color:var(--ink-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
 /* Operations queue components — approved page-3-queue.html */
-.brief{background:linear-gradient(180deg,var(--dock-wash),var(--surface));border:1px solid var(--dock);border-radius:var(--radius-lg);padding:var(--s3) var(--s4);margin-bottom:var(--s3);display:flex;gap:var(--s3);align-items:flex-start}
+/* The morning rundown: the figures a supervisor would otherwise read off the board
+   one at a time, in one band above the queue. */
+.brief{background:linear-gradient(180deg,var(--dock-wash),var(--surface));border:1px solid var(--dock);border-radius:var(--radius-lg);padding:var(--s3) var(--s4);margin-bottom:var(--s3);display:flex;flex-direction:column;gap:var(--s2)}
+.brief__head{display:flex;align-items:center;gap:var(--s2)}
+.brieffigs{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:var(--s2)}
+.brieffig{display:flex;flex-direction:column;gap:1px;padding:var(--s2) var(--s3);background:var(--surface);border:1px solid var(--rule);border-left:3px solid var(--dock);border-radius:var(--radius)}
+.brieffig--signal{border-left-color:var(--signal)} .brieffig--signal .brieffig__v{color:var(--signal)}
+.brieffig--stop{border-left-color:var(--stop)} .brieffig--stop .brieffig__v{color:var(--stop)}
+.brieffig__v{font-size:var(--t-lead);font-weight:700;line-height:1.1;font-variant-numeric:tabular-nums}
+.brieffig__l{font-size:var(--t-micro);text-transform:uppercase;letter-spacing:.07em;color:var(--ink-muted);font-weight:600}
 .brief__ico{width:32px;height:32px;border-radius:8px;background:var(--dock);color:#fff;display:grid;place-items:center;flex:none;font-weight:700;font-size:14px}
 .brief__body{flex:1}.brief__t{font-weight:600;margin-bottom:2px}.brief__x{color:var(--ink);font-size:var(--t-base)}.brief__x b{color:var(--dock-deep)}
 .split{display:grid;grid-template-columns:1fr 300px;gap:var(--s3);flex:1;min-height:0}
@@ -462,8 +480,10 @@ body.modal-open{overflow:hidden}
 .login-brand__badge img{width:100%;height:100%;object-fit:contain;display:block}
 .login-brand__name{margin:0;color:var(--brand-blue);font-size:calc(22px*var(--scale));font-weight:700;letter-spacing:-.015em}
 .login-card{background:var(--surface);border:1px solid var(--rule);border-radius:var(--radius-lg);padding:var(--s5)}
-.login-card__title{margin:0;font-size:var(--t-title);font-weight:600}
-.login-card__intro{margin:var(--s1) 0 var(--s5);color:var(--ink-muted)}
+/* Quieter under the wordmark: at title size these two lines competed with the
+   brand lockup above them and made the card read busy. */
+.login-card__title{margin:0;font-size:var(--t-lead);font-weight:600}
+.login-card__intro{margin:var(--s1) 0 var(--s4);color:var(--ink-muted);font-size:var(--t-small)}
 .login-divider{display:flex;align-items:center;gap:var(--s3);margin:var(--s5) 0 var(--s3);color:var(--ink-faint);font-size:var(--t-micro);text-transform:uppercase;letter-spacing:.09em}
 .login-divider::before,.login-divider::after{content:"";height:1px;background:var(--rule);flex:1}
 .login-owner{text-align:center}

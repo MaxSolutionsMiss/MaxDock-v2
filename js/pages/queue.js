@@ -5,7 +5,7 @@ import { renderState } from '../ui/empty.js';
 import { format } from '../format.js';
 import { createCustomizePanel } from '../ui/customize.js';
 import { openWall, paintWall } from '../ui/wall.js';
-import { pageHead, controlsBar } from '../ui/pagehead.js';
+import { pageHead } from '../ui/pagehead.js';
 
 const LATE_GRACE_MINUTES = 15;
 const BACK_TO_BACK_MINUTES = 20;
@@ -205,30 +205,71 @@ function renderWatch() {
     || '<div class="watchitem"><span class="wdot" style="--c:var(--ok)"></span><div><b>All clear</b>Nothing needs attention right now.</div></div>';
 }
 
+// The numbers a supervisor would otherwise read off the board one at a time before
+// a production meeting: what is coming, which way it moves, how heavy it is, what
+// is already late. Counted locally from the same records the page is showing, so
+// it is right even when the AI service is unavailable — that call only supplies
+// the narrative on top.
+function briefFigures() {
+  const appointments = state.records.filter(record => record.entry_kind !== 'block');
+  const skids = rows => rows.reduce((sum, row) => sum + Number(row.skid_count || 0), 0);
+  const inbound = appointments.filter(record => record.direction === 'inbound');
+  const outbound = appointments.filter(record => record.direction === 'outbound');
+  const done = appointments.filter(record => record.status === 'completed');
+  const onSite = appointments.filter(record => ACTIVE_STATUSES.has(record.status));
+  const expected = appointments.filter(record => EXPECTED_STATUSES.has(record.status));
+  const late = appointments.filter(record => isLate(record));
+  const priority = appointments.filter(record => record.is_priority);
+  const busiest = [...appointments.reduce((map, record) => {
+    const hour = format.localTimeMinutes(record.start_at, state.context.location);
+    const key = Math.floor(hour / 60);
+    map.set(key, (map.get(key) || 0) + 1);
+    return map;
+  }, new Map())].sort((a, b) => b[1] - a[1])[0];
+  return [
+    { label: 'Trucks today', value: appointments.length },
+    { label: 'Inbound', value: `${inbound.length} · ${skids(inbound)} skids` },
+    { label: 'Outbound', value: `${outbound.length} · ${skids(outbound)} skids` },
+    { label: 'Still to come', value: expected.length },
+    { label: 'On site now', value: onSite.length },
+    { label: 'Completed', value: done.length },
+    ...(priority.length ? [{ label: 'Priority', value: priority.length, tone: 'signal' }] : []),
+    ...(late.length ? [{ label: 'Running late', value: late.length, tone: 'stop' }] : []),
+    ...(busiest ? [{ label: 'Busiest hour', value: `${String(busiest[0]).padStart(2, '0')}:00 · ${busiest[1]}` }] : []),
+  ];
+}
+
 function renderBriefCard() {
   const host = state.elements.brief;
-  if (state.briefLoading) {
-    host.innerHTML = `<span class="brief__ico">AI</span><div class="brief__body"><div class="brief__t">Generating today's brief…</div></div>`;
-    return;
-  }
-  if (!state.brief) {
-    host.innerHTML = `<span class="brief__ico">AI</span><div class="brief__body"><div class="brief__t">Brief unavailable</div><div class="brief__x">The operations brief could not be generated for this date.</div></div>`;
-    return;
-  }
-  const { brief, mode } = state.brief;
-  const modeLabel = mode === 'ai' ? 'AI-generated' : 'MaxDock rules analysis';
-  host.innerHTML = `<span class="brief__ico">AI</span><div class="brief__body"><div class="brief__t">${escapeHtml(brief.title || "Today's brief")} <span class="tag tag--quiet">${escapeHtml(modeLabel)}</span></div><div class="brief__x">${escapeHtml(brief.summary || '')}</div></div><button class="brief__x linkBtn" type="button" data-share-brief>Share with team</button>`;
+  const figures = briefFigures()
+    .map(item => `<div class="brieffig${item.tone ? ` brieffig--${item.tone}` : ''}"><span class="brieffig__v">${escapeHtml(String(item.value))}</span><span class="brieffig__l">${escapeHtml(item.label)}</span></div>`)
+    .join('');
+  const narrative = state.briefLoading
+    ? '<span class="brief__x">Generating today’s narrative…</span>'
+    : state.brief?.brief
+      ? `<span class="brief__x">${escapeHtml(state.brief.brief.summary || '')} <span class="tag tag--quiet">${escapeHtml(state.brief.mode === 'ai' ? 'AI-generated' : 'MaxDock rules analysis')}</span></span>`
+      : '<span class="brief__x">Narrative unavailable — the figures above are counted from today’s schedule.</span>';
+  host.innerHTML = `<div class="brief__head"><span class="brief__ico">AI</span><div class="brief__t">${escapeHtml(state.context.location.name)} · today at a glance</div><button class="linkBtn" type="button" data-share-brief style="margin-left:auto">Share with team</button></div>
+    <div class="brieffigs">${figures}</div>
+    <div class="brief__body">${narrative}</div>`;
 }
 
 function shareBrief() {
-  const brief = state.brief?.brief;
-  if (!brief) { toast('No brief to share yet.', 'error'); return; }
-  const lines = [brief.summary, '', ...(brief.pressures || []).map(item => `• ${item}`), '', ...(brief.actions || []).map(item => `• ${item.action}`)];
+  const brief = state.brief?.brief || { summary: '' };
+  const lines = [
+    ...briefFigures().map(item => `${item.label}: ${item.value}`),
+    '',
+    brief.summary,
+    '',
+    ...(brief.pressures || []).map(item => `• ${item}`),
+    ...(brief.actions || []).map(item => `• ${item.action}`),
+  ];
   const href = `mailto:?subject=${encodeURIComponent(`${state.context.location.name} operations brief · ${state.date}`)}&body=${encodeURIComponent(lines.join('\n'))}`;
   globalThis.open(href, '_self');
 }
 
 function renderAll() {
+  renderBriefCard();
   renderKpis();
   renderTable();
   renderHeatmap();
@@ -248,41 +289,61 @@ function exportCsv() {
   URL.revokeObjectURL(link.href);
 }
 
+function queueWindow() {
+  const open = format.clockMinutes(state.hours?.open_time || '06:00:00');
+  const close = format.clockMinutes(state.hours?.close_time || '18:00:00');
+  let start = Math.min(open, close - 60);
+  let end = Math.max(close, start + 60);
+  for (const record of visibleRecords()) {
+    if (!record.start_at || !record.end_at) continue;
+    const from = format.localTimeMinutes(record.start_at, state.context.location);
+    const to = from + Math.max(5, format.minutesBetween(record.start_at, record.end_at));
+    start = Math.min(start, Math.floor(from / 60) * 60);
+    end = Math.max(end, Math.ceil(to / 60) * 60);
+  }
+  return { start: Math.max(0, start), end: Math.min(24 * 60, end) };
+}
+
 function wallPayload() {
+  const window = queueWindow();
   const lanes = state.docks.map(dock => ({ id: dock.id, name: dock.name, note: '' }));
   // Anything without a dock still has to appear, or the wall quietly under-reports
   // the yard. It gets its own lane at the end.
-  const unassigned = { id: '__unassigned', name: 'Unassigned', note: 'no dock yet' };
   const known = new Set(lanes.map(lane => lane.id));
-  const entries = visibleRecords().map(record => ({
-    laneId: known.has(record.dock_id) ? record.dock_id : unassigned.id,
-    time: format.time(record.start_at, state.context.location),
-    title: record.company_name || record.display_counterpart_location_name || record.requester_name || 'Scheduled movement',
-    meta: `${record.booking_reference || ''} · ${format.role(record.status || '')}${isLate(record) ? ' · LATE' : ''}`,
-    status: isLate(record) ? 'no_show' : record.status,
-    kind: record.entry_kind,
-    isPriority: Boolean(record.is_priority),
-  }));
-  if (entries.some(entry => entry.laneId === unassigned.id)) lanes.push(unassigned);
+  const unassigned = { id: '__unassigned', name: 'Unassigned', note: 'no dock yet' };
+  const blocks = visibleRecords().filter(record => record.start_at && record.end_at).map(record => {
+    const startMin = format.localTimeMinutes(record.start_at, state.context.location);
+    const late = isLate(record);
+    return {
+      laneId: known.has(record.dock_id) ? record.dock_id : unassigned.id,
+      startMin,
+      endMin: startMin + Math.max(5, format.minutesBetween(record.start_at, record.end_at)),
+      tone: late ? 'tlb--pri' : record.status === 'completed' ? 'tlb--done' : record.direction === 'outbound' ? 'tlb--out' : 'tlb--in',
+      title: record.company_name || record.display_counterpart_location_name || record.requester_name || 'Scheduled movement',
+      subtitle: record.booking_reference || '',
+      meta: `${record.booking_reference || ''} · ${format.role(record.status || '')}${late ? ' · LATE' : ''}`,
+      attrs: '',
+    };
+  });
+  if (blocks.some(block => block.laneId === unassigned.id)) lanes.push(unassigned);
   return {
     lanes,
-    entries,
-    subtitle: `${entries.length} movement${entries.length === 1 ? '' : 's'} · live`,
+    blocks,
+    windowStart: window.start,
+    windowEnd: window.end,
+    granularity: 30,
+    subtitle: `${blocks.length} movement${blocks.length === 1 ? '' : 's'} · live`,
     clock: format.currentTimeLabel(),
   };
 }
 
 function openBroadcastWindow() {
-  const payload = wallPayload();
   state.wall = openWall({
     name: 'maxdock-queue-broadcast',
     title: `${state.context.location.name} · Operations queue`,
-    subtitle: payload.subtitle,
-    lanes: payload.lanes,
-    entries: payload.entries,
-    clock: payload.clock,
     cssHref: new URL('../assets/maxdock.css', globalThis.location.href).href,
     onNoWindow: () => toast('Allow pop-ups to open the broadcast window.', 'error'),
+    ...wallPayload(),
   });
 }
 
@@ -310,11 +371,7 @@ async function changeStatus(appointmentId, newStatus) {
 
 function buildShell(root) {
   root.innerHTML = `
-    ${pageHead('Operations queue')}
-    ${controlsBar({
-      label: 'Queue controls',
-      actions: ['export', 'print', 'fullscreen', 'customize'],
-    })}
+    ${pageHead('Operations queue', { actions: ['export', 'print', 'fullscreen', 'customize'] })}
     <div class="brief" data-brief></div>
     <div class="kpis" data-kpis></div>
     <div class="split">

@@ -94,7 +94,6 @@ function createInitialForm() {
     after_hours_acknowledged: false,
     requester_name: clean(context.profile.full_name),
     requester_email: clean(context.profile.contact_email || context.user.email),
-    save_template: false,
     template_name: '',
   };
 }
@@ -300,42 +299,37 @@ function renderQuickRebook() {
 
 function renderLoadStep() {
   const customer = context.customerShell;
-  // The row's other fields change with the movement kind, so the appointment type
-  // takes whatever is left of the twelve columns rather than a fixed width that
-  // leaves the row unfinished in two of the three cases.
-  const typeSpan = customer ? 'field--full' : state.form.movement_kind === 'max' ? 'field--lg' : 'field--md';
+  const staff = isStaff();
+  // One row. The direction and movement choices were two full-width blocks of
+  // button cards that pushed the actual fields below the fold on a laptop; as
+  // selects they carry the same meaning in a fraction of the height.
   hosts.step.innerHTML = `
     ${renderQuickRebook()}
-    ${customer ? '<div class="inline-note">Customer bookings are inbound to the selected MaxDock location and remain within normal operating hours.</div>' : `
-      <div class="field" style="margin-bottom:var(--s4)">
-        <span class="field__label">Direction</span>
-        <div class="choice" role="group" aria-label="Appointment direction">
-          <button type="button" data-action="set-direction" data-value="inbound" aria-pressed="${state.form.direction === 'inbound'}"><strong>Inbound</strong><small>Receiving at ${currentLocation().name}</small></button>
-          <button type="button" data-action="set-direction" data-value="outbound" aria-pressed="${state.form.direction === 'outbound'}"><strong>Outbound</strong><small>Shipping from ${currentLocation().name}</small></button>
-        </div>
-      </div>
-      <div class="field" style="margin-bottom:var(--s4)">
-        <span class="field__label">Movement</span>
-        <div class="choice" role="group" aria-label="Movement type">
-          <button type="button" data-action="set-movement" data-value="external" aria-pressed="${state.form.movement_kind === 'external'}"><strong>External</strong><small>Customer, vendor or carrier</small></button>
-          <button type="button" data-action="set-movement" data-value="max" aria-pressed="${state.form.movement_kind === 'max'}"><strong>Max-to-Max</strong><small>Reserve both Max Solutions docks</small></button>
-        </div>
-      </div>`}
-    ${customer ? `<div class="field" style="margin-bottom:var(--s4)"><span class="field__label">Direction</span><div class="choice"><button type="button" aria-pressed="true" disabled><strong>Outbound to Max</strong><small>Shipping to ${currentLocation().name}</small></button></div></div>` : ''}
     <div class="frow">
+      ${customer ? '' : `
+        <div class="field field--sm"><span class="field__label">Direction</span><select class="select" data-field="direction">
+          <option value="inbound" ${state.form.direction === 'inbound' ? 'selected' : ''}>Inbound</option>
+          <option value="outbound" ${state.form.direction === 'outbound' ? 'selected' : ''}>Outbound</option>
+        </select></div>
+        <div class="field field--sm"><span class="field__label">Movement</span><select class="select" data-field="movement_kind">
+          <option value="external" ${state.form.movement_kind === 'external' ? 'selected' : ''}>External</option>
+          <option value="max" ${state.form.movement_kind === 'max' ? 'selected' : ''}>Max-to-Max</option>
+        </select></div>`}
       ${!customer && state.form.movement_kind === 'external' ? `
-        <div class="field field--md"><span class="field__label">External party type</span><select class="select" data-field="requester_type"></select></div>
-        <div class="field field--md"><span class="field__label">Company or organisation</span><input class="input" data-field="company_name" list="company-directory" maxlength="120" autocomplete="organization"><datalist id="company-directory"></datalist></div>` : ''}
+        <div class="field field--sm"><span class="field__label">Party type</span><select class="select" data-field="requester_type"></select></div>
+        <div class="field field--sm"><span class="field__label">Company</span><input class="input" data-field="company_name" list="company-directory" maxlength="120" autocomplete="organization"><datalist id="company-directory"></datalist></div>
+        <div class="field field--md"><span class="field__label">Appointment type</span><select class="select" data-field="appointment_type_code"></select></div>` : ''}
       ${!customer && state.form.movement_kind === 'max' ? `
-        <div class="field field--lg"><span class="field__label">Other Max Solutions location</span><select class="select" data-field="requester_location_id"></select><span class="hint">Same time reserved at both facilities.</span></div>` : ''}
-      <div class="field ${typeSpan}"><span class="field__label">Appointment type</span><select class="select" data-field="appointment_type_code"></select></div>
+        <div class="field field--md"><span class="field__label">Other Max location</span><select class="select" data-field="requester_location_id"></select></div>
+        <div class="field field--md"><span class="field__label">Appointment type</span><select class="select" data-field="appointment_type_code"></select></div>` : ''}
+      ${customer ? '<div class="field field--full"><span class="field__label">Appointment type</span><select class="select" data-field="appointment_type_code"></select></div>' : ''}
     </div>
     <div class="frow">
-      <div class="field field--xs"><span class="field__label">Skids</span><input class="input" data-field="skid_count" type="number" min="0" max="9999" inputmode="numeric"></div>
-      <div class="field field--xxl"><span class="field__label">PO / BOL / job number</span><input class="input data" data-field="external_reference" maxlength="120" autocomplete="off"></div>
+      <div class="field field--num"><span class="field__label">Skids</span><input class="input" data-field="skid_count" type="number" min="0" max="9999" inputmode="numeric"></div>
+      <div class="field field--${staff ? 'xl' : 'xxl'}"><span class="field__label">PO / BOL / job number</span><input class="input" data-field="external_reference" maxlength="120" autocomplete="off"></div>
+      ${staff ? '<div class="field field--num"><span class="field__label">Priority</span><select class="select" data-field="is_priority"><option value="">No</option><option value="1">Yes</option></select></div>' : ''}
     </div>
-    ${customer ? '<p class="hint">Your company and contact details are already on file. Just tell us what\'s moving and pick a time.</p>' : ''}
-    ${isStaff() ? '<label class="check-row" style="margin-top:var(--s4)"><input type="checkbox" data-field="is_priority"><span><strong>Priority load</strong><small>Apply the location’s configured priority timing rule.</small></span></label>' : ''}`;
+    ${customer ? '<p class="hint">Your company and contact details are already on file.</p>' : ''}`;
 
   if (!customer && state.form.movement_kind === 'external') {
     addOptions(hosts.step.querySelector('[data-field="requester_type"]'), EXTERNAL_PARTIES, state.form.requester_type);
@@ -365,7 +359,7 @@ function renderLoadStep() {
   const company = hosts.step.querySelector('[data-field="company_name"]');
   if (company) company.value = state.form.company_name;
   const priority = hosts.step.querySelector('[data-field="is_priority"]');
-  if (priority) priority.checked = state.form.is_priority;
+  if (priority) priority.value = state.form.is_priority ? '1' : '';
 }
 
 function renderVehicleStep() {
@@ -375,11 +369,10 @@ function renderVehicleStep() {
       <div class="field field--md"><span class="field__label">Handling</span><select class="select" data-field="handling_type_code"></select></div>
       <div class="field field--md"><span class="field__label">Carrier or courier</span><input class="input" data-field="carrier_name" maxlength="120" autocomplete="organization"></div>
     </div>
-    <div class="field field--full" style="margin-top:var(--s4)"><span class="field__label">Notes</span><textarea class="input" data-field="notes" maxlength="1000" rows="4"></textarea><span class="hint">Add handling instructions only. Do not include passwords or sensitive personal information.</span></div>`;
+`;
   addOptions(hosts.step.querySelector('[data-field="truck_type_code"]'), state.reference.truckTypes, state.form.truck_type_code, 'Choose a truck type');
   addOptions(hosts.step.querySelector('[data-field="handling_type_code"]'), state.reference.handlingTypes, state.form.handling_type_code, 'Choose a handling type');
   hosts.step.querySelector('[data-field="carrier_name"]').value = state.form.carrier_name;
-  hosts.step.querySelector('[data-field="notes"]').value = state.form.notes;
 }
 
 function renderSlotCards() {
@@ -502,8 +495,12 @@ function renderConfirmStep() {
     <p class="hint" style="margin:0 0 var(--s3)">Review the booking before reserving the dock${state.form.movement_kind === 'max' ? 's' : ''}.</p>
     <div class="card" data-confirm-grid></div>
     ${state.form.after_hours ? '<div class="inline-note inline-note--warning"><strong>After-hours override</strong><span>Your acknowledgement will be recorded with the booking.</span></div>' : ''}
-    <label class="check-row" style="margin-top:var(--s4)"><input type="checkbox" data-field="save_template"><span><strong>Save these load and vehicle details as a template</strong><small>Contact information, notes and PO/BOL/job numbers are not saved.</small></span></label>
-    ${state.form.save_template ? '<div class="field field--md" style="margin-top:var(--s3)"><span class="field__label">Template name</span><input class="input" data-field="template_name" maxlength="80" placeholder="Example: Weekly Haleon inbound"></div>' : ''}`;
+    <div class="frow">
+      <label class="field field--full"><span class="field__label">Notes <span class="field__opt">optional</span></span><textarea class="input" data-field="notes" maxlength="1000" rows="2" placeholder="Handling instructions only — no passwords or personal information."></textarea></label>
+    </div>
+    <div class="frow">
+      <label class="field field--full"><span class="field__label">Save as template <span class="field__opt">optional</span></span><input class="input" data-field="template_name" maxlength="80" placeholder="Name it to save these load and vehicle details"></label>
+    </div>`;
 
   const grid = hosts.step.querySelector('[data-confirm-grid]');
   for (const [label, value] of summaryRows()) {
@@ -511,7 +508,8 @@ function renderConfirmStep() {
     row.append(element('div', 'setrow__d', label), element('strong', '', value));
     grid.append(row);
   }
-  hosts.step.querySelector('[data-field="save_template"]').checked = state.form.save_template;
+  hosts.step.querySelector('[data-field="notes"]').value = state.form.notes;
+  // Naming it is what saves it — a separate checkbox asked the same question twice.
   const name = hosts.step.querySelector('[data-field="template_name"]');
   if (name) name.value = state.form.template_name;
 }
@@ -646,7 +644,6 @@ function validateStep(step = state.step) {
     if (!clean(form.requester_name)) return 'Enter the requester name.';
     if (!clean(form.requester_email) || !form.requester_email.includes('@')) return 'Enter a valid requester email.';
   }
-  if (step === 4 && form.save_template && !clean(form.template_name)) return 'Enter a name for the booking template.';
   return '';
 }
 
@@ -787,7 +784,7 @@ function renderConsolidationMatches(matches) {
 }
 
 async function saveTemplate() {
-  if (!state.form.save_template) return null;
+  if (!clean(state.form.template_name)) return null;
   const values = {
     owner_user_id: context.user.id,
     location_id: currentLocation().id,
@@ -948,6 +945,10 @@ function updateField(target) {
   const previous = state.form[field];
   let value = target.type === 'checkbox' ? target.checked : target.value;
   if (field === 'skid_count') value = Number(value || 0);
+  // Priority is a yes/no select now rather than a checkbox, so an empty string
+  // means no — without this the form would store "" and read it as truthy nowhere
+  // but compare unequal on every re-render.
+  if (field === 'is_priority') value = Boolean(value);
   state.form[field] = value;
 
   const slotFields = new Set([
@@ -960,7 +961,7 @@ function updateField(target) {
     state.form.custom_time = '';
     state.form.after_hours_acknowledged = false;
   }
-  if (field === 'save_template' || field === 'after_hours') renderStep();
+  if (field === 'after_hours') renderStep();
   if (slotFieldChanged && field !== 'after_hours' && state.step === 2 && !state.form.after_hours) findSlots();
 }
 

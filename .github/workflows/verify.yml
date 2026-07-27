@@ -42,6 +42,9 @@ jobs:
             exit 1
           fi
 
+      - name: Every shipped module must parse
+        run: node scripts/verify-modules.mjs
+
       - name: Run Claude architecture checker
         shell: bash
         run: |

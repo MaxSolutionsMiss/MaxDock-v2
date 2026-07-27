@@ -201,11 +201,11 @@ function buildShell(root) {
     ${pageHead('Reports')}
     ${controlsBar({
       label: 'Report controls',
-      lead: '<button class="btn btn--primary btn--sm" type="button" data-apply>Apply</button>',
       filters: `<div class="ctrl-field"><label for="report-view">View</label><select class="select" id="report-view" data-view>${VIEWS.map(view => `<option value="${view.id}">${view.label}</option>`).join('')}</select></div>
       <div class="ctrl-field"><label for="report-preset">Range</label><select class="select" id="report-preset" data-preset>${PRESETS.map(preset => `<option value="${preset.id}">${preset.label}</option>`).join('')}</select></div>
       <div class="ctrl-field"><label for="report-from">From</label><input class="input input--date" type="date" id="report-from" data-from></div>
-      <div class="ctrl-field"><label for="report-to">To</label><input class="input input--date" type="date" id="report-to" data-to></div>`,
+      <div class="ctrl-field"><label for="report-to">To</label><input class="input input--date" type="date" id="report-to" data-to></div>
+      <button class="btn btn--primary btn--sm" type="button" data-apply>Apply</button>`,
       actions: ['export', 'print', 'customize'],
     })}
     <div data-report-host></div>`;
