@@ -39,6 +39,7 @@ const TEXT_SIZES = ['normal', 'large', 'larger'];
 const ROLES = {
   system_admin: null,
   coordinator: ['dock.view', 'operations.queue.view', 'appointment.view', 'appointment.view_own', 'appointment.create', 'appointment.cancel', 'reports.view', 'notifications.view'],
+  shipping_manager: ['dock.view', 'operations.queue.view', 'appointment.view', 'appointment.view_own', 'appointment.create', 'appointment.update', 'appointment.complete', 'appointment.cancel', 'block.manage', 'settings.view', 'reports.view', 'notifications.view'],
   customer: ['appointment.view_own', 'appointment.create', 'appointment.cancel', 'notifications.view'],
 };
 

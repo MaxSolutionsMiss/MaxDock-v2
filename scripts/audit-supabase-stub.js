@@ -7,9 +7,13 @@
     { id: 'loc-2', code: 'guelph', name: 'Guelph', timezone: 'America/Toronto', is_active: true },
     { id: 'loc-3', code: 'mississauga', name: 'Mississauga', timezone: 'America/Toronto', is_active: true },
     { id: 'loc-4', code: 'markham', name: 'Markham', timezone: 'America/Toronto', is_active: true },
-    { id: 'loc-5', code: 'concord', name: 'Concord', timezone: 'America/Toronto', is_active: true },
-    { id: 'loc-6', code: 'bristol', name: 'Bristol', timezone: 'America/Toronto', is_active: true },
-    { id: 'loc-7', code: 'owen_sound', name: 'Owen Sound', timezone: 'America/Toronto', is_active: true },
+    { id: 'loc-5', code: 'owen_sound', name: 'Owen Sound', timezone: 'America/Toronto', is_active: true },
+    { id: 'loc-6', code: 'langley', name: 'Langley', timezone: 'America/Vancouver', is_active: true },
+    { id: 'loc-7', code: 'bristol', name: 'Bristol', timezone: 'America/New_York', is_active: true },
+    { id: 'loc-8', code: 'concord', name: 'Concord', timezone: 'America/New_York', is_active: true },
+    { id: 'loc-9', code: 'wilmington', name: 'Wilmington', timezone: 'America/New_York', is_active: true },
+    { id: 'loc-10', code: 'sturgis', name: 'Sturgis', timezone: 'America/Detroit', is_active: true },
+    { id: 'loc-11', code: 'burbank', name: 'Burbank', timezone: 'America/Los_Angeles', is_active: true },
   ];
   const DOCKS = [1, 2, 3, 4, 5].map(n => ({ id: `dock-${n}`, name: `Dock ${n}`, description: '', sort_order: n, direction_mode: 'both', is_active: true, location_id: 'loc-1' }));
   const iso = (h, m = 0, addDays = 0) => { const d = new Date(); d.setDate(d.getDate() + addDays); d.setHours(h, m, 0, 0); return d.toISOString(); };

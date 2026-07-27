@@ -38,19 +38,9 @@ const DEFAULT_CARDS = KPI_CARDS.map(card => card.id);
 
 // A dock can be out of service for a shift, a day or a rebuild, so the presets run
 // well past an afternoon and anything they miss is entered as hours.
-const BLOCK_DURATIONS = [
-  { minutes: 30, label: '30 minutes' },
-  { minutes: 60, label: '1 hour' },
-  { minutes: 90, label: '90 minutes' },
-  { minutes: 120, label: '2 hours' },
-  { minutes: 240, label: '4 hours' },
-  { minutes: 480, label: '8 hours' },
-  { minutes: 600, label: '10 hours' },
-  { minutes: 720, label: '12 hours' },
-  { minutes: 1440, label: '24 hours' },
-  { minutes: 2160, label: '36 hours' },
-  { minutes: 2880, label: '48 hours' },
-];
+// Reasons a dock actually goes out of service, so the common case is one click and
+// the note carries anything specific.
+const BLOCK_REASONS = ['Maintenance', 'Cleaning', 'Staff break', 'Shift change', 'Event', 'Inventory count', 'Equipment down', 'Weather', 'Other'];
 
 const TERMINAL_STATUSES = new Set(['completed', 'cancelled', 'no_show']);
 
@@ -232,16 +222,15 @@ function buildShell(root) {
         <form data-block-form>
           <div class="modal__body">
             <div class="frow">
-              <label class="field field--md"><span class="field__label">Date</span><input class="input" type="date" name="date" required></label>
-              <label class="field field--md"><span class="field__label">Start time</span><input class="input" type="time" name="start_time" required></label>
-              <label class="field field--md"><span class="field__label">Duration</span><select class="select" name="duration">${BLOCK_DURATIONS.map(option => `<option value="${option.minutes}" ${option.minutes === 60 ? 'selected' : ''}>${escapeHtml(option.label)}</option>`).join('')}<option value="custom">Custom — enter hours</option></select></label>
+              <label class="field field--sm"><span class="field__label">Date</span><input class="input" type="date" name="date" required></label>
+              <label class="field field--sm"><span class="field__label">Start time</span><input class="input" type="time" name="start_time" required></label>
+              <label class="field field--num"><span class="field__label">Duration</span><span class="inputwrap"><input class="input" type="number" name="duration_hours" min="0.5" max="168" step="0.5" value="1" required><span class="input__unit">hours</span></span></label>
+              <label class="field field--sm"><span class="field__label">Reason</span><select class="select" name="reason" required>${BLOCK_REASONS.map(reason => `<option value="${escapeHtml(reason)}">${escapeHtml(reason)}</option>`).join('')}</select></label>
             </div>
             <div class="frow">
-              <label class="field field--md"><span class="field__label">Custom hours</span><input class="input" type="number" name="custom_hours" min="0.5" max="168" step="0.5" placeholder="e.g. 36" disabled></label>
-              <label class="field field--xl"><span class="field__label">Reason</span><input class="input" name="reason" maxlength="120" required></label>
+              <label class="field field--full"><span class="field__label">Note <span class="field__opt">optional</span></span><input class="input" name="notes" maxlength="500" placeholder="Anything the reason does not cover"></label>
             </div>
             <fieldset class="dock-checks"><legend>Select docks</legend><div data-dock-checks></div></fieldset>
-            <label class="field"><span class="field__label">Notes</span><textarea name="notes" rows="3" maxlength="500"></textarea></label>
           </div>
           <div class="modal__foot"><button class="btn btn--quiet" type="button" data-close-block>Cancel</button><button class="btn btn--primary" type="submit">Block selected docks</button></div>
         </form>
@@ -318,6 +307,7 @@ function renderKpis() {
   const cards = KPI_CARDS.filter(card => state.visibleCards.includes(card.id));
   // Turning every card off hides the strip rather than leaving an empty band.
   state.elements.kpis.hidden = cards.length === 0;
+  state.elements.kpis.closest('.page')?.style.setProperty('--kpi-cols', String(Math.max(2, cards.length)));
   state.elements.kpis.innerHTML = cards
     .map(card => `<article class="kpi ${card.className}"><span class="kpi__label">${card.label}</span><span class="kpi__value">${card.compute(appointments, blocks)}</span></article>`)
     .join('');
@@ -435,12 +425,6 @@ function openBlockModal(trigger) {
   state.blockModal.open({ trigger });
 }
 
-// "Custom" defers to the hours field; everything else is a preset in minutes.
-function blockDurationMinutes(form) {
-  if (form.get('duration') !== 'custom') return Number(form.get('duration'));
-  return Math.round(Number(form.get('custom_hours') || 0) * 60);
-}
-
 async function submitBlock(event) {
   event.preventDefault();
   const form = new FormData(state.elements.blockForm);
@@ -452,7 +436,7 @@ async function submitBlock(event) {
     await db.rpc('block_dock_time', {
       p_location_id: state.context.location.id,
       p_date: form.get('date'), p_start_time: form.get('start_time'),
-      p_duration_minutes: blockDurationMinutes(form), p_dock_ids: dockIds,
+      p_duration_minutes: Math.round(Number(form.get('duration_hours') || 0) * 60), p_dock_ids: dockIds,
       p_reason: form.get('reason'), p_notes: form.get('notes') || null,
     }, { key: `board:block:${crypto.randomUUID()}`, retry: 0 });
     db.invalidate('rpc:list_location_schedule');
@@ -525,14 +509,6 @@ function wireEvents(root) {
   });
   root.addEventListener('change', async event => {
     if (event.target.matches('[data-board-date]')) { state.date = event.target.value; patchData(await fetchBoardData()); }
-    const duration = event.target.closest('[name="duration"]');
-    if (duration) {
-      const custom = state.elements.blockForm.elements.custom_hours;
-      custom.disabled = duration.value !== 'custom';
-      custom.required = duration.value === 'custom';
-      if (custom.disabled) custom.value = '';
-      else custom.focus();
-    }
     if (event.target.matches('[data-granularity]')) { state.granularity = Number(event.target.value); renderBoard(); }
     if (event.target.matches('[data-filter-direction]')) { state.filters.direction = event.target.value; renderBoard(); }
     if (event.target.matches('[data-filter-status]')) { state.filters.status = event.target.value; renderBoard(); }

@@ -112,6 +112,7 @@ function renderKpis() {
   // With every card turned off the strip leaves no trace — an empty bordered band
   // would read as a rendering failure rather than a choice.
   state.elements.kpis.hidden = cards.length === 0;
+  state.elements.kpis.closest('.page')?.style.setProperty('--kpi-cols', String(Math.max(2, cards.length)));
   state.elements.kpis.innerHTML = cards.map(card => {
     const value = card.compute(appointments);
     return `<article class="kpi ${card.className}"><span class="kpi__label">${card.label}</span><span class="kpi__value">${value}${card.suffix ? `<span>${card.suffix}</span>` : ''}</span></article>`;
@@ -239,6 +240,29 @@ function briefFigures() {
   ];
 }
 
+// Two or three sentences someone can read out in a morning meeting, built from the
+// schedule rather than a service call, so the brief is never empty.
+function localNarrative() {
+  const appointments = state.records.filter(record => record.entry_kind !== 'block');
+  if (!appointments.length) return 'Nothing is scheduled at this location today.';
+  const skids = rows => rows.reduce((sum, row) => sum + Number(row.skid_count || 0), 0);
+  const inbound = appointments.filter(record => record.direction === 'inbound');
+  const outbound = appointments.filter(record => record.direction === 'outbound');
+  const late = appointments.filter(record => isLate(record));
+  const priority = appointments.filter(record => record.is_priority);
+  const remaining = appointments.filter(record => EXPECTED_STATUSES.has(record.status));
+  const heaviest = [...appointments].sort((a, b) => Number(b.skid_count || 0) - Number(a.skid_count || 0))[0];
+  const sentences = [
+    `${appointments.length} truck${appointments.length === 1 ? '' : 's'} today — ${inbound.length} in with ${skids(inbound)} skids and ${outbound.length} out with ${skids(outbound)}.`,
+    remaining.length
+      ? `${remaining.length} still to arrive${priority.length ? `, ${priority.length} of them priority` : ''}.`
+      : 'Everything booked has already arrived or finished.',
+  ];
+  if (late.length) sentences.push(`${late.length} running late — check ${late.slice(0, 2).map(record => record.booking_reference || 'an unreferenced booking').join(' and ')}.`);
+  else if (heaviest && Number(heaviest.skid_count || 0) > 0) sentences.push(`Heaviest load is ${heaviest.booking_reference || 'an unreferenced booking'} at ${heaviest.skid_count} skids.`);
+  return sentences.join(' ');
+}
+
 function renderBriefCard() {
   const host = state.elements.brief;
   const figures = briefFigures()
@@ -246,9 +270,7 @@ function renderBriefCard() {
     .join('');
   const narrative = state.briefLoading
     ? '<span class="brief__x">Generating today’s narrative…</span>'
-    : state.brief?.brief
-      ? `<span class="brief__x">${escapeHtml(state.brief.brief.summary || '')} <span class="tag tag--quiet">${escapeHtml(state.brief.mode === 'ai' ? 'AI-generated' : 'MaxDock rules analysis')}</span></span>`
-      : '<span class="brief__x">Narrative unavailable — the figures above are counted from today’s schedule.</span>';
+    : `<span class="brief__x">${escapeHtml(localNarrative())}${state.brief?.brief?.summary ? ` ${escapeHtml(state.brief.brief.summary)}` : ''} ${state.brief?.brief ? `<span class="tag tag--quiet">${escapeHtml(state.brief.mode === 'ai' ? 'AI-generated' : 'MaxDock rules analysis')}</span>` : ''}</span>`;
   host.innerHTML = `<div class="brief__head"><span class="brief__ico">AI</span><div class="brief__t">${escapeHtml(state.context.location.name)} · today at a glance</div><button class="linkBtn" type="button" data-share-brief style="margin-left:auto">Share with team</button></div>
     <div class="brieffigs">${figures}</div>
     <div class="brief__body">${narrative}</div>`;

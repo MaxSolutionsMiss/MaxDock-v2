@@ -147,16 +147,27 @@ function createShell(context, page) {
   const top = document.createElement('header');
   top.className = 'top';
 
-  const locationSelect = document.createElement('select');
-  locationSelect.className = 'select top__loc';
-  locationSelect.id = 'location-context';
-  locationSelect.setAttribute('aria-label', 'Current MaxDock location');
-  if (!context.locations.length) {
-    const option = document.createElement('option');
-    option.textContent = 'No location access';
-    locationSelect.append(option);
-    locationSelect.disabled = true;
+  // A customer or vendor books into Max Solutions and has no site of their own to
+  // choose, so the picker is not shown to them at all. A coordinator works one
+  // assigned site, so theirs is stated rather than offered as a choice. Only staff
+  // with more than one site get a control they can change.
+  const roleCode = context.profile?.role_code;
+  const externalUser = context.customerShell || roleCode === 'customer';
+  const fixedLocation = !externalUser && (roleCode === 'coordinator' || context.locations.length <= 1);
+  let locationSelect;
+  if (externalUser) {
+    locationSelect = document.createElement('span');
+    locationSelect.hidden = true;
+  } else if (fixedLocation) {
+    locationSelect = document.createElement('strong');
+    locationSelect.className = 'top__loc top__loc--fixed';
+    locationSelect.id = 'location-context';
+    locationSelect.textContent = context.location?.name || 'No location access';
   } else {
+    locationSelect = document.createElement('select');
+    locationSelect.className = 'select top__loc';
+    locationSelect.id = 'location-context';
+    locationSelect.setAttribute('aria-label', 'Current MaxDock location');
     for (const location of context.locations) {
       const option = document.createElement('option');
       option.value = location.id;
@@ -172,19 +183,6 @@ function createShell(context, page) {
 
   const spacer = document.createElement('div');
   spacer.className = 'top__spacer';
-
-  const sizeControl = document.createElement('div');
-  sizeControl.className = 'seg';
-  sizeControl.setAttribute('aria-label', 'Text size');
-  for (const size of ['normal', 'large', 'larger']) {
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.dataset.textSize = size;
-    button.setAttribute('aria-label', `${format.role(size)} text`);
-    button.setAttribute('aria-pressed', String(document.documentElement.dataset.text === size));
-    button.textContent = size === 'normal' ? 'A' : size === 'large' ? 'A+' : 'A++';
-    sizeControl.append(button);
-  }
 
   const connected = document.createElement('div');
   connected.className = 'top__conn';
@@ -220,8 +218,8 @@ function createShell(context, page) {
   // The bell returns null for roles without notifications.view, so it simply is not
   // rendered rather than appearing and failing on click.
   const notifications = createNotificationBell(context);
-  if (notifications) top.append(locationSelect, date, spacer, sizeControl, notifications.element, connected, profile);
-  else top.append(locationSelect, date, spacer, sizeControl, connected, profile);
+  if (notifications) top.append(locationSelect, date, spacer, notifications.element, connected, profile);
+  else top.append(locationSelect, date, spacer, connected, profile);
 
   const banner = document.createElement('div');
   banner.className = 'sub';
@@ -242,7 +240,7 @@ function createShell(context, page) {
     globalThis.dispatchEvent(new CustomEvent('maxdock:open-booking', { detail: { trigger } }));
   });
 
-  return { root, pageRoot, locationSelect, sizeControl, signOut, banner, pulse, connectedText, notifications };
+  return { root, pageRoot, locationSelect, signOut, banner, pulse, connectedText, notifications };
 }
 
 function renderFatal(error) {
@@ -328,26 +326,12 @@ function wireShell(elements, context) {
       elements.locationSelect.disabled = false;
     }
   };
-  elements.locationSelect.addEventListener('change', onLocation);
-  cleanup.push(() => elements.locationSelect.removeEventListener('change', onLocation));
+  if (elements.locationSelect.tagName === 'SELECT') {
+    elements.locationSelect.addEventListener('change', onLocation);
+    cleanup.push(() => elements.locationSelect.removeEventListener('change', onLocation));
+  }
 
-  const onSize = async event => {
-    const button = event.target.closest('[data-text-size]');
-    if (!button) return;
-    const value = button.dataset.textSize;
-    document.documentElement.dataset.text = value;
-    for (const item of elements.sizeControl.querySelectorAll('[data-text-size]')) {
-      item.setAttribute('aria-pressed', String(item === button));
-    }
-    try {
-      await session.setTextSize(value);
-      toast('Text size saved.', 'success');
-    } catch (error) {
-      toast(error.userMessage || 'The text size could not be saved.', 'error');
-    }
-  };
-  elements.sizeControl.addEventListener('click', onSize);
-  cleanup.push(() => elements.sizeControl.removeEventListener('click', onSize));
+
 
   const onSignOut = () => session.signOut();
   elements.signOut.addEventListener('click', onSignOut);

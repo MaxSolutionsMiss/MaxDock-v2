@@ -300,34 +300,35 @@ function renderQuickRebook() {
 function renderLoadStep() {
   const customer = context.customerShell;
   const staff = isStaff();
-  // One row. The direction and movement choices were two full-width blocks of
-  // button cards that pushed the actual fields below the fold on a laptop; as
-  // selects they carry the same meaning in a fraction of the height.
+  const maxToMax = !customer && state.form.movement_kind === 'max';
+  // What you are asked for depends on who you are and what kind of movement it is.
+  // A Max-to-Max transfer goes to another Max Solutions site, so it asks which one
+  // and never asks for a company — there is no outside party. An external movement
+  // is the opposite. A customer is already known, so it asks neither.
+  // Two rows, each filling the twelve columns exactly. Who is sending decides the
+  // first row; what is moving is always the second, so an operator books the same
+  // way every time whatever kind of movement it is.
   hosts.step.innerHTML = `
     ${renderQuickRebook()}
+    ${customer ? '' : `<div class="frow">
+      <div class="field field--${maxToMax ? 'md' : 'sm'}"><span class="field__label">Direction</span><select class="select" data-field="direction">
+        <option value="inbound" ${state.form.direction === 'inbound' ? 'selected' : ''}>Inbound</option>
+        <option value="outbound" ${state.form.direction === 'outbound' ? 'selected' : ''}>Outbound</option>
+      </select></div>
+      <div class="field field--${maxToMax ? 'md' : 'sm'}"><span class="field__label">Movement</span><select class="select" data-field="movement_kind">
+        <option value="external" ${state.form.movement_kind === 'external' ? 'selected' : ''}>External</option>
+        <option value="max" ${state.form.movement_kind === 'max' ? 'selected' : ''}>Max-to-Max</option>
+      </select></div>
+      ${maxToMax
+        ? `<div class="field field--md"><span class="field__label">${state.form.direction === 'outbound' ? 'Sending to' : 'Receiving from'}</span><select class="select" data-field="requester_location_id"></select></div>`
+        : `<div class="field field--sm"><span class="field__label">Party type</span><select class="select" data-field="requester_type"></select></div>
+           <div class="field field--sm"><span class="field__label">Company</span><input class="input" data-field="company_name" list="company-directory" maxlength="120" autocomplete="organization"><datalist id="company-directory"></datalist></div>`}
+    </div>`}
     <div class="frow">
-      ${customer ? '' : `
-        <div class="field field--sm"><span class="field__label">Direction</span><select class="select" data-field="direction">
-          <option value="inbound" ${state.form.direction === 'inbound' ? 'selected' : ''}>Inbound</option>
-          <option value="outbound" ${state.form.direction === 'outbound' ? 'selected' : ''}>Outbound</option>
-        </select></div>
-        <div class="field field--sm"><span class="field__label">Movement</span><select class="select" data-field="movement_kind">
-          <option value="external" ${state.form.movement_kind === 'external' ? 'selected' : ''}>External</option>
-          <option value="max" ${state.form.movement_kind === 'max' ? 'selected' : ''}>Max-to-Max</option>
-        </select></div>`}
-      ${!customer && state.form.movement_kind === 'external' ? `
-        <div class="field field--sm"><span class="field__label">Party type</span><select class="select" data-field="requester_type"></select></div>
-        <div class="field field--sm"><span class="field__label">Company</span><input class="input" data-field="company_name" list="company-directory" maxlength="120" autocomplete="organization"><datalist id="company-directory"></datalist></div>
-        <div class="field field--md"><span class="field__label">Appointment type</span><select class="select" data-field="appointment_type_code"></select></div>` : ''}
-      ${!customer && state.form.movement_kind === 'max' ? `
-        <div class="field field--md"><span class="field__label">Other Max location</span><select class="select" data-field="requester_location_id"></select></div>
-        <div class="field field--md"><span class="field__label">Appointment type</span><select class="select" data-field="appointment_type_code"></select></div>` : ''}
-      ${customer ? '<div class="field field--full"><span class="field__label">Appointment type</span><select class="select" data-field="appointment_type_code"></select></div>' : ''}
-    </div>
-    <div class="frow">
+      <div class="field field--${customer ? 'lg' : 'md'}"><span class="field__label">Appointment type</span><select class="select" data-field="appointment_type_code"></select></div>
       <div class="field field--num"><span class="field__label">Skids</span><input class="input" data-field="skid_count" type="number" min="0" max="9999" inputmode="numeric"></div>
-      <div class="field field--${staff ? 'xl' : 'xxl'}"><span class="field__label">PO / BOL / job number</span><input class="input" data-field="external_reference" maxlength="120" autocomplete="off"></div>
-      ${staff ? '<div class="field field--num"><span class="field__label">Priority</span><select class="select" data-field="is_priority"><option value="">No</option><option value="1">Yes</option></select></div>' : ''}
+      <div class="field field--md"><span class="field__label">PO / BOL / job</span><input class="input" data-field="external_reference" maxlength="20" autocomplete="off"></div>
+      ${staff ? `<div class="field field--num"><span class="field__label">Priority</span><select class="select" data-field="is_priority"><option value="">No</option><option value="1" ${state.form.is_priority ? 'selected' : ''}>Yes</option></select></div>` : ''}
     </div>
     ${customer ? '<p class="hint">Your company and contact details are already on file.</p>' : ''}`;
 
@@ -971,7 +972,7 @@ function updateField(target) {
     state.form.custom_time = '';
     state.form.after_hours_acknowledged = false;
   }
-  if (field === 'after_hours') renderStep();
+  if (field === 'after_hours' || field === 'movement_kind' || field === 'direction') renderStep();
   if (slotFieldChanged && field !== 'after_hours' && state.step === 2 && !state.form.after_hours) findSlots();
 }
 

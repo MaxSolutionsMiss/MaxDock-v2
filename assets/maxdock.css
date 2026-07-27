@@ -47,6 +47,7 @@ body{background:var(--ground);color:var(--ink);font-family:var(--font-ui);font-s
 .main{display:flex;flex-direction:column;overflow:hidden;min-width:0}
 .top{height:var(--topbar-h);background:var(--surface);border-bottom:1px solid var(--rule);display:flex;align-items:center;gap:var(--s3);padding:0 var(--s5);flex:none}
 .top__loc{min-width:150px;max-width:220px}
+.top__loc--fixed{display:inline-flex;align-items:center;font-size:var(--t-base);font-weight:700;white-space:nowrap;min-width:0}
 .top__date{font-family:var(--font-data);font-size:var(--t-small);color:var(--ink-muted);white-space:nowrap}
 .top__spacer{flex:1}
 .seg{display:inline-flex;border:1px solid var(--rule-strong);border-radius:var(--radius);overflow:hidden;background:var(--surface)}
@@ -120,7 +121,12 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 /* Cards wrap to fit rather than being forced into a fixed column count. At 768px the
    old repeat(5,1fr) squeezed them to 55-104px wide; on a wide screen the same rule
    stretched them into empty horizontal slabs. */
-.kpis{display:grid;gap:var(--s3);margin-bottom:var(--s3);flex:none;grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}
+/* The metric strip and the panels beneath it share one column grid, so the edge
+   between the list and the side column lands exactly on a card boundary rather
+   than somewhere arbitrary. --kpi-cols is set from the visible card count, so the
+   strip still fills its row whichever cards are turned off. */
+.kpis{display:grid;gap:var(--s3);margin-bottom:var(--s3);flex:none;grid-template-columns:repeat(var(--kpi-cols,4),minmax(0,1fr))}
+@media (max-width:900px){.kpis{grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}}
 /* One rounded outline carrying a single accent edge, rather than a detached top rule
    floating above the card — the treatment v1 settled on at DB66. */
 .kpi{background:var(--surface);border:1px solid var(--rule);border-left:3px solid var(--rule-strong);border-radius:var(--radius-lg);padding:var(--s3);display:flex;flex-direction:column;justify-content:center;gap:var(--s1);min-height:78px}
@@ -259,8 +265,8 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 .inputwrap{display:flex;align-items:stretch;min-width:0}
 .inputwrap .input{border-top-right-radius:0;border-bottom-right-radius:0;min-width:0}
 .input__unit{display:flex;align-items:center;padding:0 10px;border:1px solid var(--rule-strong);border-left:none;border-radius:0 var(--radius) var(--radius) 0;background:var(--surface-sunk);color:var(--ink-muted);font-size:var(--t-small);white-space:nowrap}
-.frow>.field--num{grid-column:span 2}
-.frow>.field--num .input{text-align:right}
+.frow>.field--num{grid-column:span 2;min-width:96px}
+.frow>.field--num .input{text-align:left;min-width:48px}
 .frow>.field--full{grid-column:1/-1}
 /* Keyed to the container, not the viewport: a dialog is a fixed 760px wide however
    large the window is, so a viewport media query collapsed rows that had room. */
@@ -315,12 +321,14 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 .card__title{font-size:var(--t-base);font-weight:600;margin:0 0 var(--s3);display:flex;align-items:center;gap:var(--s2)}
 .card__title .btn{margin-left:auto}
 .hours{display:flex;flex-direction:column;gap:6px}
-.hourrow{display:grid;grid-template-columns:90px minmax(0,1fr) minmax(0,1fr) auto;gap:var(--s2);align-items:center}
+.hourrow{display:grid;grid-template-columns:90px 150px 150px auto;gap:var(--s2);align-items:center;justify-content:start}
+.hourrow .input{width:150px}
 /* Time inputs have a wide intrinsic minimum, so on a phone a day, two of them and
    a switch cannot share one line — the row pushed the whole page sideways. The day
    takes its own line and the two times split the next. */
 @media (max-width:600px){
   .hourrow{grid-template-columns:minmax(0,1fr) minmax(0,1fr) auto}
+  .hourrow .input{width:auto}
   .hourrow .day{grid-column:1/-1}
 }
 .hourrow .day{font-size:var(--t-small);font-weight:600}
@@ -347,7 +355,13 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 /* Wall type is one step up from the operator screen — same timeline, read from
    across a room rather than from a desk. */
 .wall .tl{--tl-label:clamp(120px,10vw,240px)}
-.wall .tl__lane{min-height:calc(clamp(56px,7vh,110px) * var(--rows,1))}
+.wall .tl__lanes{display:flex;flex-direction:column}
+/* Lanes share the height rather than being fixed: a site with three docks gets
+   three tall lanes instead of three short ones above a band of empty screen, and
+   the extra height is what stops the block text being cut off. */
+.wall .tl__lane{flex:var(--rows,1) 1 0;min-height:clamp(56px,7vh,150px)}
+.wall .tlb{padding:clamp(4px,.5vw,10px) clamp(6px,.7vw,14px)}
+.wall .tlb__title{white-space:normal;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
 .wall .tl__label strong{font-size:clamp(16px,1.3vw,28px)}
 .wall .tl__label small{font-size:clamp(11px,.75vw,16px)}
 .wall .tl__scale{height:clamp(28px,3vh,44px)}
@@ -399,7 +413,9 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 .brieffig__l{font-size:var(--t-micro);text-transform:uppercase;letter-spacing:.07em;color:var(--ink-muted);font-weight:600}
 .brief__ico{width:32px;height:32px;border-radius:8px;background:var(--dock);color:#fff;display:grid;place-items:center;flex:none;font-weight:700;font-size:14px}
 .brief__body{flex:1}.brief__t{font-weight:600;margin-bottom:2px}.brief__x{color:var(--ink);font-size:var(--t-base)}.brief__x b{color:var(--dock-deep)}
-.split{display:grid;grid-template-columns:1fr 300px;gap:var(--s3);flex:1;min-height:0}
+.split{display:grid;grid-template-columns:repeat(var(--kpi-cols,4),minmax(0,1fr));gap:var(--s3);flex:1;min-height:0}
+.split>*:first-child{grid-column:span calc(var(--kpi-cols,4) - 1)}
+.split>*:last-child{grid-column:span 1;min-width:0}
 .heat{background:var(--surface);border:1px solid var(--rule);border-radius:var(--radius-lg);padding:var(--s3) var(--s4);display:flex;flex-direction:column}
 .heat__t{font-size:var(--t-base);font-weight:600;margin:0 0 var(--s2);display:flex;align-items:center}.heat__t .btn{margin-left:auto}
 .heatgrid{display:grid;grid-template-columns:44px repeat(10,1fr);gap:2px}.heatgrid .hh{font-family:var(--font-data);font-size:9px;color:var(--ink-faint);text-align:center}.heatgrid .hd{font-family:var(--font-data);font-size:10px;color:var(--ink-muted);display:flex;align-items:center}.hc{height:20px;border-radius:2px;background:var(--dock);opacity:calc(var(--v)/5)}
@@ -424,9 +440,9 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
    Seven locations used to occupy 243px of stacked rows. The wrapper div some
    callers put around the options is display:contents so the options themselves
    are the grid items either way. */
-.dock-checks{border:1px solid var(--rule);border-radius:var(--radius);padding:var(--s3);margin:0;
+.dock-checks{border:1px solid var(--rule);border-radius:var(--radius);padding:var(--s3);margin:0;--check-col:120px;
   display:grid;grid-template-columns:repeat(auto-fill,minmax(var(--check-col,150px),1fr));gap:var(--s1) var(--s3)}
-.dock-checks>legend{grid-column:1/-1;float:none;width:100%;padding:0;margin-bottom:var(--s1);
+.dock-checks>legend{grid-column:1/-1;float:none;width:100%;padding:0;margin-bottom:var(--s2);
   font-size:var(--t-micro);text-transform:uppercase;letter-spacing:.07em;color:var(--ink-muted);font-weight:600}
 .dock-checks>div{display:contents}
 .dock-checks--roomy{--check-col:260px}
@@ -506,7 +522,7 @@ body.modal-open{overflow:hidden}
 /* The next appointment is a column card beside the list, not a band across the
    page. As a full-width row it grew with the viewport, left a wide empty middle,
    and at the larger text sizes pushed its reference block past the right edge. */
-.split--list{grid-template-columns:1fr 340px}
+
 .next-appointment{display:flex;flex-direction:column;align-items:stretch;gap:var(--s3);background:var(--surface);border:1px solid var(--rule);border-left:3px solid var(--dock);border-radius:var(--radius-lg);padding:var(--s4);min-height:0;overflow-y:auto}
 .next-appointment__summary,.next-appointment__empty{display:grid;gap:3px;min-width:0}
 .next-appointment__eyebrow,.next-appointment__reference-label{color:var(--ink-muted);font-size:var(--t-micro);font-weight:600;letter-spacing:.08em;text-transform:uppercase}

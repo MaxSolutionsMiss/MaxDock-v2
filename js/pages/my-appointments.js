@@ -414,6 +414,7 @@ function applyVisibleCards() {
     if (!element.hidden) shown += 1;
   }
   hosts.metrics.hidden = shown === 0;
+  hosts.metrics.closest('.page')?.style.setProperty('--kpi-cols', String(Math.max(2, shown)));
 }
 
 function createViewControls() {
