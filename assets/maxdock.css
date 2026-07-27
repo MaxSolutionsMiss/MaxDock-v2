@@ -315,7 +315,14 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 .card__title{font-size:var(--t-base);font-weight:600;margin:0 0 var(--s3);display:flex;align-items:center;gap:var(--s2)}
 .card__title .btn{margin-left:auto}
 .hours{display:flex;flex-direction:column;gap:6px}
-.hourrow{display:grid;grid-template-columns:90px 1fr 1fr auto;gap:var(--s2);align-items:center}
+.hourrow{display:grid;grid-template-columns:90px minmax(0,1fr) minmax(0,1fr) auto;gap:var(--s2);align-items:center}
+/* Time inputs have a wide intrinsic minimum, so on a phone a day, two of them and
+   a switch cannot share one line — the row pushed the whole page sideways. The day
+   takes its own line and the two times split the next. */
+@media (max-width:600px){
+  .hourrow{grid-template-columns:minmax(0,1fr) minmax(0,1fr) auto}
+  .hourrow .day{grid-column:1/-1}
+}
 .hourrow .day{font-size:var(--t-small);font-weight:600}
 .switch{width:44px;height:32px;border:none;background:none;padding:0;position:relative;cursor:pointer;flex:none}
 .switch::before{content:"";position:absolute;left:4px;top:6px;width:36px;height:20px;border-radius:20px;background:var(--dock)}
@@ -508,7 +515,7 @@ body.modal-open{overflow:hidden}
 .next-appointment__reference{min-width:0;padding:var(--s3) 0 0;border-top:1px solid var(--rule);display:grid;gap:var(--s1);overflow-wrap:anywhere}
 .appointment-list{padding:var(--s3)}
 .appointment-toolbar{min-height:var(--tap);margin:var(--s4) 0 var(--s3);display:flex;align-items:center;justify-content:space-between;gap:var(--s3)}
-.appointment-toolbar__meta,.profile{display:flex;align-items:center;gap:var(--s3)}
+.appointment-toolbar__meta,.profile{display:flex;align-items:center;gap:var(--s3);min-height:34px}
 .appointment-toolbar__count,.page-updated{white-space:nowrap;font-size:var(--t-small);color:var(--ink-muted)}
 .appointment-list{display:grid;gap:var(--s3)}
 .appointment-card{background:var(--surface);border:1px solid var(--rule);border-radius:var(--radius-lg);padding:var(--s4)}
@@ -571,6 +578,7 @@ body.modal-open{overflow:hidden}
   .top__conn span:not(.dot){display:none}
   .who__name,.who__role{display:none}
   .split,.split--list{grid-template-columns:1fr}
+  .setlayout{grid-template-columns:1fr}
   /* The desktop layout fits everything into one viewport-height column and lets
      the board absorb the slack. On a phone the header, filters and KPI strip use
      the whole column, so the board — the only flexible band — collapsed to four
