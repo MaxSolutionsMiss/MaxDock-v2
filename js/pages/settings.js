@@ -92,14 +92,14 @@ function renderTiming() {
     <h3 class="card__title">Timing & duration</h3>
     <div class="frow">
       <div class="field field--sm"><span class="field__label">Slot interval</span><select class="select" name="slot_interval_minutes" ${disabled}>${SLOT_INTERVALS.map(minutes => `<option value="${minutes}" ${Number(s.slot_interval_minutes) === minutes ? 'selected' : ''}>${minutes} minutes</option>`).join('')}</select></div>
-      <div class="field field--xs"><span class="field__label">Base minutes</span><input class="input" type="number" min="0" name="base_minutes" value="${s.base_minutes ?? 0}" ${disabled}></div>
-      <div class="field field--xs"><span class="field__label">Per skid</span><input class="input" type="number" min="0" step="0.1" name="minutes_per_skid" value="${s.minutes_per_skid ?? 0}" ${disabled}></div>
-      <div class="field field--xs"><span class="field__label">Buffer</span><input class="input" type="number" min="0" name="buffer_minutes" value="${s.buffer_minutes ?? 0}" ${disabled}></div>
+      <div class="field field--sm"><span class="field__label">Base minutes</span><input class="input" type="number" min="0" name="base_minutes" value="${s.base_minutes ?? 0}" ${disabled}></div>
+      <div class="field field--sm"><span class="field__label">Per skid</span><input class="input" type="number" min="0" step="0.1" name="minutes_per_skid" value="${s.minutes_per_skid ?? 0}" ${disabled}></div>
+      <div class="field field--sm"><span class="field__label">Buffer</span><input class="input" type="number" min="0" name="buffer_minutes" value="${s.buffer_minutes ?? 0}" ${disabled}></div>
     </div>
     <div class="frow">
-      <div class="field field--sm"><span class="field__label">Full truck at (skids)</span><input class="input" type="number" min="0" name="full_truck_skid_threshold" value="${s.full_truck_skid_threshold ?? 0}" ${disabled}></div>
-      <div class="field field--sm"><span class="field__label">Full truck minimum</span><input class="input" type="number" min="0" name="full_truck_minimum_minutes" value="${s.full_truck_minimum_minutes ?? 0}" ${disabled}></div>
-      <div class="field field--sm"><span class="field__label">Priority minimum</span><input class="input" type="number" min="0" name="priority_minimum_minutes" value="${s.priority_minimum_minutes ?? 0}" ${disabled}></div>
+      <div class="field field--md"><span class="field__label">Full truck at (skids)</span><input class="input" type="number" min="0" name="full_truck_skid_threshold" value="${s.full_truck_skid_threshold ?? 0}" ${disabled}></div>
+      <div class="field field--md"><span class="field__label">Full truck minimum</span><input class="input" type="number" min="0" name="full_truck_minimum_minutes" value="${s.full_truck_minimum_minutes ?? 0}" ${disabled}></div>
+      <div class="field field--md"><span class="field__label">Priority minimum</span><input class="input" type="number" min="0" name="priority_minimum_minutes" value="${s.priority_minimum_minutes ?? 0}" ${disabled}></div>
     </div>
     <p class="hint">These values drive the appointment-duration calculation for every booking at this location.</p>
     ${saveFoot(canEdit)}
@@ -113,8 +113,8 @@ function renderNotice() {
   return `<form class="card" data-section-form="notice">
     <h3 class="card__title">Booking window & notice</h3>
     <div class="frow">
-      <div class="field field--sm"><span class="field__label">Minimum notice (minutes)</span><input class="input" type="number" min="0" name="minimum_notice_minutes" value="${s.minimum_notice_minutes ?? 0}" ${disabled}></div>
-      <div class="field field--sm"><span class="field__label">Max days ahead</span><input class="input" type="number" min="0" name="maximum_advance_days" value="${s.maximum_advance_days ?? 0}" ${disabled}></div>
+      <div class="field field--lg"><span class="field__label">Minimum notice (minutes)</span><input class="input" type="number" min="0" name="minimum_notice_minutes" value="${s.minimum_notice_minutes ?? 0}" ${disabled}></div>
+      <div class="field field--lg"><span class="field__label">Max days ahead</span><input class="input" type="number" min="0" name="maximum_advance_days" value="${s.maximum_advance_days ?? 0}" ${disabled}></div>
     </div>
     <p class="hint">Customers cannot book inside the minimum notice window or beyond the max days ahead.</p>
     ${saveFoot(canEdit)}
@@ -133,9 +133,9 @@ function renderCapacity() {
       <button type="button" class="switch ${enabled ? '' : 'switch--off'}" data-capacity-switch aria-pressed="${enabled}" aria-label="Enforce skid capacity" ${disabled}></button>
     </div>
     <div class="frow">
-      <div class="field field--xs"><span class="field__label">Daily capacity</span><input class="input" type="number" min="1" name="skid_capacity" value="${s.skid_capacity ?? ''}" ${disabled}></div>
-      <div class="field field--xs"><span class="field__label">Reserve skids</span><input class="input" type="number" min="0" name="capacity_reserve_skids" value="${s.capacity_reserve_skids ?? 0}" ${disabled}></div>
-      <div class="field field--sm"><span class="field__label">When over capacity</span><select class="select" name="capacity_enforcement_mode" ${disabled}>
+      <div class="field field--md"><span class="field__label">Daily capacity</span><input class="input" type="number" min="1" name="skid_capacity" value="${s.skid_capacity ?? ''}" ${disabled}></div>
+      <div class="field field--md"><span class="field__label">Reserve skids</span><input class="input" type="number" min="0" name="capacity_reserve_skids" value="${s.capacity_reserve_skids ?? 0}" ${disabled}></div>
+      <div class="field field--md"><span class="field__label">When over capacity</span><select class="select" name="capacity_enforcement_mode" ${disabled}>
         <option value="warn" ${s.capacity_enforcement_mode === 'warn' ? 'selected' : ''}>Warn only</option>
         <option value="enforce" ${s.capacity_enforcement_mode === 'enforce' ? 'selected' : ''}>Block booking</option>
       </select></div>
@@ -158,11 +158,11 @@ function renderAssignment() {
       <button type="button" class="switch ${autoAssign ? '' : 'switch--off'}" data-assign-switch aria-pressed="${autoAssign}" aria-label="Auto-assign docks" ${disabled}></button>
     </div>
     <div class="frow">
-      <div class="field field--sm"><span class="field__label">Assignment strategy</span><select class="select" name="dock_assignment_strategy" ${disabled}>
+      <div class="field field--lg"><span class="field__label">Assignment strategy</span><select class="select" name="dock_assignment_strategy" ${disabled}>
         <option value="balanced" ${s.dock_assignment_strategy === 'balanced' ? 'selected' : ''}>Balanced across docks</option>
         <option value="fill_first" ${s.dock_assignment_strategy === 'fill_first' ? 'selected' : ''}>Fill one dock first</option>
       </select></div>
-      <div class="field field--sm"><span class="field__label">Max concurrent (blank = no limit)</span><input class="input" type="number" min="1" name="max_concurrent_appointments" value="${s.max_concurrent_appointments ?? ''}" ${disabled}></div>
+      <div class="field field--lg"><span class="field__label">Max concurrent (blank = no limit)</span><input class="input" type="number" min="1" name="max_concurrent_appointments" value="${s.max_concurrent_appointments ?? ''}" ${disabled}></div>
     </div>
     <div class="setrow">
       <div><div class="setrow__t">Same-day consolidation warning</div><div class="setrow__d">Flag same-destination bookings on the same day for review</div></div>

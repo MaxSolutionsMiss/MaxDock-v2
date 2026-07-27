@@ -153,7 +153,10 @@ function collect(scope) {
     if (!kids.length || rw < 200) return;
     const right = Math.max(...kids.map(k => k.getBoundingClientRect().right));
     const unused = Math.round(row.getBoundingClientRect().right - right);
-    if (unused > rw * 0.25) out.rowFill.push({ unused, rowWidth: Math.round(rw), fields: kids.length });
+    // Two of twelve columns. The old quarter-of-the-row threshold let a row that
+    // was three columns short pass on a rounding margin, which is how the settings
+    // rows in the owner's screenshots audited clean while visibly stopping short.
+    if (unused > rw * 0.15) out.rowFill.push({ unused, rowWidth: Math.round(rw), fields: kids.length });
   });
 
   // KPI cards must fill their row evenly (DB65/DB66).

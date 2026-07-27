@@ -3,7 +3,9 @@ import { db } from '../db.js';
 import { createModal } from '../ui/modal.js';
 import { toast } from '../ui/toast.js';
 import { renderState } from '../ui/empty.js';
-import { pageHead } from '../ui/pagehead.js';
+import { pageHead, controlsBar } from '../ui/pagehead.js';
+import { createCustomizePanel } from '../ui/customize.js';
+import { openWall, paintWall } from '../ui/wall.js';
 import { format } from '../format.js';
 
 const state = {
@@ -18,7 +20,19 @@ const state = {
   editModal: null,
   editingRecord: null,
   reference: null,
+  customizePanel: null,
+  visibleCards: [],
+  wall: null,
 };
+
+const KPI_CARDS = [
+  { id: 'appointments', label: 'Appointments', className: '', compute: (appts) => appts.length },
+  { id: 'inbound', label: 'Inbound skids', className: 'kpi--out', compute: appts => appts.filter(r => r.direction === 'inbound').reduce((sum, r) => sum + Number(r.skid_count || 0), 0) },
+  { id: 'outbound', label: 'Outbound skids', className: 'kpi--ok', compute: appts => appts.filter(r => r.direction === 'outbound').reduce((sum, r) => sum + Number(r.skid_count || 0), 0) },
+  { id: 'active', label: 'Active trucks', className: 'kpi--signal', compute: appts => appts.filter(r => ['arrived', 'loading', 'unloading'].includes(r.status)).length },
+  { id: 'blocked', label: 'Blocked docks', className: 'kpi--stop', compute: (appts, blocks) => blocks.length },
+];
+const DEFAULT_CARDS = KPI_CARDS.map(card => card.id);
 
 const TERMINAL_STATUSES = new Set(['completed', 'cancelled', 'no_show']);
 
@@ -176,21 +190,20 @@ async function submitEdit(event) {
 
 function buildShell(root) {
   root.innerHTML = `
-    ${pageHead('Dock board', {
-      subtitleAttribute: 'data-board-subtitle',
-      actions: ['export', 'print', 'fullscreen', ['block', can('block.manage')], ['book', can('appointment.create')]],
-    })}
-    <section class="controls" aria-label="Dock board controls">
-      <div class="datenav">
+    ${pageHead('Dock board', { subtitleAttribute: 'data-board-subtitle' })}
+    ${controlsBar({
+      label: 'Dock board controls',
+      lead: `<div class="datenav">
         <button class="iconbtn" type="button" data-day="-1" aria-label="Previous day">‹</button>
         <button class="btn btn--quiet btn--sm" type="button" data-today>Today</button>
         <input class="input input--date" type="date" data-board-date aria-label="Board date">
         <button class="iconbtn" type="button" data-day="1" aria-label="Next day">›</button>
-      </div>
-      <div class="ctrl-field"><label for="board-direction">Direction</label><select class="select" id="board-direction" data-filter-direction><option value="all">All movements</option><option value="inbound">Inbound</option><option value="outbound">Outbound</option></select></div>
-      <div class="ctrl-field"><label for="board-status">Status</label><select class="select" id="board-status" data-filter-status><option value="all">All statuses</option><option value="scheduled">Scheduled</option><option value="arrived">Arrived</option><option value="complete">Complete</option><option value="cancelled">Cancelled</option></select></div>
-    </section>
-    <section class="kpis kpis--5" aria-label="Dock board summary" data-kpis></section>
+      </div>`,
+      filters: `<div class="ctrl-field"><label for="board-direction">Direction</label><select class="select" id="board-direction" data-filter-direction><option value="all">All movements</option><option value="inbound">Inbound</option><option value="outbound">Outbound</option></select></div>
+      <div class="ctrl-field"><label for="board-status">Status</label><select class="select" id="board-status" data-filter-status><option value="all">All statuses</option><option value="scheduled">Scheduled</option><option value="arrived">Arrived</option><option value="complete">Complete</option><option value="cancelled">Cancelled</option></select></div>`,
+      actions: ['export', 'print', 'fullscreen', 'customize', ['block', can('block.manage')], ['book', can('appointment.create')]],
+    })}
+    <section class="kpis" aria-label="Dock board summary" data-kpis></section>
     <section class="board" data-board-host aria-label="Dock schedule"></section>
     <div class="scrim" data-block-backdrop hidden aria-hidden="true">
       <section class="modal" role="dialog" aria-modal="true" aria-labelledby="block-title">
@@ -278,16 +291,12 @@ function renderKpis() {
   const records = visibleRecords();
   const appointments = records.filter(record => record.entry_kind !== 'block');
   const blocks = records.filter(record => record.entry_kind === 'block');
-  const inbound = appointments.filter(record => record.direction === 'inbound');
-  const outbound = appointments.filter(record => record.direction === 'outbound');
-  const active = appointments.filter(record => ['arrived', 'loading', 'unloading'].includes(record.status));
-  state.elements.kpis.innerHTML = [
-    ['Appointments', appointments.length, ''],
-    ['Inbound skids', inbound.reduce((sum, record) => sum + Number(record.skid_count || 0), 0), 'kpi--out'],
-    ['Outbound skids', outbound.reduce((sum, record) => sum + Number(record.skid_count || 0), 0), 'kpi--ok'],
-    ['Active trucks', active.length, 'kpi--signal'],
-    ['Blocked docks', blocks.length, 'kpi--stop'],
-  ].map(([label, value, className]) => `<article class="kpi ${className}"><div class="kpi__label">${label}</div><div class="kpi__value">${value}</div></article>`).join('');
+  const cards = KPI_CARDS.filter(card => state.visibleCards.includes(card.id));
+  // Turning every card off hides the strip rather than leaving an empty band.
+  state.elements.kpis.hidden = cards.length === 0;
+  state.elements.kpis.innerHTML = cards
+    .map(card => `<article class="kpi ${card.className}"><span class="kpi__label">${card.label}</span><span class="kpi__value">${card.compute(appointments, blocks)}</span></article>`)
+    .join('');
 }
 
 function slotTimes() {
@@ -350,6 +359,9 @@ function patchData(data) {
   state.records = data.records;
   if (structureChanged) renderBoard();
   else renderKpis();
+  // Repainted from the same poll that drives the page, so the display stays
+  // current on its own — nobody walks over to a wall screen to refresh it.
+  if (state.wall && !state.wall.closed) paintWall(state.wall, wallPayload());
 }
 
 function exportCsv() {
@@ -396,19 +408,43 @@ async function submitBlock(event) {
   } finally { submit.disabled = false; }
 }
 
+function wallPayload() {
+  const lanes = state.docks.map(dock => ({ id: dock.id, name: dock.name, note: dock.direction_mode || '' }));
+  const entries = visibleRecords().map(record => ({
+    laneId: record.dock_id,
+    time: `${format.time(record.start_at, state.context.location)}–${format.time(record.end_at, state.context.location)}`,
+    title: record.entry_kind === 'block'
+      ? (record.block_reason || 'Dock blocked')
+      : (record.company_name || record.display_counterpart_location_name || record.requester_name || 'Scheduled movement'),
+    meta: record.entry_kind === 'block'
+      ? (record.notes || 'Unavailable')
+      : `${record.booking_reference || ''} · ${format.role(record.direction || '')} · ${Number(record.skid_count || 0)} skids`,
+    status: record.status,
+    kind: record.entry_kind,
+    isPriority: Boolean(record.is_priority),
+  }));
+  const appointments = entries.filter(entry => entry.kind !== 'block').length;
+  return {
+    lanes,
+    entries,
+    subtitle: `${format.longDateInput(state.date, state.context.location)} · ${appointments} scheduled · ${state.docks.length} docks`,
+    clock: format.currentTimeLabel(),
+  };
+}
+
 function openBroadcastWindow() {
-  const popup = globalThis.open('', 'maxdock-broadcast', 'popup=yes,width=1280,height=760');
-  if (!popup) { toast('Allow pop-ups to open the broadcast board.', 'error'); return; }
-  const cssHref = new URL('../assets/maxdock.css', globalThis.location.href).href;
-  const rows = visibleRecords().filter(record => record.entry_kind !== 'block').slice(0, 18).map(record => {
-    const dock = state.docks.find(item => item.id === record.dock_id)?.name || 'Unassigned';
-    const statusClass = record.is_priority ? 'tag--pri' : ['arrived', 'loading', 'unloading'].includes(record.status) ? 'tag--ok' : 'tag--quiet';
-    return `<tr><td>${escapeHtml(dock)}</td><td>${escapeHtml(format.time(record.start_at, state.context.location))}</td><td>${escapeHtml(record.booking_reference || 'Appointment')}</td><td><span class="tag ${statusClass}">${escapeHtml(record.status || 'Scheduled')}</span></td></tr>`;
-  }).join('');
-  popup.document.open();
-  popup.document.write(`<!doctype html><html lang="en" data-text="larger"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(state.context.location.name)} · Dock board</title><link rel="stylesheet" href="${cssHref}"></head><body class="wall"><header class="wall__head"><div class="wall__title">${escapeHtml(state.context.location.name)} · Dock board</div><div class="wall__clock">${escapeHtml(format.currentTimeLabel())}</div></header><table><thead><tr><th>Dock</th><th>Time</th><th>Reference</th><th>Status</th></tr></thead><tbody>${rows || '<tr><td colspan="4">No scheduled appointments</td></tr>'}</tbody></table></body></html>`);
-  popup.document.close();
-} 
+  const payload = wallPayload();
+  state.wall = openWall({
+    name: 'maxdock-broadcast',
+    title: `${state.context.location.name} · Dock board`,
+    subtitle: payload.subtitle,
+    lanes: payload.lanes,
+    entries: payload.entries,
+    clock: payload.clock,
+    cssHref: new URL('../assets/maxdock.css', globalThis.location.href).href,
+    onNoWindow: () => toast('Allow pop-ups to open the broadcast board.', 'error'),
+  });
+}
 
 function wireEvents(root) {
   root.addEventListener('click', async event => {
@@ -424,6 +460,8 @@ function wireEvents(root) {
     if (event.target.closest('[data-export]')) exportCsv();
     if (event.target.closest('[data-print]')) globalThis.print();
     if (event.target.closest('[data-fullscreen]')) openBroadcastWindow();
+    const customize = event.target.closest('[data-customize]');
+    if (customize) state.customizePanel?.open(customize);
     const priority = event.target.closest('[data-priority-switch]');
     if (priority) {
       const off = priority.classList.toggle('switch--off');
@@ -460,12 +498,20 @@ const page = {
     document.title = `Dock board · ${context.location.name} · MaxDock`;
     buildShell(context.pageRoot);
     wireEvents(context.pageRoot);
+    state.customizePanel = await createCustomizePanel({
+      preferenceKey: 'board-cards',
+      options: KPI_CARDS.map(card => ({ id: card.id, label: card.label })),
+      defaultIds: DEFAULT_CARDS,
+      max: KPI_CARDS.length,
+      onChange: selected => { state.visibleCards = selected; renderKpis(); },
+    });
+    state.visibleCards = state.customizePanel.selected;
     state.elements.host.innerHTML = '<div class="board-loading">Loading dock schedule…</div>';
     patchData(await fetchBoardData());
   },
   poll: { interval: 5000, fetch: fetchBoardData },
   async refresh(data) { patchData(data); },
-  destroy() { state.blockModal?.destroy(); state.editModal?.destroy(); },
+  destroy() { state.blockModal?.destroy(); state.editModal?.destroy(); state.customizePanel?.destroy(); },
 };
 
 startPage(page);

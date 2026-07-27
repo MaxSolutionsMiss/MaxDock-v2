@@ -4,7 +4,8 @@ import { toast } from '../ui/toast.js';
 import { renderState } from '../ui/empty.js';
 import { format } from '../format.js';
 import { createCustomizePanel } from '../ui/customize.js';
-import { pageHead } from '../ui/pagehead.js';
+import { openWall, paintWall } from '../ui/wall.js';
+import { pageHead, controlsBar } from '../ui/pagehead.js';
 
 const LATE_GRACE_MINUTES = 15;
 const BACK_TO_BACK_MINUTES = 20;
@@ -39,6 +40,7 @@ const state = {
   visibleCards: DEFAULT_CARDS,
   elements: {},
   customizePanel: null,
+  wall: null,
 };
 
 const escapeHtml = value => String(value ?? '').replace(/[&<>'"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[char]));
@@ -106,7 +108,11 @@ function visibleRecords() {
 
 function renderKpis() {
   const appointments = state.records.filter(record => record.entry_kind !== 'block');
-  state.elements.kpis.innerHTML = KPI_CARDS.filter(card => state.visibleCards.includes(card.id)).map(card => {
+  const cards = KPI_CARDS.filter(card => state.visibleCards.includes(card.id));
+  // With every card turned off the strip leaves no trace — an empty bordered band
+  // would read as a rendering failure rather than a choice.
+  state.elements.kpis.hidden = cards.length === 0;
+  state.elements.kpis.innerHTML = cards.map(card => {
     const value = card.compute(appointments);
     return `<article class="kpi ${card.className}"><span class="kpi__label">${card.label}</span><span class="kpi__value">${value}${card.suffix ? `<span>${card.suffix}</span>` : ''}</span></article>`;
   }).join('');
@@ -242,14 +248,42 @@ function exportCsv() {
   URL.revokeObjectURL(link.href);
 }
 
+function wallPayload() {
+  const lanes = state.docks.map(dock => ({ id: dock.id, name: dock.name, note: '' }));
+  // Anything without a dock still has to appear, or the wall quietly under-reports
+  // the yard. It gets its own lane at the end.
+  const unassigned = { id: '__unassigned', name: 'Unassigned', note: 'no dock yet' };
+  const known = new Set(lanes.map(lane => lane.id));
+  const entries = visibleRecords().map(record => ({
+    laneId: known.has(record.dock_id) ? record.dock_id : unassigned.id,
+    time: format.time(record.start_at, state.context.location),
+    title: record.company_name || record.display_counterpart_location_name || record.requester_name || 'Scheduled movement',
+    meta: `${record.booking_reference || ''} · ${format.role(record.status || '')}${isLate(record) ? ' · LATE' : ''}`,
+    status: isLate(record) ? 'no_show' : record.status,
+    kind: record.entry_kind,
+    isPriority: Boolean(record.is_priority),
+  }));
+  if (entries.some(entry => entry.laneId === unassigned.id)) lanes.push(unassigned);
+  return {
+    lanes,
+    entries,
+    subtitle: `${entries.length} movement${entries.length === 1 ? '' : 's'} · live`,
+    clock: format.currentTimeLabel(),
+  };
+}
+
 function openBroadcastWindow() {
-  const popup = globalThis.open('', 'maxdock-queue-broadcast', 'popup=yes,width=1280,height=760');
-  if (!popup) { toast('Allow pop-ups to open the broadcast window.', 'error'); return; }
-  const cssHref = new URL('../assets/maxdock.css', globalThis.location.href).href;
-  const rows = visibleRecords().slice(0, 18).map(record => `<tr><td>${escapeHtml(dockName(record.dock_id))}</td><td>${escapeHtml(format.time(record.start_at, state.context.location))}</td><td>${escapeHtml(record.booking_reference || 'Appointment')}</td><td><span class="tag ${isLate(record) ? 'tag--stop' : 'tag--quiet'}">${escapeHtml(format.role(record.status))}</span></td></tr>`).join('');
-  popup.document.open();
-  popup.document.write(`<!doctype html><html lang="en" data-text="larger"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(state.context.location.name)} · Operations queue</title><link rel="stylesheet" href="${cssHref}"></head><body class="wall"><header class="wall__head"><div class="wall__title">${escapeHtml(state.context.location.name)} · Operations queue</div><div class="wall__clock">${escapeHtml(format.currentTimeLabel())}</div></header><table><thead><tr><th>Dock</th><th>Time</th><th>Reference</th><th>Status</th></tr></thead><tbody>${rows || '<tr><td colspan="4">Nothing scheduled</td></tr>'}</tbody></table></body></html>`);
-  popup.document.close();
+  const payload = wallPayload();
+  state.wall = openWall({
+    name: 'maxdock-queue-broadcast',
+    title: `${state.context.location.name} · Operations queue`,
+    subtitle: payload.subtitle,
+    lanes: payload.lanes,
+    entries: payload.entries,
+    clock: payload.clock,
+    cssHref: new URL('../assets/maxdock.css', globalThis.location.href).href,
+    onNoWindow: () => toast('Allow pop-ups to open the broadcast window.', 'error'),
+  });
 }
 
 async function refreshData() {
@@ -259,6 +293,7 @@ async function refreshData() {
   state.records = data.records;
   state.returnLoads = data.returnLoads;
   renderAll();
+  if (state.wall && !state.wall.closed) paintWall(state.wall, wallPayload());
 }
 
 async function changeStatus(appointmentId, newStatus) {
@@ -275,8 +310,10 @@ async function changeStatus(appointmentId, newStatus) {
 
 function buildShell(root) {
   root.innerHTML = `
-    ${pageHead('Operations queue', {
-      actions: ['customize', 'export', 'print', 'fullscreen', ['book', can('appointment.create')]],
+    ${pageHead('Operations queue')}
+    ${controlsBar({
+      label: 'Queue controls',
+      actions: ['export', 'print', 'fullscreen', 'customize', ['book', can('appointment.create')]],
     })}
     <div class="brief" data-brief></div>
     <div class="kpis" data-kpis></div>
@@ -346,7 +383,6 @@ const page = {
       preferenceKey: 'queue-cards',
       options: KPI_CARDS.map(card => ({ id: card.id, label: card.label })),
       defaultIds: DEFAULT_CARDS,
-      min: 1,
       max: KPI_CARDS.length,
       onChange: selected => { state.visibleCards = selected; renderKpis(); },
     });

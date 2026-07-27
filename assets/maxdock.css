@@ -7,10 +7,16 @@
   --signal:#B8690E; --signal-wash:#FDF2E2; --ok:#1B7A4B; --ok-wash:#E6F2EC;
   --warn:#8A6D00; --warn-wash:#FBF3D8; --stop:#B3261E; --stop-wash:#FBEAE9;
   --rail:#16202A; --rail-ink:#A8B4BE; --rail-rule:rgba(255,255,255,.08); --rail-label:#6B7A86;
-  --font-ui:'IBM Plex Sans',system-ui,sans-serif; --font-data:'IBM Plex Mono',ui-monospace,monospace;
+  /* One face throughout. The monospace was used for references, dates and the
+     board, and the owner reads it as the wrong voice for this product — the
+     detail labels on My appointments are the reference. Tabular figures come
+     from font-variant-numeric on body, so columns of numbers still line up. */
+  --font-ui:'IBM Plex Sans',system-ui,sans-serif; --font-data:var(--font-ui);
   --scale:1;
-  --t-micro:calc(10.5px*var(--scale)); --t-small:calc(12px*var(--scale)); --t-base:calc(13px*var(--scale));
-  --t-lead:calc(15px*var(--scale)); --t-title:calc(19px*var(--scale)); --t-metric:calc(24px*var(--scale));
+  /* Raised one step across the board: 13px base reads small for a screen an
+     operator works from all day, and every other size is derived from it. */
+  --t-micro:calc(11.5px*var(--scale)); --t-small:calc(13px*var(--scale)); --t-base:calc(14.5px*var(--scale));
+  --t-lead:calc(17px*var(--scale)); --t-title:calc(21px*var(--scale)); --t-metric:calc(27px*var(--scale));
   --s1:4px; --s2:8px; --s3:12px; --s4:16px; --s5:24px; --s6:32px; --s7:48px;
   --radius:5px; --radius-lg:7px; --rail-w:196px; --topbar-h:52px; --tap:44px; --motion:.12s;
   --shadow-overlay:0 12px 32px rgba(22,32,42,.16),0 2px 6px rgba(22,32,42,.08);
@@ -83,8 +89,22 @@ body{background:var(--ground);color:var(--ink);font-family:var(--font-ui);font-s
 .btn--sm{min-height:34px;padding:0 10px;font-size:var(--t-small)}
 .btn--block{width:100%}
 
-.controls{display:flex;align-items:center;gap:var(--s2) var(--s3);padding:var(--s2) var(--s3);background:var(--surface);border:1px solid var(--rule);border-radius:var(--radius-lg);margin-bottom:var(--s3);flex:none;flex-wrap:wrap}
+/* A grid, not a wrapping flex row: as flex, the right-hand utilities were the
+   first thing to lose the line and dropped onto a row of their own under a band
+   of empty white. Three columns keep them pinned top-right at every width while
+   the filters wrap inside their own cell. */
+.controls{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:var(--s2) var(--s3);padding:var(--s2) var(--s3);background:var(--surface);border:1px solid var(--rule);border-radius:var(--radius-lg);margin-bottom:var(--s3);flex:none}
 .controls__end{flex-wrap:wrap}
+/* The band's two fixed anchors: the page's context control and its operational
+   actions at the start, output and view controls at the far right. Everything
+   between is that page's own filters. */
+.controls__lead{grid-column:1;display:flex;align-items:center;gap:var(--s2) var(--s3);flex-wrap:wrap}
+.controls__lead .btn{white-space:nowrap}
+/* The filters take the slack and wrap inside themselves. Left as loose children
+   they competed with the right-hand group for the same line, so the utilities
+   dropped to a row of their own and left a band of empty white above them. */
+.controls__filters{grid-column:2;display:flex;align-items:center;gap:var(--s2) var(--s3);flex-wrap:wrap;min-width:0}
+.input--search{min-width:min(260px,100%)}
 .datenav{display:flex;align-items:center;gap:var(--s1)}
 .iconbtn{width:34px;min-height:34px;border:1px solid var(--rule-strong);background:var(--surface);border-radius:var(--radius);cursor:pointer;color:var(--ink-muted);font-size:16px;display:grid;place-items:center}
 .input,.select,textarea{font-family:inherit;font-size:var(--t-base);color:var(--ink);background:var(--surface);border:1px solid var(--rule-strong);border-radius:var(--radius);padding:0 10px;min-height:34px}
@@ -92,7 +112,7 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 .input--date{font-family:var(--font-data)}
 .ctrl-field{display:flex;align-items:center;gap:6px}
 .ctrl-field label{font-size:var(--t-micro);text-transform:uppercase;letter-spacing:.07em;color:var(--ink-muted);font-weight:600}
-.controls__end{margin-left:auto;display:flex;gap:var(--s2)}
+.controls__end{grid-column:3;justify-self:end;display:flex;gap:var(--s2)}
 
 /* Cards wrap to fit rather than being forced into a fixed column count. At 768px the
    old repeat(5,1fr) squeezed them to 55-104px wide; on a wide screen the same rule
@@ -250,6 +270,13 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 .setnav button[aria-current="true"]{background:var(--dock-wash);color:var(--dock-deep);font-weight:600}
 .setpanel{overflow:auto;min-height:0}
 .card{background:var(--surface);border:1px solid var(--rule);border-radius:var(--radius-lg);padding:var(--s4)}
+/* One vertical rhythm inside cards, dialogs and wizard steps. A .frow spaces its
+   own children but carried no margin of its own, so two stacked rows read as a
+   single crowded block — the label of the second row sat on the control of the
+   first. Setting rows are excluded: they are a bordered list and space themselves. */
+.card>*+*,.modal__body>*+*,[data-booking-step]>*+*{margin-top:var(--s4)}
+.card>.card__title+*,.modal__body>.card__title+*{margin-top:0}
+.card>.setrow+.setrow,.modal__body>.setrow+.setrow,[data-booking-step]>.setrow+.setrow{margin-top:0}
 .card__title{font-size:var(--t-base);font-weight:600;margin:0 0 var(--s3);display:flex;align-items:center;gap:var(--s2)}
 .card__title .btn{margin-left:auto}
 .hours{display:flex;flex-direction:column;gap:6px}
@@ -264,15 +291,33 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 .bar{flex:1;background:var(--dock);border-radius:3px 3px 0 0;min-height:4px}
 .bar--alt{background:var(--ok)}
 
-/* full-screen wall */
-.wall{height:100vh;background:var(--rail);color:#fff;padding:var(--s5);display:flex;flex-direction:column;gap:var(--s4)}
-.wall__head{display:flex;align-items:baseline;gap:var(--s4)}
-.wall__title{font-size:32px;font-weight:700}
-.wall__clock{margin-left:auto;font-family:var(--font-data);font-size:28px}
-.wall table{width:100%;border-collapse:collapse}
-.wall th{text-align:left;font-size:16px;color:#8A959E;padding:10px var(--s4);border-bottom:1px solid rgba(255,255,255,.14);text-transform:uppercase;letter-spacing:.06em}
-.wall td{font-family:var(--font-data);font-size:30px;padding:14px var(--s4);border-bottom:1px solid rgba(255,255,255,.08)}
-.wall .tag{font-size:15px;padding:4px 12px}
+/* Full-screen wall display.
+   Read from across a shop floor, not from a desk: every size is a clamp() against
+   the viewport so the same markup works on a laptop and on a mounted screen. One
+   lane per dock, so an operator finds their door by position rather than by
+   reading every row — which is what the previous dark table required. */
+.wall{min-height:100vh;background:#F1F5F8;color:var(--ink);padding:clamp(12px,1.4vw,28px);display:flex;flex-direction:column;gap:clamp(10px,1vw,20px)}
+.wall__head{display:flex;align-items:center;gap:var(--s4);flex:none}
+.wall__title{font-size:clamp(22px,2vw,40px);font-weight:700;letter-spacing:-.015em}
+.wall__sub{font-size:clamp(13px,1vw,20px);color:var(--ink-muted);margin-top:2px}
+.wall__clock{margin-left:auto;font-size:clamp(24px,2.2vw,44px);font-weight:600;font-variant-numeric:tabular-nums}
+.wall__lanes{flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:clamp(6px,.6vw,12px)}
+.wall-lane{display:grid;grid-template-columns:clamp(120px,11vw,220px) 1fr;gap:clamp(8px,.8vw,16px);background:var(--surface);border:1px solid var(--rule);border-radius:10px;padding:clamp(8px,.7vw,14px);min-height:clamp(72px,8vh,120px)}
+.wall-lane__label{display:flex;flex-direction:column;justify-content:center;padding-right:clamp(8px,.8vw,16px);border-right:1px solid var(--rule)}
+.wall-lane__label strong{font-size:clamp(16px,1.3vw,28px);font-weight:700}
+.wall-lane__label small{font-size:clamp(11px,.75vw,16px);color:var(--ink-faint)}
+.wall-lane__track{display:flex;align-items:stretch;gap:clamp(6px,.6vw,12px);overflow-x:auto;min-width:0}
+.wall-lane__idle{margin:0;align-self:center;color:var(--ink-faint);font-size:clamp(13px,1vw,20px)}
+.wall-card{display:flex;flex-direction:column;justify-content:center;gap:2px;flex:1 1 clamp(150px,14vw,280px);min-width:clamp(150px,14vw,280px);padding:clamp(6px,.6vw,12px) clamp(8px,.8vw,16px);border-radius:8px;border-left:5px solid var(--rule-strong);background:var(--surface-sunk)}
+.wall-card__time{font-size:clamp(15px,1.2vw,26px);font-weight:700;font-variant-numeric:tabular-nums}
+.wall-card__title{font-size:clamp(13px,1vw,21px);font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.wall-card__meta{font-size:clamp(11px,.8vw,17px);color:var(--ink-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.wall-card--next{border-left-color:var(--dock);background:var(--dock-wash)}
+.wall-card--now{border-left-color:var(--ok);background:var(--ok-wash)}
+.wall-card--priority{border-left-color:var(--signal);background:var(--signal-wash)}
+.wall-card--done{border-left-color:var(--rule-strong);background:var(--surface-sunk);color:var(--ink-muted)}
+.wall-card--off{border-left-color:var(--stop);background:var(--stop-wash)}
+.wall-card--block{border-left-color:var(--ink-faint);background:repeating-linear-gradient(135deg,var(--surface-sunk),var(--surface-sunk) 8px,#E3E8EC 8px,#E3E8EC 16px)}
 
 /* ===== additions: icon buttons, rail admin-at-bottom, queue, data, fullscreen ===== */
 .btn--icon{padding:0;width:34px;min-height:34px;color:var(--ink-muted)}
@@ -351,7 +396,9 @@ body.modal-open{overflow:hidden}
 .modal__message{margin:var(--s2) 0 var(--s4);color:var(--ink-muted)}
 /* Primary action sits right, matching the modal footer, so Save is in the same
    place whether it is in a card or a dialog. */
-.form-actions{display:flex;align-items:center;gap:var(--s2);margin-top:var(--s5)}
+/* Wraps like .modal__foot does: on a phone two full-width buttons will not sit
+   side by side, and unwrapped the confirm button ran past the dialog edge. */
+.form-actions{display:flex;flex-wrap:wrap;align-items:center;gap:var(--s2);margin-top:var(--s5)}
 .form-actions>.btn--primary{margin-left:auto}
 .form-actions--stack{display:grid}
 .form-actions--stack>.btn--primary{margin-left:0}
@@ -405,12 +452,17 @@ body.modal-open{overflow:hidden}
 
 /* My Appointments (Stage 2) — card layout restored; visual alignment with the later table-based
    composed mockup (page-2-appts.html) is a follow-up, tracked in docs/STATUS.md */
-.next-appointment{min-height:112px;display:flex;align-items:center;justify-content:space-between;gap:var(--s5);background:var(--surface);border:1px solid var(--rule);border-left:3px solid var(--dock);border-radius:var(--radius-lg);padding:var(--s4);margin-bottom:var(--s3)}
-.next-appointment__summary,.next-appointment__empty{display:grid;gap:3px}
+/* The next appointment is a column card beside the list, not a band across the
+   page. As a full-width row it grew with the viewport, left a wide empty middle,
+   and at the larger text sizes pushed its reference block past the right edge. */
+.split--list{grid-template-columns:1fr 340px}
+.next-appointment{display:flex;flex-direction:column;align-items:stretch;gap:var(--s3);background:var(--surface);border:1px solid var(--rule);border-left:3px solid var(--dock);border-radius:var(--radius-lg);padding:var(--s4);min-height:0;overflow-y:auto}
+.next-appointment__summary,.next-appointment__empty{display:grid;gap:3px;min-width:0}
 .next-appointment__eyebrow,.next-appointment__reference-label{color:var(--ink-muted);font-size:var(--t-micro);font-weight:600;letter-spacing:.08em;text-transform:uppercase}
 .next-appointment__title{font-size:var(--t-lead)}
 .next-appointment__time,.next-appointment__message{color:var(--ink-muted)}
-.next-appointment__reference{min-width:180px;padding-left:var(--s5);border-left:1px solid var(--rule);display:grid;gap:var(--s1)}
+.next-appointment__reference{min-width:0;padding:var(--s3) 0 0;border-top:1px solid var(--rule);display:grid;gap:var(--s1);overflow-wrap:anywhere}
+.appointment-list{padding:var(--s3)}
 .appointment-toolbar{min-height:var(--tap);margin:var(--s4) 0 var(--s3);display:flex;align-items:center;justify-content:space-between;gap:var(--s3)}
 .appointment-toolbar__meta,.profile{display:flex;align-items:center;gap:var(--s3)}
 .appointment-toolbar__count,.page-updated{white-space:nowrap;font-size:var(--t-small);color:var(--ink-muted)}
@@ -462,6 +514,9 @@ body.modal-open{overflow:hidden}
   .rail__foot{padding:var(--s2);text-align:center;font-size:var(--t-micro);overflow:hidden}
   .rail__foot strong{display:none}
   .page{padding:var(--s3) var(--s3) var(--s4)}
+  .controls{grid-template-columns:1fr}
+  .controls__lead,.controls__filters,.controls__end{grid-column:1}
+  .controls__end{justify-self:start}
   .top{padding:0 var(--s3);gap:var(--s2)}
   .top__date{display:none}
   .top__loc{min-width:0;flex:1}
@@ -471,8 +526,7 @@ body.modal-open{overflow:hidden}
   .seg{display:none}
   .top__conn span:not(.dot){display:none}
   .who__name,.who__role{display:none}
-  .controls{flex-wrap:wrap}
-  .split{grid-template-columns:1fr}
+  .split,.split--list{grid-template-columns:1fr}
   /* The desktop layout fits everything into one viewport-height column and lets
      the board absorb the slack. On a phone the header, filters and KPI strip use
      the whole column, so the board — the only flexible band — collapsed to four

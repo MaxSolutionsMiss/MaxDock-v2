@@ -2,7 +2,8 @@ import { startPage } from '../router.js';
 import { db } from '../db.js';
 import { toast } from '../ui/toast.js';
 import { renderState } from '../ui/empty.js';
-import { pageHead } from '../ui/pagehead.js';
+import { pageHead, controlsBar } from '../ui/pagehead.js';
+import { createCustomizePanel } from '../ui/customize.js';
 import { format } from '../format.js';
 
 const VIEWS = [
@@ -27,6 +28,8 @@ const state = {
   to: '',
   data: null,
   elements: {},
+  customizePanel: null,
+  visibleCards: [],
 };
 
 const escapeHtml = value => String(value ?? '').replace(/[&<>'"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[char]));
@@ -54,18 +57,20 @@ async function fetchReport() {
   }, { key: `reports:${state.context.location.id}:${state.from}:${state.to}`, cache: 60000, retry: 1, userMessage: 'The report data could not be loaded.' });
 }
 
+const KPI_CARDS = [
+  { id: 'appointments', label: 'Appointments', className: '', compute: s => compact(num(s.appointments)) },
+  { id: 'inbound', label: 'Inbound skids', className: 'kpi--out', compute: s => compact(s.inbound_skids) },
+  { id: 'outbound', label: 'Outbound skids', className: 'kpi--ok', compute: s => compact(s.outbound_skids) },
+  { id: 'cancelRate', label: 'Cancel rate', className: 'kpi--stop', compute: s => `${(num(s.appointments) ? num(s.cancelled) / num(s.appointments) * 100 : 0).toFixed(0)}%` },
+  { id: 'bookedHours', label: 'Booked hours', className: 'kpi--signal', compute: s => compact(num(s.booked_minutes) / 60) },
+];
+const DEFAULT_CARDS = KPI_CARDS.map(card => card.id);
+
 function kpiRow() {
-  const s = state.data?.summary || {};
-  const appointments = num(s.appointments);
-  const cancelRate = appointments ? (num(s.cancelled) / appointments * 100) : 0;
-  const cards = [
-    ['Appointments', compact(appointments), ''],
-    ['Inbound skids', compact(s.inbound_skids), 'kpi--out'],
-    ['Outbound skids', compact(s.outbound_skids), 'kpi--ok'],
-    ['Cancel rate', `${cancelRate.toFixed(0)}%`, 'kpi--stop'],
-    ['Booked hours', compact(num(s.booked_minutes) / 60), 'kpi--signal'],
-  ];
-  return `<div class="kpis kpis--5">${cards.map(([label, value, className]) => `<article class="kpi ${className}"><span class="kpi__label">${label}</span><span class="kpi__value">${escapeHtml(value)}</span></article>`).join('')}</div>`;
+  const summary = state.data?.summary || {};
+  const cards = KPI_CARDS.filter(card => state.visibleCards.includes(card.id));
+  if (!cards.length) return '';
+  return `<div class="kpis">${cards.map(card => `<article class="kpi ${card.className}"><span class="kpi__label">${escapeHtml(card.label)}</span><span class="kpi__value">${escapeHtml(card.compute(summary))}</span></article>`).join('')}</div>`;
 }
 
 function barChart(rows, valueKey, altKey) {
@@ -193,14 +198,16 @@ function syncControls() {
 
 function buildShell(root) {
   root.innerHTML = `
-    ${pageHead('Reports', { actions: ['export', 'print'] })}
-    <section class="controls" aria-label="Report controls">
-      <div class="ctrl-field"><label for="report-view">View</label><select class="select" id="report-view" data-view>${VIEWS.map(view => `<option value="${view.id}">${view.label}</option>`).join('')}</select></div>
+    ${pageHead('Reports')}
+    ${controlsBar({
+      label: 'Report controls',
+      lead: '<button class="btn btn--primary btn--sm" type="button" data-apply>Apply</button>',
+      filters: `<div class="ctrl-field"><label for="report-view">View</label><select class="select" id="report-view" data-view>${VIEWS.map(view => `<option value="${view.id}">${view.label}</option>`).join('')}</select></div>
       <div class="ctrl-field"><label for="report-preset">Range</label><select class="select" id="report-preset" data-preset>${PRESETS.map(preset => `<option value="${preset.id}">${preset.label}</option>`).join('')}</select></div>
       <div class="ctrl-field"><label for="report-from">From</label><input class="input input--date" type="date" id="report-from" data-from></div>
-      <div class="ctrl-field"><label for="report-to">To</label><input class="input input--date" type="date" id="report-to" data-to></div>
-      <div class="controls__end"><button class="btn btn--primary btn--sm" type="button" data-apply>Apply</button></div>
-    </section>
+      <div class="ctrl-field"><label for="report-to">To</label><input class="input input--date" type="date" id="report-to" data-to></div>`,
+      actions: ['export', 'print', 'customize'],
+    })}
     <div data-report-host></div>`;
   state.elements = {
     root,
@@ -217,6 +224,8 @@ function wireEvents(root) {
   root.addEventListener('click', event => {
     if (event.target.closest('[data-export]')) { exportCsv(); return; }
     if (event.target.closest('[data-print]')) { globalThis.print(); return; }
+    const customize = event.target.closest('[data-customize]');
+    if (customize) { state.customizePanel?.open(customize); return; }
     if (event.target.closest('[data-apply]')) {
       if (state.preset === 'custom') {
         if (!state.elements.from.value || !state.elements.to.value) { toast('Choose both a from and to date.', 'error'); return; }
@@ -246,12 +255,20 @@ const page = {
     document.title = `Reports · ${context.location.name} · MaxDock`;
     buildShell(context.pageRoot);
     wireEvents(context.pageRoot);
+    state.customizePanel = await createCustomizePanel({
+      preferenceKey: 'report-cards',
+      options: KPI_CARDS.map(card => ({ id: card.id, label: card.label })),
+      defaultIds: DEFAULT_CARDS,
+      max: KPI_CARDS.length,
+      onChange: selected => { state.visibleCards = selected; renderView(); },
+    });
+    state.visibleCards = state.customizePanel.selected;
     applyPreset('last30');
     syncControls();
     await reload();
   },
   refresh() {},
-  destroy() {},
+  destroy() { state.customizePanel?.destroy(); },
 };
 
 startPage(page);

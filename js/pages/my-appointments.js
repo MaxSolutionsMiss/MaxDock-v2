@@ -4,7 +4,8 @@ import { poll } from '../poll.js';
 import { startPage } from '../router.js';
 import { renderState } from '../ui/empty.js';
 import { createModal } from '../ui/modal.js';
-import { pageHeadActions } from '../ui/pagehead.js';
+import { controlsBar } from '../ui/pagehead.js';
+import { createCustomizePanel } from '../ui/customize.js';
 import { toast } from '../ui/toast.js';
 
 const TERMINAL_STATUSES = new Set(['completed', 'cancelled', 'no_show']);
@@ -27,6 +28,15 @@ let cancelModal = null;
 let interactionCleanup = [];
 let cards = new Map();
 let nextAppointmentSignature = '';
+let customizePanel = null;
+let visibleCards = [];
+
+const METRIC_CARDS = [
+  { id: 'upcoming', label: 'Upcoming' },
+  { id: 'past', label: 'Past' },
+  { id: 'cancelled', label: 'Cancelled' },
+  { id: 'total', label: 'Total' },
+];
 
 function createElement(tag, className, text) {
   const element = document.createElement(tag);
@@ -387,9 +397,21 @@ function createMetric(label, key) {
   const card = createElement('div', 'kpi kpi--ok');
   const value = createElement('strong', 'kpi__value data', '0');
   const caption = createElement('span', 'kpi__label', label);
-  card.append(value, caption);
+  card.append(caption, value);
   hosts.metricValues[key] = value;
+  hosts.metricCards[key] = card;
   return card;
+}
+
+function applyVisibleCards() {
+  let shown = 0;
+  for (const card of METRIC_CARDS) {
+    const element = hosts.metricCards[card.id];
+    if (!element) continue;
+    element.hidden = !visibleCards.includes(card.id);
+    if (!element.hidden) shown += 1;
+  }
+  hosts.metrics.hidden = shown === 0;
 }
 
 function createViewControls() {
@@ -425,7 +447,7 @@ function exportCsv() {
 }
 
 function buildPage(root, context) {
-  hosts = { metricValues: {} };
+  hosts = { metricValues: {}, metricCards: {} };
 
   const head = createElement('div', 'pagehead');
   const heading = createElement('div');
@@ -435,33 +457,40 @@ function buildPage(root, context) {
     : `${context.location.name} · Your bookings`);
   heading.append(title, subtitle);
   head.append(heading);
-  const headActions = createElement('div', 'pagehead__actions');
-  headActions.innerHTML = pageHeadActions(['export', 'print']);
-  head.append(headActions);
 
   const metrics = createElement('section', 'kpis');
   metrics.setAttribute('aria-label', 'Appointment summary');
-  metrics.append(
-    createMetric('Upcoming', 'upcoming'),
-    createMetric('Past', 'past'),
-    createMetric('Cancelled', 'cancelled'),
-    createMetric('Total', 'total'),
-  );
+  metrics.append(...METRIC_CARDS.map(card => createMetric(card.label, card.id)));
 
   const next = createElement('section', 'panel next-appointment');
   next.setAttribute('aria-label', 'Next appointment');
 
-  const toolbar = createElement('div', 'appointment-toolbar');
+  // The view switcher and the page's output actions live in the same controls band
+  // every other screen uses, so Print and the gear sit where they always sit.
+  const controls = createElement('div');
+  controls.innerHTML = controlsBar({ label: 'Appointment controls', actions: ['export', 'print', 'customize'] });
+  const controlsHost = controls.firstElementChild;
   const views = createViewControls();
   const toolbarMeta = createElement('div', 'profile appointment-toolbar__meta');
   const count = createElement('span', 'appointment-toolbar__count data');
   count.setAttribute('aria-live', 'polite');
   const updated = createElement('span', 'page-updated muted');
   toolbarMeta.append(count, updated);
-  toolbar.append(views, toolbarMeta);
+  const lead = controlsHost.querySelector('.controls__lead') || controlsHost;
+  lead.prepend(views);
+  controlsHost.querySelector('.controls__end')?.before(toolbarMeta);
 
+  // Left column scrolls on its own so the appointments below the fold can be
+  // reached; previously the list sat directly in the viewport-height page column
+  // with nothing scrollable, so everything past the first screen was unreachable.
+  const split = createElement('div', 'split split--list');
+  const listPanel = createElement('section', 'panel panel--fill');
+  const listScroll = createElement('div', 'panel__scroll');
   const list = createElement('section', 'appointment-list');
   list.setAttribute('aria-label', 'Appointments');
+  listScroll.append(list);
+  listPanel.append(listScroll);
+  split.append(listPanel, next);
 
   const cancelBackdrop = createElement('div', 'scrim');
   cancelBackdrop.hidden = true;
@@ -485,7 +514,7 @@ function buildPage(root, context) {
   dialog.append(modalTitle, modalMessage, modalActions);
   cancelBackdrop.append(dialog);
 
-  root.append(head, metrics, next, toolbar, list, cancelBackdrop);
+  root.append(head, controlsHost, metrics, split, cancelBackdrop);
 
   Object.assign(hosts, {
     metrics,
@@ -531,6 +560,8 @@ function bindInteractions() {
   const onHeadAction = event => {
     if (event.target.closest('[data-export]')) exportCsv();
     if (event.target.closest('[data-print]')) globalThis.print();
+    const customize = event.target.closest('[data-customize]');
+    if (customize) customizePanel?.open(customize);
   };
 
   hosts.views.addEventListener('click', onViewClick);
@@ -568,6 +599,15 @@ const page = {
     nextAppointmentSignature = '';
     buildPage(context.pageRoot, context);
     bindInteractions();
+    customizePanel = await createCustomizePanel({
+      preferenceKey: 'my-appointment-cards',
+      options: METRIC_CARDS.map(card => ({ id: card.id, label: card.label })),
+      defaultIds: METRIC_CARDS.map(card => card.id),
+      max: METRIC_CARDS.length,
+      onChange: selected => { visibleCards = selected; applyVisibleCards(); },
+    });
+    visibleCards = customizePanel.selected;
+    applyVisibleCards();
     await loadViewPreference();
     await refreshData(true);
   },
@@ -581,6 +621,8 @@ const page = {
     closeCancelModal({ restoreFocus: false });
     cancelModal?.destroy();
     cancelModal = null;
+    customizePanel?.destroy();
+    customizePanel = null;
     for (const cleanup of interactionCleanup.splice(0)) cleanup();
     for (const card of cards.values()) card.destroy();
     cards.clear();

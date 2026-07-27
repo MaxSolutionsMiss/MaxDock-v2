@@ -7,27 +7,29 @@ const ICONS = {
   add: '<path d="M12 5v14M5 12h14"></path>',
 };
 
-// Standard page-header actions, always rendered in this order so every screen
-// puts the same control in the same place: icon utilities, then labelled
-// secondary actions, then the primary action last.
+// Every screen puts the same control in the same place. Operational actions —
+// the ones an operator reaches for all day — sit at the start of the controls
+// band, ahead of the filters. Output and view controls sit at the far right in a
+// fixed order on every page, with the customize gear outermost.
 const ACTIONS = {
-  customize: { icon: 'customize', attribute: 'data-customize', label: 'Customize this page', iconOnly: true },
+  block: { icon: 'block', attribute: 'data-block-time', label: 'Block dock time', primary: true },
+  addUser: { icon: 'add', attribute: 'data-add-user', label: 'Add user', primary: true, accent: true },
+  book: { icon: 'add', attribute: 'data-open-booking', label: 'Book appointment', primary: true, accent: true },
   export: { icon: 'export', attribute: 'data-export', label: 'Export CSV', iconOnly: true },
   print: { icon: 'print', attribute: 'data-print', label: 'Print', iconOnly: true },
-  fullscreen: { icon: 'fullscreen', attribute: 'data-fullscreen', label: 'Full screen', title: 'Full screen — opens a broadcast window' },
-  block: { icon: 'block', attribute: 'data-block-time', label: 'Block dock time' },
-  addUser: { icon: 'add', attribute: 'data-add-user', label: 'Add user', primary: true },
-  book: { icon: 'add', attribute: 'data-open-booking', label: 'Book appointment', primary: true },
+  fullscreen: { icon: 'fullscreen', attribute: 'data-fullscreen', label: 'Full screen', title: 'Full screen — opens the wall display' },
+  customize: { icon: 'customize', attribute: 'data-customize', label: 'Customize this page', iconOnly: true },
 };
 
-const ORDER = ['customize', 'export', 'print', 'fullscreen', 'block', 'addUser', 'book'];
+const LEAD_ORDER = ['block', 'addUser', 'book'];
+const END_ORDER = ['export', 'print', 'fullscreen', 'customize'];
 
 const escapeHtml = value => String(value ?? '').replace(/[&<>'"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[char]));
 
 function actionButton(name) {
   const action = ACTIONS[name];
   if (!action) return '';
-  const className = action.primary ? 'btn btn--primary' : action.iconOnly ? 'btn btn--quiet btn--icon' : 'btn btn--quiet';
+  const className = action.accent ? 'btn btn--primary' : action.iconOnly ? 'btn btn--quiet btn--icon' : 'btn btn--quiet';
   const title = escapeHtml(action.title || action.label);
   const svg = `<svg viewBox="0 0 24 24" aria-hidden="true">${ICONS[action.icon]}</svg>`;
   const text = action.iconOnly ? '' : `<span>${escapeHtml(action.label)}</span>`;
@@ -36,9 +38,13 @@ function actionButton(name) {
 }
 
 // actions: array of ACTIONS keys, or [key, enabled] pairs to drop one by permission.
+function enabledSet(actions) {
+  return new Set(actions.map(entry => (Array.isArray(entry) ? (entry[1] ? entry[0] : null) : entry)).filter(Boolean));
+}
+
 export function pageHeadActions(actions = []) {
-  const enabled = new Set(actions.map(entry => (Array.isArray(entry) ? (entry[1] ? entry[0] : null) : entry)).filter(Boolean));
-  return ORDER.filter(name => enabled.has(name)).map(actionButton).join('');
+  const enabled = enabledSet(actions);
+  return [...LEAD_ORDER, ...END_ORDER].filter(name => enabled.has(name)).map(actionButton).join('');
 }
 
 export function pageHead(title, { subtitleAttribute = 'data-subtitle', subtitle = '', actions = [] } = {}) {
@@ -47,4 +53,21 @@ export function pageHead(title, { subtitleAttribute = 'data-subtitle', subtitle 
     <div><h1 class="pagehead__title">${escapeHtml(title)}</h1><p class="pagehead__sub" ${subtitleAttribute}>${escapeHtml(subtitle)}</p></div>
     ${buttons ? `<div class="pagehead__actions">${buttons}</div>` : ''}
   </div>`;
+}
+
+// The single controls band every page carries directly under its title. `lead` is
+// the page's own context control (a date stepper, a view switcher); `filters` are
+// its selects. Actions are placed by role, not by the order they are passed, so
+// Book appointment is in the same spot on every screen and so are Print and the
+// gear.
+export function controlsBar({ label = 'Page controls', lead = '', filters = '', actions = [] } = {}) {
+  const enabled = enabledSet(actions);
+  const leadButtons = LEAD_ORDER.filter(name => enabled.has(name)).map(actionButton).join('');
+  const endButtons = END_ORDER.filter(name => enabled.has(name)).map(actionButton).join('');
+  if (!lead && !filters && !leadButtons && !endButtons) return '';
+  return `<section class="controls" aria-label="${escapeHtml(label)}">
+    ${lead || leadButtons ? `<div class="controls__lead">${lead}${leadButtons}</div>` : ''}
+    ${filters ? `<div class="controls__filters">${filters}</div>` : ''}
+    ${endButtons ? `<div class="controls__end">${endButtons}</div>` : ''}
+  </section>`;
 }

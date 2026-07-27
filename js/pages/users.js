@@ -3,7 +3,7 @@ import { db } from '../db.js';
 import { toast } from '../ui/toast.js';
 import { createModal } from '../ui/modal.js';
 import { renderState } from '../ui/empty.js';
-import { pageHead } from '../ui/pagehead.js';
+import { pageHead, controlsBar } from '../ui/pagehead.js';
 import { format } from '../format.js';
 
 const state = {
@@ -372,12 +372,14 @@ function exportCsv() {
 function buildShell(root) {
   const canAdd = state.isSystemAdmin;
   root.innerHTML = `
-    ${pageHead('Users', { actions: ['export', 'print', ['addUser', canAdd]] })}
-    <div class="controls">
-      <div class="ctrl-field"><label>Role</label><select class="select" data-role-filter></select></div>
-      <div class="ctrl-field"><label>Location</label><select class="select" data-location-filter></select></div>
-      <div class="controls__end"><input class="input" type="search" placeholder="Search name, username or email" data-search></div>
-    </div>
+    ${pageHead('Users')}
+    ${controlsBar({
+      label: 'User controls',
+      lead: '<input class="input input--search" type="search" placeholder="Search name, username or email" data-search aria-label="Search users">',
+      filters: `<div class="ctrl-field"><label>Role</label><select class="select" data-role-filter></select></div>
+      <div class="ctrl-field"><label>Location</label><select class="select" data-location-filter></select></div>`,
+      actions: ['export', 'print', ['addUser', canAdd]],
+    })}
     <div class="panel panel--fill">
       <div class="panel__head"><h3 class="panel__title">People</h3><div class="panel__actions"><span class="sub" data-count></span></div></div>
       <div class="bulkbar" data-bulk-bar hidden>
