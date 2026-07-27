@@ -2,7 +2,7 @@ import { startPage } from '../router.js';
 import { db } from '../db.js';
 import { toast } from '../ui/toast.js';
 import { renderState } from '../ui/empty.js';
-import { pageHead, controlsBar } from '../ui/pagehead.js';
+import { pageHead, controlsBar, kpiGearButton } from '../ui/pagehead.js';
 import { createCustomizePanel } from '../ui/customize.js';
 import { format } from '../format.js';
 
@@ -70,16 +70,29 @@ function kpiRow() {
   const summary = state.data?.summary || {};
   const cards = KPI_CARDS.filter(card => state.visibleCards.includes(card.id));
   if (!cards.length) return '';
-  return `<div class="kpis">${cards.map(card => `<article class="kpi ${card.className}"><span class="kpi__label">${escapeHtml(card.label)}</span><span class="kpi__value">${escapeHtml(card.compute(summary))}</span></article>`).join('')}</div>`;
+  return `<div class="kpis" style="--kpi-cols:${Math.max(2, cards.length)};--kpi-gear:38px">${cards.map(card => `<article class="kpi ${card.className}"><span class="kpi__label">${escapeHtml(card.label)}</span><span class="kpi__value">${escapeHtml(card.compute(summary))}</span></article>`).join('')}${kpiGearButton()}</div>`;
 }
 
+// A compact strip rather than a tall block of bars. The previous chart was a wall
+// of blue that told you a shape and nothing else; this splits inbound from outbound
+// and prints the day and the number, so a glance gives you the reading and not just
+// the silhouette.
 function barChart(rows, valueKey, altKey) {
   if (!rows.length) return '<p class="hint">No data in this range.</p>';
-  const max = Math.max(1, ...rows.map(row => Math.max(num(row[valueKey]), altKey ? num(row[altKey]) : 0)));
-  return `<div class="chart">${rows.map(row => {
-    const primary = `<div class="bar" style="height:${(num(row[valueKey]) / max * 100).toFixed(1)}%" title="${escapeHtml(row.date || row.label || row.name)}: ${num(row[valueKey])}"></div>`;
-    const secondary = altKey ? `<div class="bar bar--alt" style="height:${(num(row[altKey]) / max * 100).toFixed(1)}%" title="${escapeHtml(row.date || row.label || row.name)}: ${num(row[altKey])}"></div>` : '';
-    return primary + secondary;
+  const label = row => String(row.date || row.label || row.name || '').slice(-5);
+  const max = Math.max(1, ...rows.map(row => num(row[valueKey]) + (altKey ? num(row[altKey]) : 0)));
+  return `<div class="spark">${rows.map(row => {
+    const primary = num(row[valueKey]);
+    const secondary = altKey ? num(row[altKey]) : 0;
+    const total = primary + secondary;
+    return `<div class="spark__col" title="${escapeHtml(`${row.date || row.label || row.name}: ${altKey ? `${primary} in / ${secondary} out` : primary}`)}">
+      <span class="spark__n">${total || ''}</span>
+      <span class="spark__track">
+        <span class="spark__fill" style="height:${(primary / max * 100).toFixed(1)}%"></span>
+        ${altKey ? `<span class="spark__fill spark__fill--alt" style="height:${(secondary / max * 100).toFixed(1)}%"></span>` : ''}
+      </span>
+      <span class="spark__l">${escapeHtml(label(row))}</span>
+    </div>`;
   }).join('')}</div>`;
 }
 
@@ -95,7 +108,7 @@ function renderOverview() {
   return `${kpiRow()}
     <div class="panel panel--fill">
       <div class="panel__head"><h3 class="panel__title">Appointments per day</h3><div class="panel__actions"><span class="sub">${escapeHtml(state.from)} – ${escapeHtml(state.to)}</span></div></div>
-      <div style="padding:var(--s4)">${barChart(byDay, 'appointments')}<p class="hint">Daily booked appointment count, cancellations included.</p></div>
+      <div style="padding:var(--s4)">${barChart(byDay, 'inbound_skids', 'outbound_skids')}<p class="hint">Skids per day — solid is inbound, hatched is outbound. Totals above each day.</p></div>
       <div class="panel__scroll">${table(['Date', 'Appointments', 'Cancelled', 'Priority', 'Inbound skids', 'Outbound skids'], byDay.map(row => [row.date, num(row.appointments), num(row.cancelled), num(row.priority), num(row.inbound_skids), num(row.outbound_skids)]))}</div>
     </div>`;
 }
@@ -198,15 +211,15 @@ function syncControls() {
 
 function buildShell(root) {
   root.innerHTML = `
-    ${pageHead('Reports')}
+    ${pageHead('Reports', { actions: ['export', 'print'] })}
     ${controlsBar({
       label: 'Report controls',
       filters: `<div class="ctrl-field"><label for="report-view">View</label><select class="select" id="report-view" data-view>${VIEWS.map(view => `<option value="${view.id}">${view.label}</option>`).join('')}</select></div>
       <div class="ctrl-field"><label for="report-preset">Range</label><select class="select" id="report-preset" data-preset>${PRESETS.map(preset => `<option value="${preset.id}">${preset.label}</option>`).join('')}</select></div>
       <div class="ctrl-field"><label for="report-from">From</label><input class="input input--date" type="date" id="report-from" data-from></div>
       <div class="ctrl-field"><label for="report-to">To</label><input class="input input--date" type="date" id="report-to" data-to></div>
-      <button class="btn btn--primary btn--sm" type="button" data-apply>Apply</button>`,
-      actions: ['export', 'print', 'customize'],
+      <div class="ctrl-field"><label>&nbsp;</label><button class="btn btn--primary btn--sm" type="button" data-apply>Apply</button></div>`,
+      actions: [],
     })}
     <div data-report-host></div>`;
   state.elements = {

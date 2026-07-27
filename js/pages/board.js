@@ -3,7 +3,7 @@ import { db } from '../db.js';
 import { createModal } from '../ui/modal.js';
 import { toast } from '../ui/toast.js';
 import { renderState } from '../ui/empty.js';
-import { pageHead, controlsBar } from '../ui/pagehead.js';
+import { pageHead, controlsBar, kpiGearButton } from '../ui/pagehead.js';
 import { createCustomizePanel } from '../ui/customize.js';
 import { openWall, paintWall } from '../ui/wall.js';
 import { renderTimeline, clockLabel } from '../ui/timeline.js';
@@ -198,21 +198,18 @@ async function submitEdit(event) {
 
 function buildShell(root) {
   root.innerHTML = `
-    ${pageHead('Dock board', {
-      subtitleAttribute: 'data-board-subtitle',
-      actions: [['block', can('block.manage')], ['book', can('appointment.create')]],
-    })}
+    ${pageHead('Dock board', { subtitleAttribute: 'data-board-subtitle', actions: ['export', 'print', 'fullscreen'] })}
     ${controlsBar({
       label: 'Dock board controls',
-      lead: `<div class="datenav">
+      lead: `<div class="ctrl-field"><label for="board-date">Date</label><div class="datenav">
         <button class="iconbtn" type="button" data-day="-1" aria-label="Previous day">‹</button>
         <button class="btn btn--quiet btn--sm" type="button" data-today>Today</button>
-        <input class="input input--date" type="date" data-board-date aria-label="Board date">
+        <input class="input input--date" type="date" id="board-date" data-board-date>
         <button class="iconbtn" type="button" data-day="1" aria-label="Next day">›</button>
-      </div>`,
+      </div></div>`,
       filters: `<div class="ctrl-field"><label for="board-direction">Direction</label><select class="select" id="board-direction" data-filter-direction><option value="all">All movements</option><option value="inbound">Inbound</option><option value="outbound">Outbound</option></select></div>
       <div class="ctrl-field"><label for="board-status">Status</label><select class="select" id="board-status" data-filter-status><option value="all">All statuses</option><option value="scheduled">Scheduled</option><option value="arrived">Arrived</option><option value="complete">Complete</option><option value="cancelled">Cancelled</option></select></div>`,
-      actions: ['export', 'print', 'fullscreen', 'customize'],
+      actions: [['block', can('block.manage')], ['book', can('appointment.create')]],
     })}
     <section class="kpis" aria-label="Dock board summary" data-kpis></section>
     <section class="board" data-board-host aria-label="Dock schedule"></section>
@@ -307,10 +304,12 @@ function renderKpis() {
   const cards = KPI_CARDS.filter(card => state.visibleCards.includes(card.id));
   // Turning every card off hides the strip rather than leaving an empty band.
   state.elements.kpis.hidden = cards.length === 0;
-  state.elements.kpis.closest('.page')?.style.setProperty('--kpi-cols', String(Math.max(2, cards.length)));
+  const page = state.elements.kpis.closest('.page');
+  page?.style.setProperty('--kpi-cols', String(Math.max(2, cards.length)));
+  page?.style.setProperty('--kpi-gear', '38px');
   state.elements.kpis.innerHTML = cards
     .map(card => `<article class="kpi ${card.className}"><span class="kpi__label">${card.label}</span><span class="kpi__value">${card.compute(appointments, blocks)}</span></article>`)
-    .join('');
+    .join('') + kpiGearButton();
 }
 
 // The window the timeline spans. Operating hours where they exist, widened just

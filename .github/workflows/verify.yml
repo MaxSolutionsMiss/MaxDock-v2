@@ -45,6 +45,9 @@ jobs:
       - name: Every shipped module must parse
         run: node scripts/verify-modules.mjs
 
+      - name: Date arithmetic
+        run: node scripts/verify-format.mjs
+
       - name: Run Claude architecture checker
         shell: bash
         run: |

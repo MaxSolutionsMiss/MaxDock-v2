@@ -55,11 +55,18 @@ export function pageHead(title, { subtitleAttribute = 'data-subtitle', subtitle 
   </div>`;
 }
 
+// The customize control lives at the end of the metric row, not in the page header:
+// it applies to those cards and nothing else, and the header gave no clue what it
+// was for. Pages append it to their strip and set --kpi-gear so the grid leaves it
+// a column.
+export function kpiGearButton() {
+  return `<button class="kpis__gear" type="button" data-customize title="Customize these cards" aria-label="Customize these cards"><svg viewBox="0 0 24 24" aria-hidden="true">${ICONS.customize}</svg></button>`;
+}
+
 // The single controls band every page carries directly under its title. `lead` is
 // the page's own context control (a date stepper, a view switcher); `filters` are
-// its selects. Actions are placed by role, not by the order they are passed, so
-// Book appointment is in the same spot on every screen and so are Print and the
-// gear.
+// its selects. Actions are placed by role, not by the order they are passed, so the
+// same control is in the same place on every screen.
 export function controlsBar({ label = 'Page controls', lead = '', filters = '', actions = [] } = {}) {
   const enabled = enabledSet(actions);
   const leadButtons = LEAD_ORDER.filter(name => enabled.has(name)).map(actionButton).join('');

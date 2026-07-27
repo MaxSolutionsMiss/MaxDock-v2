@@ -4,7 +4,7 @@ import { poll } from '../poll.js';
 import { startPage } from '../router.js';
 import { renderState } from '../ui/empty.js';
 import { createModal } from '../ui/modal.js';
-import { controlsBar, pageHeadActions } from '../ui/pagehead.js';
+import { controlsBar, pageHeadActions, kpiGearButton } from '../ui/pagehead.js';
 import { createCustomizePanel } from '../ui/customize.js';
 import { toast } from '../ui/toast.js';
 
@@ -414,7 +414,9 @@ function applyVisibleCards() {
     if (!element.hidden) shown += 1;
   }
   hosts.metrics.hidden = shown === 0;
-  hosts.metrics.closest('.page')?.style.setProperty('--kpi-cols', String(Math.max(2, shown)));
+  const page = hosts.metrics.closest('.page');
+  page?.style.setProperty('--kpi-cols', String(Math.max(2, shown)));
+  page?.style.setProperty('--kpi-gear', '38px');
 }
 
 function createViewControls() {
@@ -460,15 +462,16 @@ function buildPage(root, context) {
     : `${context.location.name} · Your bookings`);
   heading.append(title, subtitle);
   head.append(heading);
-  if (context.can('appointment.create')) {
-    const headActions = createElement('div', 'pagehead__actions');
-    headActions.innerHTML = pageHeadActions(['book']);
-    head.append(headActions);
-  }
+  const headActions = createElement('div', 'pagehead__actions');
+  headActions.innerHTML = pageHeadActions(['export', 'print']);
+  head.append(headActions);
 
   const metrics = createElement('section', 'kpis');
   metrics.setAttribute('aria-label', 'Appointment summary');
   metrics.append(...METRIC_CARDS.map(card => createMetric(card.label, card.id, card.className)));
+  const gear = createElement('div');
+  gear.innerHTML = kpiGearButton();
+  metrics.append(gear.firstElementChild);
 
   const next = createElement('section', 'panel next-appointment');
   next.setAttribute('aria-label', 'Next appointment');
@@ -476,7 +479,7 @@ function buildPage(root, context) {
   // The view switcher and the page's output actions live in the same controls band
   // every other screen uses, so Print and the gear sit where they always sit.
   const controls = createElement('div');
-  controls.innerHTML = controlsBar({ label: 'Appointment controls', actions: ['export', 'print', 'customize'] });
+  controls.innerHTML = controlsBar({ label: 'Appointment controls', actions: [['book', context.can('appointment.create')]] });
   const controlsHost = controls.firstElementChild;
   const views = createViewControls();
   const toolbarMeta = createElement('div', 'profile appointment-toolbar__meta');
@@ -486,7 +489,7 @@ function buildPage(root, context) {
   toolbarMeta.append(count, updated);
   const lead = controlsHost.querySelector('.controls__lead') || controlsHost;
   lead.prepend(views);
-  controlsHost.querySelector('.controls__end')?.before(toolbarMeta);
+  lead.after(toolbarMeta);
 
   // Left column scrolls on its own so the appointments below the fold can be
   // reached; previously the list sat directly in the viewport-height page column

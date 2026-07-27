@@ -185,13 +185,16 @@ function collect(scope) {
   // KPI cards must fill their row evenly (DB65/DB66).
   root.querySelectorAll('.kpis').forEach(strip => {
     if (!vis(strip)) return;
-    const cards = [...strip.children].filter(vis);
+    // Only the cards. The strip also carries its customize control, which is
+    // deliberately a different shape.
+    const cards = [...strip.querySelectorAll(':scope > .kpi')].filter(vis);
     if (cards.length < 2) return;
     const widths = cards.map(c => Math.round(c.getBoundingClientRect().width));
     const heights = cards.map(c => Math.round(c.getBoundingClientRect().height));
     if (Math.max(...widths) - Math.min(...widths) > 2) out.kpi.push({ issue: 'cards not equal width', widths });
     if (Math.max(...heights) - Math.min(...heights) > 2) out.kpi.push({ issue: 'cards not equal height', heights });
-    const right = Math.max(...cards.map(c => c.getBoundingClientRect().right));
+    const trailing = strip.querySelector(':scope > .kpis__gear');
+    const right = Math.max(...[...cards, ...(trailing ? [trailing] : [])].map(c => c.getBoundingClientRect().right));
     const unused = Math.round(strip.getBoundingClientRect().right - right);
     if (unused > 4) out.kpi.push({ issue: 'strip does not fill row', unused });
   });

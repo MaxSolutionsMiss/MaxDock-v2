@@ -52,10 +52,18 @@ export const format = Object.freeze({
     return `${values.hour}:${values.minute}`;
   },
 
-  addDaysInput(value, days, location) {
-    const date = makeDate(value);
-    date.setUTCDate(date.getUTCDate() + Number(days || 0));
-    return this.inputDate(date, location);
+  // Calendar arithmetic, not instant arithmetic. A date input is a calendar day,
+  // but `new Date('2026-07-20')` is UTC midnight — which is still the 19th in every
+  // North American zone. Adding a day to that instant and reformatting it in the
+  // location's zone returned the same date, so the board's forward button did
+  // nothing and the back button skipped two days. Stepping the components keeps
+  // the result independent of the zone, which is what a calendar day should be.
+  addDaysInput(value, days) {
+    const [year, month, day] = String(value || '').split('-').map(Number);
+    if (!year || !month || !day) return String(value || '');
+    const stepped = new Date(Date.UTC(year, month - 1, day + Number(days || 0)));
+    const pad = number => String(number).padStart(2, '0');
+    return `${stepped.getUTCFullYear()}-${pad(stepped.getUTCMonth() + 1)}-${pad(stepped.getUTCDate())}`;
   },
 
   todayInput(location) {

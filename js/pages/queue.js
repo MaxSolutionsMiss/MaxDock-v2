@@ -5,7 +5,7 @@ import { renderState } from '../ui/empty.js';
 import { format } from '../format.js';
 import { createCustomizePanel } from '../ui/customize.js';
 import { openWall, paintWall } from '../ui/wall.js';
-import { pageHead } from '../ui/pagehead.js';
+import { pageHead, kpiGearButton } from '../ui/pagehead.js';
 
 const LATE_GRACE_MINUTES = 15;
 const BACK_TO_BACK_MINUTES = 20;
@@ -112,11 +112,13 @@ function renderKpis() {
   // With every card turned off the strip leaves no trace — an empty bordered band
   // would read as a rendering failure rather than a choice.
   state.elements.kpis.hidden = cards.length === 0;
-  state.elements.kpis.closest('.page')?.style.setProperty('--kpi-cols', String(Math.max(2, cards.length)));
+  const page = state.elements.kpis.closest('.page');
+  page?.style.setProperty('--kpi-cols', String(Math.max(2, cards.length)));
+  page?.style.setProperty('--kpi-gear', '38px');
   state.elements.kpis.innerHTML = cards.map(card => {
     const value = card.compute(appointments);
     return `<article class="kpi ${card.className}"><span class="kpi__label">${card.label}</span><span class="kpi__value">${value}${card.suffix ? `<span>${card.suffix}</span>` : ''}</span></article>`;
-  }).join('');
+  }).join('') + kpiGearButton();
 }
 
 function dockName(dockId) {
@@ -393,7 +395,7 @@ async function changeStatus(appointmentId, newStatus) {
 
 function buildShell(root) {
   root.innerHTML = `
-    ${pageHead('Operations queue', { actions: ['export', 'print', 'fullscreen', 'customize'] })}
+    ${pageHead('Operations queue', { actions: ['export', 'print', 'fullscreen'] })}
     <div class="brief" data-brief></div>
     <div class="kpis" data-kpis></div>
     <div class="split">
