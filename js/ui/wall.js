@@ -4,7 +4,7 @@
 // operator's screen can never disagree about where an appointment sits. Sizes are
 // clamp()ed against the viewport so the same markup reads on a laptop and on a
 // mounted TV, and the day is always compressed to fit — nobody scrolls a wall.
-import { renderTimeline } from './timeline.js';
+import { renderTimeline, fitTimelineBlocks } from './timeline.js';
 
 const escapeHtml = value => String(value ?? '').replace(/[&<>'"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[char]));
 
@@ -31,7 +31,20 @@ export function openWall({ name, title, subtitle, cssHref, clock, onNoWindow, ..
       <div class="wall__body" data-wall-body>${body(timeline)}</div>
     </body></html>`);
   popup.document.close();
+  // The stylesheet arrives after the markup, and blocks cannot be measured until
+  // it has: measuring an unstyled block reports one long line and strips every
+  // detail off the display. Fit on load, and again whenever the window that is
+  // showing it changes size.
+  const refit = () => fitWall(popup);
+  popup.addEventListener('load', refit);
+  popup.addEventListener('resize', refit);
+  refit();
   return popup;
+}
+
+function fitWall(popup) {
+  if (!popup || popup.closed) return;
+  fitTimelineBlocks(popup.document.querySelector('[data-wall-body]'));
 }
 
 export function paintWall(popup, { subtitle, clock, ...timeline }) {
@@ -43,4 +56,5 @@ export function paintWall(popup, { subtitle, clock, ...timeline }) {
   if (clockHost) clockHost.textContent = clock;
   const subHost = popup.document.querySelector('.wall__sub');
   if (subHost && subtitle !== undefined) subHost.textContent = subtitle;
+  fitWall(popup);
 }

@@ -208,7 +208,7 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 .lg::before{content:"";width:9px;height:9px;border-radius:2px;background:var(--c)}
 /* The timeline scrolls its lanes internally and never overflows sideways —
    the board is always compressed to fit the window. */
-.board__scroll{flex:1;min-height:0;overflow:hidden;container-type:inline-size}
+.board__scroll{flex:1;min-height:0;overflow:hidden;container-type:inline-size;container-name:board}
 /* Timeline. Every lane spans the same window and every block is placed by its own
    start and end, so a four-hour call looks four times a one-hour call. The whole
    day is compressed to fit — these screens are broadcast on wall displays where
@@ -237,18 +237,20 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 .tl__tick--major{background:var(--rule-strong)}
 .tl__idle{position:absolute;inset:0;display:flex;align-items:center;padding-left:var(--s3);font-size:var(--t-small);color:var(--ink-faint)}
 /* Blocks are absolutely placed, so their box is the appointment's real extent. */
-/* The block is a line grid, not a free-flowing column. Every child occupies a
-   whole number of --tl-line rows and clamps to exactly that many lines, so text
-   is either shown in full or not shown at all — a block can never draw half a
-   line and call it a detail. Surplus height from lane growth falls to the bottom
-   as space rather than tempting a partial row. */
-.tlb{position:absolute;border-radius:4px;border-left:3px solid;padding:3px 6px;overflow:hidden;cursor:pointer;display:grid;grid-auto-rows:var(--tl-line);align-content:start;line-height:var(--tl-line);min-width:10px}
-.tlb>*{min-width:0;overflow:hidden;display:-webkit-box;-webkit-box-orient:vertical;overflow-wrap:anywhere}
-/* One line per fact, every line the same height, nothing spanning two rows. The
-   title used to reserve two rows whether or not it needed them, which is the
-   band of empty space that opened up between the time and the company on every
-   short name — and it pushed the last line out of the block entirely. */
-.tlb__l{font-size:calc(var(--tl-type) * .9);color:var(--ink-muted);grid-row:span 1;-webkit-line-clamp:1}
+/* The block is a line grid, and the stack sits in the middle of it. A lane that
+   has grown taller than its text hands the surplus to both sides instead of
+   pooling it under the last line — and centring is what gives a fact room to
+   take a second line when the block is too narrow for it on one, which is the
+   rule here: run onto the next line, never trail off into an ellipsis. Rows are
+   min-content so a wrapped fact grows its own row instead of overlapping the
+   one below it. */
+.tlb{position:absolute;border-radius:4px;border-left:3px solid;padding:3px 6px;overflow:hidden;cursor:pointer;display:grid;grid-auto-rows:min-content;align-content:center;line-height:var(--tl-line);min-width:10px}
+.tlb>*{min-width:0;overflow-wrap:anywhere}
+/* A fact wraps onto as many lines as it needs and is never abbreviated. Half a
+   booking reference followed by an ellipsis tells nobody anything; the whole
+   reference over two lines tells them what they walked up to the board to find
+   out. What does not fit is dropped whole by fitTimelineBlocks, not trimmed. */
+.tlb__l{font-size:calc(var(--tl-type) * .9);color:var(--ink-muted);grid-row:span 1}
 .tlb__l--key{font-size:var(--tl-type);font-weight:700;color:inherit;font-variant-numeric:tabular-nums}
 .tlb--in{background:var(--dock-wash);border-left-color:var(--dock)}
 .tlb--out{background:var(--ok-wash);border-left-color:var(--ok)}
@@ -256,21 +258,13 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 .tlb--done{background:var(--surface-sunk);border-left-color:var(--rule-strong);color:var(--ink-muted)}
 .tlb--blk{background:repeating-linear-gradient(45deg,var(--surface-sunk),var(--surface-sunk) 5px,#E4E9EC 5px,#E4E9EC 10px);border-left-color:var(--rule-strong);color:var(--ink-muted);cursor:default}
 .tlb:focus-visible{outline:2px solid var(--dock);outline-offset:1px}
-/* Below this a block cannot hold three lines of text legibly. The row height
-   drops with the line it loses rather than keeping the space empty. */
-/* Narrower boards give the block fewer lines to ask for, and the row shrinks with
-   it rather than reserving height nothing will use. */
-/* Narrow lanes drop lines from the bottom up: the truck and skid count go first,
-   then where it is going. The reference and the time are the last things to go,
-   because they are what somebody is looking for when they walk up to the board. */
-@container (max-width:900px){
-  .tl{--tl-lines:3}
-  .tlb__l:nth-child(n+4){display:none}
-}
-@container (max-width:640px){
-  .tl{--tl-lines:2}
-  .tlb__l:nth-child(n+3){display:none}
-}
+/* Narrower boards ask for fewer lines, and the lane height drops with the line it
+   loses rather than reserving space nothing will use. Which lines a given block
+   actually keeps is decided by measuring it — see fitTimelineBlocks — because a
+   half-hour call is a narrow box on the widest monitor there is, and a rule
+   written against the window cannot know that. */
+@container board (max-width:900px){.tl{--tl-lines:3}}
+@container board (max-width:640px){.tl{--tl-lines:2}}
 
 /* ===== tables (My appts, Reports, Users) ===== */
 .panel{background:var(--surface);border:1px solid var(--rule);border-radius:var(--radius-lg);display:flex;flex-direction:column;min-height:0;overflow:hidden}
@@ -555,7 +549,7 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 .wall__title{font-size:clamp(22px,2vw,40px);font-weight:700;letter-spacing:-.015em}
 .wall__sub{font-size:clamp(13px,1vw,20px);color:var(--ink-muted);margin-top:2px}
 .wall__clock{margin-left:auto;font-size:clamp(24px,2.2vw,44px);font-weight:600;font-variant-numeric:tabular-nums}
-.wall__body{flex:1;min-height:0;background:var(--surface);border:1px solid var(--rule);border-radius:10px;overflow:hidden;container-type:inline-size}
+.wall__body{flex:1;min-height:0;background:var(--surface);border:1px solid var(--rule);border-radius:10px;overflow:hidden;container-type:inline-size;container-name:board}
 /* Wall type is one step up from the operator screen — same timeline, read from
    across a room rather than from a desk. */
 .wall .tl{--tl-label:clamp(120px,10vw,240px)}
@@ -577,10 +571,13 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 .btn--icon:hover{color:var(--ink)}
 /* rail admin pinned lower */
 .rail__spacer{flex:1}
-.rail__group--admin,.rail__group--ruled{border-top:1px solid var(--rail-rule);margin-top:var(--s2);padding-top:var(--s3)}
+.rail__group--admin,.rail__group--ruled{border-top:1px solid var(--rail-rule)}
+.rail__group--admin{margin-top:var(--s2);padding-top:var(--s3)}
 /* A ruled group with no heading still needs the hairline to read as a break, but
-   not the heading's worth of air under it. */
-.rail__group--ruled{padding-bottom:0}
+   not the heading's worth of air under it. Receiving and Settings are modules
+   like the ones above them, not a different part of the app, so the hairline is
+   the whole separation — the extra air read as a gap between sections. */
+.rail__group--ruled{margin-top:var(--s1);padding-top:var(--s2);padding-bottom:0}
 /* queue rows */
 .statusdot{display:inline-flex;align-items:center;gap:6px}
 .statusdot::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--c)}

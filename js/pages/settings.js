@@ -694,7 +694,7 @@ async function submitDock(event) {
 
 function buildShell(root) {
   root.innerHTML = `
-    ${pageHead('Locations & docks', { actions: ['print'] })}
+    ${pageHead('Settings', { actions: ['print'] })}
     <div class="setlayout">
       <nav class="setnav" data-set-nav aria-label="Settings sections"></nav>
       <div class="setpanel" data-set-panel></div>
@@ -811,7 +811,7 @@ const page = {
     state.locationId = context.location.id;
     state.canManage = context.can('settings.manage');
     state.canManageDocks = context.can('dock.manage');
-    document.title = `Locations & docks · ${context.location.name} · MaxDock`;
+    document.title = `Settings · ${context.location.name} · MaxDock`;
     buildShell(context.pageRoot);
     wireEvents(context.pageRoot);
     state.elements.subtitle.textContent = `${context.location.name} · operating rules`;

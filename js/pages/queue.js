@@ -43,6 +43,8 @@ const state = {
   elements: {},
   customizePanel: null,
   wall: null,
+  blockFields: [],
+  truckTypeNames: new Map(),
   detailsModal: null,
 };
 
@@ -69,7 +71,7 @@ function normalizeRecord(row) {
 async function fetchQueueData() {
   const locationId = state.context.location.id;
   const day = format.dayOfWeek(state.date);
-  const [, scheduleRows, docks, hours, returnLoads] = await Promise.all([
+  const [, scheduleRows, docks, hours, returnLoads, truckTypes] = await Promise.all([
     // Settle first, so the schedule that comes back already reflects any load whose
     // booked time has run out. There is no pg_cron on this project, so the screens
     // that are always open are what move a received truck to complete.
@@ -79,9 +81,16 @@ async function fetchQueueData() {
     db.select('location_operating_hours', q => q.select('is_open,open_time,close_time').eq('location_id', locationId).eq('day_of_week', day).maybeSingle(), { key: `queue:hours:${locationId}:${day}`, cache: 30000 }),
     // Advisory only — a failure here must not take the operational queue down with it.
     db.rpc('list_return_load_opportunities', { p_location_id: locationId, p_date_from: state.date, p_date_to: state.date }, { key: `queue:returns:${locationId}:${state.date}`, cache: 30000, retry: 1 }).catch(() => []),
+    db.select('truck_types', q => q.select('code,name').eq('is_active', true), { key: 'queue:truck-type-names', cache: 300000 }),
   ]);
   const records = (scheduleRows || []).map(normalizeRecord).filter(record => record.start_at && format.sameLocalDate(record.start_at, state.date, state.context.location));
-  return { docks: docks || [], hours: hours || null, records, returnLoads: returnLoads || [] };
+  return {
+    docks: docks || [],
+    hours: hours || null,
+    records,
+    returnLoads: returnLoads || [],
+    truckTypeNames: new Map((truckTypes || []).map(type => [type.code, type.name])),
+  };
 }
 
 async function fetchBrief() {
@@ -229,7 +238,8 @@ function renderWatch() {
 // the narrative on top.
 function applyVisible(selected) {
   state.visibleBriefFigures = selected.filter(id => id.startsWith('brief:')).map(id => id.slice(6));
-  state.visibleCards = selected.filter(id => !id.startsWith('brief:'));
+  state.blockFields = selected.filter(id => id.startsWith('block:')).map(id => id.slice(6));
+  state.visibleCards = selected.filter(id => !id.startsWith('brief:') && !id.startsWith('block:'));
 }
 
 function briefFigures() {
@@ -275,6 +285,21 @@ const BRIEF_FIGURES = [
   { id: 'busiest', label: 'Busiest hour' },
 ];
 const DEFAULT_BRIEF_FIGURES = BRIEF_FIGURES.map(figure => figure.id);
+
+// The facts each block on the broadcast wall carries. Same vocabulary as the
+// dock board's, chosen separately: a wall read from across the floor holds far
+// fewer lines than a screen someone is sitting in front of.
+const BLOCK_FIELDS = [
+  { id: 'reference', label: 'Reference' },
+  { id: 'status', label: 'Status' },
+  { id: 'route', label: 'From / To' },
+  { id: 'time', label: 'Time' },
+  { id: 'truck', label: 'Truck type' },
+  { id: 'skids', label: 'Skids' },
+  { id: 'carrier', label: 'Carrier' },
+  { id: 'po', label: 'PO / BOL / job' },
+];
+const DEFAULT_BLOCK_FIELDS = ['reference', 'status', 'route', 'time', 'skids'];
 
 // Two or three sentences someone can read out in a morning meeting, built from the
 // schedule rather than a service call, so the brief is never empty.
@@ -366,6 +391,26 @@ function queueWindow() {
   return { start: Math.max(0, start), end: Math.min(24 * 60, end) };
 }
 
+// Late is not a status the database stores, it is a comparison against the
+// clock — so it replaces the status on the wall rather than sitting beside it.
+// Nobody reading a wall needs to be told a truck is both scheduled and late.
+function blockLines(record, late) {
+  const show = id => state.blockFields.includes(id);
+  const load = [
+    show('truck') && state.truckTypeNames?.get(record.truck_type_code),
+    show('skids') && `${Number(record.skid_count || 0)} skids`,
+  ].filter(Boolean).join(' · ');
+  return [
+    show('reference') && record.booking_reference,
+    show('status') && (late ? 'LATE' : format.role(record.status || '')),
+    show('route') && `${record.direction === 'outbound' ? 'To' : 'From'} ${record.company_name || record.display_counterpart_location_name || record.requester_name || 'unnamed'}`,
+    show('time') && format.time(record.start_at, state.context.location),
+    load,
+    show('carrier') && record.carrier_name,
+    show('po') && record.external_reference,
+  ].filter(Boolean);
+}
+
 function wallPayload() {
   const window = queueWindow();
   const lanes = state.docks.map(dock => ({ id: dock.id, name: dock.name, note: '' }));
@@ -381,12 +426,7 @@ function wallPayload() {
       startMin,
       endMin: startMin + Math.max(5, format.minutesBetween(record.start_at, record.end_at)),
       tone: late ? 'tlb--pri' : record.status === 'completed' ? 'tlb--done' : record.direction === 'outbound' ? 'tlb--out' : 'tlb--in',
-      lines: [
-        [record.booking_reference, late ? 'LATE' : format.role(record.status || '')].filter(Boolean).join(' · '),
-        `${record.direction === 'outbound' ? 'To' : 'From'} ${record.company_name || record.display_counterpart_location_name || record.requester_name || 'unnamed'}`,
-        `${format.time(record.start_at, state.context.location)}`,
-        `${Number(record.skid_count || 0)} skids`,
-      ],
+      lines: blockLines(record, late),
       attrs: '',
     };
   });
@@ -418,6 +458,7 @@ async function refreshData() {
   state.hours = data.hours;
   state.records = data.records;
   state.returnLoads = data.returnLoads;
+  state.truckTypeNames = data.truckTypeNames || state.truckTypeNames;
   renderAll();
   if (state.wall && !state.wall.closed) paintWall(state.wall, wallPayload());
 }
@@ -519,17 +560,21 @@ const page = {
     // under it. They were two strips of numbers with only one of them adjustable.
     state.detailsModal = createAppointmentDetails({ location: context.location });
     state.customizePanel = await createCustomizePanel({
-      preferenceKey: 'queue-cards',
+      // A new key rather than queue-cards: the saved list now carries the wall's
+      // block fields too, and an old list read against the new options would
+      // turn every one of them off without anybody asking for that.
+      preferenceKey: 'queue-view',
       options: [
-        // Two strips, so two named groups. Prefixing every label with which strip
-        // it belonged to made twenty near-identical lines; the group heading says
-        // it once and the names go back to being readable.
+        // Three strips, so three named groups. Prefixing every label with which
+        // strip it belonged to made twenty near-identical lines; the group
+        // heading says it once and the names go back to being readable.
         ...BRIEF_FIGURES.map(figure => ({ id: `brief:${figure.id}`, group: 'Today at a glance', label: figure.label })),
         ...KPI_CARDS.map(card => ({ id: card.id, group: 'Metric cards', label: card.label })),
+        ...BLOCK_FIELDS.map(field => ({ id: `block:${field.id}`, group: 'Full-screen blocks', label: field.label })),
       ],
-      defaultIds: [...DEFAULT_BRIEF_FIGURES.map(id => `brief:${id}`), ...DEFAULT_CARDS],
-      max: BRIEF_FIGURES.length + KPI_CARDS.length,
-      onChange: selected => { applyVisible(selected); renderKpis(); renderBriefCard(); },
+      defaultIds: [...DEFAULT_BRIEF_FIGURES.map(id => `brief:${id}`), ...DEFAULT_CARDS, ...DEFAULT_BLOCK_FIELDS.map(id => `block:${id}`)],
+      max: BRIEF_FIGURES.length + KPI_CARDS.length + BLOCK_FIELDS.length,
+      onChange: selected => { applyVisible(selected); renderKpis(); renderBriefCard(); if (state.wall && !state.wall.closed) paintWall(state.wall, wallPayload()); },
     });
     applyVisible(state.customizePanel.selected);
     await refreshData();
@@ -542,6 +587,7 @@ const page = {
     state.hours = data.hours;
     state.records = data.records;
     state.returnLoads = data.returnLoads;
+    state.truckTypeNames = data.truckTypeNames || state.truckTypeNames;
     renderAll();
   },
   destroy() { state.customizePanel?.destroy(); state.detailsModal?.destroy(); },

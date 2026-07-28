@@ -6,7 +6,7 @@ import { renderState } from '../ui/empty.js';
 import { pageHead, controlsBar } from '../ui/pagehead.js';
 import { createCustomizePanel } from '../ui/customize.js';
 import { openWall, paintWall } from '../ui/wall.js';
-import { renderTimeline, clockLabel } from '../ui/timeline.js';
+import { renderTimeline, fitTimelineBlocks, clockLabel } from '../ui/timeline.js';
 import { createAppointmentDetails } from '../ui/appointment-details.js';
 import { format } from '../format.js';
 
@@ -24,6 +24,7 @@ const state = {
   reference: null,
   customizePanel: null,
   visibleCards: [],
+  blockFields: [],
   wall: null,
   granularity: 30,
   truckTypeNames: new Map(),
@@ -39,6 +40,24 @@ const KPI_CARDS = [
   { id: 'blocked', label: 'Blocked docks', className: 'kpi--stop', compute: (appts, blocks) => blocks.length },
 ];
 const DEFAULT_CARDS = KPI_CARDS.map(card => card.id);
+
+// What each appointment block carries, in the order it is read: which booking,
+// what is happening to it, where it is going, when, and what is on the truck.
+// The block only has room for so many of these, so which ones matter is the
+// reader's call rather than a decision baked into the page — a receiver wants
+// the skid count, a coordinator wants the carrier, and a wall display wants
+// whichever two still fit at a glance.
+const BLOCK_FIELDS = [
+  { id: 'reference', label: 'Reference' },
+  { id: 'status', label: 'Status' },
+  { id: 'route', label: 'From / To' },
+  { id: 'time', label: 'Time' },
+  { id: 'truck', label: 'Truck type' },
+  { id: 'skids', label: 'Skids' },
+  { id: 'carrier', label: 'Carrier' },
+  { id: 'po', label: 'PO / BOL / job' },
+];
+const DEFAULT_BLOCK_FIELDS = ['reference', 'status', 'route', 'time', 'truck', 'skids'];
 
 const GRANULARITIES = [
   { minutes: 15, label: '15 minutes' },
@@ -364,6 +383,33 @@ function blockTone(record) {
   return record.direction === 'outbound' ? 'tlb--out' : 'tlb--in';
 }
 
+// Truck and skids share a line because they are read as one phrase — "53 ft
+// Trailer · 26 skids" — and splitting them spends a line of a block that has
+// four to give. Every other fact stands alone, which is what stopped the
+// reference from being squeezed onto a line it never fitted.
+function blockLines(record, startMin) {
+  const show = id => state.blockFields.includes(id);
+  const endMin = startMin + Math.max(5, format.minutesBetween(record.start_at, record.end_at));
+  const load = [
+    show('truck') && state.truckTypeNames?.get(record.truck_type_code),
+    show('skids') && `${Number(record.skid_count || 0)} skids`,
+  ].filter(Boolean).join(' · ');
+  return [
+    show('reference') && record.booking_reference,
+    show('status') && format.role(record.status),
+    show('route') && `${record.direction === 'outbound' ? 'To' : 'From'} ${record.company_name || record.display_counterpart_location_name || record.requester_name || 'unnamed'}`,
+    show('time') && `${clockLabel(startMin)}–${clockLabel(endMin)}`,
+    load,
+    show('carrier') && record.carrier_name,
+    show('po') && record.external_reference,
+  ].filter(Boolean);
+}
+
+function applyVisible(selected) {
+  state.visibleCards = selected.filter(id => !id.startsWith('block:'));
+  state.blockFields = selected.filter(id => id.startsWith('block:')).map(id => id.slice(6));
+}
+
 function timelineBlocks() {
   return visibleRecords()
     .filter(record => record.start_at && record.end_at)
@@ -376,18 +422,12 @@ function timelineBlocks() {
         startMin,
         endMin: startMin + Math.max(5, format.minutesBetween(record.start_at, record.end_at)),
         tone: blockTone(record),
-        // Four lines, in the order somebody standing at the board reads them:
-        // which booking, where it is coming from or going to, when, and what is
-        // on it. One line each, so nothing reserves height it will not use and
-        // nothing falls out of the bottom of the block.
+        // One fact to a line, in the order somebody standing at the board reads
+        // them. A blocked door is not an appointment and keeps its own three
+        // lines; everything else is whatever the reader asked to see.
         lines: isBlock
           ? [record.block_reason || 'Dock blocked', record.notes || 'Unavailable', `${clockLabel(startMin)}–${clockLabel(startMin + Math.max(5, format.minutesBetween(record.start_at, record.end_at)))}`]
-          : [
-            [record.booking_reference, format.role(record.status)].filter(Boolean).join(' · '),
-            `${record.direction === 'outbound' ? 'To' : 'From'} ${record.company_name || record.display_counterpart_location_name || record.requester_name || 'unnamed'}`,
-            `${clockLabel(startMin)}–${clockLabel(startMin + Math.max(5, format.minutesBetween(record.start_at, record.end_at)))}`,
-            [state.truckTypeNames?.get(record.truck_type_code), `${Number(record.skid_count || 0)} skids`].filter(Boolean).join(' · '),
-          ],
+          : blockLines(record, startMin),
         attrs: `data-record-id="${escapeHtml(record.id)}"${isBlock ? '' : ` data-open-record${editable ? ' data-editable' : ''} role="button" tabindex="0"`}`,
       };
     });
@@ -420,6 +460,7 @@ function renderBoard() {
       <label class="ctrl-field ctrl-field--inline board__gran"><span>Timeline</span><select class="select" data-granularity>${GRANULARITIES.map(option => `<option value="${option.minutes}" ${state.granularity === option.minutes ? 'selected' : ''}>${option.label}</option>`).join('')}</select></label>
     </div>
     <div class="board__scroll">${timeline}</div>`;
+  fitTimelineBlocks(state.elements.host);
 }
 // One signature covering everything the timeline is drawn from: the day on the
 // axis, the operating hours, the lanes and the movements. The board is only
@@ -582,23 +623,37 @@ const page = {
   async mount(context) {
     state.context = context;
     state.date = format.todayInput(state.context.location);
+    // Blocks are sized as a percentage of the day, so every resize changes how
+    // much text each one holds. Re-measure rather than leave a block that fitted
+    // at one width trailing off at another.
+    state.onResize = () => fitTimelineBlocks(state.elements.host);
+    globalThis.addEventListener('resize', state.onResize);
     document.title = `Dock board · ${context.location.name} · MaxDock`;
     buildShell(context.pageRoot);
     wireEvents(context.pageRoot);
     state.customizePanel = await createCustomizePanel({
-      preferenceKey: 'board-cards',
-      options: KPI_CARDS.map(card => ({ id: card.id, group: 'Metric cards', label: card.label })),
-      defaultIds: DEFAULT_CARDS,
-      max: KPI_CARDS.length,
-      onChange: selected => { state.visibleCards = selected; renderKpis(); },
+      // A new key rather than board-cards: the saved list now carries block
+      // fields too, and an old list read against the new options would turn
+      // every one of them off without anybody asking for that.
+      preferenceKey: 'board-view',
+      options: [
+        ...KPI_CARDS.map(card => ({ id: card.id, group: 'Metric cards', label: card.label })),
+        ...BLOCK_FIELDS.map(field => ({ id: `block:${field.id}`, group: 'Appointment block', label: field.label })),
+      ],
+      defaultIds: [...DEFAULT_CARDS, ...DEFAULT_BLOCK_FIELDS.map(id => `block:${id}`)],
+      max: KPI_CARDS.length + BLOCK_FIELDS.length,
+      onChange: selected => { applyVisible(selected); renderKpis(); renderBoard(); },
     });
-    state.visibleCards = state.customizePanel.selected;
+    applyVisible(state.customizePanel.selected);
     state.elements.host.innerHTML = '<div class="board-loading">Loading dock schedule…</div>';
     patchData(await fetchBoardData());
   },
   poll: { interval: 5000, fetch: fetchBoardData },
   async refresh(data) { patchData(data); },
-  destroy() { state.blockModal?.destroy(); state.editModal?.destroy(); state.detailsModal?.destroy(); state.customizePanel?.destroy(); },
+  destroy() {
+    if (state.onResize) globalThis.removeEventListener('resize', state.onResize);
+    state.blockModal?.destroy(); state.editModal?.destroy(); state.detailsModal?.destroy(); state.customizePanel?.destroy();
+  },
 };
 
 startPage(page);

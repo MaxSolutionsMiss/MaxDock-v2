@@ -43,11 +43,11 @@ export async function createCustomizePanel({ preferenceKey, options, defaultIds,
   backdrop.setAttribute('aria-hidden', 'true');
   backdrop.innerHTML = `
     <section class="modal modal--xs" role="dialog" aria-modal="true" aria-labelledby="customize-title">
-      <div class="modal__head"><div><h2 class="modal__title" id="customize-title">Customize this page</h2><p class="modal__sub">Choose which cards show here. Saved to your account.</p></div><button class="modal__x" type="button" data-close aria-label="Close">×</button></div>
+      <div class="modal__head"><div><h2 class="modal__title" id="customize-title">Customize this page</h2><p class="modal__sub">Choose what this page shows. Saved to your account.</p></div><button class="modal__x" type="button" data-close aria-label="Close">×</button></div>
       <div class="modal__body">
-        <label class="dock-check pickall"><input type="checkbox" data-all><span>Show every card</span></label>
+        <label class="dock-check pickall"><input type="checkbox" data-all><span>Show everything</span></label>
         <div data-options></div>
-        <p class="hint">${min === 0 ? 'Clear them all to hide the strip entirely.' : `Choose between ${min} and ${max}.`}</p>
+        <p class="hint">${min === 0 ? 'Clear a whole group to hide it. An appointment block keeps as many of its lines as fit, dropping the last ones first.' : `Choose between ${min} and ${max}.`}</p>
       </div>
       <div class="modal__foot"><button class="btn btn--quiet" type="button" data-reset-default>Reset to default</button><button class="btn btn--primary" type="button" data-save>Save</button></div>
     </section>`;

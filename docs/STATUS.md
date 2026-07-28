@@ -639,3 +639,49 @@ across 900px the control had drifted a hand's width from the words it acts on.
 And `--num` fields were capped at 96px, which is a "skids" chip plus 44px: three
 digits did not fit. 124px, with datetime-local given a 206px floor and the As-of
 field promoted from `--sm` to `--md` so the minutes stop being clipped off.
+
+## A block shows what fits, and shows it whole (2026-07-28)
+
+The rule the owner set: a fact runs onto another line rather than trailing off
+into an ellipsis, and the lines sit in the middle of the block rather than
+pooling at the top of a lane that has grown taller than its text.
+
+Both halves had the same cause. `.tlb` was a fixed line grid — `grid-auto-rows:
+var(--tl-line)`, one line clamped per fact, `align-content:start` — so a fact
+that did not fit on one line was cut, and a lane that grew left its text at the
+top with the surplus underneath. It is `align-content:center` and
+`grid-auto-rows:min-content` now, with no clamp: a fact wraps as far as it needs.
+
+Which facts a block keeps cannot be decided in CSS. A half-hour appointment is a
+narrow box on the widest wall display there is, and the same reference wraps onto
+two lines in one lane and one in the next — a media or container query written
+against the window cannot see either. So `fitTimelineBlocks` measures: every line
+shown, then lines removed from the bottom until the content fits the box. The
+reference is never removed, because a block nobody can identify is worse than a
+block missing its skid count. It runs after every board render, on window resize,
+and after every wall paint — the wall gets its stylesheet after its markup, and
+measuring an unstyled block reports one long line and strips the display bare.
+
+The audit found the end of that ladder immediately: at 390px a one-hour block is
+twenty pixels wide, and a reference that will not fit on any number of lines spilled
+115px past the bottom of the block onto the door below it. So the reference goes
+too when nothing fits. A ten-minute call on a phone is a coloured bar marking the
+time, and the full details are one tap away either way.
+
+Which facts are on offer is now the reader's call. The board's gear and the
+queue's gear each carry an appointment-block group — reference, status, from/to,
+time, truck type, skids, carrier, PO — because a receiver wants the skid count, a
+coordinator wants the carrier, and a wall wants whichever two still fit. Truck
+and skids share a line because they read as one phrase; everything else stands
+alone, which is what stopped the reference from being squeezed onto a line it
+never fitted. Both gears moved to new preference keys (`board-view`,
+`queue-view`): reading an old saved list against the new options would have
+turned every block field off without anyone asking for it.
+
+Locations and docks is now **Settings**, and sits below Receiving rather than
+between My appointments and Reports. It was called Locations and docks when that
+was all it held; it now carries capacity, dock direction hours, truck capacities
+and — next — what each role sees, so it is called what it is, and it sits below
+the modules because it is where the modules are configured rather than one of
+them. The hairline above Receiving lost the heading's worth of air that was
+making it read as a different part of the app instead of the next module down.

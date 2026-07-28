@@ -40,6 +40,33 @@ function labelEvery(spanMinutes, granularity) {
   return Math.ceil(ticks / 14);
 }
 
+// A block keeps every fact that fits in it and drops the rest from the bottom.
+//
+// Which facts fit depends on the block's own width and height, and neither is
+// known until it is on screen: a half-hour appointment is a narrow box on the
+// widest wall display there is, and the same reference wraps onto two lines in
+// one lane and one line in the next. A media or container query written against
+// the window cannot see that, which is why the reference was trailing off into
+// an ellipsis on a monitor with room to spare either side of it.
+//
+// So it is measured. Every line is shown, then lines are removed from the bottom
+// until the content fits the box. The reference goes last, because a block
+// missing its skid count is still identifiable and one missing its reference is
+// not — and if even the reference will not fit, the block carries nothing at
+// all. A ten-minute call on a phone is a coloured bar marking the time; half a
+// booking number spilling over the door below it is worse than a bar, and the
+// full details are one tap away either way.
+export function fitTimelineBlocks(root) {
+  if (!root) return;
+  for (const block of root.querySelectorAll('.tlb')) {
+    const lines = [...block.querySelectorAll('.tlb__l')];
+    for (const line of lines) line.hidden = false;
+    for (let index = lines.length - 1; index >= 0 && block.scrollHeight > block.clientHeight + 1; index -= 1) {
+      lines[index].hidden = true;
+    }
+  }
+}
+
 // lanes: [{ id, name, note }]
 // blocks: [{ laneId, startMin, endMin, tone, title, subtitle, meta, note, attrs }]
 // `meta` and `note` are two separate lines on purpose. Run together they competed
