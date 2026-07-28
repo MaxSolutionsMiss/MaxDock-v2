@@ -11,6 +11,7 @@ const VIEWS = [
   { id: 'truck-flow', label: 'Truck flow' },
   { id: 'skid-movement', label: 'Skid movement' },
   { id: 'dock-utilisation', label: 'Dock utilisation' },
+  { id: 'scorecard', label: 'Vendor scorecard' },
 ];
 
 const PRESETS = [
@@ -27,6 +28,7 @@ const state = {
   from: '',
   to: '',
   data: null,
+  scorecard: [],
   elements: {},
   customizePanel: null,
   visibleCards: [],
@@ -193,14 +195,69 @@ function renderDockUtilisation() {
     </div>`;
 }
 
+// How each vendor and sister site is actually performing. On-time is measured
+// against the booked start with the same fifteen-minute grace the operations
+// queue uses to call a load late — one definition in the product, not two.
+function scoreTone(percent) {
+  if (percent === null || percent === undefined) return 'tag--quiet';
+  if (percent >= 90) return 'tag--ok';
+  return percent >= 75 ? 'tag--warn' : 'tag--stop';
+}
+
+function renderScorecard() {
+  const rows = state.scorecard || [];
+  const arrived = rows.reduce((sum, row) => sum + num(row.on_time) + num(row.late), 0);
+  const onTime = rows.reduce((sum, row) => sum + num(row.on_time), 0);
+  const overall = arrived ? Math.round((onTime / arrived) * 1000) / 10 : null;
+  return `<div class="kpis" style="--kpi-cols:4">
+      <article class="kpi kpi--ok"><span class="kpi__label">On time</span><span class="kpi__value">${overall === null ? '—' : overall.toFixed(1)}<span>%</span></span></article>
+      <article class="kpi"><span class="kpi__label">Partners</span><span class="kpi__value">${rows.length}</span></article>
+      <article class="kpi kpi--out"><span class="kpi__label">Trucks</span><span class="kpi__value">${compact(rows.reduce((sum, row) => sum + num(row.trucks), 0))}</span></article>
+      <article class="kpi kpi--stop"><span class="kpi__label">No shows</span><span class="kpi__value">${rows.reduce((sum, row) => sum + num(row.no_shows), 0)}</span></article>
+    </div>
+    <div class="panel panel--fill">
+      <div class="panel__head"><h3 class="panel__title">Vendor &amp; site scorecard</h3><div class="panel__actions"><span class="sub">${escapeHtml(rangeLabel())}</span></div></div>
+      <div class="panel__scroll"><table class="table"><thead><tr>
+        <th>Partner</th><th>On time</th><th>Trucks</th><th>Skids</th><th>Late</th><th>Avg late</th><th>No show</th><th>Cancelled</th><th>Avg at dock</th><th class="col-fill">Truck types</th>
+      </tr></thead><tbody>${
+        rows.length ? rows.map(row => {
+          const pct = row.on_time_pct === null || row.on_time_pct === undefined ? null : Number(row.on_time_pct);
+          return `<tr>
+            <td class="data data--strong">${escapeHtml(row.partner_name)}${row.partner_kind === 'location' ? ' <span class="tag tag--quiet">Max site</span>' : ''}</td>
+            <td><span class="tag ${scoreTone(pct)}">${pct === null ? 'No arrivals' : `${pct.toFixed(1)}%`}</span></td>
+            <td class="data">${num(row.trucks)}</td>
+            <td class="data">${num(row.skids)} sk</td>
+            <td class="data">${num(row.late)}</td>
+            <td class="data">${row.avg_minutes_late === null || row.avg_minutes_late === undefined ? '—' : format.duration(row.avg_minutes_late)}</td>
+            <td class="data">${num(row.no_shows)}</td>
+            <td class="data">${num(row.cancelled)}</td>
+            <td class="data">${row.avg_dwell_minutes === null || row.avg_dwell_minutes === undefined ? '—' : format.duration(row.avg_dwell_minutes)}</td>
+            <td class="data cell-elide" title="${escapeHtml(row.truck_types || '')}">${escapeHtml(row.truck_types || '—')}</td>
+          </tr>`;
+        }).join('') : '<tr><td colspan="10" class="data">No movements from any partner in this range.</td></tr>'
+      }</tbody></table></div>
+      <p class="hint">On time counts a truck checked in within 15 minutes of its booked start. Percentages are over trucks that arrived, so a cancellation is not counted as a late arrival.</p>
+    </div>`;
+}
+
 function renderView() {
   if (!state.data) return;
-  const renderers = { overview: renderOverview, 'truck-flow': renderTruckFlow, 'skid-movement': renderSkidMovement, 'dock-utilisation': renderDockUtilisation };
+  const renderers = { overview: renderOverview, 'truck-flow': renderTruckFlow, 'skid-movement': renderSkidMovement, 'dock-utilisation': renderDockUtilisation, scorecard: renderScorecard };
   state.elements.host.innerHTML = (renderers[state.view] || renderOverview)();
 }
 
 function csvRowsForView() {
   const data = state.data || {};
+  if (state.view === 'scorecard') {
+    return [
+      ['Partner', 'Kind', 'On time %', 'Trucks', 'Skids', 'Completed', 'On time', 'Late', 'Avg minutes late', 'No shows', 'Cancelled', 'Avg minutes at dock', 'Truck types'],
+      ...(state.scorecard || []).map(row => [
+        row.partner_name, row.partner_kind, row.on_time_pct ?? '', num(row.trucks), num(row.skids), num(row.completed),
+        num(row.on_time), num(row.late), row.avg_minutes_late ?? '', num(row.no_shows), num(row.cancelled),
+        row.avg_dwell_minutes ?? '', row.truck_types || '',
+      ]),
+    ];
+  }
   if (state.view === 'truck-flow') {
     return [['Truck type', 'Appointments', 'Skids'], ...(data.by_vehicle || []).map(row => [row.name, num(row.appointments), num(row.skids)])];
   }
@@ -226,7 +283,19 @@ function exportCsv() {
 async function reload() {
   state.elements.host.innerHTML = '<div class="board-loading">Loading report…</div>';
   try {
-    state.data = await fetchReport();
+    // The scorecard is its own query, fetched alongside so switching views does
+    // not go back to the network. A failure there must not take the rest of the
+    // report down with it.
+    const [data, scorecard] = await Promise.all([
+      fetchReport(),
+      db.rpc('get_partner_scorecard', {
+        p_location_id: state.context.location.id,
+        p_start_date: state.from,
+        p_end_date: state.to,
+      }, { key: `reports:scorecard:${state.context.location.id}:${state.from}:${state.to}`, cache: 60000, retry: 1 }).catch(() => []),
+    ]);
+    state.data = data;
+    state.scorecard = Array.isArray(scorecard) ? scorecard : [];
     renderView();
   } catch (error) {
     renderState(state.elements.host, {
@@ -308,7 +377,7 @@ const page = {
     wireEvents(context.pageRoot);
     state.customizePanel = await createCustomizePanel({
       preferenceKey: 'report-cards',
-      options: KPI_CARDS.map(card => ({ id: card.id, label: card.label })),
+      options: KPI_CARDS.map(card => ({ id: card.id, group: 'Metric cards', label: card.label })),
       defaultIds: DEFAULT_CARDS,
       max: KPI_CARDS.length,
       onChange: selected => { state.visibleCards = selected; renderView(); },

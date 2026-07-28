@@ -551,7 +551,7 @@ const page = {
     wireEvents(context.pageRoot);
     state.customizePanel = await createCustomizePanel({
       preferenceKey: 'board-cards',
-      options: KPI_CARDS.map(card => ({ id: card.id, label: card.label })),
+      options: KPI_CARDS.map(card => ({ id: card.id, group: 'Metric cards', label: card.label })),
       defaultIds: DEFAULT_CARDS,
       max: KPI_CARDS.length,
       onChange: selected => { state.visibleCards = selected; renderKpis(); },

@@ -702,7 +702,7 @@ const page = {
     bindInteractions();
     customizePanel = await createCustomizePanel({
       preferenceKey: 'my-appointment-cards',
-      options: METRIC_CARDS.map(card => ({ id: card.id, label: card.label })),
+      options: METRIC_CARDS.map(card => ({ id: card.id, group: 'Metric cards', label: card.label })),
       defaultIds: METRIC_CARDS.map(card => card.id),
       max: METRIC_CARDS.length,
       onChange: selected => { visibleCards = selected; applyVisibleCards(); },

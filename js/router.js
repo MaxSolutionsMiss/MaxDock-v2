@@ -19,9 +19,12 @@ const STAFF_ROUTES = [
     ],
   },
   {
-    // Its own module directly under Reports, not a page inside them. This is what
-    // a receiver opens on a phone at the dock and nothing else.
+    // Its own module directly under Reports, not a page inside them, and not
+    // pushed to the bottom of the rail either — a hairline is the whole
+    // separation it needs. This is what a receiver opens on a phone at the dock
+    // and nothing else.
     group: '',
+    ruled: true,
     items: [
       { code: 'receiving', label: 'Receiving', path: 'app/receiving.html', permission: 'appointment.check_in', icon: '<rect x="3" y="3" width="7" height="7" rx="1"></rect><rect x="14" y="3" width="7" height="7" rx="1"></rect><rect x="3" y="14" width="7" height="7" rx="1"></rect><path d="M14 14h3v3h-3zM19 19h2v2h-2z"></path>' },
     ],
@@ -29,6 +32,7 @@ const STAFF_ROUTES = [
   {
     group: 'Administration',
     admin: true,
+    push: true,
     items: [
       // Administration is not for everyone on staff. These two carried no
       // permission at all, so a Coordinator saw both links and could open them —
@@ -80,7 +84,7 @@ function appendRouteGroup(fragment, context, pageCode, routeGroup) {
   const visibleItems = routeGroup.items.filter(item => routeAllowed(context, item));
   if (!visibleItems.length) return;
   const group = document.createElement('div');
-  group.className = routeGroup.admin ? 'rail__group rail__group--admin' : 'rail__group';
+  group.className = ['rail__group', routeGroup.admin && 'rail__group--admin', routeGroup.ruled && 'rail__group--ruled'].filter(Boolean).join(' ');
   if (routeGroup.group) {
     const label = document.createElement('div');
     label.className = 'rail__label';
@@ -118,10 +122,15 @@ function createNav(context, pageCode) {
   appendRouteGroup(fragment, context, pageCode, STAFF_ROUTES[0]);
   for (const routeGroup of STAFF_ROUTES.slice(1)) {
     if (!routeGroup.items.some(item => routeAllowed(context, item))) continue;
-    const spacer = document.createElement('div');
-    spacer.className = 'rail__spacer';
-    spacer.setAttribute('aria-hidden', 'true');
-    fragment.append(spacer);
+    // Only a group that asks to be pushed gets the flex spacer. Every group
+    // taking one split the rail into equal thirds and threw Receiving into the
+    // middle of nowhere instead of leaving it under the section it follows.
+    if (routeGroup.push) {
+      const spacer = document.createElement('div');
+      spacer.className = 'rail__spacer';
+      spacer.setAttribute('aria-hidden', 'true');
+      fragment.append(spacer);
+    }
     appendRouteGroup(fragment, context, pageCode, routeGroup);
   }
   return fragment;

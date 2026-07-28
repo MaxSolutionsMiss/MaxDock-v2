@@ -84,6 +84,12 @@ const MODALS = {
 // booking number matches several, and another once one is picked — auditing only
 // the state a query string lands on leaves the other two unmeasured.
 const FLOWS = {
+  // Each report view is its own table and chart; the tab that is open on load was
+  // the only one ever measured.
+  reports: [
+    { name: 'scorecard', query: '', act: async page => { await page.selectOption('[data-view]', 'scorecard'); }, expect: '.table' },
+    { name: 'truck-flow', query: '', act: async page => { await page.selectOption('[data-view]', 'truck-flow'); }, expect: '.table' },
+  ],
   receiving: [
     { name: 'idle', query: '' },
     {

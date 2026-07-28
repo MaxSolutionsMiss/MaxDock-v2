@@ -253,18 +253,21 @@ function dockIsRestricted(dockId) {
 
 function renderDocks() {
   const canEditDocks = state.canManageDocks && state.canManage;
-  // Edit follows the truck types it edits. The truck-type cell is capped rather
-  // than allowed to fill, and the leftover width goes to a spacer at the end, so
-  // the button sits beside the row instead of against the right edge of a wide
-  // monitor with a hand's width of nothing in between.
-  const rows = state.docks.map(dock => `<tr>
+  // The card is sized to its table rather than to the panel, so Add dock lands
+  // over the Edit column instead of against the right edge of a wide monitor
+  // with a hand's width of nothing in between.
+  //
+  // Status is a switch rather than a badge: taking a dock out of service for a
+  // morning is the one dock change that happens often, and it needed a dialog.
+  // It is the only thing on this table that is edited in place, which is what
+  // Save and Reset underneath act on.
+  const rows = state.docks.map(dock => `<tr data-dock-row="${dock.id}">
     <td class="data data--strong">${escapeHtml(dock.name)}</td>
     <td>${escapeHtml(dock.direction_mode === 'both' ? 'Both' : format.role(dock.direction_mode))}</td>
-    <td>${dock.is_active ? '<span class="tag tag--ok">Active</span>' : '<span class="tag tag--quiet">Inactive</span>'}</td>
+    <td><button type="button" class="switch ${dock.is_active ? '' : 'switch--off'}" data-dock-active aria-pressed="${Boolean(dock.is_active)}" aria-label="${escapeHtml(dock.name)} in service" ${canEditDocks ? '' : 'disabled'}></button></td>
     <td class="data cell-cap" title="${escapeHtml(dockTruckLabels(dock.id))}">${escapeHtml(dockTruckLabels(dock.id))}</td>
     <td>${canEditDocks ? `<button class="btn btn--quiet btn--sm" type="button" data-edit-dock="${dock.id}">Edit</button>` : ''}</td>
-    <td></td>
-  </tr>`).join('') || '<tr><td colspan="6" class="data">No docks configured for this location.</td></tr>';
+  </tr>`).join('') || '<tr><td colspan="5" class="data">No docks configured for this location.</td></tr>';
 
   const locationTypes = state.locationTruckTypes;
   const truckRows = state.truckTypes.map(type => {
@@ -278,18 +281,18 @@ function renderDocks() {
     </div>`;
   }).join('');
 
-  return `<div class="card">
-      <h3 class="card__title">Docks${canEditDocks ? '<button class="btn btn--primary btn--sm" type="button" data-add-dock>Add dock</button>' : ''}</h3>
-      <div class="tablewrap"><table class="table"><thead><tr><th>Dock</th><th>Direction</th><th>Status</th><th>Truck types</th><th></th><th class="col-fill"></th></tr></thead><tbody>${rows}</tbody></table></div>
-    </div>
-    <div class="card">
-      <form data-section-form="truck-types">
-        <h3 class="card__title">Truck types enabled at this location</h3>
-        ${truckRows}
-        <p class="hint">Setup minutes here override the truck type's default for this location only.</p>
-        ${saveFoot(state.canManage)}
-      </form>
-    </div>`;
+  return `<form class="card card--fit" data-section-form="docks">
+      <h3 class="card__title">Docks${canEditDocks ? '<button class="btn btn--primary btn--sm at-end" type="button" data-add-dock>Add dock</button>' : ''}</h3>
+      <div class="tablewrap"><table class="table"><thead><tr><th>Dock</th><th>Direction</th><th>In service</th><th>Truck types</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
+      <p class="hint">Add dock and Edit save on their own. Save below applies the in-service switches.</p>
+      ${saveFoot(canEditDocks)}
+    </form>
+    <form class="card card--fit" data-section-form="truck-types">
+      <h3 class="card__title">Truck types enabled at this location</h3>
+      ${truckRows}
+      <p class="hint">Setup minutes here override the truck type's default for this location only.</p>
+      ${saveFoot(state.canManage)}
+    </form>`;
 }
 
 function renderPanel() {
@@ -383,6 +386,23 @@ async function saveAssignment(form) {
   });
 }
 
+// Only the in-service switches are edited on the dock table itself; everything
+// else about a dock is changed through Add dock or Edit, which save on their own.
+async function saveDocks(form) {
+  const updates = [...form.querySelectorAll('[data-dock-row]')].map(row => {
+    const id = row.dataset.dockRow;
+    const isActive = row.querySelector('[data-dock-active]').getAttribute('aria-pressed') === 'true';
+    const dock = state.docks.find(item => item.id === id);
+    if (!dock || Boolean(dock.is_active) === isActive) return null;
+    return db.update('docks', { is_active: isActive }, q => q.eq('id', id), { select: false });
+  }).filter(Boolean);
+  if (!updates.length) return;
+  await Promise.all(updates);
+  db.invalidate(`settings:docks:${state.locationId}`);
+  db.invalidate('board:docks:');
+  db.invalidate('queue:docks:');
+}
+
 async function saveTruckTypes(form) {
   const rows = [...form.querySelectorAll('[data-truck-code]')];
   const toEnable = rows
@@ -440,6 +460,7 @@ async function submitSection(event) {
     else if (kind === 'notice') await saveNotice(form);
     else if (kind === 'capacity') await saveCapacity(form);
     else if (kind === 'assignment') await saveAssignment(form);
+    else if (kind === 'docks') await saveDocks(form);
     else if (kind === 'truck-types') await saveTruckTypes(form);
     db.invalidate('booking:');
     await fetchAll();

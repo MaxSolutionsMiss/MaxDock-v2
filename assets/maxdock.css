@@ -298,6 +298,8 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 .tag{display:inline-flex;align-items:center;font-size:var(--t-micro);font-weight:600;text-transform:uppercase;letter-spacing:.05em;padding:2px 7px;border-radius:3px;white-space:nowrap}
 .tag--ok{background:var(--ok-wash);color:var(--ok)} .tag--pri{background:var(--signal-wash);color:var(--signal)}
 .tag--stop{background:var(--stop-wash);color:var(--stop)} .tag--quiet{background:var(--surface-sunk);color:var(--ink-muted)}
+/* Between good and bad — a partner worth a conversation, not an escalation. */
+.tag--warn{background:var(--signal-wash);color:var(--signal)}
 
 /* segmented filter tabs */
 .tabs{display:inline-flex;background:var(--surface-sunk);border-radius:var(--radius);padding:2px}
@@ -463,6 +465,11 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 .card{background:var(--surface);border:1px solid var(--rule);border-radius:var(--radius-lg);padding:var(--s4)}
 /* Stacked cards space themselves rather than each page choosing a gap. */
 .setpanel>.card+.card{margin-top:var(--s4)}
+/* A card sized to what is in it. A table of five short columns stretched to the
+   full panel left a hand's width of empty card and threw the title's action out
+   to an edge nothing else reached. */
+.card--fit{width:max-content;max-width:100%}
+.card__title .btn{margin-left:auto}
 /* One vertical rhythm inside cards, dialogs and wizard steps. A .frow spaces its
    own children but carried no margin of its own, so two stacked rows read as a
    single crowded block — the label of the second row sat on the control of the
@@ -529,7 +536,10 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 .btn--icon:hover{color:var(--ink)}
 /* rail admin pinned lower */
 .rail__spacer{flex:1}
-.rail__group--admin{border-top:1px solid var(--rail-rule);margin-top:var(--s2);padding-top:var(--s3)}
+.rail__group--admin,.rail__group--ruled{border-top:1px solid var(--rail-rule);margin-top:var(--s2);padding-top:var(--s3)}
+/* A ruled group with no heading still needs the hairline to read as a break, but
+   not the heading's worth of air under it. */
+.rail__group--ruled{padding-bottom:0}
 /* queue rows */
 .statusdot{display:inline-flex;align-items:center;gap:6px}
 .statusdot::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--c)}
@@ -625,6 +635,14 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 .checkall{float:right;display:flex;gap:var(--s3);text-transform:none;letter-spacing:0}
 .checkall .linkBtn{min-height:0;padding:0}
 .dock-checks--roomy{--check-col:260px}
+/* Cards from two different strips are two groups, ruled apart and each named,
+   rather than one run of near-identical labels. */
+.pickgroup{--check-col:180px;border:none;padding:0;margin:0}
+.pickgroup+.pickgroup{margin-top:var(--s3);padding-top:var(--s3);border-top:1px solid var(--rule)}
+.pickgroup>legend{margin-bottom:var(--s2)}
+/* One box for "all of them", above the rule that separates it from the groups it
+   governs — a long list should not have to be cleared one tick at a time. */
+.pickall{font-weight:600;padding-bottom:var(--s3);margin-bottom:var(--s3);border-bottom:1px solid var(--rule-strong)}
 .dock-check{display:flex;align-items:center;gap:6px;min-height:32px;font-size:var(--t-small);white-space:nowrap;min-width:0}
 .dock-check span{overflow:hidden;text-overflow:ellipsis}
 input[type="checkbox"],input[type="radio"]{width:16px;height:16px;accent-color:var(--dock);flex:none;margin:0}

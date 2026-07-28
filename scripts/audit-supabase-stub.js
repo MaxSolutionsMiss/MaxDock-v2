@@ -164,6 +164,13 @@
       },
     ],
     receive_appointment: (args) => ({ appointment_id: 'a2', booking_reference: 'MXD-2026-000141', status: args?.p_status || 'arrived', checked_in_at: iso(8), driver_name: args?.p_driver_name || null }),
+    // The scorecard: one strong partner, one poor one, and one that booked but
+    // never arrived — the three shapes the table has to render differently.
+    get_partner_scorecard: () => [
+      { partner_name: 'Haleon – Oakhill', partner_kind: 'company', trucks: 24, skids: 310, completed: 22, on_time: 21, late: 2, no_shows: 1, cancelled: 0, on_time_pct: 91.3, avg_minutes_late: 22, avg_dwell_minutes: 74, truck_types: '53 ft Trailer ×18, 26 ft Straight Truck ×6', last_movement: iso(9) },
+      { partner_name: 'Guelph', partner_kind: 'location', trucks: 11, skids: 96, completed: 10, on_time: 6, late: 5, no_shows: 0, cancelled: 1, on_time_pct: 54.5, avg_minutes_late: 41, avg_dwell_minutes: 58, truck_types: '48 ft Trailer ×11', last_movement: iso(8) },
+      { partner_name: 'Nordic Freight', partner_kind: 'company', trucks: 3, skids: 12, completed: 0, on_time: 0, late: 0, no_shows: 2, cancelled: 1, on_time_pct: null, avg_minutes_late: null, avg_dwell_minutes: null, truck_types: 'Cube Van ×3', last_movement: iso(7) },
+    ],
     settle_due_appointments: () => 0,
     reschedule_my_appointment: () => ({ appointment_id: 'a4', booking_reference: 'MXD-2026-000143', start_at: iso(11, 0, 3), end_at: iso(12, 0, 3), dock_name: 'Dock 2' }),
     // The booking wizard is only reachable past step 3 if slots come back, so the

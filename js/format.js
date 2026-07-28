@@ -91,6 +91,17 @@ export const format = Object.freeze({
     return Math.max(0, (this.epoch(end) - this.epoch(start)) / 60000);
   },
 
+  // A span of time as a person says it: "90 minutes" is how long the door is
+  // held, but "1 h 30 min" is what a shipping office schedules around. Always
+  // carries its units, never a bare number.
+  duration(minutes) {
+    const total = Math.max(0, Math.round(Number(minutes) || 0));
+    const hours = Math.floor(total / 60);
+    const rest = total % 60;
+    if (!hours) return `${rest} min`;
+    return rest ? `${hours} h ${rest} min` : `${hours} h`;
+  },
+
   longDateInput(dateInput, location) {
     return new Intl.DateTimeFormat('en-CA', {
       weekday: 'long', month: 'long', day: 'numeric', year: 'numeric',

@@ -457,6 +457,26 @@ function renderSlotCards() {
     return;
   }
 
+  // How long this load holds a door, in the destination's own words. The server
+  // already worked it out — base plus minutes per skid, the truck's setup time,
+  // the appointment and handling adjustments, the buffer, then any full-truck or
+  // priority minimum, rounded up to the slot interval — and every slot below is
+  // sized to it. Showing it is why a fifty-skid trailer sees fewer times than a
+  // four-skid van, which otherwise looks like the list is broken.
+  const first = state.slots[0];
+  const minutes = format.minutesBetween(first.slot_start, first.slot_end);
+  if (minutes > 0) {
+    const note = element('p', 'hint hint--flush');
+    note.append(
+      `This load needs ${format.duration(minutes)} at the dock`,
+      element('span', '', ` · ${state.form.skid_count || 0} skids · ${selectedName(state.reference.truckTypes, state.form.truck_type_code) || 'selected truck'}`),
+      '. Every time below has that much room at ',
+      element('strong', '', currentLocation().name),
+      '.',
+    );
+    host.append(note);
+  }
+
   const group = element('div', 'slotpick');
   group.setAttribute('role', 'radiogroup');
   group.setAttribute('aria-label', 'Available appointment times');

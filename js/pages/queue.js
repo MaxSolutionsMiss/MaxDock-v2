@@ -506,8 +506,11 @@ const page = {
     state.customizePanel = await createCustomizePanel({
       preferenceKey: 'queue-cards',
       options: [
-        ...BRIEF_FIGURES.map(figure => ({ id: `brief:${figure.id}`, label: `At a glance · ${figure.label}` })),
-        ...KPI_CARDS.map(card => ({ id: card.id, label: `Metric card · ${card.label}` })),
+        // Two strips, so two named groups. Prefixing every label with which strip
+        // it belonged to made twenty near-identical lines; the group heading says
+        // it once and the names go back to being readable.
+        ...BRIEF_FIGURES.map(figure => ({ id: `brief:${figure.id}`, group: 'Today at a glance', label: figure.label })),
+        ...KPI_CARDS.map(card => ({ id: card.id, group: 'Metric cards', label: card.label })),
       ],
       defaultIds: [...DEFAULT_BRIEF_FIGURES.map(id => `brief:${id}`), ...DEFAULT_CARDS],
       max: BRIEF_FIGURES.length + KPI_CARDS.length,

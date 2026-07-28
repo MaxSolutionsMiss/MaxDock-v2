@@ -334,3 +334,53 @@ rather than against a screenshot. What it found, and what was done.
 this week were a dialog legend that said the inverse of what the database enforced,
 and a stylesheet comment that stated a rule three rules below it broke. Neither is
 something a renderer-based audit can see.
+
+## The booking duration chain, verified end to end (2026-07-28)
+
+The owner asked whether v1's core rule survived: that available times reflect how
+long *this* load actually takes at *this* destination. Traced rather than assumed:
+
+`list_capacity_aware_appointment_slots` → `list_smart_appointment_slots` →
+`list_available_appointment_slots` → `calculate_appointment_duration`
+
+The duration is base minutes + skids × minutes-per-skid + the truck's setup time +
+the appointment-type adjustment + the handling adjustment + buffer, floored by the
+full-truck minimum when the truck qualifies or the skid count crosses the
+threshold, floored again by the priority minimum, then rounded up to the slot
+interval — all from the **receiving** location's `location_settings`, which is what
+"defined by the destination" means. Slot candidates stop at `close − duration`, so a
+load that needs 90 minutes is never offered a time that would run past closing, and
+the conflict test is `tstzrange(start, start + duration)`, so the dock has to be
+free for the whole window rather than just at the start.
+
+Intact and correctly wired. What was missing was that **the booker was never told**.
+A fifty-skid trailer legitimately sees fewer times than a four-skid van, and with no
+explanation that reads as a broken list. The time step now states the duration, taken
+from `slot_end − slot_start` on the server's own answer rather than recomputed on the
+client — so it cannot drift from what the booking will actually reserve.
+
+## Dock in-service is the one thing edited in place (2026-07-28)
+
+The owner asked for Save and Reset under the Docks section for consistency with every
+other settings section. The section had no editable state — Add dock and Edit both
+save through their dialog — so a Save button there would have done nothing, which is
+worse than not having one.
+
+Resolved by giving it something real to save: Status became an in-service switch on
+the row, batched and applied by Save. Taking a dock out of service for a morning is
+the dock change that happens most often and it previously required opening a dialog.
+The card also states which changes save on their own, so the split is explicit.
+
+## Partner scorecard (2026-07-28)
+
+New `get_partner_scorecard(location, from, to)`. Groups every appointment by the
+counterparty as the receiving site sees it — the company name for a vendor, the other
+site's name for a Max-to-Max movement — and reports trucks, skids, completed, on-time,
+late, no-shows, cancellations, average minutes late, average time at the dock and the
+truck-type mix.
+
+On-time is "checked in within 15 minutes of the booked start", which is the same
+threshold `isLate` uses to colour a load late on the operations queue. One definition
+of late in the product, not two. The percentage is over trucks that **arrived**, so a
+cancellation is not averaged in as a late arrival — the distinction that decides
+whether a scorecard is fair enough to show a vendor.
