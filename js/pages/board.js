@@ -7,6 +7,7 @@ import { pageHead, controlsBar } from '../ui/pagehead.js';
 import { createCustomizePanel } from '../ui/customize.js';
 import { openWall, paintWall } from '../ui/wall.js';
 import { renderTimeline, clockLabel } from '../ui/timeline.js';
+import { createAppointmentDetails } from '../ui/appointment-details.js';
 import { format } from '../format.js';
 
 const state = {
@@ -26,6 +27,7 @@ const state = {
   wall: null,
   granularity: 30,
   truckTypeNames: new Map(),
+  detailsModal: null,
   signature: '',
 };
 
@@ -295,6 +297,11 @@ function buildShell(root) {
     editHistory: root.querySelector('[data-edit-history]'),
   };
   state.blockModal = createModal(state.elements.blockBackdrop, { onRequestClose: () => state.blockModal.close() });
+  // Editing is handed back to the form that already exists rather than rebuilt.
+  state.detailsModal = createAppointmentDetails({
+    location: state.context.location,
+    onEdit: record => openEditModal(record, state.elements.host),
+  });
   state.editModal = createModal(state.elements.editBackdrop, { onRequestClose: () => state.editModal.close() });
 }
 function visibleRecords() {
@@ -360,9 +367,17 @@ function timelineBlocks() {
           ? (record.block_reason || 'Dock blocked')
           : (record.company_name || record.display_counterpart_location_name || record.requester_name || 'Scheduled movement'),
         subtitle: record.booking_reference || '',
-        meta: isBlock ? (record.notes || 'Unavailable') : (record.booking_reference || ''),
+        // Where the truck actually is, on the block itself. A receiver scanning at
+        // the door moves this within seconds, and the board is what everyone else
+        // is looking at — without it the colour is the only clue and "arrived"
+        // and "in progress" look identical from across the room.
+        meta: isBlock
+          ? (record.notes || 'Unavailable')
+          : [record.booking_reference, format.role(record.status)].filter(Boolean).join(' · '),
         note: isBlock ? '' : [state.truckTypeNames?.get(record.truck_type_code), `${Number(record.skid_count || 0)} skids`].filter(Boolean).join(' · '),
-        attrs: `data-record-id="${escapeHtml(record.id)}"${editable ? ' data-edit-record role="button" tabindex="0"' : ''}`,
+        // Every movement opens, not only the two roles' worth that can be
+        // edited. Looking one up is what most people came to the board to do.
+        attrs: `data-record-id="${escapeHtml(record.id)}"${isBlock ? '' : ` data-open-record${editable ? ' data-editable' : ''} role="button" tabindex="0"`}`,
       };
     });
 }
@@ -496,6 +511,12 @@ function openBroadcastWindow() {
   });
 }
 
+function openRecord(target) {
+  const record = state.records.find(item => String(item.id) === target.dataset.recordId);
+  if (!record) return;
+  state.detailsModal.open(record, { trigger: target, canEdit: target.hasAttribute('data-editable') });
+}
+
 function wireEvents(root) {
   root.addEventListener('click', async event => {
     const booking = event.target.closest('[data-open-booking]');
@@ -517,19 +538,15 @@ function wireEvents(root) {
       const off = priority.classList.toggle('switch--off');
       priority.setAttribute('aria-pressed', String(!off));
     }
-    const editTarget = event.target.closest('[data-edit-record]');
-    if (editTarget) {
-      const record = state.records.find(item => String(item.id) === editTarget.dataset.recordId);
-      if (record) openEditModal(record, editTarget);
-    }
+    const openTarget = event.target.closest('[data-open-record]');
+    if (openTarget) openRecord(openTarget);
   });
   root.addEventListener('keydown', event => {
     if (event.key !== 'Enter' && event.key !== ' ') return;
-    const editTarget = event.target.closest('[data-edit-record]');
-    if (!editTarget) return;
+    const openTarget = event.target.closest('[data-open-record]');
+    if (!openTarget) return;
     event.preventDefault();
-    const record = state.records.find(item => String(item.id) === editTarget.dataset.recordId);
-    if (record) openEditModal(record, editTarget);
+    openRecord(openTarget);
   });
   root.addEventListener('change', async event => {
     if (event.target.matches('[data-board-date]')) { state.date = event.target.value; patchData(await fetchBoardData()); }
@@ -562,7 +579,7 @@ const page = {
   },
   poll: { interval: 5000, fetch: fetchBoardData },
   async refresh(data) { patchData(data); },
-  destroy() { state.blockModal?.destroy(); state.editModal?.destroy(); state.customizePanel?.destroy(); },
+  destroy() { state.blockModal?.destroy(); state.editModal?.destroy(); state.detailsModal?.destroy(); state.customizePanel?.destroy(); },
 };
 
 startPage(page);

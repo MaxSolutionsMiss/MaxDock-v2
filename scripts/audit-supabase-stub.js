@@ -115,7 +115,15 @@
     list_location_schedule: () => APPTS.map(schedule_record => ({ schedule_record })),
     list_my_appointments: () => APPTS.map(record => ({ ...record, ...RESOLVED })),
     list_return_load_opportunities: () => [{ first_booking_reference: 'MXD-2026-000140', second_booking_reference: 'MXD-2026-000141', recommendation: 'Guelph outbound could pair with a Guelph to Pickering inbound.', turnaround_minutes: 90, combined_skids: 35 }],
-    get_appointment_history: () => [{ event_id: 1, action: 'created', changed_at: iso(6), changed_by_name: 'Javad Resa', summary: 'Appointment booked.', details: {} }],
+    // A real trail: booked, edited, scanned in with a driver, then completed.
+    // The scan is the event people come back for, so the fixture has to contain
+    // one or the details modal is only ever audited on a one-line log.
+    get_appointment_history: () => [
+      { event_id: 4, action: 'status_changed', changed_at: iso(11), changed_by_name: 'Maria Chen', summary: 'Status changed from Arrived to Completed', details: { from_status: 'arrived', to_status: 'completed' } },
+      { event_id: 3, action: 'status_changed', changed_at: iso(9, 40), changed_by_name: 'Dock 3 receiver', summary: 'Scanned in at the dock · driver A. Driver', details: { is_check_in: true, driver_name: 'A. Driver', checked_in_at: iso(9, 40), changed_fields: ['Check-in', 'Driver'] } },
+      { event_id: 2, action: 'updated', changed_at: iso(8), changed_by_name: 'Javad Resa', summary: 'Appointment details updated', details: { changed_fields: ['Schedule', 'Dock'] } },
+      { event_id: 1, action: 'created', changed_at: iso(6), changed_by_name: 'Javad Resa', summary: 'Appointment created', details: {} },
+    ],
     admin_list_users_with_identity: () => [
       { user_id: UID, username: 'jresa', full_name: 'Javad Resa', email: 'javadresa@maxpkgsolutions.com', role_code: 'system_admin', role_name: 'System Admin', is_active: true, must_change_password: false, location_ids: ['loc-1'], location_names: ['Pickering'], created_at: iso(6), last_sign_in_at: iso(6), external_party_type: null, organization_name: null },
       { user_id: 'u2', username: 'mchen', full_name: 'Maria Chen', email: 'mchen@maxpkgsolutions.com', role_code: 'shipping_manager', role_name: 'Manager / Supervisor', is_active: true, must_change_password: false, location_ids: ['loc-1', 'loc-2', 'loc-3'], location_names: ['Pickering', 'Guelph', 'Mississauga'], created_at: iso(6), last_sign_in_at: iso(7), external_party_type: null, organization_name: null },

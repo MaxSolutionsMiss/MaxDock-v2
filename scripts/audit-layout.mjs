@@ -57,13 +57,16 @@ const ROLES = {
 const MODALS = {
   board: [
     { name: 'block-dock-time', trigger: '[data-block-time]' },
-    { name: 'edit-appointment', trigger: '[data-edit-record]' },
+    { name: 'appointment-details', trigger: '[data-open-record]' },
     { name: 'book-appointment', trigger: '[data-open-booking]', walkSteps: 5 },
     { name: 'notifications', trigger: '.notif__btn' },
   ],
   // The queue is a status screen, not a booking screen — it deliberately has no
   // Book appointment action.
-  queue: [{ name: 'customize', trigger: '[data-customize]' }],
+  queue: [
+    { name: 'customize', trigger: '[data-customize]' },
+    { name: 'appointment-details', trigger: 'tr[data-open-record]' },
+  ],
   'my-appointments': [
     { name: 'cancel-appointment', trigger: '.btn--danger' },
     { name: 'move-appointment', trigger: '[data-move-appointment]' },
@@ -84,6 +87,16 @@ const MODALS = {
 // booking number matches several, and another once one is picked — auditing only
 // the state a query string lands on leaves the other two unmeasured.
 const FLOWS = {
+  // Six sections, and only the one open on load was ever measured — which is
+  // exactly where a card collapsed to the width of its title and the whole sweep
+  // still reported clean.
+  settings: [
+    { name: 'docks', query: '', act: async page => { await page.click('[data-section="docks"]'); }, expect: '.table' },
+    { name: 'capacity', query: '', act: async page => { await page.click('[data-section="capacity"]'); }, expect: '.card' },
+    { name: 'assignment', query: '', act: async page => { await page.click('[data-section="assignment"]'); }, expect: '.card' },
+    { name: 'notice', query: '', act: async page => { await page.click('[data-section="notice"]'); }, expect: '.card' },
+    { name: 'timing', query: '', act: async page => { await page.click('[data-section="timing"]'); }, expect: '.card' },
+  ],
   // Each report view is its own table and chart; the tab that is open on load was
   // the only one ever measured.
   reports: [
@@ -133,7 +146,7 @@ const add = (where, width, rule, detail) => findings.push({ where, width, rule, 
 // belong to the page, not to a 560px panel floating above it.
 function collect(scope) {
   const root = scope ? document.querySelector(scope) : document;
-  const out = { clipped: [], smallTargets: [], ctlHeights: [], rawTimestamps: [], blockTextCut: [], hiddenButShown: [], unreachable: [], rowFill: [], kpi: [], gaps: [], overflowX: 0, labelStyles: [], cutOff: [], rowUneven: [], modal: [], collapsed: [] };
+  const out = { clipped: [], smallTargets: [], ctlHeights: [], rawTimestamps: [], blockTextCut: [], hiddenButShown: [], unreachable: [], rowFill: [], kpi: [], gaps: [], overflowX: 0, labelStyles: [], cutOff: [], rowUneven: [], modal: [], collapsed: [], narrow: [] };
   if (!root) return out;
   const vis = el => el.offsetParent !== null || getComputedStyle(el).position === 'fixed';
 
@@ -141,7 +154,9 @@ function collect(scope) {
 
   // Content wider than its box — the "fields are cut off" defect.
   root.querySelectorAll('.input,.select,td,th,.field__label,.setrow__d,.kpi__label,.rail__link,.btn,.step').forEach(el => {
-    if (!vis(el) || (el.classList.contains('cell-elide') && el.title)) return;
+    // A cell that deliberately truncates with an ellipsis and carries the full
+    // text in its title is doing the right thing, not clipping by accident.
+    if (!vis(el) || ((el.classList.contains('cell-elide') || el.classList.contains('cell-cap')) && el.title)) return;
     if (el.scrollWidth > el.clientWidth + 1) {
       out.clipped.push({ text: (el.textContent || el.value || '').trim().slice(0, 44), over: el.scrollWidth - el.clientWidth, sel: el.className });
     }
@@ -288,6 +303,27 @@ function collect(scope) {
     out.collapsed.push({ sel: el.className, h: Math.round(h), needs: el.scrollHeight });
   });
 
+  // The width counterpart, and the one that was missing: a block with room for
+  // only a word or two per line. Nothing overflows, nothing is clipped, and the
+  // band gets *taller* rather than shorter, so both the overflow rules and the
+  // height rule above stay quiet. That is how a settings card shrank to the
+  // width of its own title and every sentence inside it stacked one word to a
+  // line, all the way down the page, and still audited clean.
+  out.narrow = [];
+  root.querySelectorAll('p,.hint,td,.setrow__t,.card__title,.integ__name,li,legend').forEach(el => {
+    if (!vis(el)) return;
+    const text = (el.textContent || '').trim();
+    if (text.length < 40) return;
+    const rect = el.getBoundingClientRect();
+    if (rect.width === 0 || rect.height === 0) return;
+    const line = parseFloat(getComputedStyle(el).lineHeight) || 18;
+    const lines = Math.max(1, Math.round(rect.height / line));
+    if (lines < 4) return;
+    const perLine = text.length / lines;
+    if (perLine >= 14) return;
+    out.narrow.push({ sel: el.className || el.tagName, w: Math.round(rect.width), lines, perLine: Math.round(perLine) });
+  });
+
   // A form row should use its width, not stop short and leave the rest empty.
   root.querySelectorAll('.frow').forEach(row => {
     if (!vis(row)) return;
@@ -299,6 +335,13 @@ function collect(scope) {
     // Two of twelve columns. The old quarter-of-the-row threshold let a row that
     // was three columns short pass on a rounding margin, which is how the settings
     // rows in the owner's screenshots audited clean while visibly stopping short.
+    // A row made entirely of number boxes is meant to stop short. "Base 30 min,
+    // per skid 1.5 min, buffer 10 min" sized to fill a 921px row is the very
+    // defect the owner reported as long fields for two numbers — so measuring
+    // those rows against the same standard as a row of names and addresses
+    // reports the correct layout as a fault.
+    const compact = kids.every(k => k.classList.contains('field--num') || k.classList.contains('field--dur') || k.classList.contains('field--xs') || k.classList.contains('field--sm'));
+    if (compact) return;
     if (unused > rw * 0.15) out.rowFill.push({ unused, rowWidth: Math.round(rw), fields: kids.length });
   });
 
@@ -610,6 +653,7 @@ function report(where, width, result) {
   if (result.overflowX > 1) add(where, width, 'page-scrolls-sideways', `${result.overflowX}px`);
   for (const m of result.modal) add(where, width, 'dialog-does-not-fit', m);
   for (const c of [...new Map(result.collapsed.map(c => [c.sel, c])).values()].slice(0, 4)) add(where, width, 'band-collapsed', `.${c.sel} is ${c.h}px tall but holds ${c.needs}px of content`);
+  for (const n of [...new Map((result.narrow || []).map(x => [x.sel, x])).values()].slice(0, 4)) add(where, width, 'text-column-too-narrow', `.${n.sel} is ${n.w}px wide — ${n.lines} lines at about ${n.perLine} characters each`);
   for (const c of [...new Map(result.cutOff.map(c => [c.text + c.over, c])).values()].slice(0, 5)) add(where, width, 'cut-off-by-hidden-overflow', `"${c.text}" is ${c.over}px outside .${c.by}`);
   for (const c of result.clipped.slice(0, 6)) add(where, width, 'content-clipped', `"${c.text}" overflows by ${c.over}px (${c.sel})`);
   for (const t of [...new Map(result.smallTargets.map(t => [t.sel + t.h, t])).values()].slice(0, 6)) add(where, width, 'hit-target-too-small', `"${t.text}" is ${t.h}px tall (${t.sel})`);

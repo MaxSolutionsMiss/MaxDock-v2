@@ -416,3 +416,57 @@ hit-testable.
 **Rule: a UI gate must drive the interface the way a person can. Acting on the
 first node that matches a selector, rather than the first one a user could reach,
 makes the result depend on invisible elements — and here, on the time of day.**
+
+## A card collapsed to the width of its title, and the sweep said clean (2026-07-28)
+
+Bringing Add dock in beside the Edit column, the Docks card was told to shrink-wrap
+its contents. The table inside sits in an `overflow-x:auto` wrapper, and a scroll
+container contributes nothing to a shrink-wrapping parent, so the card resolved to
+the width of its own heading. Every sentence on the page then wrapped one word per
+line, all the way down. Replaced with a plain `max-width` cap and verified with a
+screenshot rather than the audit.
+
+Two reasons the audit missed it, both closed:
+
+- **Settings has six sections and only the one open on load was ever rendered.**
+  The Docks section was never measured at all. There is now a `settings` entry in
+  FLOWS walking all six, the same mechanism added for the Reports views. Turning it
+  on immediately produced 23 findings in sections that had never been looked at.
+- **The collapse rule only measured height.** A column starved of width gets
+  *taller*, not shorter, and nothing overflows, so every existing rule stayed quiet.
+  Added `text-column-too-narrow`: a block of 40+ characters rendering over four or
+  more lines at under fourteen characters a line.
+
+Of the 23, two were the rules being wrong rather than the pages:
+
+- `content-clipped` already exempted a cell that truncates with an ellipsis and
+  carries its full text in a title. `.cell-cap`, added later, is the same pattern
+  and was not on the list.
+- `form-row-leaves-dead-space` measured a row of two-digit number boxes against the
+  same standard as a row of names and addresses. "Base 30 min, per skid 1.5 min,
+  buffer 10 min" stretched to fill a 921px row is the exact defect the owner
+  reported as long fields for two numbers, so a row made entirely of content-sized
+  controls is now exempt.
+
+The rest were real and fixed in the pages: the five capacity figures now share one
+row instead of stopping two-thirds of the way across two rows.
+
+## An appointment now has somewhere to be looked up (2026-07-28)
+
+Clicking a movement on the board opened an edit form, and only for the two roles
+allowed to edit; clicking a queue row did nothing. So "when was this finished" and
+"who was driving" had no screen that answered them.
+
+`js/ui/appointment-details.js` is one modal used by both: the booking as it stands,
+plus every event against it. Editing is handed back to the existing form when the
+caller can edit, rather than duplicated.
+
+`get_appointment_history` had to change to make it worth opening. A check-in writes
+`checked_in_at`, `checked_in_by` and `driver_name`, and the summary called that
+"Appointment details updated" with no case for any of the three in the changed-field
+list — so the one event a receiver creates was the one event the log hid. A first
+scan is now its own line, named as one, with the driver on it.
+
+The board blocks carry the live status beside the reference for the same reason: a
+receiver moves a truck to Loading in seconds and the board is what the room is
+looking at.

@@ -6,6 +6,7 @@ import { format } from '../format.js';
 import { createCustomizePanel } from '../ui/customize.js';
 import { openWall, paintWall } from '../ui/wall.js';
 import { pageHead } from '../ui/pagehead.js';
+import { createAppointmentDetails } from '../ui/appointment-details.js';
 
 const LATE_GRACE_MINUTES = 15;
 const BACK_TO_BACK_MINUTES = 20;
@@ -42,6 +43,7 @@ const state = {
   elements: {},
   customizePanel: null,
   wall: null,
+  detailsModal: null,
 };
 
 const escapeHtml = value => String(value ?? '').replace(/[&<>'"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[char]));
@@ -145,7 +147,9 @@ function renderTable() {
     else if (ACTIVE_STATUSES.has(record.status) && can('appointment.complete')) actions.push(`<button class="btn btn--quiet btn--sm" type="button" data-complete="${record.id}">Complete</button>`);
     if (late && can('appointment.cancel')) actions.push(`<button class="btn btn--danger btn--sm" type="button" data-no-show="${record.id}" data-reference="${escapeHtml(record.booking_reference || '')}">No show</button>`);
     const action = `<div class="rowactions">${actions.join('')}</div>`;
-    return `<tr>
+    // The whole row opens the movement. Somebody asking "where is this one" is
+    // the commonest thing done on this screen and it had no answer here.
+    return `<tr data-open-record="${escapeHtml(record.id)}" tabindex="0">
       <td class="data data--strong">${escapeHtml(format.time(record.start_at, state.context.location))}</td>
       <td class="data">${escapeHtml(record.booking_reference || '—')}</td>
       <td class="data">${escapeHtml(dockName(record.dock_id))}</td>
@@ -482,6 +486,14 @@ function wireEvents(root) {
     if (arrive) changeStatus(arrive.dataset.arrive, 'arrived');
     const complete = event.target.closest('[data-complete]');
     if (complete) changeStatus(complete.dataset.complete, 'completed');
+    // A row click opens the movement, but not when the click was on one of the
+    // row's own action buttons — those act, they do not navigate.
+    const row = event.target.closest('[data-open-record]');
+    if (row && !event.target.closest('button')) {
+      const record = state.records.find(item => String(item.id) === row.dataset.openRecord);
+      if (record) state.detailsModal.open(record, { trigger: row, canEdit: false });
+      return;
+    }
     const noShow = event.target.closest('[data-no-show]');
     // Asked for rather than done on one tap: a no-show is a black mark against a
     // carrier and it cannot be undone from this screen.
@@ -503,6 +515,7 @@ const page = {
     state.elements.subtitle.textContent = `${context.location.name} · today · live`;
     // One gear, both rows: the brief's figures at a glance and the metric cards
     // under it. They were two strips of numbers with only one of them adjustable.
+    state.detailsModal = createAppointmentDetails({ location: context.location });
     state.customizePanel = await createCustomizePanel({
       preferenceKey: 'queue-cards',
       options: [
@@ -529,7 +542,7 @@ const page = {
     state.returnLoads = data.returnLoads;
     renderAll();
   },
-  destroy() { state.customizePanel?.destroy(); },
+  destroy() { state.customizePanel?.destroy(); state.detailsModal?.destroy(); },
 };
 
 startPage(page);

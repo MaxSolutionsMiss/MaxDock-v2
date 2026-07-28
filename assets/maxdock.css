@@ -289,7 +289,7 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 .table td.cell-elide{max-width:0;width:100%;overflow:hidden;text-overflow:ellipsis}
 /* Capped rather than filling: the cell takes what it needs up to a limit and the
    row's action stays beside it, with an empty .col-fill header taking the rest. */
-.table td.cell-cap{max-width:30ch;overflow:hidden;text-overflow:ellipsis}
+.table td.cell-cap{max-width:24ch;overflow:hidden;text-overflow:ellipsis}
 .table tr:last-child td{border-bottom:none}
 .table tbody tr:hover{background:var(--dock-wash)}
 .data{font-family:var(--font-data);font-size:var(--t-small)}
@@ -393,6 +393,8 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
    offset on each of them. Dialog feet already place their primary button; this
    is for the bands that are not dialog feet. */
 .at-end{margin-left:auto}
+/* A heading that opens a new subject inside a dialog body or card. */
+.section-gap{margin-top:var(--s5)}
 /* Keyed to the container, not the viewport: a dialog is a fixed 760px wide however
    large the window is, so a viewport media query collapsed rows that had room. */
 .modal__body,.card{container-type:inline-size}
@@ -468,7 +470,12 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 /* A card sized to what is in it. A table of five short columns stretched to the
    full panel left a hand's width of empty card and threw the title's action out
    to an edge nothing else reached. */
-.card--fit{width:max-content;max-width:100%}
+/* Capped, not shrink-wrapped. width:max-content collapsed the whole card to the
+   width of its title, because the table inside sits in an overflow-x:auto
+   wrapper and a scroll container contributes nothing to a max-content parent —
+   so every line of text wrapped one word at a time. A ceiling takes the empty
+   space off a wide monitor without asking the card to measure itself. */
+.card--fit{max-width:min(100%,720px)}
 .card__title .btn{margin-left:auto}
 /* One vertical rhythm inside cards, dialogs and wizard steps. A .frow spaces its
    own children but carried no margin of its own, so two stacked rows read as a
@@ -781,6 +788,11 @@ body.modal-open{overflow:hidden}
 /* More than one action can apply to a row — a late truck can still arrive, or be
    written off. They sit together and the cell does not grow. */
 .rowactions{display:flex;gap:var(--s2);justify-content:flex-end}
+/* A row that opens something says so on hover, and takes a focus ring, because
+   it is reachable from the keyboard as well as the pointer. */
+.table tr[data-open-record]{cursor:pointer}
+.table tr[data-open-record]:hover>td{background:var(--surface-sunk)}
+.table tr[data-open-record]:focus-visible{outline:2px solid var(--dock);outline-offset:-2px}
 .status{min-height:24px;padding:3px 8px;border-radius:var(--radius);display:inline-flex;align-items:center;background:var(--surface-sunk);color:var(--ink-muted);font-size:var(--t-micro);font-weight:600;white-space:nowrap;margin-left:var(--s3)}
 .status--scheduled,.status--confirmed{background:var(--dock-wash);color:var(--dock-deep)}
 .status--arrived,.status--in_progress{background:var(--signal-wash);color:var(--signal)}
