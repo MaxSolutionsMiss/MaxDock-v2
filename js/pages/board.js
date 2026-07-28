@@ -376,20 +376,18 @@ function timelineBlocks() {
         startMin,
         endMin: startMin + Math.max(5, format.minutesBetween(record.start_at, record.end_at)),
         tone: blockTone(record),
-        title: isBlock
-          ? (record.block_reason || 'Dock blocked')
-          : (record.company_name || record.display_counterpart_location_name || record.requester_name || 'Scheduled movement'),
-        subtitle: record.booking_reference || '',
-        // Where the truck actually is, on the block itself. A receiver scanning at
-        // the door moves this within seconds, and the board is what everyone else
-        // is looking at — without it the colour is the only clue and "arrived"
-        // and "in progress" look identical from across the room.
-        meta: isBlock
-          ? (record.notes || 'Unavailable')
-          : [record.booking_reference, format.role(record.status)].filter(Boolean).join(' · '),
-        note: isBlock ? '' : [state.truckTypeNames?.get(record.truck_type_code), `${Number(record.skid_count || 0)} skids`].filter(Boolean).join(' · '),
-        // Every movement opens, not only the two roles' worth that can be
-        // edited. Looking one up is what most people came to the board to do.
+        // Four lines, in the order somebody standing at the board reads them:
+        // which booking, where it is coming from or going to, when, and what is
+        // on it. One line each, so nothing reserves height it will not use and
+        // nothing falls out of the bottom of the block.
+        lines: isBlock
+          ? [record.block_reason || 'Dock blocked', record.notes || 'Unavailable', `${clockLabel(startMin)}–${clockLabel(startMin + Math.max(5, format.minutesBetween(record.start_at, record.end_at)))}`]
+          : [
+            [record.booking_reference, format.role(record.status)].filter(Boolean).join(' · '),
+            `${record.direction === 'outbound' ? 'To' : 'From'} ${record.company_name || record.display_counterpart_location_name || record.requester_name || 'unnamed'}`,
+            `${clockLabel(startMin)}–${clockLabel(startMin + Math.max(5, format.minutesBetween(record.start_at, record.end_at)))}`,
+            [state.truckTypeNames?.get(record.truck_type_code), `${Number(record.skid_count || 0)} skids`].filter(Boolean).join(' · '),
+          ],
         attrs: `data-record-id="${escapeHtml(record.id)}"${isBlock ? '' : ` data-open-record${editable ? ' data-editable' : ''} role="button" tabindex="0"`}`,
       };
     });

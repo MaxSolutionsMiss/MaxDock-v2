@@ -562,7 +562,12 @@ function buildPage(root, context) {
   const updated = createElement('span', 'page-updated muted');
   toolbarMeta.append(count, updated);
   const lead = controlsHost.querySelector('.controls__lead') || controlsHost;
-  lead.append(views, search);
+  // The find box belongs with the count and the timestamp, not in the lead group
+  // with Book appointment and the view switcher — crowded in there it wrapped the
+  // whole band onto a second line. Same order as every other page: what you are
+  // looking at, when it was last read, then the box to narrow it.
+  lead.append(views);
+  toolbarMeta.append(search);
   lead.after(toolbarMeta);
 
   // Left column scrolls on its own so the appointments below the fold can be

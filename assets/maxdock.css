@@ -213,7 +213,7 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
    the block can ask for: the clock, two lines of company name, two of detail.
    Derived from the type tokens rather than a magic number, so it still holds when
    the reader turns the text size up. */
-.tl{display:flex;flex-direction:column;min-height:0;height:100%;--tl-label:clamp(110px,10vw,190px);--tl-type:clamp(var(--t-base), .95vw, calc(var(--t-base) * 1.7));--tl-line:calc(var(--tl-type) * 1.35);--tl-lines:5;--tl-row:calc(var(--tl-line) * var(--tl-lines) + 14px)}
+.tl{display:flex;flex-direction:column;min-height:0;height:100%;--tl-label:clamp(110px,10vw,190px);--tl-type:clamp(var(--t-base), .95vw, calc(var(--t-base) * 1.7));--tl-line:calc(var(--tl-type) * 1.35);--tl-lines:4;--tl-row:calc(var(--tl-line) * var(--tl-lines) + 14px)}
 .tl__ruler{display:grid;grid-template-columns:var(--tl-label) minmax(0,1fr);border-bottom:1px solid var(--rule-strong);background:var(--surface-sunk);flex:none}
 .tl__corner{padding:6px var(--s3);font-size:var(--t-micro);text-transform:uppercase;letter-spacing:.07em;color:var(--ink-muted);font-weight:600;border-right:1px solid var(--rule-strong);display:flex;align-items:center}
 .tl__scale{position:relative;height:26px}
@@ -240,12 +240,12 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
    as space rather than tempting a partial row. */
 .tlb{position:absolute;border-radius:4px;border-left:3px solid;padding:3px 6px;overflow:hidden;cursor:pointer;display:grid;grid-auto-rows:var(--tl-line);align-content:start;line-height:var(--tl-line);min-width:10px}
 .tlb>*{min-width:0;overflow:hidden;display:-webkit-box;-webkit-box-orient:vertical;overflow-wrap:anywhere}
-.tlb__time{font-size:calc(var(--tl-type) * .92);font-weight:700;font-variant-numeric:tabular-nums;-webkit-line-clamp:1}
-/* The company name is what an operator reads off the board, so it gets two lines
-   before it gives up rather than being cut after eight characters. */
-.tlb__title{font-size:var(--tl-type);font-weight:600;grid-row:span 2;-webkit-line-clamp:2}
-.tlb__meta{font-size:calc(var(--tl-type) * .88);color:var(--ink-muted);grid-row:span 1;-webkit-line-clamp:1}
-.tlb__note{font-size:calc(var(--tl-type) * .88);color:var(--ink-muted);grid-row:span 1;-webkit-line-clamp:1}
+/* One line per fact, every line the same height, nothing spanning two rows. The
+   title used to reserve two rows whether or not it needed them, which is the
+   band of empty space that opened up between the time and the company on every
+   short name — and it pushed the last line out of the block entirely. */
+.tlb__l{font-size:calc(var(--tl-type) * .9);color:var(--ink-muted);grid-row:span 1;-webkit-line-clamp:1}
+.tlb__l--key{font-size:var(--tl-type);font-weight:700;color:inherit;font-variant-numeric:tabular-nums}
 .tlb--in{background:var(--dock-wash);border-left-color:var(--dock)}
 .tlb--out{background:var(--ok-wash);border-left-color:var(--ok)}
 .tlb--pri{background:var(--signal-wash);border-left-color:var(--signal)}
@@ -256,14 +256,16 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
    drops with the line it loses rather than keeping the space empty. */
 /* Narrower boards give the block fewer lines to ask for, and the row shrinks with
    it rather than reserving height nothing will use. */
+/* Narrow lanes drop lines from the bottom up: the truck and skid count go first,
+   then where it is going. The reference and the time are the last things to go,
+   because they are what somebody is looking for when they walk up to the board. */
 @container (max-width:900px){
   .tl{--tl-lines:3}
-  .tlb__title{grid-row:span 1;-webkit-line-clamp:1}
-  .tlb__note{display:none}
+  .tlb__l:nth-child(n+4){display:none}
 }
 @container (max-width:640px){
   .tl{--tl-lines:2}
-  .tlb__meta,.tlb__note{display:none}
+  .tlb__l:nth-child(n+3){display:none}
 }
 
 /* ===== tables (My appts, Reports, Users) ===== */
@@ -396,7 +398,10 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 /* The find box on My appointments shares the controls band with the view
    switcher, so it must not swallow the whole row the way a lone search field in
    a filter band can. */
-.appointment-search{max-width:280px}
+/* Beside the count, not below it: the label sits inline so the whole band stays
+   one line high. */
+.appointment-search{flex-direction:row;align-items:center;gap:var(--s2);min-width:0;max-width:320px}
+.appointment-search .input{max-width:210px}
 /* A heading that opens a new subject inside a dialog body or card. */
 .section-gap{margin-top:var(--s5)}
 /* The stock count is its own subject inside the capacity card: a number somebody
@@ -537,13 +542,12 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
    wall has no such cap — filling the screen is the whole point of a wall display. */
 .wall .tl__lane{flex:var(--rows,1) 1 0;min-height:clamp(56px,7vh,150px);max-height:none}
 .wall .tlb{padding:clamp(4px,.5vw,10px) clamp(6px,.7vw,14px);align-content:center}
-.wall .tlb__title{white-space:normal;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
 .wall .tl__label strong{font-size:clamp(16px,1.3vw,28px)}
 .wall .tl__label small{font-size:clamp(11px,.75vw,16px)}
 .wall .tl__scale{height:clamp(28px,3vh,44px)}
 .wall .tl__scale .tl__tick{font-size:clamp(12px,.9vw,18px)}
-.wall .tlb__time{font-size:clamp(13px,1vw,22px)}
-.wall .tlb__title{font-size:clamp(13px,1vw,21px)}
+.wall .tlb__l--key{font-size:clamp(13px,1vw,22px)}
+.wall .tlb__l{font-size:clamp(12px,.9vw,19px)}
 .wall .tlb__meta,.wall .tlb__note{font-size:clamp(11px,.8vw,17px)}
 
 /* ===== additions: icon buttons, rail admin-at-bottom, queue, data, fullscreen ===== */

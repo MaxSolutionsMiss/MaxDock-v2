@@ -212,18 +212,18 @@ function renderAssignment() {
   return `<form class="card" data-section-form="assignment">
     <h3 class="card__title">Dock assignment</h3>
     <div class="setrow">
-      <div><div class="setrow__t">Auto-assign docks</div><div class="setrow__d">MaxDock picks a dock for each booking automatically</div></div>
+      <div><div class="setrow__t">Auto-assign docks</div><div class="setrow__d">MaxDock picks the dock for each booking</div></div>
       <button type="button" class="switch ${autoAssign ? '' : 'switch--off'}" data-assign-switch aria-pressed="${autoAssign}" aria-label="Auto-assign docks" ${disabled}></button>
     </div>
     <div class="frow">
-      <div class="field field--xl"><span class="field__label">Assignment strategy</span><select class="select" name="dock_assignment_strategy" ${disabled}>
+      <div class="field field--md"><span class="field__label">Assignment strategy</span><select class="select" name="dock_assignment_strategy" ${disabled}>
         <option value="balanced" ${s.dock_assignment_strategy === 'balanced' ? 'selected' : ''}>Balanced across docks</option>
         <option value="fill_first" ${s.dock_assignment_strategy === 'fill_first' ? 'selected' : ''}>Fill one dock first</option>
       </select></div>
-      <div class="field field--md"><span class="field__label">Max concurrent</span><span class="inputwrap"><input class="input" type="number" min="1" name="max_concurrent_appointments" value="${s.max_concurrent_appointments ?? ''}" placeholder="∞" ${disabled}><span class="input__unit">at once</span></span></div>
+      <div class="field field--num"><span class="field__label">Max concurrent</span><span class="inputwrap"><input class="input" type="number" min="1" name="max_concurrent_appointments" value="${s.max_concurrent_appointments ?? ''}" placeholder="∞" ${disabled}><span class="input__unit">at once</span></span></div>
     </div>
     <div class="setrow">
-      <div><div class="setrow__t">Consolidation warning</div><div class="setrow__d">Flag combinable same-destination bookings for review</div></div>
+      <div><div class="setrow__t">Consolidation warning</div><div class="setrow__d">Offer to combine same-destination loads</div></div>
       <button type="button" class="switch ${consolidation ? '' : 'switch--off'}" data-consolidation-switch aria-pressed="${consolidation}" aria-label="Consolidation warning" ${disabled}></button>
     </div>
     <div class="frow">

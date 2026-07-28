@@ -381,10 +381,12 @@ function wallPayload() {
       startMin,
       endMin: startMin + Math.max(5, format.minutesBetween(record.start_at, record.end_at)),
       tone: late ? 'tlb--pri' : record.status === 'completed' ? 'tlb--done' : record.direction === 'outbound' ? 'tlb--out' : 'tlb--in',
-      title: record.company_name || record.display_counterpart_location_name || record.requester_name || 'Scheduled movement',
-      subtitle: record.booking_reference || '',
-      meta: record.booking_reference || '',
-      note: `${format.role(record.status || '')}${late ? ' · LATE' : ''}`,
+      lines: [
+        [record.booking_reference, late ? 'LATE' : format.role(record.status || '')].filter(Boolean).join(' · '),
+        `${record.direction === 'outbound' ? 'To' : 'From'} ${record.company_name || record.display_counterpart_location_name || record.requester_name || 'unnamed'}`,
+        `${format.time(record.start_at, state.context.location)}`,
+        `${Number(record.skid_count || 0)} skids`,
+      ],
       attrs: '',
     };
   });

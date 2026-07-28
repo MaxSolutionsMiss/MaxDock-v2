@@ -84,11 +84,8 @@ export function renderTimeline({ lanes, blocks, windowStart, windowEnd, granular
         // details were being cut off at the bottom of a lane.
         const geometry = `left:calc(${left}% + 1px);width:calc(${width}% - 2px);top:calc(${block.row * height}% + 2px);height:calc(${height}% - 4px)`;
         return `<article class="tlb ${block.tone}" style="${geometry}"
-          ${block.attrs || ''} title="${escapeHtml(`${block.title} · ${block.subtitle} · ${clockLabel(block.startMin)}–${clockLabel(block.endMin)}`)}">
-          <span class="tlb__time">${clockLabel(block.startMin)}–${clockLabel(block.endMin)}</span>
-          <span class="tlb__title">${escapeHtml(block.title)}</span>
-          <span class="tlb__meta">${escapeHtml(block.meta || '')}</span>
-          ${block.note ? `<span class="tlb__note">${escapeHtml(block.note)}</span>` : ''}
+          ${block.attrs || ''} title="${escapeHtml((block.lines || []).filter(Boolean).join(' · '))}">
+          ${(block.lines || []).filter(Boolean).map((line, index) => `<span class="tlb__l${index === 0 ? ' tlb__l--key' : ''}">${escapeHtml(line)}</span>`).join('')}
         </article>`;
       }).join('')
       : `<span class="tl__idle">${escapeHtml(emptyLabel)}</span>`;
