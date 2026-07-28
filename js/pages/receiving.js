@@ -51,21 +51,28 @@ function tokenFromScan(text) {
   return null;
 }
 
+// Two boxes, not one. Scanning and typing a code are two different jobs and a
+// receiver should be able to see at a glance which one they are doing — on a
+// phone they stack, so whichever is in front of you fills the screen.
 function renderIdle(message = '') {
   state.elements.host.innerHTML = `
-    <section class="card recv">
-      <h3 class="card__title">Scan the appointment code</h3>
-      <p class="hint">Point your phone camera at the QR code on the driver's paperwork. It opens MaxDock with the load ready to receive.</p>
-      ${hasScanner()
-        ? '<div class="form-actions"><button class="btn btn--primary" type="button" data-scan>Scan with camera</button></div>'
-        : '<p class="hint">This browser cannot scan inside the app. Use the phone’s own camera app on the code, or type the token below.</p>'}
-      <div class="recv__stage" data-stage hidden><video class="recv__video" data-video playsinline muted></video><div class="recv__frame" aria-hidden="true"></div></div>
-      <div class="inline-controls" style="margin-top:var(--s4)">
-        <label class="field"><span class="field__label">Appointment code</span><input class="input" data-token placeholder="Paste or type the code" autocomplete="off"></label>
-        <button class="btn btn--quiet" type="button" data-lookup>Find</button>
-      </div>
+    <div class="recv">
+      <section class="card recv__box">
+        <h3 class="card__title">Scan the code</h3>
+        <p class="hint">Point your phone camera at the QR code on the driver's paperwork.</p>
+        ${hasScanner()
+          ? '<div class="form-actions"><button class="btn btn--primary btn--block" type="button" data-scan>Open the camera</button></div>'
+          : '<p class="hint">This browser cannot scan inside the app — use the phone’s own camera app on the code, and it will open MaxDock here.</p>'}
+        <div class="recv__stage" data-stage hidden><video class="recv__video" data-video playsinline muted></video><div class="recv__frame" aria-hidden="true"></div></div>
+      </section>
+      <section class="card recv__box">
+        <h3 class="card__title">Or enter the code</h3>
+        <p class="hint">If the code will not scan, type or paste it from the paperwork.</p>
+        <label class="field field--full"><span class="field__label">Appointment code</span><input class="input" data-token placeholder="0000-0000" autocomplete="off" inputmode="text"></label>
+        <div class="form-actions"><button class="btn btn--quiet btn--block" type="button" data-lookup>Find the appointment</button></div>
+      </section>
       ${message ? `<p class="form-message">${escapeHtml(message)}</p>` : ''}
-    </section>`;
+    </div>`;
 }
 
 function detail(label, value) {

@@ -137,8 +137,9 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 /* Controls at their own width on one line, bottom aligned — for the places a
    grid column would only stretch a button across half a page. */
 .inline-controls{display:flex;flex-wrap:wrap;align-items:end;gap:var(--s3)}
-.recv{max-width:640px}
-.recv__stage{position:relative;margin-top:var(--s4);border-radius:var(--radius-lg);overflow:hidden;background:#000;aspect-ratio:1}
+.recv{max-width:640px;display:grid;gap:var(--s3)}
+.recv__box{display:grid;gap:var(--s2)}
+.recv__stage{position:relative;margin-top:var(--s2);border-radius:var(--radius-lg);overflow:hidden;background:#000;aspect-ratio:1}
 .recv__video{width:100%;height:100%;object-fit:cover;display:block}
 .recv__frame{position:absolute;inset:14%;border:3px solid #fff;border-radius:var(--radius-lg);box-shadow:0 0 0 100vmax rgba(0,0,0,.35)}
 .inline-controls .field{flex:0 1 auto;min-width:0}
