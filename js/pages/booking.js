@@ -344,7 +344,7 @@ function renderQuickRebook() {
       <button class="btn btn--primary btn--sm" type="button" data-action="use-template" data-template-id="${template.id}">Use</button>
       <button class="btn btn--quiet btn--sm" type="button" data-action="delete-template" data-template-id="${template.id}">Delete</button></div>`;
   }).join('');
-  return `<div class="field__label" style="margin-bottom:var(--s2)">Quick rebook — saved templates</div><div>${items}</div><p class="hint">Use a template to prefill this booking, then continue through the steps.</p>`;
+  return `<div class="grouplabel">Quick rebook — saved templates</div><div>${items}</div><p class="hint">Use a template to prefill this booking, then continue through the steps.</p>`;
 }
 
 function renderLoadStep() {
@@ -488,17 +488,17 @@ function renderTimeStep() {
   hosts.step.innerHTML = `
     <div class="frow">
       <div class="field field--md"><span class="field__label">Requested date<span class="field__req" aria-hidden="true">*</span></span><input class="input" data-field="date" type="date" min="${format.inputDate(null, receivingLocation())}"></div>
-      <div class="field field--xl" style="align-self:end"><span class="field__label">&nbsp;</span><p class="hint" style="margin:0">Pick a date, then choose one of the available times below.</p></div>
+      <div class="field field--xl field-action"><p class="hint hint--flush">Pick a date, then choose one of the available times below.</p></div>
     </div>
     ${staff ? `
-      <label class="check-row" style="margin-top:var(--s4)"><input type="checkbox" data-field="after_hours"><span><strong>Request an after-hours time</strong><small>Staff only. The booking RPC verifies the time and records your confirmation.</small></span></label>
+      <label class="check-row check-row--spaced"><input type="checkbox" data-field="after_hours"><span><strong>Request an after-hours time</strong><small>Staff only. The booking RPC verifies the time and records your confirmation.</small></span></label>
       ${state.form.after_hours ? `
         <div class="inline-note inline-note--warning">
           <div class="field field--sm"><span class="field__label">Custom start time</span><input class="input" data-field="custom_time" type="time" step="${Math.max(1, Number(state.reference.settings.slot_interval_minutes || 30)) * 60}"></div>
           <label class="check-row"><input type="checkbox" data-field="after_hours_acknowledged"><span><strong>I confirm this appointment may be outside operating hours</strong><small>This explicit acknowledgement is required before MaxDock sends the override to the booking RPC.</small></span></label>
         </div>` : ''}` : ''}
     ${!state.form.after_hours ? `
-      <div class="field__label" style="margin:var(--s4) 0 var(--s2)">Available · ${state.form.date ? format.longDateInput(state.form.date, receivingLocation()) : 'choose a date'}</div>
+      <div class="grouplabel">Available · ${state.form.date ? format.longDateInput(state.form.date, receivingLocation()) : 'choose a date'}</div>
       <div data-slot-list></div>` : ''}`;
 
   hosts.step.querySelector('[data-field="date"]').value = state.form.date;
@@ -516,7 +516,7 @@ function renderContactStep() {
   // them either way — a work address runs past a field sized for a person's name.
   const external = state.form.movement_kind === 'external';
   hosts.step.innerHTML = `
-    <p class="hint" style="margin:0 0 var(--s4)">These details identify the requester and are included in the confirmation draft.</p>
+    <p class="hint hint--lead">These details identify the requester and are included in the confirmation draft.</p>
     <div class="frow">
       <div class="field ${external ? 'field--sm' : 'field--md'}"><span class="field__label">Requester name<span class="field__req" aria-hidden="true">*</span></span><input class="input" data-field="requester_name" maxlength="120" autocomplete="name"></div>
       <div class="field ${external ? 'field--lg' : 'field--xl'}"><span class="field__label">Requester email<span class="field__req" aria-hidden="true">*</span></span><input class="input" data-field="requester_email" type="email" maxlength="180" autocomplete="email"></div>
@@ -552,7 +552,7 @@ function summaryRows() {
 
 function renderConfirmStep() {
   hosts.step.innerHTML = `
-    <p class="hint" style="margin:0 0 var(--s3)">Review the booking before reserving the dock${state.form.movement_kind === 'max' ? 's' : ''}.</p>
+    <p class="hint hint--lead">Review the booking before reserving the dock${state.form.movement_kind === 'max' ? 's' : ''}.</p>
     <div class="card" data-confirm-grid></div>
     ${state.form.after_hours ? '<div class="inline-note inline-note--warning"><strong>After-hours override</strong><span>Your acknowledgement will be recorded with the booking.</span></div>' : ''}
     <div class="frow">
@@ -596,19 +596,19 @@ function renderConfirmation() {
   const result = state.confirmation;
   const text = confirmationText(result);
   hosts.step.innerHTML = `
-    <div style="text-align:center;padding:var(--s4) 0">
-      <span class="tag tag--ok" style="font-size:var(--t-base);padding:4px 10px">✓ Appointment booked</span>
-      <h3 style="margin:var(--s2) 0;font-family:var(--font-data);font-size:var(--t-metric);color:var(--dock-deep)">${result.booking_reference}</h3>
+    <div class="booked">
+      <span class="tag tag--ok">✓ Appointment booked</span>
+      <h3 class="booked__ref">${result.booking_reference}</h3>
       <p class="hint">${currentLocation().name} · ${format.timestamp(result.start_at, receivingLocation())}</p>
     </div>
     <div class="frow">
       <div class="card field--xl" data-confirmation-details></div>
-      <div class="card field--md" style="text-align:center">
+      <div class="card field--md booked__qr">
         <div class="qr-frame" data-qr></div>
         <p class="hint">QR check-in code<br>Generated locally in this browser.</p>
       </div>
     </div>
-    <div class="modal__foot" style="margin-top:var(--s4);border:none;background:none;padding:0;flex-wrap:wrap">
+    <div class="booked__actions">
       <button class="btn btn--quiet" type="button" data-action="copy-confirmation">Copy confirmation</button>
       <a class="btn btn--quiet" data-email-draft>Open email draft</a>
       <button class="btn btn--quiet" type="button" data-action="book-another">Book another</button>

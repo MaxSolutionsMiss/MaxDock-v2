@@ -27,12 +27,12 @@ export async function createCustomizePanel({ preferenceKey, options, defaultIds,
   backdrop.hidden = true;
   backdrop.setAttribute('aria-hidden', 'true');
   backdrop.innerHTML = `
-    <section class="modal" role="dialog" aria-modal="true" aria-labelledby="customize-title" style="width:min(420px,100%)">
+    <section class="modal modal--xs" role="dialog" aria-modal="true" aria-labelledby="customize-title">
       <div class="modal__head"><div><h2 class="modal__title" id="customize-title">Customize this page</h2><p class="modal__sub">Choose which cards show here. Saved to your account.</p></div><button class="modal__x" type="button" data-close aria-label="Close">×</button></div>
       <div class="modal__body">
         <fieldset class="dock-checks"><legend>${min === 0 ? `Visible cards — clear them all to hide the strip` : `Visible cards (${min}–${max})`}</legend><div data-options></div></fieldset>
       </div>
-      <div class="modal__foot"><button class="btn btn--quiet" type="button" data-reset-default>Reset to default</button><button class="btn btn--primary" type="button" data-save style="margin-left:auto">Save</button></div>
+      <div class="modal__foot"><button class="btn btn--quiet" type="button" data-reset-default>Reset to default</button><button class="btn btn--primary" type="button" data-save>Save</button></div>
     </section>`;
   document.body.append(backdrop);
   const optionsHost = backdrop.querySelector('[data-options]');

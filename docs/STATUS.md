@@ -272,3 +272,65 @@ between two empty days now updates the date field.
 a booking could be moved into a window it could never have been booked into — and the Move
 dialog's own hint claimed the notice applied. The same check, in the same wording, now runs
 against the recomputed start time before the update.
+
+## Full audit before the owner's presentation (2026-07-28)
+
+Ran across the whole portal — backend surface, front-end consistency, accessibility —
+rather than against a screenshot. What it found, and what was done.
+
+### Backend
+
+- **Every RPC the client calls exists in the live database.** Twenty-eight names
+  extracted from `js/` and checked against `pg_proc`; no drift.
+- **Twenty security-definer functions were executable by the unauthenticated `anon`
+  role.** All of them raise on a null `auth.uid()`, so nothing leaked — but an
+  endpoint an unauthenticated caller can reach is surface with no reason to exist,
+  and it lets anyone probe behaviour and error wording without an account. Revoked
+  from `anon` on the operational RPCs and the RLS helpers, and from `PUBLIC` on the
+  four trigger functions (Postgres grants `EXECUTE` to `PUBLIC` by default, so a
+  role-level revoke alone left them reachable). Now zero. Deliberately kept: every
+  grant to `authenticated`, which is who actually calls them.
+- **Five tables have RLS on with no policies** — `location_inventory_snapshots`,
+  `maxdock_schema_versions`, `mis_import_runs`, `mis_integration_settings`,
+  `user_usage_daily`. That is deny-all on direct access; each is reached only
+  through a security-definer admin RPC. Correct as it stands, recorded so it is not
+  mistaken for an oversight later.
+- **Leaked-password protection is off.** Supabase can check new passwords against
+  HaveIBeenPwned. It is an Auth setting, not SQL — left for the owner to switch on.
+
+### Front end
+
+- **Forty-five inline styles, of which twenty-eight were styling decisions** rather
+  than data. The same role — "this control sits at the end of its band" — was
+  written inline on six pages, which is precisely how one role ends up at a
+  different offset on each of them. All twenty-eight now have names in
+  `assets/maxdock.css`; the seventeen that remain carry data (a timeline block's
+  computed geometry, a bar's height, `--kpi-cols`, `--c`), which is what an inline
+  style is for. **`verify-stage1-shell.mjs` now fails on any new static inline
+  style**, so this cannot silently come back — negative-tested.
+- **The stylesheet documented a rule and then broke it.** The comment on `--ctl-h`
+  says every control is that tall, "buttons, inputs, selects, tabs and icon buttons
+  alike" — and `.tabs button` was 32px, `.text-link` was 44px, and the toolbar meta
+  row was a magic 34px. So the queue's view switcher was a different height from My
+  appointments' view switcher, doing the same job. All three now use the token.
+- **A duplicate `class` attribute** on the Users bulk-clear button meant the second
+  one was silently dropped by the browser. Added a scan for duplicate attributes
+  across every template; this was the only one.
+- **The operating-hours time fields had no accessible name.** Seven rows, fourteen
+  inputs, each announced as "time" with nothing to say whether it was opening or
+  closing. Now labelled per day. (Ten other controls the scan flagged were false
+  positives — labelled via `for`/`id`.)
+
+### Functionality
+
+- **No way to record a no-show.** The database has the status and the queue counts
+  and flags late trucks, but nothing in the application could set it, so a truck
+  that never arrived stayed "Late" all day, held its dock, and skewed every figure
+  on the page. Added to the queue's row actions for late loads, behind
+  `appointment.cancel`, with a confirm — it is a black mark against a carrier and
+  cannot be undone from that screen.
+
+**Rule this round: check the words against the code.** Two of the worst defects
+this week were a dialog legend that said the inverse of what the database enforced,
+and a stylesheet comment that stated a rule three rules below it broke. Neither is
+something a renderer-based audit can see.

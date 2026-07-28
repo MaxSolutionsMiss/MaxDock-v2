@@ -142,6 +142,19 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 .recv__stage{position:relative;margin-top:var(--s2);border-radius:var(--radius-lg);overflow:hidden;background:#000;aspect-ratio:1}
 .recv__video{width:100%;height:100%;object-fit:cover;display:block}
 .recv__frame{position:absolute;inset:14%;border:3px solid #fff;border-radius:var(--radius-lg);box-shadow:0 0 0 100vmax rgba(0,0,0,.35)}
+/* Where the truck is, in one tap. Wide targets because this is used one-handed
+   on a phone at a dock door, and the buttons keep the standard control height so
+   they match every other button in the application. */
+.recv__steps{border:none;padding:var(--s3) 0 0;margin:var(--s3) 0 0;border-top:1px solid var(--rule);display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:var(--s2)}
+.recv__steps>legend{padding:0;margin-bottom:var(--s2);font-size:var(--t-micro);text-transform:uppercase;letter-spacing:.07em;color:var(--ink-muted);font-weight:600}
+/* One code can end in the same digits as another. The candidates are rows, not a
+   dropdown — a receiver reads reference, time and company and taps one. */
+.recv__picks{display:grid;gap:var(--s2)}
+.recv__pick{font-family:inherit;font-size:var(--t-base);text-align:left;background:var(--surface);border:1px solid var(--rule-strong);border-radius:var(--radius);padding:var(--s2) var(--s3);cursor:pointer;display:grid;grid-template-columns:auto 1fr;gap:2px var(--s3);align-items:baseline;color:var(--ink)}
+.recv__pick:hover{background:var(--surface-sunk);border-color:var(--dock)}
+.recv__pick-ref{font-weight:600;color:var(--dock-deep)}
+.recv__pick-when{color:var(--ink-muted);font-size:var(--t-small);justify-self:end}
+.recv__pick-who{grid-column:1/-1;color:var(--ink-muted);font-size:var(--t-small);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .inline-controls .field{flex:0 1 auto;min-width:0}
 /* Explanatory prose stops at a readable measure rather than running the width
    of a wall display. */
@@ -288,7 +301,7 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 
 /* segmented filter tabs */
 .tabs{display:inline-flex;background:var(--surface-sunk);border-radius:var(--radius);padding:2px}
-.tabs button{font-family:inherit;font-size:var(--t-small);font-weight:500;border:none;background:none;color:var(--ink-muted);min-height:32px;padding:0 14px;border-radius:4px;cursor:pointer}
+.tabs button{font-family:inherit;font-size:var(--t-small);font-weight:500;border:none;background:none;color:var(--ink-muted);min-height:var(--ctl-h);height:var(--ctl-h);padding:0 14px;border-radius:4px;cursor:pointer}
 .tabs button[aria-pressed="true"]{background:var(--surface);color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.08)}
 
 /* next appointment strip */
@@ -299,6 +312,12 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
    can reach it. */
 .scrim{position:fixed;inset:0;background:rgba(22,32,42,.45);display:grid;justify-items:center;align-items:safe center;overflow-y:auto;padding:var(--s5);z-index:50}
 .modal{background:var(--surface);border-radius:var(--radius-lg);box-shadow:var(--shadow-overlay);width:min(760px,100%);max-height:calc(100dvh - 48px);display:flex;flex-direction:column;overflow:hidden}
+/* Three dialog widths, named. A dialog that holds one question should not be as
+   wide as one that holds a form, and picking the number inline meant four
+   dialogs had four different answers. */
+.modal--md{width:min(560px,100%)}
+.modal--sm{width:min(460px,100%)}
+.modal--xs{width:min(420px,100%)}
 .modal__head{display:flex;align-items:center;gap:var(--s3);padding:var(--s3) var(--s4);border-bottom:1px solid var(--rule);flex:none}
 .modal__title{font-size:var(--t-lead);font-weight:600;margin:0}
 .modal__sub{font-size:var(--t-small);color:var(--ink-muted)}
@@ -321,6 +340,11 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 
 .field{display:flex;flex-direction:column;gap:4px}
 .field__label{font-size:var(--t-micro);text-transform:uppercase;letter-spacing:.07em;color:var(--ink-muted);font-weight:600}
+/* The same lettering as a field label, but heading a group rather than naming an
+   input. It was .field__label with an inline margin on three booking steps, so a
+   heading and a field caption were the same class saying different things. */
+.grouplabel{font-size:var(--t-micro);text-transform:uppercase;letter-spacing:.07em;color:var(--ink-muted);font-weight:600;display:block;margin:var(--s4) 0 var(--s2)}
+.grouplabel:first-child{margin-top:0}
 .field__opt{text-transform:none;letter-spacing:0;font-weight:400;color:var(--ink-faint)}
 /* Required is marked, optional is spelled out — between them every field on a
    form says which it is without the operator having to submit and find out. */
@@ -356,6 +380,17 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 .frow>.field--dur{grid-column:span 3;min-width:150px}
 .frow>.field--num .input{text-align:left;min-width:48px}
 .frow>.field--full{grid-column:1/-1}
+/* A control that acts on the field beside it sits on that field's baseline, not
+   the row's top — otherwise it floats above the label it belongs to. Alignment
+   only: the width still comes from a field-- class, because baking a span in
+   here overrode the one the element already carried and left the rest of the
+   row empty. */
+.frow>.field-action{align-self:end}
+/* One name for "this control sits at the end of its band". The same declaration
+   was written inline on six pages, which is how one role drifts to a different
+   offset on each of them. Dialog feet already place their primary button; this
+   is for the bands that are not dialog feet. */
+.at-end{margin-left:auto}
 /* Keyed to the container, not the viewport: a dialog is a fixed 760px wide however
    large the window is, so a viewport media query collapsed rows that had room. */
 .modal__body,.card{container-type:inline-size}
@@ -387,6 +422,9 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 .slotpick button[aria-pressed="true"]{background:var(--dock);border-color:var(--dock);color:#fff}
 .slotpick button:disabled{background:var(--surface-sunk);color:var(--ink-faint);cursor:not-allowed;text-decoration:line-through}
 .hint{font-size:var(--t-small);color:var(--ink-muted);margin:var(--s2) 0 0}
+/* Prose that opens a step, above the fields rather than under one. */
+.hint--lead{margin:0 0 var(--s4)}
+.hint--flush{margin:0}
 
 /* settings + reports specifics */
 /* The panel sizes to its content and the page stops stretching it. A short section
@@ -423,6 +461,8 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 .setnav button[aria-current="true"]{background:var(--dock-wash);color:var(--dock-deep);font-weight:600}
 .setpanel{min-width:0;max-width:1040px}
 .card{background:var(--surface);border:1px solid var(--rule);border-radius:var(--radius-lg);padding:var(--s4)}
+/* Stacked cards space themselves rather than each page choosing a gap. */
+.setpanel>.card+.card{margin-top:var(--s4)}
 /* One vertical rhythm inside cards, dialogs and wizard steps. A .frow spaces its
    own children but carried no margin of its own, so two stacked rows read as a
    single crowded block — the label of the second row sat on the control of the
@@ -522,6 +562,7 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
    one at a time, in one band above the queue. */
 .brief{background:linear-gradient(180deg,var(--dock-wash),var(--surface));border:1px solid var(--dock);border-radius:var(--radius-lg);padding:var(--s3) var(--s4);margin-bottom:var(--s3);display:flex;flex-direction:column;gap:var(--s2);min-height:0}
 .brief__head{display:flex;align-items:center;gap:var(--s2)}
+.brief__head .linkBtn{margin-left:auto}
 .brieffigs{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:var(--s2)}
 .brieffig{display:flex;flex-direction:column;gap:1px;padding:var(--s2) var(--s3);background:var(--surface);border:1px solid var(--rule);border-left:3px solid var(--dock);border-radius:var(--radius)}
 .brieffig--signal{border-left-color:var(--signal)} .brieffig--signal .brieffig__v{color:var(--signal)}
@@ -611,9 +652,11 @@ body.modal-open{overflow:hidden}
    anything to say — a visible dead band between the last field and the button. */
 .form-message:empty{display:none}
 .form-message--success{color:var(--ok)}
-.text-link{min-height:var(--tap);border:0;background:transparent;color:var(--dock-deep);padding:0 var(--s2);display:inline-flex;align-items:center;justify-content:center;cursor:pointer;text-decoration:underline;text-underline-offset:2px}
+.text-link{min-height:var(--ctl-h);border:0;background:transparent;color:var(--dock-deep);padding:0 var(--s2);display:inline-flex;align-items:center;justify-content:center;cursor:pointer;text-decoration:underline;text-underline-offset:2px}
 .btn--danger{color:var(--stop);border-color:var(--rule-strong);background:var(--surface)}
 .field--full{max-width:none}
+/* A checkbox that opens a new subject rather than continuing the row above. */
+.check-row--spaced{margin-top:var(--s4)}
 .check-row{min-height:var(--tap);display:flex;align-items:flex-start;gap:var(--s3);padding:var(--s3);border:1px solid var(--rule);border-radius:var(--radius);background:var(--surface)}
 .check-row input{width:18px;height:18px;margin-top:2px;flex:none}
 .check-row span{display:grid;gap:2px}
@@ -621,6 +664,17 @@ body.modal-open{overflow:hidden}
 .inline-note{margin-bottom:var(--s4);padding:var(--s3);border-left:3px solid var(--dock);background:var(--dock-wash);color:var(--dock-deep);border-radius:var(--radius)}
 .inline-note--warning{margin-top:var(--s4);border-left-color:var(--signal);background:var(--signal-wash);color:var(--signal);display:grid;gap:2px}
 .qr-frame{width:196px;max-width:100%;aspect-ratio:1;margin:0 auto;padding:var(--s2);border:1px solid var(--rule);border-radius:var(--radius);background:var(--surface)}
+/* The screen after a booking succeeds. It was assembled from six inline styles
+   and a .modal__foot stripped back to nothing, which is a component being used
+   for its layout and then argued with. */
+.booked{text-align:center;padding:var(--s4) 0}
+.booked .tag{font-size:var(--t-base);padding:4px 10px}
+.booked__ref{margin:var(--s2) 0;font-family:var(--font-data);font-size:var(--t-metric);color:var(--dock-deep)}
+.booked__qr{text-align:center}
+.booked__actions{display:flex;flex-wrap:wrap;gap:var(--s2);margin-top:var(--s4)}
+.booked__actions>.btn--primary{margin-left:auto}
+/* Setup minutes is two digits. Sized to that, not to the row. */
+.input--mins{width:74px}
 .qr-frame svg{width:100%;height:100%;display:block}
 
 /* Toast notifications — shared across every page via js/ui/toast.js */
@@ -684,7 +738,7 @@ body.modal-open{overflow:hidden}
 .next-appointment__time,.next-appointment__message{color:var(--ink-muted)}
 .next-appointment__reference{min-width:0;padding:var(--s3) 0 0;border-top:1px solid var(--rule);display:grid;gap:var(--s1);overflow-wrap:anywhere}
 .appointment-toolbar{min-height:var(--tap);margin:var(--s4) 0 var(--s3);display:flex;align-items:center;justify-content:space-between;gap:var(--s3)}
-.appointment-toolbar__meta,.profile{display:flex;align-items:center;gap:var(--s3);min-height:34px}
+.appointment-toolbar__meta,.profile{display:flex;align-items:center;gap:var(--s3);min-height:var(--ctl-h)}
 /* Stretches to the band's height so a line of text does not sit shorter than the
    controls beside it. */
 .controls>.appointment-toolbar__meta{align-self:stretch}
@@ -706,6 +760,9 @@ body.modal-open{overflow:hidden}
 .appointment-detail__label{color:var(--ink-muted);font-size:var(--t-micro);white-space:nowrap;flex:none}
 .appointment-detail__value{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500}
 .appointment-card__actions{display:flex;gap:var(--s1);margin-left:auto;flex:none}
+/* More than one action can apply to a row — a late truck can still arrive, or be
+   written off. They sit together and the cell does not grow. */
+.rowactions{display:flex;gap:var(--s2);justify-content:flex-end}
 .status{min-height:24px;padding:3px 8px;border-radius:var(--radius);display:inline-flex;align-items:center;background:var(--surface-sunk);color:var(--ink-muted);font-size:var(--t-micro);font-weight:600;white-space:nowrap;margin-left:var(--s3)}
 .status--scheduled,.status--confirmed{background:var(--dock-wash);color:var(--dock-deep)}
 .status--arrived,.status--in_progress{background:var(--signal-wash);color:var(--signal)}

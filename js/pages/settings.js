@@ -111,8 +111,8 @@ function renderHours() {
     const isOpen = row.is_open !== false;
     return `<div class="hourrow" data-day="${day}">
       <span class="day">${DAY_LABELS[day]}</span>
-      <input class="input" type="time" name="open" value="${escapeHtml(timeInput(row.open_time))}" ${isOpen ? '' : 'disabled'} ${canEdit ? '' : 'readonly disabled'}>
-      <input class="input" type="time" name="close" value="${escapeHtml(timeInput(row.close_time))}" ${isOpen ? '' : 'disabled'} ${canEdit ? '' : 'readonly disabled'}>
+      <input class="input" type="time" name="open" aria-label="${DAY_LABELS[day]} opening time" value="${escapeHtml(timeInput(row.open_time))}" ${isOpen ? '' : 'disabled'} ${canEdit ? '' : 'readonly disabled'}>
+      <input class="input" type="time" name="close" aria-label="${DAY_LABELS[day]} closing time" value="${escapeHtml(timeInput(row.close_time))}" ${isOpen ? '' : 'disabled'} ${canEdit ? '' : 'readonly disabled'}>
       <button type="button" class="switch ${isOpen ? '' : 'switch--off'}" data-hours-switch aria-pressed="${isOpen}" aria-label="${DAY_LABELS[day]} open" ${canEdit ? '' : 'disabled'}></button>
     </div>`;
   }).join('');
@@ -272,7 +272,7 @@ function renderDocks() {
     return `<div class="setrow" data-truck-code="${type.code}">
       <div><div class="setrow__t">${escapeHtml(type.name)}</div></div>
       <div class="setrow__ctl">
-        <span class="inputwrap"><input class="input" type="number" min="0" style="width:74px" name="setup_minutes" value="${enabled ? enabled.setup_minutes : 0}" ${state.canManage ? '' : 'disabled'} aria-label="${escapeHtml(type.name)} setup minutes"><span class="input__unit">min setup</span></span>
+        <span class="inputwrap"><input class="input input--mins" type="number" min="0" name="setup_minutes" value="${enabled ? enabled.setup_minutes : 0}" ${state.canManage ? '' : 'disabled'} aria-label="${escapeHtml(type.name)} setup minutes"><span class="input__unit">min setup</span></span>
         <button type="button" class="switch ${enabled?.is_active !== false && enabled ? '' : 'switch--off'}" data-truck-switch aria-pressed="${Boolean(enabled)}" aria-label="Enable ${escapeHtml(type.name)}" ${state.canManage ? '' : 'disabled'}></button>
       </div>
     </div>`;
@@ -282,7 +282,7 @@ function renderDocks() {
       <h3 class="card__title">Docks${canEditDocks ? '<button class="btn btn--primary btn--sm" type="button" data-add-dock>Add dock</button>' : ''}</h3>
       <div class="tablewrap"><table class="table"><thead><tr><th>Dock</th><th>Direction</th><th>Status</th><th>Truck types</th><th></th><th class="col-fill"></th></tr></thead><tbody>${rows}</tbody></table></div>
     </div>
-    <div class="card" style="margin-top:var(--s4)">
+    <div class="card">
       <form data-section-form="truck-types">
         <h3 class="card__title">Truck types enabled at this location</h3>
         ${truckRows}

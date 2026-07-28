@@ -103,6 +103,28 @@ if (cssRuleBytes > 60 * 1024) fail('assets/maxdock.css', `CSS rule budget exceed
 if (cssBytes > 80 * 1024) fail('assets/maxdock.css', `CSS file budget exceeded: ${Math.round(cssBytes / 1024)} KB including comments.`);
 if (jsBytes > 120 * 1024) fail('js/', `Stage 1 JavaScript budget exceeded: ${Math.round(jsBytes / 1024)} KB.`);
 
+// One stylesheet means one place a spacing decision is made. An inline style is a
+// second place, and the same visual role written inline on six pages is how six
+// pages end up with six different offsets — which is what the owner keeps seeing
+// as things not lining up.
+//
+// Two inline styles are legitimate and stay allowed: a CSS custom property
+// carrying data into the stylesheet (--c, --kpi-cols, --rows), and a value
+// computed at render time from a template expression (a timeline block's left
+// and width, a bar's height). Anything else is a declaration that belongs in
+// assets/maxdock.css under a name.
+const styleAttribute = /style="([^"]*)"/g;
+for (const file of readdirSync(join(ROOT, 'js/pages')).map(name => `js/pages/${name}`)
+  .concat(readdirSync(join(ROOT, 'js/ui')).map(name => `js/ui/${name}`))) {
+  const source = readFileSync(join(ROOT, file), 'utf8');
+  for (const [, value] of source.matchAll(styleAttribute)) {
+    const computed = value.includes('${');
+    const customPropertyOnly = value.split(';').filter(Boolean).every(part => part.trim().startsWith('--'));
+    if (computed || customPropertyOnly) continue;
+    fail(file, `inline style "${value}" — give it a class in assets/maxdock.css instead.`);
+  }
+}
+
 console.log('\nMaxDock Stage 1 shell verification');
 console.log('─'.repeat(58));
 if (failures.length) {

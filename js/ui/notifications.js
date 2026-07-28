@@ -47,7 +47,7 @@ export function createNotificationBell(context) {
   backdrop.hidden = true;
   backdrop.setAttribute('aria-hidden', 'true');
   backdrop.innerHTML = `
-    <section class="modal" role="dialog" aria-modal="true" aria-labelledby="notif-title" style="width:min(560px,100%)">
+    <section class="modal modal--md" role="dialog" aria-modal="true" aria-labelledby="notif-title">
       <div class="modal__head">
         <div><h2 class="modal__title" id="notif-title">Notifications</h2><p class="modal__sub" data-notif-sub></p></div>
         <button class="modal__x" type="button" data-notif-close aria-label="Close">×</button>
@@ -55,7 +55,7 @@ export function createNotificationBell(context) {
       <div class="modal__body"><div data-notif-list></div></div>
       <div class="modal__foot">
         <button class="btn btn--quiet" type="button" data-notif-mark-all>Mark all as read</button>
-        <button class="btn btn--primary" type="button" data-notif-close style="margin-left:auto">Done</button>
+        <button class="btn btn--primary" type="button" data-notif-close>Done</button>
       </div>
     </section>`;
   document.body.append(backdrop);

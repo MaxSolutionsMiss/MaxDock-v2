@@ -17,15 +17,31 @@ import { format } from '../format.js';
 //      uses BarcodeDetector where the browser has it, and simply is not offered
 //      where it does not, rather than presenting a camera that cannot read.
 //
-// Either way the load is shown before anything changes, so a wrong scan is
-// caught by the person holding the phone.
+//   3. A typed booking number, for paperwork that will not scan. Everything past
+//      the lookup works from the appointment's id, so all three routes converge
+//      on the same screen and the same status controls.
+//
+// Whichever way in, the load is shown before anything changes, so a wrong scan
+// is caught by the person holding the phone.
 
 const state = {
   context: null,
   appointment: null,
+  matches: [],
   scanner: null,
   elements: {},
 };
+
+// What a receiver can set from the dock, in the order the truck moves through
+// them. "Loading" or "Unloading" depends on which way the load is going — the
+// same word for both would be wrong half the time.
+const STATUS_STEPS = [
+  { id: 'arrived', label: 'At the dock' },
+  { id: 'in_progress', label: direction => (direction === 'outbound' ? 'Loading' : 'Unloading') },
+  { id: 'completed', label: 'Complete' },
+];
+
+const stepLabel = (step, direction) => (typeof step.label === 'function' ? step.label(direction) : step.label);
 
 const escapeHtml = value => String(value ?? '').replace(/[&<>'"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[char]));
 
@@ -38,8 +54,7 @@ function tokenFromUrl() {
 
 // The QR carries a full URL so a phone camera can open it. Older codes carried
 // "MAXDOCK|id|reference"; those are read too rather than rejected, so paperwork
-// already printed keeps working — it just cannot check anything in, because the
-// reference is not a token.
+// already printed keeps working — the reference goes down the typed-code path.
 function tokenFromScan(text) {
   const raw = String(text || '').trim();
   if (/^[0-9a-f-]{36}$/i.test(raw)) return raw;
@@ -49,6 +64,15 @@ function tokenFromScan(text) {
     if (/^[0-9a-f-]{36}$/i.test(String(value || ''))) return value;
   } catch { /* not a URL — fall through */ }
   return null;
+}
+
+// What a receiver types off the paperwork. References run MXD-2026-000071, so
+// the last few digits are enough — anything from two digits up, with or without
+// the MXD and the dashes, because nobody standing at a dock types punctuation.
+function referenceFromInput(text) {
+  const raw = String(text || '').trim();
+  const digits = raw.replace(/\D/g, '');
+  return digits.length >= 2 ? raw : null;
 }
 
 // Two boxes, not one. Scanning and typing a code are two different jobs and a
@@ -66,9 +90,9 @@ function renderIdle(message = '') {
         <div class="recv__stage" data-stage hidden><video class="recv__video" data-video playsinline muted></video><div class="recv__frame" aria-hidden="true"></div></div>
       </section>
       <section class="card recv__box">
-        <h3 class="card__title">Or enter the code</h3>
-        <p class="hint">If the code will not scan, type or paste it from the paperwork.</p>
-        <label class="field field--full"><span class="field__label">Appointment code</span><input class="input" data-token placeholder="0000-0000" autocomplete="off" inputmode="text"></label>
+        <h3 class="card__title">Or enter the booking number</h3>
+        <p class="hint">The last few digits off the paperwork are enough — for MXD-2026-000071, type 71 or 0071.</p>
+        <label class="field field--full"><span class="field__label">Booking number</span><input class="input" data-token placeholder="0071" autocomplete="off" inputmode="numeric" enterkeyhint="search"></label>
         <div class="form-actions"><button class="btn btn--quiet btn--block" type="button" data-lookup>Find the appointment</button></div>
       </section>
       ${message ? `<p class="form-message">${escapeHtml(message)}</p>` : ''}
@@ -79,12 +103,48 @@ function detail(label, value) {
   return `<div class="confirmgrid__cell"><span class="confirmgrid__l">${escapeHtml(label)}</span><span class="confirmgrid__v">${escapeHtml(value ?? '—')}</span></div>`;
 }
 
+// More than one load can end in the same few digits. Rather than guess, the
+// receiver is shown the candidates and picks — reference, time and company are
+// enough to tell them apart at a glance.
+function renderMatches(records) {
+  state.matches = records;
+  state.elements.host.innerHTML = `
+    <section class="card recv">
+      <h3 class="card__title">${records.length} loads match that number</h3>
+      <p class="hint">Pick the one at your dock, or type more digits.</p>
+      <div class="recv__picks">
+        ${records.map((record, index) => {
+          const location = { timezone: record.location_timezone };
+          return `<button class="recv__pick" type="button" data-pick="${index}">
+            <span class="recv__pick-ref data">${escapeHtml(record.booking_reference)}</span>
+            <span class="recv__pick-when">${escapeHtml(format.shortDateInput(format.inputDate(record.start_at, location), location))} · ${escapeHtml(format.time(record.start_at, location))}</span>
+            <span class="recv__pick-who">${escapeHtml(record.company_name || record.carrier_name || format.role(record.direction))}</span>
+          </button>`;
+        }).join('')}
+      </div>
+      <div class="form-actions"><button class="btn btn--quiet" type="button" data-again>Start again</button></div>
+    </section>`;
+}
+
+// The status chooser the owner asked for: whatever the truck is doing, the
+// receiver says so in one tap. Every step stays available rather than only the
+// next one, because a receiver who forgot to scan on arrival is standing there
+// with a loaded truck and needs Complete, not a lecture about order.
+function statusButtons(record) {
+  const current = String(record.status || '');
+  return STATUS_STEPS.map(step => {
+    const label = stepLabel(step, record.direction);
+    const isCurrent = step.id === current;
+    return `<button class="btn ${isCurrent ? 'btn--primary' : 'btn--quiet'}" type="button" data-status="${step.id}" ${isCurrent ? 'aria-current="true"' : ''}>${escapeHtml(label)}</button>`;
+  }).join('');
+}
+
 function renderAppointment(record) {
   const location = { timezone: record.location_timezone };
   const when = `${format.time(record.start_at, location)}–${format.time(record.end_at, location)}`;
   state.elements.host.innerHTML = `
     <section class="card recv">
-      <h3 class="card__title">${escapeHtml(record.booking_reference || 'Appointment')}<span class="status">${escapeHtml(format.role(record.status))}</span></h3>
+      <h3 class="card__title">${escapeHtml(record.booking_reference || 'Appointment')}<span class="status status--${escapeHtml(String(record.status || ''))}">${escapeHtml(format.role(record.status))}</span></h3>
       <div class="confirmgrid">
         ${detail('Location', record.location_name)}
         ${detail('Dock', record.dock_name)}
@@ -97,13 +157,23 @@ function renderAppointment(record) {
         ${detail('PO / BOL / job', record.external_reference)}
       </div>
       ${record.already_checked_in
-        ? `<p class="form-message form-message--success">Received ${escapeHtml(format.timestamp(record.checked_in_at, location))}${record.driver_name ? ` · driver ${escapeHtml(record.driver_name)}` : ''}.</p>`
-        : `<div class="inline-controls" style="margin-top:var(--s4)">
-             <label class="field"><span class="field__label">Driver <span class="field__opt">optional</span></span><input class="input" data-driver maxlength="120" autocomplete="name" value="${escapeHtml(record.driver_name || '')}"></label>
-             <button class="btn btn--primary" type="button" data-confirm>At the dock</button>
-           </div>`}
+        ? `<p class="form-message form-message--success">First seen ${escapeHtml(format.timestamp(record.checked_in_at, location))}${record.driver_name ? ` · driver ${escapeHtml(record.driver_name)}` : ''}.</p>`
+        : ''}
+      <label class="field field--md"><span class="field__label">Driver <span class="field__opt">optional</span></span><input class="input" data-driver maxlength="120" autocomplete="name" value="${escapeHtml(record.driver_name || '')}"></label>
+      <fieldset class="recv__steps"><legend>Where is this truck?</legend>${statusButtons(record)}</fieldset>
       <div class="form-actions"><button class="btn btn--quiet" type="button" data-again>Scan another</button></div>
     </section>`;
+}
+
+function showResult(rows, emptyMessage) {
+  const records = Array.isArray(rows) ? rows : [rows].filter(Boolean);
+  if (!records.length) { renderIdle(emptyMessage); return; }
+  if (records.length === 1) {
+    state.appointment = records[0];
+    renderAppointment(records[0]);
+    return;
+  }
+  renderMatches(records);
 }
 
 async function lookup(token) {
@@ -113,30 +183,56 @@ async function lookup(token) {
       key: `receiving:lookup:${token}`, cache: 0, retry: 1,
       userMessage: 'That appointment could not be looked up.',
     });
-    const record = Array.isArray(rows) ? rows[0] : rows;
-    if (!record) { renderIdle('That code does not match an appointment at a location you can receive for.'); return; }
-    state.appointment = record;
-    renderAppointment(record);
+    showResult(rows, 'That code does not match an appointment at a location you can receive for.');
   } catch (error) {
     renderIdle(error.userMessage || error.message || 'That appointment could not be looked up.');
   }
 }
 
-async function confirmArrival() {
+async function lookupByReference(code) {
+  if (!code) { toast('Enter at least the last two digits of the booking number.', 'error'); return; }
+  try {
+    const rows = await db.rpc('lookup_appointment_by_reference', { p_code: code }, {
+      key: `receiving:ref:${code}`, cache: 0, retry: 1,
+      userMessage: 'That booking number could not be looked up.',
+    });
+    showResult(rows, 'No load with that number is booked around today at a location you can receive for.');
+  } catch (error) {
+    renderIdle(error.userMessage || error.message || 'That booking number could not be looked up.');
+  }
+}
+
+// Re-reads the appointment after the change so the screen shows what the server
+// actually holds, not what the tap was meant to do.
+async function refreshCurrent() {
   const record = state.appointment;
   if (!record) return;
-  const button = state.elements.host.querySelector('[data-confirm]');
-  if (button) button.disabled = true;
+  const rows = await db.rpc('lookup_appointment_by_reference', { p_code: record.booking_reference }, {
+    key: `receiving:refresh:${record.appointment_id}:${Date.now()}`, cache: 0, retry: 1,
+  }).catch(() => null);
+  const fresh = (Array.isArray(rows) ? rows : []).find(row => row.appointment_id === record.appointment_id);
+  if (fresh) { state.appointment = fresh; renderAppointment(fresh); }
+}
+
+async function setStatus(status) {
+  const record = state.appointment;
+  if (!record) return;
+  const buttons = [...state.elements.host.querySelectorAll('[data-status]')];
+  for (const button of buttons) button.disabled = true;
   try {
-    await db.rpc('check_in_appointment', {
-      p_token: new URL(globalThis.location.href).searchParams.get('t') || state.lastToken,
+    const result = await db.rpc('receive_appointment', {
+      p_appointment_id: record.appointment_id,
+      p_status: status,
       p_driver_name: state.elements.host.querySelector('[data-driver]')?.value || null,
-    }, { key: `receiving:checkin:${crypto.randomUUID()}`, retry: 0 });
-    toast(`${record.booking_reference} is at the dock.`, 'success');
-    await lookup(state.lastToken);
+    }, { key: `receiving:status:${crypto.randomUUID()}`, retry: 0 });
+    db.invalidate('queue:schedule:');
+    db.invalidate('board:schedule:');
+    const step = STATUS_STEPS.find(item => item.id === status);
+    toast(`${result.booking_reference} · ${stepLabel(step, record.direction).toLowerCase()}.`, 'success');
+    await refreshCurrent();
   } catch (error) {
-    toast(error.userMessage || error.message || 'That truck could not be checked in.', 'error');
-    if (button) button.disabled = false;
+    toast(error.userMessage || error.message || 'That status could not be set.', 'error');
+    for (const button of buttons) button.disabled = false;
   }
 }
 
@@ -159,7 +255,7 @@ async function startScanner() {
       try {
         const found = await detector.detect(video);
         const token = found.map(code => tokenFromScan(code.rawValue)).find(Boolean);
-        if (token) { stopScanner(); state.lastToken = token; await lookup(token); return; }
+        if (token) { stopScanner(); await lookup(token); return; }
       } catch { /* a frame that cannot be read is not an error worth showing */ }
       globalThis.requestAnimationFrame(tick);
     };
@@ -177,17 +273,35 @@ function stopScanner() {
   state.scanner = null;
 }
 
+function submitCode(root) {
+  const typed = root.querySelector('[data-token]')?.value;
+  // A pasted check-in link or a full token still works here; anything else is
+  // treated as a booking number, which is what a receiver actually types.
+  const token = tokenFromScan(typed);
+  if (token) { lookup(token); return; }
+  lookupByReference(referenceFromInput(typed));
+}
+
 function wireEvents(root) {
   root.addEventListener('click', event => {
     if (event.target.closest('[data-scan]')) { startScanner(); return; }
-    if (event.target.closest('[data-lookup]')) {
-      const token = tokenFromScan(root.querySelector('[data-token]')?.value);
-      state.lastToken = token;
-      lookup(token);
+    if (event.target.closest('[data-lookup]')) { submitCode(root); return; }
+    const status = event.target.closest('[data-status]');
+    if (status) { setStatus(status.dataset.status); return; }
+    const pick = event.target.closest('[data-pick]');
+    if (pick) {
+      state.appointment = state.matches[Number(pick.dataset.pick)];
+      if (state.appointment) renderAppointment(state.appointment);
       return;
     }
-    if (event.target.closest('[data-confirm]')) { confirmArrival(); return; }
-    if (event.target.closest('[data-again]')) { state.appointment = null; renderIdle(); }
+    if (event.target.closest('[data-again]')) { state.appointment = null; state.matches = []; renderIdle(); }
+  });
+  // A phone keyboard offers Go, not a button press. Typing a number and hitting
+  // it is the whole interaction for a receiver who is not scanning.
+  root.addEventListener('keydown', event => {
+    if (event.key !== 'Enter' || !event.target.matches('[data-token]')) return;
+    event.preventDefault();
+    submitCode(root);
   });
 }
 
@@ -201,7 +315,6 @@ const page = {
     state.elements = { host: context.pageRoot.querySelector('[data-receiving-host]') };
     wireEvents(context.pageRoot);
     const token = tokenFromUrl();
-    state.lastToken = token;
     if (token) await lookup(token);
     else renderIdle();
   },

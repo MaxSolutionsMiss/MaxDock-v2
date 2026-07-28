@@ -136,9 +136,15 @@ function renderTable() {
     const late = isLate(record);
     const statusText = late ? 'Late' : format.role(record.status);
     const colorVar = late ? 'var(--stop)' : ACTIVE_STATUSES.has(record.status) ? 'var(--ok)' : record.status === 'completed' ? 'var(--ink-faint)' : 'var(--signal)';
-    let action = '';
-    if (EXPECTED_STATUSES.has(record.status) && can('appointment.update')) action = `<button class="btn btn--quiet btn--sm" type="button" data-arrive="${record.id}">Arrive</button>`;
-    else if (ACTIVE_STATUSES.has(record.status) && can('appointment.complete')) action = `<button class="btn btn--quiet btn--sm" type="button" data-complete="${record.id}">Complete</button>`;
+    // A truck that never turns up has to be closed off by somebody. Without this
+    // it stays "Late" for the rest of the day, keeps a dock nominally reserved,
+    // and counts against every figure on the page — the status existed in the
+    // database and there was no way in the application to set it.
+    const actions = [];
+    if (EXPECTED_STATUSES.has(record.status) && can('appointment.update')) actions.push(`<button class="btn btn--quiet btn--sm" type="button" data-arrive="${record.id}">Arrive</button>`);
+    else if (ACTIVE_STATUSES.has(record.status) && can('appointment.complete')) actions.push(`<button class="btn btn--quiet btn--sm" type="button" data-complete="${record.id}">Complete</button>`);
+    if (late && can('appointment.cancel')) actions.push(`<button class="btn btn--danger btn--sm" type="button" data-no-show="${record.id}" data-reference="${escapeHtml(record.booking_reference || '')}">No show</button>`);
+    const action = `<div class="rowactions">${actions.join('')}</div>`;
     return `<tr>
       <td class="data data--strong">${escapeHtml(format.time(record.start_at, state.context.location))}</td>
       <td class="data">${escapeHtml(record.booking_reference || '—')}</td>
@@ -300,7 +306,7 @@ function renderBriefCard() {
   const narrative = state.briefLoading
     ? '<span class="brief__x">Generating today’s narrative…</span>'
     : `<ul class="briefpoints">${points.map(point => `<li>${escapeHtml(point)}</li>`).join('')}</ul>${state.brief?.brief ? `<span class="tag tag--quiet">${escapeHtml(state.brief.mode === 'ai' ? 'AI-generated' : 'MaxDock rules analysis')}</span>` : ''}`;
-  host.innerHTML = `<div class="brief__head"><span class="brief__ico">AI</span><div class="brief__t">${escapeHtml(state.context.location.name)} · today at a glance</div><button class="linkBtn" type="button" data-share-brief style="margin-left:auto">Share with team</button></div>
+  host.innerHTML = `<div class="brief__head"><span class="brief__ico">AI</span><div class="brief__t">${escapeHtml(state.context.location.name)} · today at a glance</div><button class="linkBtn" type="button" data-share-brief>Share with team</button></div>
     <div class="brieffigs">${figures}</div>
     <div class="brief__body">${narrative}</div>`;
 }
@@ -415,7 +421,7 @@ async function changeStatus(appointmentId, newStatus) {
     await db.rpc('change_appointment_status', { p_appointment_id: appointmentId, p_new_status: newStatus, p_reason: null }, { key: `queue:status:${appointmentId}:${crypto.randomUUID()}`, retry: 0 });
     db.invalidate('queue:schedule:');
     db.invalidate('board:schedule:');
-    toast(newStatus === 'arrived' ? 'Marked arrived.' : 'Marked complete.', 'success');
+    toast({ arrived: 'Marked arrived.', completed: 'Marked complete.', no_show: 'Marked as a no-show — the dock is released.' }[newStatus] || 'Status updated.', 'success');
     await refreshData();
   } catch (error) {
     toast(error.userMessage || 'The status could not be changed.', 'error');
@@ -442,7 +448,7 @@ function buildShell(root) {
       </div>
       <div>
         <div class="heat"><h3 class="heat__t">Dock heatmap</h3><div class="heatgrid" data-heat></div><p class="hint">Darker = busier.</p></div>
-        <div class="watch" style="margin-top:var(--s3)"><h3 class="watch__t">Watch for</h3><div data-watch></div></div>
+        <div class="watch"><h3 class="watch__t">Watch for</h3><div data-watch></div></div>
       </div>
     </div>`;
   state.elements = {
@@ -476,6 +482,12 @@ function wireEvents(root) {
     if (arrive) changeStatus(arrive.dataset.arrive, 'arrived');
     const complete = event.target.closest('[data-complete]');
     if (complete) changeStatus(complete.dataset.complete, 'completed');
+    const noShow = event.target.closest('[data-no-show]');
+    // Asked for rather than done on one tap: a no-show is a black mark against a
+    // carrier and it cannot be undone from this screen.
+    if (noShow && globalThis.confirm(`Mark ${noShow.dataset.reference || 'this appointment'} as a no-show? The dock is released and the carrier's record shows a missed appointment.`)) {
+      changeStatus(noShow.dataset.noShow, 'no_show');
+    }
   });
 }
 

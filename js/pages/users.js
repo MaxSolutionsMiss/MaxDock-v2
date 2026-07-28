@@ -411,7 +411,7 @@ function buildShell(root) {
         <span class="data--strong" data-bulk-count></span>
         <button class="btn btn--quiet btn--sm" type="button" data-bulk-activate>Activate</button>
         <button class="btn btn--quiet btn--sm" type="button" data-bulk-deactivate>Deactivate</button>
-        <button class="text-link" type="button" data-bulk-clear style="margin-left:auto">Clear selection</button>
+        <button class="text-link at-end" type="button" data-bulk-clear>Clear selection</button>
       </div>
       <div class="panel__scroll"><table class="table"><thead><tr><th><label class="cellcheck"><input type="checkbox" data-select-all aria-label="Select all users"></label></th><th>Name</th><th>Username</th><th>Email</th><th>Role</th><th>Status</th><th>Last seen</th><th class="col-fill">Locations</th><th></th></tr></thead><tbody data-rows></tbody></table></div>
     </div>
@@ -445,7 +445,7 @@ function buildShell(root) {
           <div class="modal__foot" data-add-foot><button class="btn btn--quiet" type="button" data-close-add>Cancel</button><button class="btn btn--primary" type="submit">Create account</button></div>
         </form>
         <div class="modal__body" data-add-result hidden></div>
-        <div class="modal__foot" data-add-result-foot hidden><button class="btn btn--primary" type="button" data-close-add style="margin-left:auto">Done</button></div>
+        <div class="modal__foot" data-add-result-foot hidden><button class="btn btn--primary" type="button" data-close-add>Done</button></div>
       </section>
     </div>
     <div class="scrim" data-edit-backdrop hidden aria-hidden="true">
@@ -464,14 +464,14 @@ function buildShell(root) {
             <div class="setrow"><div><div class="setrow__t">Active</div><div class="setrow__d">Inactive accounts cannot sign in</div></div><button type="button" class="switch" data-active-switch data-self-locked aria-label="Active"></button></div>
             <div class="frow">
               <label class="field field--xl"><span class="field__label">Username</span><input class="input" name="username" maxlength="50" pattern="[A-Za-z0-9._-]{3,50}" title="3–50 letters, numbers, dots, dashes or underscores"></label>
-              <div style="align-self:end"><button class="btn btn--quiet btn--sm" type="button" data-change-username>Update username</button></div>
+              <div class="field-action field--md"><button class="btn btn--quiet btn--sm" type="button" data-change-username>Update username</button></div>
             </div>
             <div data-edit-reset-result hidden></div>
           </div>
           <div class="modal__foot">
             <button class="btn btn--quiet" type="button" data-reset-password>Reset password</button>
-            <button class="btn btn--quiet" type="button" data-delete-user style="color:var(--stop)">Delete user</button>
-            <button class="btn btn--primary" type="submit" style="margin-left:auto">Save changes</button>
+            <button class="btn btn--danger" type="button" data-delete-user>Delete user</button>
+            <button class="btn btn--primary" type="submit">Save changes</button>
           </div>
         </form>
       </section>

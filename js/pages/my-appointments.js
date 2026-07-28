@@ -581,8 +581,7 @@ function buildPage(root, context) {
   // so the answer comes back from the server rather than being guessed here.
   const moveBackdrop = createElement('div', 'scrim');
   moveBackdrop.hidden = true;
-  const moveDialog = createElement('section', 'modal');
-  moveDialog.style.width = 'min(460px,100%)';
+  const moveDialog = createElement('section', 'modal modal--sm');
   moveDialog.setAttribute('role', 'dialog');
   moveDialog.setAttribute('aria-modal', 'true');
   moveDialog.setAttribute('aria-labelledby', 'move-appointment-title');

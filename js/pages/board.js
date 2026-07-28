@@ -270,7 +270,7 @@ function buildShell(root) {
             <div class="setrow"><div><div class="setrow__t">Priority load</div><div class="setrow__d">Applies this location's priority minimum duration</div></div><button type="button" class="switch" data-priority-switch aria-label="Priority load"></button></div>
             <label class="field field--full"><span class="field__label">Notes</span><textarea name="notes" rows="2" maxlength="500"></textarea></label>
             <p class="form-message" data-edit-message aria-live="polite"></p>
-            <h3 class="watch__t" style="margin-top:var(--s4)">Change history</h3>
+            <h3 class="watch__t">Change history</h3>
             <div data-edit-history></div>
           </div>
           <div class="modal__foot"><button class="btn btn--quiet" type="button" data-close-edit>Cancel</button><button class="btn btn--primary" type="submit">Save changes</button></div>

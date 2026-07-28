@@ -142,6 +142,28 @@
       driver_name: null, checked_in_at: null, already_checked_in: false,
     }],
     check_in_appointment: () => ({ appointment_id: 'a2', booking_reference: 'MXD-2026-000141', status: 'arrived', checked_in_at: iso(8), driver_name: 'A. Driver', end_at: iso(9) }),
+    // A typed booking number returns two candidates, which is the branch worth
+    // auditing: one match renders the load, more than one has to render a list
+    // the receiver can read and pick from.
+    lookup_appointment_by_reference: () => [
+      {
+        appointment_id: 'a2', booking_reference: 'MXD-2026-000141', location_id: 'loc-1',
+        location_name: 'Pickering', location_timezone: 'America/Toronto', dock_name: 'Dock 3',
+        start_at: iso(8), end_at: iso(9), direction: 'outbound', status: 'scheduled',
+        company_name: 'Haleon – Oakhill', carrier_name: 'Day & Ross', skid_count: 10,
+        truck_type: '48 ft Trailer', external_reference: 'BOL-4412',
+        driver_name: null, checked_in_at: null, already_checked_in: false,
+      },
+      {
+        appointment_id: 'a5', booking_reference: 'MXD-2026-000241', location_id: 'loc-1',
+        location_name: 'Pickering', location_timezone: 'America/Toronto', dock_name: 'Dock 1',
+        start_at: iso(14), end_at: iso(15), direction: 'inbound', status: 'confirmed',
+        company_name: 'Stone Management', carrier_name: 'Purolator', skid_count: 4,
+        truck_type: '26 ft Straight Truck', external_reference: 'PO-9931',
+        driver_name: null, checked_in_at: null, already_checked_in: false,
+      },
+    ],
+    receive_appointment: (args) => ({ appointment_id: 'a2', booking_reference: 'MXD-2026-000141', status: args?.p_status || 'arrived', checked_in_at: iso(8), driver_name: args?.p_driver_name || null }),
     settle_due_appointments: () => 0,
     reschedule_my_appointment: () => ({ appointment_id: 'a4', booking_reference: 'MXD-2026-000143', start_at: iso(11, 0, 3), end_at: iso(12, 0, 3), dock_name: 'Dock 2' }),
     // The booking wizard is only reachable past step 3 if slots come back, so the
@@ -181,7 +203,7 @@
         resetPasswordForEmail: () => result({}), updateUser: () => result({}),
       },
       from: table => builder(table),
-      rpc: (name) => result(RPC[name] ? RPC[name]() : null),
+      rpc: (name, args) => result(RPC[name] ? RPC[name](args) : null),
       functions: { invoke: () => result({ mode: 'rules', brief: { title: 'Pickering Operations Brief', summary: 'Three appointments today with 31 inbound and 10 outbound skids.', pressures: [], opportunities: [], actions: [] } }) },
     }),
   } });

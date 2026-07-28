@@ -79,6 +79,33 @@ const MODALS = {
   ],
 };
 
+// Some pages have more than one state worth measuring and no dialog to open. The
+// receiving screen is one layout before a load is found, another when a typed
+// booking number matches several, and another once one is picked — auditing only
+// the state a query string lands on leaves the other two unmeasured.
+const FLOWS = {
+  receiving: [
+    { name: 'idle', query: '' },
+    {
+      name: 'matches',
+      query: '',
+      act: async page => { await page.fill('[data-token]', '41'); await page.click('[data-lookup]'); },
+      expect: '[data-pick]',
+    },
+    {
+      name: 'picked',
+      query: '',
+      act: async page => {
+        await page.fill('[data-token]', '41');
+        await page.click('[data-lookup]');
+        await page.waitForTimeout(350);
+        await page.click('[data-pick="0"]');
+      },
+      expect: '[data-status]',
+    },
+  ],
+};
+
 const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.png': 'image/png', '.svg': 'image/svg+xml' };
 const server = createServer((req, res) => {
   const file = path.join(ROOT, decodeURIComponent(req.url.split('?')[0]));
@@ -416,6 +443,33 @@ for (const name of PAGES) {
     }
 
     report(name, width, await page.evaluate(collect, null));
+
+    if (MODAL_WIDTHS.has(width)) {
+      for (const flow of FLOWS[name] || []) {
+        const where = `${name} › ${flow.name}`;
+        await page.goto(`http://127.0.0.1:${PORT}/app/${name}.html${flow.query}`, { waitUntil: 'networkidle' });
+        await page.waitForTimeout(600);
+        if (flow.act) {
+          try {
+            await flow.act(page);
+          } catch (error) {
+            add(where, width, 'flow-step-unreachable', String(error.message).split('\n')[0].slice(0, 120));
+            continue;
+          }
+          await page.waitForTimeout(500);
+        }
+        // The same trap as the dialogs: every rule below is "must not be wrong",
+        // so a state that never appeared passes them all. Name what each step is
+        // supposed to produce and check it is there before measuring.
+        if (flow.expect && !(await page.locator(flow.expect).count())) {
+          add(where, width, 'flow-state-missing', `${flow.expect} never appeared`);
+          continue;
+        }
+        report(where, width, await page.evaluate(collect, null));
+      }
+      await page.goto(`http://127.0.0.1:${PORT}/app/${name}.html${PAGE_QUERY[name] || ''}`, { waitUntil: 'networkidle' });
+      await page.waitForTimeout(600);
+    }
 
     if (MODAL_WIDTHS.has(width)) {
       for (const spec of MODALS[name] || []) {
