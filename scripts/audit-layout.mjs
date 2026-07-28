@@ -484,8 +484,15 @@ for (const name of PAGES) {
           await page.locator(spec.prepare).first().click({ timeout: 4000 }).catch(() => {});
           await page.waitForTimeout(400);
         }
-        const trigger = page.locator(spec.trigger).first();
-        if (!(await trigger.count())) { add(where, width, 'modal-trigger-missing', `no ${spec.trigger} on the page`); continue; }
+        // Visible ones only. A page can hold several matches where the first in
+        // DOM order is legitimately hidden — a card for a truck that has already
+        // arrived correctly offers neither Cancel nor Move — and .first() picked
+        // that one and timed out clicking it. Which card came first depended on
+        // the clock, because the fixture's times are relative to now, so this
+        // passed locally and failed on CI an hour later. Auditing a control a
+        // user could not click proves nothing either way.
+        const trigger = page.locator(`${spec.trigger} >> visible=true`).first();
+        if (!(await trigger.count())) { add(where, width, 'modal-trigger-missing', `no visible ${spec.trigger} on the page`); continue; }
         try {
           await trigger.click({ timeout: 4000 });
         } catch (error) {

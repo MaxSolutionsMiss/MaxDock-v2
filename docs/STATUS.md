@@ -384,3 +384,35 @@ threshold `isLate` uses to colour a load late on the operations queue. One defin
 of late in the product, not two. The percentage is over trucks that **arrived**, so a
 cancellation is not averaged in as a late arrival — the distinction that decides
 whether a scorecard is fair enough to show a vendor.
+
+## The layout job failed on CI and passed locally (2026-07-28)
+
+Worth recording because the flake was in the audit, not the application, and the
+reason it flickered is a trap any renderer-based gate can fall into.
+
+`layout` failed on CI with `.btn--danger` and `[data-move-appointment]` on My
+appointments "could not be clicked — timeout". The same sweep had just run clean
+locally on the same commit.
+
+Neither button is broken. The page holds four `.btn--danger`, and the audit took
+`.first()`. The first in DOM order belongs to a card whose truck has already
+arrived, so Cancel and Move are correctly hidden — `display:none`, zero by zero.
+Playwright waited four seconds for a hidden element to become clickable and gave
+up. Which card sorts first depends on the wall clock, because the fixture's times
+are `today at 07:00`, `today at 08:00` and so on relative to `now`: run the audit
+before 07:00 and the arrived truck is still "upcoming" and sorts first; run it
+later and it drops out of the view and a cancellable card takes its place. Local
+run and CI run were an hour apart on either side of that line.
+
+Fixed by asking for a control a user could actually click:
+`page.locator(`${trigger} >> visible=true`).first()`.
+
+Verified both directions rather than assuming: reverting to `.first()` reproduces
+CI's exact failure locally — same two triggers, same timeout — and the
+visible-only locator passes. Confirmed with a DOM probe first, which showed the
+first match at 0×0 with `display:none` while the second and third were 36×36 and
+hit-testable.
+
+**Rule: a UI gate must drive the interface the way a person can. Acting on the
+first node that matches a selector, rather than the first one a user could reach,
+makes the result depend on invisible elements — and here, on the time of day.**
