@@ -159,6 +159,10 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 /* Explanatory prose stops at a readable measure rather than running the width
    of a wall display. */
 .hint--measure{max-width:82ch}
+/* Explanatory text under a row of fields runs the width of those fields rather
+   than stopping at a reading measure — a short column of prose under a wide row
+   leaves a ragged hole to its right. */
+.hint--wide{max-width:none}
 .controls__end{grid-column:3;justify-self:end;display:flex;flex-wrap:wrap;align-items:end;gap:var(--s2)}
 
 /* Cards wrap to fit rather than being forced into a fixed column count. At 768px the
@@ -279,12 +283,12 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 .panel__body:last-child{border-bottom:none}
 .table{width:100%;border-collapse:collapse}
 .tablewrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
-.table th{position:sticky;top:0;font-size:var(--t-micro);text-transform:uppercase;letter-spacing:.07em;color:var(--ink-muted);font-weight:600;text-align:left;padding:var(--s2) var(--s3);background:var(--surface-sunk);border-bottom:1px solid var(--rule);white-space:nowrap}
+.table th{position:sticky;top:0;font-size:var(--t-micro);text-transform:uppercase;letter-spacing:.07em;color:var(--ink-muted);font-weight:600;text-align:left;padding:var(--s2) var(--s2);background:var(--surface-sunk);border-bottom:1px solid var(--rule);white-space:nowrap}
 /* Without this the widest content column absorbs all the slack and the columns
    after it are flung to the far edge of the screen. Marking the actions column as
    the one that fills packs every data column against its neighbour instead. */
 .table th.col-fill{width:100%}
-.table td{padding:7px var(--s3);border-bottom:1px solid var(--rule);vertical-align:middle;white-space:nowrap}
+.table td{padding:7px var(--s2);border-bottom:1px solid var(--rule);vertical-align:middle;white-space:nowrap}
 /* Nothing in a row wraps. A long list elides at the end of its line rather than
    stacking, so every row is the same height and the table keeps its shape. The
    full value is in the cell's title attribute and on the record itself. */
@@ -379,10 +383,13 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 /* Same shape as a fixed unit label, but the unit is the manager's to pick. */
 .unitsel{width:auto;flex:none;border-left:none;border-radius:0 var(--radius) var(--radius) 0;background:var(--surface-sunk);color:var(--ink-muted);font-size:var(--t-small);padding:0 4px 0 6px}
 .field .unitsel{width:auto}
-.frow>.field--num{grid-column:span 2;min-width:96px}
+.frow>.field--num{grid-column:span 2;min-width:124px}
 /* A number with its unit as a choice needs room for the widest unit word. */
 .frow>.field--dur{grid-column:span 3;min-width:150px}
-.frow>.field--num .input{text-align:left;min-width:48px}
+.frow>.field--num .input{text-align:left;min-width:58px}
+/* A date and time reads as one value or it reads as nothing. Below this the
+   browser clips the minutes off the end rather than shrinking the text. */
+.input[type="datetime-local"]{min-width:206px}
 .frow>.field--full{grid-column:1/-1}
 /* A control that acts on the field beside it sits on that field's baseline, not
    the row's top — otherwise it floats above the label it belongs to. Alignment
@@ -410,6 +417,13 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 /* One window to a line, read left to right as a sentence: which dock, which day,
    which direction, from when, to when. Sized to its controls rather than spread
    across the card. */
+/* Two cards abreast where the panel has the width for it. The dock table is
+   five short columns and the truck list is a name and a number, so stacking them
+   left half the panel empty and pushed the second card below the fold. */
+.sidebyside{display:flex;flex-wrap:wrap;gap:var(--s4);align-items:start}
+.sidebyside>*{flex:1 1 340px;min-width:0}
+.sidebyside>:first-child{flex-grow:2}
+.sidebyside>.card+.card{margin-top:0}
 .dirlist{display:grid;gap:var(--s2)}
 .dirrow{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1.2fr) minmax(0,1.2fr) auto auto auto;gap:var(--s2);align-items:center;max-width:820px}
 .dirrow .input[type="time"]{width:auto}
@@ -625,7 +639,13 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 .watch{background:var(--surface);border:1px solid var(--rule);border-radius:var(--radius-lg);padding:var(--s3) var(--s4);overflow:auto}.watch__t{font-size:var(--t-base);font-weight:600;margin:0 0 var(--s3)}.watchitem{display:flex;gap:var(--s2);padding:var(--s2) 0;border-bottom:1px solid var(--rule);font-size:var(--t-small)}.watchitem:last-child{border:none}.watchitem b{display:block}.wdot{width:8px;height:8px;border-radius:50%;flex:none;margin-top:4px;background:var(--c)}
 
 /* Capacity components — approved page-5-settings.html */
-.setrow{display:grid;grid-template-columns:minmax(0,220px) auto;justify-content:start;gap:var(--s4);align-items:center;padding:6px 0;border-bottom:1px solid var(--rule)}
+/* Title, explanation and switch on one line. The 220px title column forced the
+   explanation to wrap under it, so every toggle cost three lines of height for
+   one setting — and a page of them read as a stack of paragraphs rather than a
+   list of switches. */
+.setrow{display:grid;grid-template-columns:minmax(0,1fr) auto;justify-content:stretch;gap:var(--s3) var(--s4);align-items:center;padding:6px 0;border-bottom:1px solid var(--rule)}
+.setrow>div:first-child{display:flex;align-items:baseline;gap:var(--s3);min-width:0;flex-wrap:wrap}
+.setrow__d{min-width:0}
 /* A single on/off with a one-word label does not need the 220px name column the
    settings list uses — the switch sits beside the word. */
 .setrow--tight{grid-template-columns:auto auto;gap:var(--s3);border-bottom:none}
@@ -637,9 +657,13 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 .modal__body .setrow--tight{grid-template-columns:minmax(0,1fr) auto}
 /* A rule under a row whose section is closed is a line with nothing beneath it.
    The divider belongs to the pair, so it goes when the pair is not shown. */
+/* A switch with nothing else on its row sits directly after the words it acts on.
+   Across a full-width card the stretched version parked it a hand's width away
+   from its own label, at the far edge of the screen. */
+.setrow.setrow--lead{grid-template-columns:max-content max-content;justify-content:start;column-gap:var(--s4)}
 .setrow:has(+ [hidden]){border-bottom:none}
 .setrow:last-of-type{border-bottom:none}
-.setrow__ctl{display:flex;align-items:center;gap:var(--s3)}.setrow:last-child{border:none}.setrow__t{font-size:var(--t-base);font-weight:500}.setrow__d{font-size:var(--t-small);color:var(--ink-muted)}
+.setrow__ctl{display:flex;align-items:center;gap:var(--s3)}.setrow:last-child{border:none}.setrow__t{font-size:var(--t-base);font-weight:500;white-space:nowrap}.setrow__d{font-size:var(--t-small);color:var(--ink-muted)}
 
 /* Password reveal — approved production stylesheet */
 .passwordField{position:relative;display:flex;align-items:center}.passwordField .input{padding-right:calc(var(--tap) + 2px)}.passwordReveal{position:absolute;right:0;top:0;height:100%;width:var(--tap);display:flex;align-items:center;justify-content:center;border:none;background:none;color:var(--ink-muted);cursor:pointer;border-radius:var(--radius)}.passwordReveal:hover{color:var(--ink)}.passwordReveal svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.7}
@@ -685,7 +709,7 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 input[type="checkbox"],input[type="radio"]{width:16px;height:16px;accent-color:var(--dock);flex:none;margin:0}
 .table input[type="checkbox"]{width:16px;height:16px}
 /* The whole cell toggles the row, not just the 16px box. */
-.cellcheck{display:flex;align-items:center;justify-content:center;min-height:32px;margin:-7px calc(var(--s3) * -1);padding:7px var(--s3);cursor:pointer}
+.cellcheck{display:flex;align-items:center;justify-content:center;min-height:32px;margin:-7px calc(var(--s2) * -1);padding:7px var(--s2);cursor:pointer}
 .broadcast{background:var(--rail);min-height:100vh}
 .field__hint{margin:0;font-size:var(--t-small);color:var(--ink-muted)}
 .login-card__sub{font-size:var(--t-small);color:var(--ink-muted)}

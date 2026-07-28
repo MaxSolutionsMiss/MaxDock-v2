@@ -35,6 +35,8 @@ function clean(value) {
   return String(value ?? '').trim();
 }
 
+const escapeHtml = value => String(value ?? '').replace(/[&<>'"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[char]));
+
 function isStaff() {
   return !context.customerShell;
 }
@@ -111,19 +113,22 @@ function createInitialForm() {
   };
 }
 
-async function loadEnabledRows(mappingTable, codeColumn, masterTable, locationId) {
+// extraColumns are read from the per-location mapping row and merged onto the
+// master row, so a location's own settings (a trailer's skid capacity, say)
+// travel with the option instead of needing a second round trip.
+async function loadEnabledRows(mappingTable, codeColumn, masterTable, locationId, extraColumns = '') {
   const mappings = await db.select(mappingTable, query => query
-    .select(codeColumn)
+    .select(extraColumns ? `${codeColumn}, ${extraColumns}` : codeColumn)
     .eq('location_id', locationId)
     .eq('is_active', true), {
-    key: `booking:${mappingTable}:${locationId}`,
+    key: `booking:${mappingTable}:${locationId}${extraColumns ? ':full' : ''}`,
     cache: 300000,
     retry: 1,
     userMessage: 'The enabled booking options could not be loaded.',
   });
   const codes = (mappings || []).map(row => row[codeColumn]);
   if (!codes.length) return [];
-  return db.select(masterTable, query => query
+  const rows = await db.select(masterTable, query => query
     .select('code, name, sort_order')
     .in('code', codes)
     .eq('is_active', true)
@@ -133,6 +138,9 @@ async function loadEnabledRows(mappingTable, codeColumn, masterTable, locationId
     retry: 1,
     userMessage: 'The enabled booking options could not be loaded.',
   });
+  if (!extraColumns) return rows;
+  const byCode = new Map((mappings || []).map(row => [row[codeColumn], row]));
+  return (rows || []).map(row => ({ ...byCode.get(row.code), ...row }));
 }
 
 async function loadTemplates() {
@@ -151,7 +159,7 @@ async function loadReferenceData() {
   const locationId = currentLocation().id;
   const requests = [
     loadEnabledRows('location_appointment_types', 'appointment_type_code', 'appointment_types', locationId),
-    loadEnabledRows('location_truck_types', 'truck_type_code', 'truck_types', locationId),
+    loadEnabledRows('location_truck_types', 'truck_type_code', 'truck_types', locationId, 'skid_capacity'),
     loadEnabledRows('location_handling_types', 'handling_type_code', 'handling_types', locationId),
     db.select('location_settings', query => query
       .select('slot_interval_minutes, suggest_same_day_consolidation, consolidation_window_hours')
@@ -235,7 +243,7 @@ function buildShell() {
         </div>
         <div class="modal__foot">
           <button class="btn btn--quiet" type="button" data-action="view-existing">View existing appointment</button>
-          <button class="btn btn--quiet" type="button" data-action="combine-load">Go back and combine</button>
+          <button class="btn btn--quiet" type="button" data-action="combine-load">Choose loads to combine</button>
           <button class="btn btn--primary" type="button" data-action="continue-separately">Continue separately</button>
         </div>
       </section>
@@ -425,6 +433,27 @@ function renderLoadStep() {
   if (priority) priority.value = state.form.is_priority ? '1' : '';
 }
 
+// How full the trailer is, in the destination's own numbers. The skid capacity
+// of a truck type is set per location under Settings › Locations and docks, so a
+// site that double-stacks says so and its trailers hold more.
+function trailerFullness() {
+  const capacity = truckCapacity();
+  if (!capacity) return '';
+  const skids = combinedSkids();
+  const free = capacity - skids;
+  const truck = selectedName(state.reference.truckTypes, state.form.truck_type_code) || 'This truck';
+  if (free < 0) return `${truck} holds ${capacity} skids · ${skids} booked · ${-free} over`;
+  return `${truck} holds ${capacity} skids · ${skids} booked · room for ${free} more`;
+}
+
+function renderFullness() {
+  const note = context.pageRoot.querySelector('[data-fullness]');
+  if (!note) return;
+  const text = trailerFullness();
+  note.textContent = text;
+  note.hidden = !text;
+}
+
 function renderVehicleStep() {
   hosts.step.innerHTML = `
     <div class="frow">
@@ -432,10 +461,12 @@ function renderVehicleStep() {
       <div class="field field--md"><span class="field__label">Handling<span class="field__req" aria-hidden="true">*</span></span><select class="select" data-field="handling_type_code"></select></div>
       <div class="field field--md"><span class="field__label">Carrier or courier</span><input class="input" data-field="carrier_name" maxlength="120" autocomplete="organization"></div>
     </div>
+    <p class="hint hint--flush hint--wide" data-fullness hidden></p>
 `;
   addOptions(hosts.step.querySelector('[data-field="truck_type_code"]'), state.reference.truckTypes, state.form.truck_type_code, 'Choose a truck type');
   addOptions(hosts.step.querySelector('[data-field="handling_type_code"]'), state.reference.handlingTypes, state.form.handling_type_code, 'Choose a handling type');
   hosts.step.querySelector('[data-field="carrier_name"]').value = state.form.carrier_name;
+  renderFullness();
 }
 
 function renderSlotCards() {
@@ -453,7 +484,9 @@ function renderSlotCards() {
     return;
   }
   if (!state.slots.length) {
-    host.append(element('p', 'hint', 'Choose a date and select “Find available times”.'));
+    host.append(element('p', 'hint hint--wide', selectedMatches().length
+      ? `Nothing at ${currentLocation().name} fits ${combinedSkids()} skids in one window. Untick a load to book it separately, or try another date.`
+      : 'Choose a date and select “Find available times”.'));
     return;
   }
 
@@ -469,7 +502,7 @@ function renderSlotCards() {
     const note = element('p', 'hint hint--flush');
     note.append(
       `This load needs ${format.duration(minutes)} at the dock`,
-      element('span', '', ` · ${state.form.skid_count || 0} skids · ${selectedName(state.reference.truckTypes, state.form.truck_type_code) || 'selected truck'}`),
+      element('span', '', ` · ${combinedSkids()} skids · ${selectedName(state.reference.truckTypes, state.form.truck_type_code) || 'selected truck'}`),
       '. Every time below has that much room at ',
       element('strong', '', currentLocation().name),
       '.',
@@ -517,6 +550,7 @@ function renderTimeStep() {
           <div class="field field--sm"><span class="field__label">Custom start time</span><input class="input" data-field="custom_time" type="time" step="${Math.max(1, Number(state.reference.settings.slot_interval_minutes || 30)) * 60}"></div>
           <label class="check-row"><input type="checkbox" data-field="after_hours_acknowledged"><span><strong>I confirm this appointment may be outside operating hours</strong><small>This explicit acknowledgement is required before MaxDock sends the override to the booking RPC.</small></span></label>
         </div>` : ''}` : ''}
+    <div data-combine-shelf></div>
     ${!state.form.after_hours ? `
       <div class="grouplabel">Available · ${state.form.date ? format.longDateInput(state.form.date, receivingLocation()) : 'choose a date'}</div>
       <div data-slot-list></div>` : ''}`;
@@ -528,6 +562,7 @@ function renderTimeStep() {
   if (customTime) customTime.value = state.form.custom_time;
   const acknowledged = hosts.step.querySelector('[data-field="after_hours_acknowledged"]');
   if (acknowledged) acknowledged.checked = state.form.after_hours_acknowledged;
+  renderCombinePicker();
   renderSlotCards();
 }
 
@@ -557,16 +592,21 @@ function summaryRows() {
   const route = state.form.movement_kind === 'max' && counterpart
     ? (state.form.direction === 'inbound' ? `${counterpart.name} → ${location.name}` : `${location.name} → ${counterpart.name}`)
     : (state.form.direction === 'inbound' ? `${clean(state.form.company_name) || state.form.requester_type} → ${location.name}` : `${location.name} → ${clean(state.form.company_name) || state.form.requester_type}`);
+  const combined = selectedMatches();
+  const capacity = truckCapacity();
   return [
     ['Route', route],
     ['Appointment type', type],
-    ['Vehicle', truck],
+    ['Vehicle', truck + (capacity ? ` · ${capacity} skid trailer` : '')],
     ['Handling', handling],
-    ['Skids', String(state.form.skid_count ?? 0)],
+    ['Skids', `${state.form.skid_count ?? 0} skids${combined.length ? ` · ${combinedSkids()} skids on the truck` : ''}`],
     ['PO / BOL / job', clean(state.form.external_reference) || 'Not entered'],
     ['Date', selectedDate() || 'Not selected'],
     ['Time', selectedTime() || 'Not selected'],
     ['Requester', clean(state.form.requester_name) || 'Not entered'],
+    ...(combined.length
+      ? [['Combined with', combined.map(match => clean(match.booking_reference) || 'Existing appointment').join(', ')]]
+      : []),
   ];
 }
 
@@ -738,7 +778,12 @@ function setStep(next) {
   if (target === 2) poll.suspend(SLOT_SUSPENSION);
   renderAll();
   hosts.step.focus();
-  if (target === 2 && !state.form.after_hours && !state.slots.length) findSlots();
+  if (target !== 2) return;
+  // An after-hours request never asks for slots, so it would never reach the
+  // code that looks for loads to combine with. Ask for them directly.
+  if (state.form.after_hours) loadCombinable().then(renderCombinePicker);
+  else if (!state.slots.length) findSlots();
+  else renderCombinePicker();
 }
 
 async function findSlots(options = {}) {
@@ -751,6 +796,10 @@ async function findSlots(options = {}) {
   state.slotLoading = true;
   state.slotError = '';
   if (!options.quiet) renderTimeStep();
+  // Loads that could travel together are found before the times are, because a
+  // combined load needs a longer window and the times have to reflect that.
+  if (!options.keepCombinable) await loadCombinable();
+  if (!options.quiet) renderCombinePicker();
 
   const routed = state.form.movement_kind === 'max';
   const rpcName = routed ? 'list_routed_appointment_slots' : 'list_capacity_aware_appointment_slots';
@@ -761,7 +810,7 @@ async function findSlots(options = {}) {
     p_direction: state.form.direction,
     p_appointment_type_code: state.form.appointment_type_code,
     p_truck_type_code: state.form.truck_type_code,
-    p_skid_count: Number(state.form.skid_count || 0),
+    p_skid_count: combinedSkids(),
     p_handling_type_code: state.form.handling_type_code,
     p_is_priority: isStaff() && Boolean(state.form.is_priority),
     p_preferred_start_time: state.form.preferred_start_time || null,
@@ -821,17 +870,21 @@ function partyMatches(record) {
 // Two loads are combinable if they land close enough together. "Close enough" is
 // the same calendar day by default, or a window of N hours either side when the
 // location has configured one.
-function withinConsolidationWindow(startAt, targetDate, timezone) {
+function withinConsolidationWindow(startAt, targetDate, timezone, sameDayOnly) {
   const hours = Number(state.reference.settings.consolidation_window_hours || 0);
-  if (!hours) return format.sameLocalDate(startAt, targetDate, { timezone });
+  // The picker runs before a time is chosen, so an hours-either-side window has
+  // nothing to measure from. It offers the whole day and the narrower window
+  // still applies to the guard that runs at submit.
+  if (!hours || sameDayOnly) return format.sameLocalDate(startAt, targetDate, { timezone });
   const target = state.form.selected_slot?.slot_start || `${targetDate}T${selectedTime() || '00:00'}`;
   return Math.abs(format.minutesBetween(target, startAt)) <= hours * 60;
 }
 
-async function findSameDayAppointments() {
+async function findSameDayAppointments(options = {}) {
   if (!state.reference.settings.suggest_same_day_consolidation) return [];
   const targetDate = selectedDate();
   if (!targetDate) return [];
+  const sameDayOnly = Boolean(options.sameDayOnly);
 
   if (context.customerShell) {
     const rows = await db.rpc('list_my_appointments', {}, {
@@ -843,7 +896,7 @@ async function findSameDayAppointments() {
       !TERMINAL_STATUSES.has(clean(record.status).toLowerCase())
       && record.location_name === currentLocation().name
       && clean(record.direction).toLowerCase() === state.form.direction
-      && withinConsolidationWindow(record.start_at, targetDate, record.location_timezone)
+      && withinConsolidationWindow(record.start_at, targetDate, record.location_timezone, sameDayOnly)
     );
   }
 
@@ -856,7 +909,7 @@ async function findSameDayAppointments() {
     record.entry_kind === 'appointment'
     && !TERMINAL_STATUSES.has(clean(record.status).toLowerCase())
     && clean(record.display_direction || record.direction).toLowerCase() === state.form.direction
-    && withinConsolidationWindow(record.start_at, targetDate, currentLocation().timezone)
+    && withinConsolidationWindow(record.start_at, targetDate, currentLocation().timezone, sameDayOnly)
     && partyMatches(record)
   );
 }
@@ -874,6 +927,105 @@ function renderConsolidationMatches(matches) {
     row.append(left, right);
     hosts.consolidationList.append(row);
   }
+}
+
+// ---------------------------------------------------------------------------
+// Combining loads
+//
+// The same-day matches are offered on the Time step, where they can change the
+// answer: ticking one adds its skids to this load, and the times below are
+// re-fetched for the combined skid count. Nothing is merged in the database —
+// MaxDock records which references travel together in the appointment notes and
+// leaves the existing appointments exactly as they are.
+// ---------------------------------------------------------------------------
+
+function matchKey(record) {
+  return String(record.id || record.appointment_id || record.booking_reference || '');
+}
+
+function selectedMatches() {
+  return state.combineMatches.filter(match => state.combineSelected.includes(matchKey(match)));
+}
+
+function combinedSkids() {
+  return Number(state.form.skid_count || 0)
+    + selectedMatches().reduce((total, match) => total + Number(match.skid_count || 0), 0);
+}
+
+function truckCapacity() {
+  const truck = (state.reference.truckTypes || []).find(row => row.code === state.form.truck_type_code);
+  const capacity = Number(truck?.skid_capacity || 0);
+  return capacity > 0 ? capacity : 0;
+}
+
+async function loadCombinable() {
+  state.combineMatches = [];
+  if (!state.form.date) {
+    state.combineSelected = [];
+    return;
+  }
+  state.combineLoading = true;
+  try {
+    state.combineMatches = await findSameDayAppointments({ sameDayOnly: true });
+  } catch {
+    state.combineMatches = [];
+  } finally {
+    state.combineLoading = false;
+  }
+  const live = new Set(state.combineMatches.map(matchKey));
+  state.combineSelected = state.combineSelected.filter(key => live.has(key));
+}
+
+function combineSummary() {
+  const chosen = selectedMatches();
+  if (!chosen.length) return '';
+  const capacity = truckCapacity();
+  const total = combinedSkids();
+  const parts = [`Combined load ${total} skids across ${chosen.length + 1} appointments`];
+  if (capacity) {
+    const free = capacity - total;
+    parts.push(free >= 0
+      ? `${total} of ${capacity} skids on the trailer · ${free} skid${free === 1 ? '' : 's'} free`
+      : `${total - capacity} skid${total - capacity === 1 ? '' : 's'} over the ${capacity}-skid trailer`);
+  }
+  return parts.join(' · ');
+}
+
+function renderCombinePicker() {
+  const shelf = hosts.step.querySelector('[data-combine-shelf]');
+  if (!shelf) return;
+  if (state.combineLoading) {
+    shelf.innerHTML = '<p class="hint hint--flush">Checking that day for loads you could combine with…</p>';
+    return;
+  }
+  if (!state.combineMatches.length) {
+    shelf.replaceChildren();
+    return;
+  }
+  const overCapacity = truckCapacity() && combinedSkids() > truckCapacity();
+  shelf.innerHTML = `
+    <div class="grouplabel">Combine with</div>
+    <p class="hint hint--flush hint--wide">${state.combineMatches.length} other ${state.form.direction} load${state.combineMatches.length === 1 ? '' : 's'} already booked that day. Tick the ones travelling with this shipment and the times below are recalculated for the combined skid count.</p>
+    <div class="pickgroup">
+      ${state.combineMatches.map(match => {
+        const key = matchKey(match);
+        const checked = state.combineSelected.includes(key);
+        return `<label class="check-row"><input type="checkbox" data-combine="${escapeHtml(key)}"${checked ? ' checked' : ''}><span><strong>${escapeHtml(match.booking_reference || 'Existing appointment')} · ${escapeHtml(format.time(match.start_at, currentLocation()))}</strong><small>${Number(match.skid_count || 0)} skids · ${escapeHtml(clean(match.carrier_name) || 'Carrier not listed')}${match.company_name ? ` · ${escapeHtml(match.company_name)}` : ''}</small></span></label>`;
+      }).join('')}
+    </div>
+    ${selectedMatches().length ? `<p class="inline-note${overCapacity ? ' inline-note--warning' : ''}">${escapeHtml(combineSummary())}</p>` : ''}`;
+}
+
+async function toggleCombine(key, checked) {
+  state.combineSelected = checked
+    ? [...new Set([...state.combineSelected, key])]
+    : state.combineSelected.filter(entry => entry !== key);
+  if (state.form.after_hours) {
+    renderCombinePicker();
+    return;
+  }
+  clearSlotSelection();
+  await findSlots({ keepCombinable: true });
 }
 
 async function saveTemplate() {
@@ -904,6 +1056,20 @@ async function saveTemplate() {
   return saved;
 }
 
+// Nothing in the database merges two appointments, and nothing should — each one
+// keeps its own reference, its own requester and its own audit trail. What the
+// combined booking carries is the note that says which loads travel together, so
+// the dock, the board and the confirmation all read the same thing.
+function combinedNotes() {
+  const notes = clean(state.form.notes);
+  const references = selectedMatches()
+    .map(match => clean(match.booking_reference))
+    .filter(Boolean);
+  if (!references.length) return notes || null;
+  const line = `Combined load — travelling with ${references.join(', ')}.`;
+  return notes ? `${notes}\n${line}` : line;
+}
+
 function bookingArgs() {
   const routed = state.form.movement_kind === 'max';
   return {
@@ -923,7 +1089,7 @@ function bookingArgs() {
     p_company_name: routed ? counterpartLocation()?.name || null : clean(state.form.company_name) || null,
     p_requester_location_id: routed ? state.form.requester_location_id : null,
     p_carrier_name: clean(state.form.carrier_name) || null,
-    p_notes: clean(state.form.notes) || null,
+    p_notes: combinedNotes(),
     p_after_hours_confirmed: isStaff() && state.form.after_hours && state.form.after_hours_acknowledged,
   };
 }
@@ -965,7 +1131,10 @@ async function attemptBooking() {
   }
   if (!state.sameDayAccepted) {
     try {
-      const matches = await findSameDayAppointments();
+      // Loads already ticked on the Time step are a decision, not a surprise —
+      // only the ones left unticked are worth stopping the booking for.
+      const chosen = new Set(state.combineSelected);
+      const matches = (await findSameDayAppointments()).filter(match => !chosen.has(matchKey(match)));
       if (matches.length) {
         state.sameDayMatches = matches;
         renderConsolidationMatches(matches);
@@ -1059,6 +1228,7 @@ function updateField(target) {
   ]);
   const slotFieldChanged = slotFields.has(field) && previous !== value;
   if (slotFieldChanged) clearSlotSelection();
+  if (field === 'truck_type_code' || field === 'skid_count') renderFullness();
   if (field === 'after_hours' && !value) {
     state.form.custom_time = '';
     state.form.after_hours_acknowledged = false;
@@ -1113,13 +1283,16 @@ async function handleAction(button) {
   } else if (action === 'view-existing') {
     globalThis.location.assign('my-appointments.html?view=upcoming');
   } else if (action === 'combine-load') {
+    // Back to the Time step, where the loads are listed with a tick box beside
+    // each one. It used to land on step one with nothing to tick and a red line
+    // telling the user to work it out themselves.
     sameDayModal.close();
     state.sameDayAccepted = false;
-    state.step = 0;
+    state.step = 2;
     state.maxStep = Math.max(state.maxStep, 4);
     renderAll();
-    setMessage('Review the existing appointment and adjust the skid count or reference to combine the load.');
-    hosts.step.querySelector('[data-field="skid_count"]')?.focus();
+    setMessage('');
+    hosts.step.querySelector('[data-combine]')?.focus();
   } else if (action === 'continue-separately') {
     state.sameDayAccepted = true;
     sameDayModal.close();
@@ -1152,6 +1325,9 @@ async function handleAction(button) {
       slotError: '',
       sameDayMatches: [],
       sameDayAccepted: false,
+      combineMatches: [],
+      combineSelected: [],
+      combineLoading: false,
       confirmation: null,
       busy: false,
     };
@@ -1160,7 +1336,16 @@ async function handleAction(button) {
 }
 
 function bindInteractions() {
-  const onInput = event => updateField(event.target);
+  // A checkbox fires both input and change; the combine picker re-fetches times,
+  // so it answers to change alone rather than doing the round trip twice.
+  const onInput = event => {
+    const combineKey = event.target.dataset?.combine;
+    if (combineKey !== undefined) {
+      if (event.type === 'change') toggleCombine(combineKey, event.target.checked);
+      return;
+    }
+    updateField(event.target);
+  };
   const onClick = event => {
     const button = event.target.closest('[data-action]');
     if (!button) return;
@@ -1200,6 +1385,9 @@ const page = {
       slotError: '',
       sameDayMatches: [],
       sameDayAccepted: false,
+      combineMatches: [],
+      combineSelected: [],
+      combineLoading: false,
       confirmation: null,
       busy: false,
     };

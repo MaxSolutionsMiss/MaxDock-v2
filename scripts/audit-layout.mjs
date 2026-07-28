@@ -451,6 +451,9 @@ function fillOpenDialog() {
     else if (el.type === 'number') el.value = '10';
     else if (el.type === 'email') el.value = 'audit@maxpkgsolutions.com';
     else if (el.type === 'tel') el.value = '905-555-0142';
+    // A company the fixture already has appointments for, so the booking
+    // dialog's combine picker has something to list instead of staying empty.
+    else if (el.dataset.field === 'company_name') el.value = 'Haleon – Oakhill';
     else el.value = 'AUDIT-0001';
     fire(el);
   });
@@ -573,6 +576,19 @@ for (const name of PAGES) {
           if (broken) { add(where, width, 'modal-failed-to-load', broken); break; }
           const label = steps > 1 ? `${where} (step ${step + 1})` : where;
           report(label, width, await page.evaluate(collect, '[data-audit-open]'));
+          // Ticking a load to combine adds a summary line and re-fetches the
+          // times beneath it. That is a different shape from the step with
+          // nothing to combine, so it gets measured on its own.
+          const combined = await page.evaluate(() => {
+            const box = document.querySelector('[data-audit-open] [data-combine]');
+            if (!box || box.checked) return false;
+            box.click();
+            return true;
+          });
+          if (combined) {
+            await page.waitForTimeout(900);
+            report(`${label} combined`, width, await page.evaluate(collect, '[data-audit-open]'));
+          }
           if (step === steps - 1) break;
           await page.evaluate(fillOpenDialog);
           // The time step asks for slots only once a date is set, so they appear

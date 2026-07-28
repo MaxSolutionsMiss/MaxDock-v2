@@ -583,3 +583,59 @@ still selects Dock 1 as before.
 
 **Rule reinforced from the overload incident: never hand-retype a live function to
 change part of it. Transform its stored definition and assert the transformation.**
+
+## Combining loads is a choice you make, not a wall you hit (2026-07-28)
+
+Same-day consolidation existed as a stop sign. At the end of the booking wizard a
+dialog said another appointment already existed that day and offered "Go back and
+combine" — which dropped the user on step one with a red line telling them to
+adjust the skid count themselves. There was nothing to tick, nothing recalculated,
+and no record of the decision. The owner asked for it three times.
+
+The picker now lives on the Time step, where it can change the answer. Every
+same-day appointment in the same direction for the same party is listed with a
+tick box; ticking one adds its skids to this load and re-fetches the times
+underneath for the combined count, so a five-skid booking that becomes thirty
+sees the times a thirty-skid load actually fits — and if none fit, it says so and
+offers to untick rather than failing silently.
+
+The end-of-flow dialog stays, but only for loads left unticked: a load already
+chosen is a decision, not a surprise. Its combine button now lands on the Time
+step with the list in front of you.
+
+Nothing is merged in the database, and nothing should be. Each appointment keeps
+its own reference, requester and audit trail; what the new booking carries is a
+note naming the references travelling with it, and the confirmation summary shows
+both its own skid count and the total on the truck.
+
+Trailer fullness came with it. `location_truck_types.skid_capacity` is set per
+site under Settings › Locations and docks — a site that double-stacks says so and
+its trailers hold more — and the Vehicle step now reads "53 ft Trailer holds 26
+skids · 5 booked · room for 21 more", updating as the truck type or skid count
+changes.
+
+Two audit gaps closed in the same pass. The booking dialog walk typed a company
+name no fixture matched, so the combine picker was empty in every measurement; the
+walker now types a company the fixture has appointments for, and after measuring
+the Time step it ticks a load and measures that shape too. And `.cellcheck` bled
+its click target by `--s3` into cells whose padding had just been tightened to
+`--s2`, overflowing the select-all column by exactly 4px at every width — the kind
+of finding that only appears once the padding either side is the same number.
+
+A last pass over Locations and docks in the same round. `.sidebyside` was a grid
+of `max-content` tracks, and both cards it holds put their content inside an
+`overflow-x:auto` wrapper — which contributes nothing to a max-content track, so
+both collapsed to the 360px floor with a quarter of the row left empty and the
+dock table's Edit column pushed out of sight. It is a wrapping flex row now, the
+first card weighted to grow twice as fast, and the dock table's truck-type column
+elides instead of holding a 24-character floor.
+
+Skids per truck sits under Capacity, below the capacity card rather than beside
+it: a four-field counted-stock row and a one-line "Enforce skid capacity ·
+description · switch" both need the full width, and side by side broke both. The
+switch rows use `.setrow--lead`, which groups title, description and switch at
+the left instead of stretching the switch to the far edge of a wide monitor —
+across 900px the control had drifted a hand's width from the words it acts on.
+And `--num` fields were capped at 96px, which is a "skids" chip plus 44px: three
+digits did not fit. 124px, with datetime-local given a 206px floor and the As-of
+field promoted from `--sm` to `--md` so the minutes stop being clipped off.

@@ -36,8 +36,12 @@ if (!errors.length) {
   requireText(page, /book_routed_appointment/, 'Routed booking RPC is missing.');
   requireText(page, /booking_templates/, 'Booking template persistence is missing.');
   requireText(page, /View existing appointment/, 'Same-day consolidation “View existing” choice is missing.');
-  requireText(page, /Go back and combine/, 'Same-day consolidation “Go back and combine” choice is missing.');
+  requireText(page, /Choose loads to combine/, 'Same-day consolidation “Choose loads to combine” choice is missing.');
   requireText(page, /Continue separately/, 'Same-day consolidation “Continue separately” choice is missing.');
+  requireText(page, /data-combine-shelf/, 'The combine picker is missing from the time step.');
+  requireText(page, /function combinedSkids/, 'Slot search does not account for combined loads.');
+  requireText(page, /p_skid_count: combinedSkids\(\)/, 'The slot search still asks for this load alone, not the combined load.');
+  requireText(page, /function combinedNotes/, 'Combined loads are not recorded on the booking.');
   requireText(page, /poll\.suspend\(SLOT_SUSPENSION\)/, 'The five-second poll is not suspended while the slot picker is open.');
   requireText(page, /poll\.resume\(SLOT_SUSPENSION\)/, 'The slot-picker poll suspension is not released.');
   requireText(page, /p_after_hours_confirmed:\s*isStaff\(\)/, 'After-hours confirmation is not guarded as staff-only.');

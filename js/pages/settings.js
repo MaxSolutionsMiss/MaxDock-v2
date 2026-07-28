@@ -93,7 +93,7 @@ async function fetchAll() {
     db.select('location_settings', q => q.select('*').eq('location_id', locationId).maybeSingle(), { key: `settings:row:${locationId}`, cache: 0 }),
     db.select('docks', q => q.select('id,name,description,sort_order,direction_mode,is_active').eq('location_id', locationId).order('sort_order').order('name'), { key: `settings:docks:${locationId}`, cache: 0 }),
     db.select('truck_types', q => q.select('code,name').eq('is_active', true).order('sort_order'), { key: 'truck-types:active', cache: 60000 }),
-    db.select('location_truck_types', q => q.select('truck_type_code,setup_minutes,is_active').eq('location_id', locationId), { key: `settings:location-truck-types:${locationId}`, cache: 0 }),
+    db.select('location_truck_types', q => q.select('truck_type_code,setup_minutes,is_active,skid_capacity').eq('location_id', locationId), { key: `settings:location-truck-types:${locationId}`, cache: 0 }),
     db.select('dock_truck_types', q => q.select('dock_id,truck_type_code').eq('location_id', locationId), { key: `settings:dock-truck-types:${locationId}`, cache: 0 }),
     db.rpc('get_location_capacity_projection', { p_location_id: locationId, p_at: format.nowIso(), p_direction: 'inbound', p_skid_count: 0 }, { key: `settings:capacity:${locationId}`, cache: 0, retry: 1 }).catch(() => null),
     db.rpc('list_dock_direction_windows', { p_location_id: locationId }, { key: `settings:windows:${locationId}`, cache: 0, retry: 1 }).catch(() => []),
@@ -169,7 +169,7 @@ function renderDirectionWindows(canEdit) {
   return `<form class="card" data-section-form="direction-windows">
     <h3 class="card__title">Inbound and outbound hours${canEdit ? '<button class="btn btn--quiet btn--sm at-end" type="button" data-add-window>Add a window</button>' : ''}</h3>
     <div class="dirlist">${rows || '<p class="hint">No windows set. This location takes inbound and outbound at any time it is open.</p>'}</div>
-    <p class="hint hint--measure">A window says when a door will take a direction — "every dock, every day, takes inbound, 06:00 to 12:00". Leave the dock as Every dock to set the whole site at once. A load has to fit entirely inside a window, so an outbound that would run past the end of the outbound period is not offered. Docks also keep their own Inbound or Outbound setting, which always applies.</p>
+    <p class="hint hint--wide">A window says when a door takes a direction. Leave the dock as Every dock to set the whole site at once. A load must fit entirely inside a window, so an outbound running past the end of the outbound period is not offered. Each dock's own Inbound or Outbound setting still applies.</p>
     ${saveFoot(canEdit)}
   </form>`;
 }
@@ -218,7 +218,7 @@ function renderCapacity() {
   const enabled = s.capacity_enabled === true;
   return `<form class="card" data-section-form="capacity">
     <h3 class="card__title">Capacity</h3>
-    <div class="setrow">
+    <div class="setrow setrow--lead">
       <div><div class="setrow__t">Enforce skid capacity</div><div class="setrow__d">Track occupied skids against a daily capacity for this location</div></div>
       <button type="button" class="switch ${enabled ? '' : 'switch--off'}" data-capacity-switch aria-pressed="${enabled}" aria-label="Enforce skid capacity" ${disabled}></button>
     </div>
@@ -234,14 +234,15 @@ function renderCapacity() {
       <legend>Counted stock</legend>
       <div class="frow">
         <div class="field field--num"><span class="field__label">Counted</span><span class="inputwrap"><input class="input" type="number" min="0" name="current_occupied_skids" value="${s.current_occupied_skids ?? 0}" ${disabled}><span class="input__unit">skids</span></span></div>
-        <div class="field field--sm"><span class="field__label">As of</span><input class="input" type="datetime-local" name="inventory_as_of" value="${escapeHtml(localDateTime(s.inventory_as_of))}" ${disabled}></div>
+        <div class="field field--md"><span class="field__label">As of</span><input class="input" type="datetime-local" name="inventory_as_of" value="${escapeHtml(localDateTime(s.inventory_as_of))}" ${disabled}></div>
         <div class="field field--num"><span class="field__label">Occupied now</span><span class="inputwrap"><input class="input" value="${state.capacity?.projected_before ?? s.current_occupied_skids ?? 0}" readonly tabindex="-1" aria-label="Occupied now, calculated"><span class="input__unit">skids</span></span></div>
         <div class="field field--num"><span class="field__label">Free now</span><span class="inputwrap"><input class="input" value="${state.capacity?.available_after ?? '—'}" readonly tabindex="-1" aria-label="Free now, calculated"><span class="input__unit">skids</span></span></div>
       </div>
-      <p class="hint hint--measure">Walk the floor once, put the count in and stamp it with the time you took it. From that moment MaxDock keeps it current on its own — every booked inbound adds, every outbound subtracts — so nobody has to keep a running total. Occupied now and Free now are what that arithmetic says right now${s.capacity_last_source === 'mis' ? ', last set from an MIS import' : ''}.</p>
+      <p class="hint hint--wide">Enter a floor count and the time it was taken. MaxDock keeps it current from there: every booked inbound adds, every outbound subtracts. Occupied now and Free now are calculated${s.capacity_last_source === 'mis' ? ', last set from an MIS import' : ''}.</p>
     </fieldset>
     ${saveFoot(canEdit)}
-  </form>`;
+  </form>
+  ${renderTruckCapacity(canEdit)}`;
 }
 
 function renderAssignment() {
@@ -252,7 +253,7 @@ function renderAssignment() {
   const consolidation = s.suggest_same_day_consolidation !== false;
   return `<form class="card" data-section-form="assignment">
     <h3 class="card__title">Dock assignment</h3>
-    <div class="setrow">
+    <div class="setrow setrow--lead">
       <div><div class="setrow__t">Auto-assign docks</div><div class="setrow__d">MaxDock picks the dock for each booking</div></div>
       <button type="button" class="switch ${autoAssign ? '' : 'switch--off'}" data-assign-switch aria-pressed="${autoAssign}" aria-label="Auto-assign docks" ${disabled}></button>
     </div>
@@ -263,7 +264,7 @@ function renderAssignment() {
       </select></div>
       <div class="field field--num"><span class="field__label">Max concurrent</span><span class="inputwrap"><input class="input" type="number" min="1" name="max_concurrent_appointments" value="${s.max_concurrent_appointments ?? ''}" placeholder="∞" ${disabled}><span class="input__unit">at once</span></span></div>
     </div>
-    <div class="setrow">
+    <div class="setrow setrow--lead">
       <div><div class="setrow__t">Consolidation warning</div><div class="setrow__d">Offer to combine same-destination loads</div></div>
       <button type="button" class="switch ${consolidation ? '' : 'switch--off'}" data-consolidation-switch aria-pressed="${consolidation}" aria-label="Consolidation warning" ${disabled}></button>
     </div>
@@ -274,6 +275,33 @@ function renderAssignment() {
       </select></div>
       ${durationField('Window', 'consolidation_window_hours', s.consolidation_window_hours ?? '', 'hours', WINDOW_UNITS, s.consolidation_window_hours ? disabled : 'disabled')}
     </div>
+    ${saveFoot(canEdit)}
+  </form>`;
+}
+
+// How many skids each truck type holds here. The same 53 ft trailer is 26 skids
+// single stacked and 52 double stacked, and two sites can load it differently,
+// so the number belongs to the location. Blank means not stated, which reads as
+// unknown — a zero would claim the trailer holds nothing.
+function renderTruckCapacity(canEdit) {
+  const disabled = canEdit ? '' : 'disabled';
+  const enabled = state.locationTruckTypes.filter(row => row.is_active !== false);
+  const rows = state.truckTypes
+    .filter(type => enabled.some(row => row.truck_type_code === type.code))
+    .map(type => {
+      const row = enabled.find(item => item.truck_type_code === type.code);
+      return `<div class="setrow" data-capacity-code="${type.code}">
+        <div><div class="setrow__t">${escapeHtml(type.name)}</div></div>
+        <div class="setrow__ctl"><span class="inputwrap">
+          <input class="input input--mins" type="number" min="1" name="skid_capacity" value="${row?.skid_capacity ?? ''}" placeholder="—" ${disabled} aria-label="${escapeHtml(type.name)} skid capacity">
+          <span class="input__unit">skids</span>
+        </span></div>
+      </div>`;
+    }).join('');
+  return `<form class="card card--fit" data-section-form="truck-capacity">
+    <h3 class="card__title">Skids per truck</h3>
+    ${rows || '<p class="hint">No truck types are enabled at this location yet.</p>'}
+    <p class="hint hint--wide">What each truck holds when this site loads it. Set it to how you actually stack, single or double. This is what tells a planner how full a booked load is and how much room is left on it.</p>
     ${saveFoot(canEdit)}
   </form>`;
 }
@@ -320,7 +348,7 @@ function renderDocks() {
     <td class="data data--strong">${escapeHtml(dock.name)}</td>
     <td>${escapeHtml(dock.direction_mode === 'both' ? 'Both' : format.role(dock.direction_mode))}</td>
     <td><button type="button" class="switch ${dock.is_active ? '' : 'switch--off'}" data-dock-active aria-pressed="${Boolean(dock.is_active)}" aria-label="${escapeHtml(dock.name)} in service" ${canEditDocks ? '' : 'disabled'}></button></td>
-    <td class="data cell-cap" title="${escapeHtml(dockTruckLabels(dock.id))}">${escapeHtml(dockTruckLabels(dock.id))}</td>
+    <td class="data cell-elide" title="${escapeHtml(dockTruckLabels(dock.id))}">${escapeHtml(dockTruckLabels(dock.id))}</td>
     <td>${canEditDocks ? `<button class="btn btn--quiet btn--sm" type="button" data-edit-dock="${dock.id}">Edit</button>` : ''}</td>
   </tr>`).join('') || '<tr><td colspan="5" class="data">No docks configured for this location.</td></tr>';
 
@@ -336,9 +364,9 @@ function renderDocks() {
     </div>`;
   }).join('');
 
-  return `<form class="card card--fit" data-section-form="docks">
+  return `<div class="sidebyside"><form class="card card--fit" data-section-form="docks">
       <h3 class="card__title">Docks${canEditDocks ? '<button class="btn btn--primary btn--sm at-end" type="button" data-add-dock>Add dock</button>' : ''}</h3>
-      <div class="tablewrap"><table class="table"><thead><tr><th>Dock</th><th>Direction</th><th>In service</th><th>Truck types</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
+      <div class="tablewrap"><table class="table"><thead><tr><th>Dock</th><th>Direction</th><th>In service</th><th class="col-fill">Truck types</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
       <p class="hint">Add dock and Edit save on their own. Save below applies the in-service switches.</p>
       ${saveFoot(canEditDocks)}
     </form>
@@ -347,7 +375,7 @@ function renderDocks() {
       ${truckRows}
       <p class="hint">Setup minutes here override the truck type's default for this location only.</p>
       ${saveFoot(state.canManage)}
-    </form>`;
+    </form></div>`;
 }
 
 function renderPanel() {
@@ -450,9 +478,21 @@ async function saveAssignment(form) {
   });
 }
 
-// Only the in-service switches are edited on the dock table itself; everything
-// else about a dock is changed through Add dock or Edit, which save on their own.
-// Read straight off the rows on screen, so what is shown is what is stored.
+// Only the capacity column moves here; the enabled flag and setup minutes stay
+// with the Docks and truck types section that owns them.
+async function saveTruckCapacity(form) {
+  const updates = [...form.querySelectorAll('[data-capacity-code]')].map(row => {
+    const code = row.dataset.capacityCode;
+    const raw = row.querySelector('input[name="skid_capacity"]').value.trim();
+    const value = raw === '' ? null : Number(raw);
+    if (value !== null && (!Number.isFinite(value) || value < 1)) throw { userMessage: 'Skids per truck must be a whole number above zero, or blank.' };
+    return db.update('location_truck_types', { skid_capacity: value },
+      q => q.eq('location_id', state.locationId).eq('truck_type_code', code), { select: false });
+  });
+  await Promise.all(updates);
+  db.invalidate(`settings:location-truck-types:${state.locationId}`);
+}
+
 async function saveDirectionWindows(form) {
   const windows = [...form.querySelectorAll('[data-window]')].map(row => ({
     dock_id: row.querySelector('[data-window-dock]').value || null,
@@ -471,6 +511,9 @@ async function saveDirectionWindows(form) {
   db.invalidate(`settings:windows:${state.locationId}`);
 }
 
+// Only the in-service switches are edited on the dock table itself; everything
+// else about a dock is changed through Add dock or Edit, which save on their own.
+// Read straight off the rows on screen, so what is shown is what is stored.
 async function saveDocks(form) {
   const updates = [...form.querySelectorAll('[data-dock-row]')].map(row => {
     const id = row.dataset.dockRow;
@@ -543,6 +586,7 @@ async function submitSection(event) {
     else if (kind === 'notice') await saveNotice(form);
     else if (kind === 'capacity') await saveCapacity(form);
     else if (kind === 'assignment') await saveAssignment(form);
+    else if (kind === 'truck-capacity') await saveTruckCapacity(form);
     else if (kind === 'direction-windows') await saveDirectionWindows(form);
     else if (kind === 'docks') await saveDocks(form);
     else if (kind === 'truck-types') await saveTruckTypes(form);

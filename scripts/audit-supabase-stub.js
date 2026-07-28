@@ -69,6 +69,10 @@
     // Dated forward so the My appointments "Upcoming" view — the default — has a
     // record to render, and its detail card exposes the Cancel dialog.
     { id: 'a4', appointment_id: 'a4', booking_reference: 'MXD-2026-000143', entry_kind: 'appointment', status: 'scheduled', direction: 'outbound', dock_id: 'dock-4', start_at: iso(9, 0, 2), end_at: iso(10, 0, 2), skid_count: 18, company_name: 'Haleon – Oakhill', requester_name: 'Maria Chen', requester_email: 'mchen@maxpkgsolutions.com', carrier_name: 'Day & Ross', external_reference: 'PO-99310', appointment_type_code: 'customer_pickup', truck_type_code: 'trailer_53', handling_type_code: 'live_load', is_priority: false, notes: '', completed_at: null, location_id: 'loc-1', ...SHOWN },
+    // Dated two days out with the company name the dialog walker types, so the
+    // booking dialog's combine picker has a load to offer. Without it the picker
+    // renders empty and that state is the only one the sweep ever measures.
+    { id: 'a5', appointment_id: 'a5', booking_reference: 'MXD-2026-000144', entry_kind: 'appointment', status: 'scheduled', direction: 'inbound', dock_id: 'dock-2', start_at: iso(13, 0, 2), end_at: iso(14, 0, 2), skid_count: 8, company_name: 'Haleon – Oakhill', requester_name: 'Maria Chen', requester_email: 'mchen@maxpkgsolutions.com', carrier_name: 'Day & Ross', external_reference: 'PO-99404', appointment_type_code: 'raw_material', truck_type_code: 'trailer_48', handling_type_code: 'live_unload', is_priority: false, notes: '', completed_at: null, location_id: 'loc-1', ...SHOWN },
   ];
   const SLOTS = [9, 11, 13, 15].map((hour, index) => ({
     slot_start: iso(hour), slot_end: iso(hour + 1),
@@ -98,7 +102,7 @@
     // deactivated and must never come back.
     appointment_types: [{ code: 'raw_material', name: 'Raw Material', sort_order: 1 }, { code: 'finished_goods', name: 'Finished Goods', sort_order: 2 }, { code: 'wip', name: 'WIP', sort_order: 3 }, { code: 'customer_pickup', name: 'Customer Pickup', sort_order: 7 }, { code: 'return_rework', name: 'Return / Rework', sort_order: 8 }, { code: 'other', name: 'Other', sort_order: 9 }],
     handling_types: [{ code: 'live_unload', name: 'Live unload', sort_order: 1 }, { code: 'drop_trailer', name: 'Drop trailer', sort_order: 2 }, { code: 'live_load', name: 'Live load', sort_order: 3 }],
-    location_truck_types: [{ location_id: 'loc-1', truck_type_code: 'trailer_53', setup_minutes: 20, is_active: true }, { location_id: 'loc-1', truck_type_code: 'trailer_48', setup_minutes: 18, is_active: true }],
+    location_truck_types: [{ location_id: 'loc-1', truck_type_code: 'trailer_53', setup_minutes: 20, skid_capacity: 26, is_active: true }, { location_id: 'loc-1', truck_type_code: 'trailer_48', setup_minutes: 18, skid_capacity: 24, is_active: true }],
     location_appointment_types: ['raw_material', 'finished_goods', 'wip', 'customer_pickup', 'return_rework', 'other'].map(appointment_type_code => ({ location_id: 'loc-1', appointment_type_code, is_active: true })),
     location_handling_types: [{ location_id: 'loc-1', handling_type_code: 'live_unload', is_active: true }, { location_id: 'loc-1', handling_type_code: 'drop_trailer', is_active: true }],
     dock_truck_types: [{ dock_id: 'dock-1', location_id: 'loc-1', truck_type_code: 'trailer_53' }],

@@ -202,7 +202,10 @@ function openAddModal() {
   state.elements.addFoot.hidden = false;
   form.elements.role_code.innerHTML = roleOptions('coordinator');
   form.querySelector('[data-location-fields] [data-checks]').innerHTML = locationChecks([]);
-  form.querySelector('input[name="temp_password"]').value = generatePassword();
+  // Left empty and editable. A generated fourteen-character password is fine for
+  // a machine and useless for an administrator reading one down a phone line to a
+  // driver's office; Suggest one is there for whoever does want it.
+  form.querySelector('input[name="temp_password"]').value = '';
   toggleCustomerFields(form);
   toggleLocationRequired(form);
   toggleAccountMethod(form);
@@ -218,6 +221,13 @@ async function submitAddUser(event) {
   const locationIds = [...form.querySelectorAll('input[name="location_id"]:checked')].map(input => input.value);
   if (roleCode !== 'system_admin' && !locationIds.length) {
     toast('Select at least one location.', 'error');
+    return;
+  }
+  // The password is the administrator's to choose now, so it has to be checked
+  // here — blank would reach the edge function as a password nobody can sign in
+  // with, and the account would be created anyway.
+  if (method === 'password' && form.elements.temp_password.value.trim().length < 8) {
+    toast('Enter a temporary password of at least 8 characters, or use Suggest.', 'error');
     return;
   }
   submit.disabled = true;
@@ -439,7 +449,7 @@ function buildShell(root) {
             </div>
             <div data-password-fields class="frow">
               <label class="field field--lg"><span class="field__label">Contact email (optional)</span><input class="input" type="email" name="contact_email"></label>
-              <label class="field field--lg"><span class="field__label">Temporary password</span><input class="input" name="temp_password" readonly></label>
+              <label class="field field--lg"><span class="field__label">Temporary password</span><span class="inputwrap"><input class="input" name="temp_password" autocomplete="off" minlength="8" maxlength="72" placeholder="Type one they can read out"><button class="btn btn--quiet" type="button" data-suggest-password>Suggest</button></span></label>
             </div>
           </div>
           <div class="modal__foot" data-add-foot><button class="btn btn--quiet" type="button" data-close-add>Cancel</button><button class="btn btn--primary" type="submit">Create account</button></div>
@@ -518,6 +528,12 @@ function wireEvents(root) {
     if (event.target.closest('[data-bulk-activate]')) { applyBulkStatus(true); return; }
     if (event.target.closest('[data-bulk-deactivate]')) { applyBulkStatus(false); return; }
     if (event.target.closest('[data-bulk-clear]')) { state.selected.clear(); renderTable(); return; }
+    if (event.target.closest('[data-suggest-password]')) {
+      const box = state.elements.addForm.elements.temp_password;
+      box.value = generatePassword();
+      box.focus();
+      return;
+    }
     if (event.target.closest('[data-add-user]')) { openAddModal(); return; }
     if (event.target.closest('[data-close-add]')) { state.addModal.close(); return; }
     const editTrigger = event.target.closest('[data-edit-user]');
