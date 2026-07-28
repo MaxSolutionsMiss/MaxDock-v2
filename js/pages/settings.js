@@ -128,13 +128,13 @@ function renderHours() {
       <button type="button" class="switch ${isOpen ? '' : 'switch--off'}" data-hours-switch aria-pressed="${isOpen}" aria-label="${DAY_LABELS[day]} open" ${canEdit ? '' : 'disabled'}></button>
     </div>`;
   }).join('');
-  return `<form class="card" data-section-form="hours">
+  return `<div class="stack"><form data-section-form="hours">
     <h3 class="card__title">Operating hours</h3>
     <div class="hours">${rows}</div>
     <p class="hint">Staff may book outside these hours with a warning. Customers cannot.</p>
     ${saveFoot(canEdit)}
   </form>
-  ${renderDirectionWindows(canEdit)}`;
+  ${renderDirectionWindows(canEdit)}</div>`;
 }
 
 // When this site takes inbound and when it takes outbound.
@@ -166,7 +166,7 @@ function directionWindowRow(row, index, canEdit) {
 
 function renderDirectionWindows(canEdit) {
   const rows = state.directionWindows.map((row, index) => directionWindowRow(row, index, canEdit)).join('');
-  return `<form class="card" data-section-form="direction-windows">
+  return `<form data-section-form="direction-windows">
     <h3 class="card__title">Inbound and outbound hours${canEdit ? '<button class="btn btn--quiet btn--sm at-end" type="button" data-add-window>Add a window</button>' : ''}</h3>
     <div class="dirlist">${rows || '<p class="hint">No windows set. This location takes inbound and outbound at any time it is open.</p>'}</div>
     <p class="hint hint--wide">A window says when a door takes a direction. Leave the dock as Every dock to set the whole site at once. A load must fit entirely inside a window, so an outbound running past the end of the outbound period is not offered. Each dock's own Inbound or Outbound setting still applies.</p>
@@ -216,7 +216,7 @@ function renderCapacity() {
   const canEdit = state.canManage;
   const disabled = canEdit ? '' : 'disabled';
   const enabled = s.capacity_enabled === true;
-  return `<form class="card" data-section-form="capacity">
+  return `<div class="stack"><form data-section-form="capacity">
     <h3 class="card__title">Capacity</h3>
     <div class="setrow setrow--lead">
       <div><div class="setrow__t">Enforce skid capacity</div><div class="setrow__d">Track occupied skids against a daily capacity for this location</div></div>
@@ -242,7 +242,7 @@ function renderCapacity() {
     </fieldset>
     ${saveFoot(canEdit)}
   </form>
-  ${renderTruckCapacity(canEdit)}`;
+  ${renderTruckCapacity(canEdit)}</div>`;
 }
 
 function renderAssignment() {
@@ -298,7 +298,7 @@ function renderTruckCapacity(canEdit) {
         </span></div>
       </div>`;
     }).join('');
-  return `<form class="card card--fit" data-section-form="truck-capacity">
+  return `<form data-section-form="truck-capacity">
     <h3 class="card__title">Skids per truck</h3>
     ${rows || '<p class="hint">No truck types are enabled at this location yet.</p>'}
     <p class="hint hint--wide">What each truck holds when this site loads it. Set it to how you actually stack, single or double. This is what tells a planner how full a booked load is and how much room is left on it.</p>
@@ -364,13 +364,13 @@ function renderDocks() {
     </div>`;
   }).join('');
 
-  return `<div class="sidebyside"><form class="card card--fit" data-section-form="docks">
+  return `<div class="stack"><form data-section-form="docks">
       <h3 class="card__title">Docks${canEditDocks ? '<button class="btn btn--primary btn--sm at-end" type="button" data-add-dock>Add dock</button>' : ''}</h3>
-      <div class="tablewrap"><table class="table"><thead><tr><th>Dock</th><th>Direction</th><th>In service</th><th class="col-fill">Truck types</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
+      <div class="tablewrap"><table class="table table--fit"><thead><tr><th>Dock</th><th>Direction</th><th>In service</th><th class="col-fill">Truck types</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
       <p class="hint">Add dock and Edit save on their own. Save below applies the in-service switches.</p>
       ${saveFoot(canEditDocks)}
     </form>
-    <form class="card card--fit" data-section-form="truck-types">
+    <form data-section-form="truck-types">
       <h3 class="card__title">Truck types enabled at this location</h3>
       ${truckRows}
       <p class="hint">Setup minutes here override the truck type's default for this location only.</p>

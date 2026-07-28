@@ -6,7 +6,7 @@ import { renderState } from '../ui/empty.js';
 import { pageHead, controlsBar } from '../ui/pagehead.js';
 import { createCustomizePanel } from '../ui/customize.js';
 import { openWall, paintWall } from '../ui/wall.js';
-import { renderTimeline, fitTimelineBlocks, clockLabel } from '../ui/timeline.js';
+import { renderTimeline, fitTimelineBlocks, watchTimelineFit, clockLabel } from '../ui/timeline.js';
 import { createAppointmentDetails } from '../ui/appointment-details.js';
 import { format } from '../format.js';
 
@@ -623,11 +623,9 @@ const page = {
   async mount(context) {
     state.context = context;
     state.date = format.todayInput(state.context.location);
-    // Blocks are sized as a percentage of the day, so every resize changes how
-    // much text each one holds. Re-measure rather than leave a block that fitted
-    // at one width trailing off at another.
-    state.onResize = () => fitTimelineBlocks(state.elements.host);
-    globalThis.addEventListener('resize', state.onResize);
+    // Blocks are sized as a percentage of the day, so a resize changes how much
+    // text each one holds — and so does the type scale, without touching a box.
+    state.unwatchFit = watchTimelineFit(() => state.elements.host);
     document.title = `Dock board · ${context.location.name} · MaxDock`;
     buildShell(context.pageRoot);
     wireEvents(context.pageRoot);
@@ -651,7 +649,7 @@ const page = {
   poll: { interval: 5000, fetch: fetchBoardData },
   async refresh(data) { patchData(data); },
   destroy() {
-    if (state.onResize) globalThis.removeEventListener('resize', state.onResize);
+    state.unwatchFit?.();
     state.blockModal?.destroy(); state.editModal?.destroy(); state.detailsModal?.destroy(); state.customizePanel?.destroy();
   },
 };

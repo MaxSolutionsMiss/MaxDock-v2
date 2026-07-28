@@ -67,6 +67,21 @@ export function fitTimelineBlocks(root) {
   }
 }
 
+// A block's box is set by the day it sits in, but how much text fits inside it is
+// set by the type scale — and the two change independently. Resizing the window
+// changes the box; switching to Large text changes the type without changing the
+// box at all, which is how a status line ended up ten pixels past the bottom of
+// its block with the audit's own text sweep the only thing that noticed.
+export function watchTimelineFit(getRoot) {
+  const refit = () => fitTimelineBlocks(getRoot());
+  globalThis.addEventListener('resize', refit);
+  document.addEventListener('maxdock:text-size', refit);
+  return () => {
+    globalThis.removeEventListener('resize', refit);
+    document.removeEventListener('maxdock:text-size', refit);
+  };
+}
+
 // lanes: [{ id, name, note }]
 // blocks: [{ laneId, startMin, endMin, tone, title, subtitle, meta, note, attrs }]
 // `meta` and `note` are two separate lines on purpose. Run together they competed

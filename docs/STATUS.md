@@ -685,3 +685,72 @@ and — next — what each role sees, so it is called what it is, and it sits be
 the modules because it is where the modules are configured rather than one of
 them. The hairline above Receiving lost the heading's worth of air that was
 making it read as a different part of the app instead of the next module down.
+
+## A repeating booking is a pattern, not a pile of appointments (2026-07-28)
+
+`appointment_series` holds the rule — the weekdays, the interval, the first and
+last date — with the load details beside it as defaults. Every date it produces
+is an ordinary appointment with its own reference, dock, audit trail and cancel
+button. Change the truck on one Thursday because the 53 was in the shop and that
+is an edit to one appointment; change it on the pattern and it applies to what
+comes next, leaving what is already booked alone. The exceptions are the normal
+case on a dock, so the model has to survive them.
+
+The part that matters most is what `create_appointment_series` does not do. It
+re-implements nothing. It calls `book_appointment` or `book_routed_appointment`
+once per date — the same function a single booking goes through — so the minimum
+notice, the booking window, the capacity check, the dock direction windows, the
+dock selection and the conflict test all apply to a repeat exactly as they apply
+to one load. Each date books in its own subtransaction, so one Thursday with no
+room does not cost the other seven weeks; it comes back as a skipped date
+carrying the reason the booking function gave.
+
+Verified against the live database inside a rolled-back transaction, booking as a
+real system_admin at Milton: two Tuesday and Thursday dates booked with real
+references and a real dock, and three later dates skipped with "The selected date
+is beyond this location's booking window." That is Milton's own
+`maximum_advance_days` refusing them — the rule applying to a repeat without a
+line of code in the series function knowing it exists. Nothing persisted.
+
+The dates themselves are worked out in `format.repeatingDates`, not in the page.
+The first version divided milliseconds by 604800000 to get a week number, which
+is wrong twice a year: a week containing a clock change is not 604800000
+milliseconds, and the appointment lands on the wrong day. It steps date strings
+through `addDaysInput` in UTC and counts the offset, which is exact. The
+verifier's own rule against date maths outside `format.js` is what caught it.
+
+`cancel_appointment_series` ends the pattern and cancels the future appointments
+it produced through `cancel_my_appointment`. Anything already arrived or
+completed is history and is left where it is — ending next month's Tuesdays must
+never rewrite last month's.
+
+## Settings is one window with ruled parts (2026-07-28)
+
+The owner's objection: Operating hours, Capacity and Docks each drew two separate
+boxes of different widths, while Dock assignment drew one window with its parts
+divided by a hairline. The second is what a settings screen looks like. `.stack`
+is that container — one bordered window, its children unstyled and separated by a
+rule, each still its own `<form>` with its own Save and Reset because they save
+independently. Nested forms are not legal HTML, which is why the wrapper is a div
+and not a form.
+
+One thing the change broke and the audit caught before a browser did: `.card`
+carried `container-type:inline-size`, and the parts of a stack are not cards. An
+unnamed container query with no container above it never matches, so the field
+rows inside Capacity stopped collapsing on a phone — a twelve-column row stayed
+twelve columns at 390px and "When over capacity" ran out of its own field. The
+parts of a stack are containers now.
+
+`.sidebyside` is gone with it. It was the wrong answer to the same question:
+placing a four-field row and a two-row list next to each other made both too
+narrow, which is how "Enforce skid capacity" ended up back on three lines a day
+after being put onto one.
+
+Three smaller things in the same pass. The Suggest button sat glued to the
+temporary password the way a unit chip sits on a number; `.withaction` gives it
+the same 16px the fields either side of it use. Fifty identical appointment rows
+are a wall to read across, so `.appointment-list` alternates a light wash and the
+booking reference is now the largest thing on the row rather than the smallest —
+no change to any card's width or height. And the customize panel's group heading
+had equal air above and below its rule, which made "Appointment block" read as
+the tail of the metric cards instead of the name of what follows it.

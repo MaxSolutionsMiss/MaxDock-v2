@@ -449,7 +449,7 @@ function buildShell(root) {
             </div>
             <div data-password-fields class="frow">
               <label class="field field--lg"><span class="field__label">Contact email (optional)</span><input class="input" type="email" name="contact_email"></label>
-              <label class="field field--lg"><span class="field__label">Temporary password</span><span class="inputwrap"><input class="input" name="temp_password" autocomplete="off" minlength="8" maxlength="72" placeholder="Type one they can read out"><button class="btn btn--quiet" type="button" data-suggest-password>Suggest</button></span></label>
+              <label class="field field--lg"><span class="field__label">Temporary password</span><span class="withaction"><input class="input" name="temp_password" autocomplete="off" minlength="8" maxlength="72" placeholder="Type one they can read out"><button class="btn btn--quiet" type="button" data-suggest-password>Suggest</button></span></label>
             </div>
           </div>
           <div class="modal__foot" data-add-foot><button class="btn btn--quiet" type="button" data-close-add>Cancel</button><button class="btn btn--primary" type="submit">Create account</button></div>

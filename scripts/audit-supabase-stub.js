@@ -117,6 +117,17 @@
     save_user_preference: () => ({}),
     record_user_usage: () => ({}),
     list_location_schedule: () => APPTS.map(schedule_record => ({ schedule_record })),
+    // Two dates booked and one skipped, so the confirmation is measured with both
+    // halves of its list on screen rather than only the happy one.
+    create_appointment_series: () => ({
+      series_id: 'series-1', booked_count: 2, skipped_count: 1,
+      booked: [
+        { date: '2026-08-04', booking_reference: 'MXD-2026-000201', start_at: iso(9, 0, 7), dock_name: 'Dock 1' },
+        { date: '2026-08-11', booking_reference: 'MXD-2026-000202', start_at: iso(9, 0, 14), dock_name: 'Dock 1' },
+      ],
+      skipped: [{ date: '2026-08-18', reason: 'The selected date is beyond this location\'s booking window.' }],
+    }),
+    cancel_appointment_series: () => ({ series_id: 'series-1', cancelled_count: 2 }),
     list_my_appointments: () => APPTS.map(record => ({ ...record, ...RESOLVED })),
     list_return_load_opportunities: () => [{ first_booking_reference: 'MXD-2026-000140', second_booking_reference: 'MXD-2026-000141', recommendation: 'Guelph outbound could pair with a Guelph to Pickering inbound.', turnaround_minutes: 90, combined_skids: 35 }],
     // A real trail: booked, edited, scanned in with a driver, then completed.

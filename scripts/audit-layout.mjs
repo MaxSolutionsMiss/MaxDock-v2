@@ -91,9 +91,11 @@ const FLOWS = {
   // exactly where a card collapsed to the width of its title and the whole sweep
   // still reported clean.
   settings: [
-    { name: 'docks', query: '', act: async page => { await page.click('[data-section="docks"]'); }, expect: '.table' },
-    { name: 'hours', query: '', act: async page => { await page.click('[data-section="hours"]'); }, expect: '.dirrow' },
-    { name: 'capacity', query: '', act: async page => { await page.click('[data-section="capacity"]'); }, expect: '.card' },
+    { name: 'docks', query: '', act: async page => { await page.click('[data-section="docks"]'); }, expect: '.stack .table' },
+    { name: 'hours', query: '', act: async page => { await page.click('[data-section="hours"]'); }, expect: '.stack .dirrow' },
+    // Capacity, hours and docks each draw one window with ruled parts rather than
+    // a card per part, so .card is the wrong thing to wait for — it is .stack.
+    { name: 'capacity', query: '', act: async page => { await page.click('[data-section="capacity"]'); }, expect: '.stack' },
     { name: 'assignment', query: '', act: async page => { await page.click('[data-section="assignment"]'); }, expect: '.card' },
     { name: 'notice', query: '', act: async page => { await page.click('[data-section="notice"]'); }, expect: '.card' },
     { name: 'timing', query: '', act: async page => { await page.click('[data-section="timing"]'); }, expect: '.card' },
@@ -589,6 +591,27 @@ for (const name of PAGES) {
             await page.waitForTimeout(900);
             report(`${label} combined`, width, await page.evaluate(collect, '[data-audit-open]'));
           }
+          // The repeat pattern is a second shape for the confirm step — a row of
+          // seven day boxes and a summary line that is not there until it is
+          // ticked, and was therefore never measured.
+          const repeating = await page.evaluate(() => {
+            const box = document.querySelector('[data-audit-open] [data-field="repeat_on"]');
+            if (!box || box.checked) return false;
+            box.click();
+            const until = document.querySelector('[data-audit-open] [data-field="repeat_until"]');
+            if (until) {
+              const day = new Date();
+              day.setDate(day.getDate() + 21);
+              until.value = day.toISOString().slice(0, 10);
+              until.dispatchEvent(new Event('input', { bubbles: true }));
+              until.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+            return true;
+          });
+          if (repeating) {
+            await page.waitForTimeout(350);
+            report(`${label} repeating`, width, await page.evaluate(collect, '[data-audit-open]'));
+          }
           if (step === steps - 1) break;
           await page.evaluate(fillOpenDialog);
           // The time step asks for slots only once a date is set, so they appear
@@ -649,7 +672,14 @@ for (const textSize of ROLE_TEXT_SIZES) {
       // Set after boot, not in an init script: at document-start there is no
       // documentElement to set it on, and the app writes this attribute itself
       // from the saved preference, so an early write would be overwritten anyway.
-      await page.evaluate(size => { document.documentElement.dataset.text = size; }, textSize);
+      // Both halves of what session.setTextSize does. The attribute alone is only
+      // half a text-size change: anything sized by measurement rather than by CSS
+      // is told by the event, and a sweep that skipped it was testing a state the
+      // app never actually produces.
+      await page.evaluate(size => {
+        document.documentElement.dataset.text = size;
+        document.dispatchEvent(new CustomEvent('maxdock:text-size', { detail: { textSize: size } }));
+      }, textSize);
       await page.waitForTimeout(250);
       const where = `${name} · ${role}${textSize === 'normal' ? '' : ` · ${textSize}`}`;
       for (const e of errors) add(where, 1280, 'page-error', e.slice(0, 160));

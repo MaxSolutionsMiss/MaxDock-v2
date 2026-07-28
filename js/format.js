@@ -73,6 +73,31 @@ export const format = Object.freeze({
     return this.inputDate(new Date(), location);
   },
 
+  // The calendar dates a repeating booking lands on: the weekdays chosen, every
+  // Nth week counted from the week the first date falls in. All of it is done on
+  // date strings through addDaysInput, which steps in UTC — a week is not always
+  // 604800000 milliseconds, and dividing by that number puts an appointment on
+  // the wrong day twice a year.
+  repeatingDates({ from, until, days, intervalWeeks = 1, limit = 60 }) {
+    const wanted = new Set((days || []).map(Number));
+    const start = String(from || '').slice(0, 10);
+    const end = String(until || '').slice(0, 10);
+    if (!start || !end || !wanted.size || end < start) return [];
+    const interval = Math.max(1, Number(intervalWeeks) || 1);
+    const firstDow = this.dayOfWeek(start);
+    const dates = [];
+    for (let offset = 0; offset <= 366 && dates.length < limit; offset += 1) {
+      const cursor = this.addDaysInput(start, offset);
+      if (cursor > end) break;
+      // Offset plus the first date's weekday is how many days into that week the
+      // cursor sits, so integer division by seven is the week number exactly.
+      if (wanted.has(this.dayOfWeek(cursor)) && Math.floor((offset + firstDow) / 7) % interval === 0) {
+        dates.push(cursor);
+      }
+    }
+    return dates;
+  },
+
   dayOfWeek(dateInput) {
     const [year, month, day] = String(dateInput || '').split('-').map(Number);
     return new Date(Date.UTC(year, Math.max(0, (month || 1) - 1), day || 1, 12)).getUTCDay();

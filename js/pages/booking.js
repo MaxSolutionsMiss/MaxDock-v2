@@ -110,6 +110,10 @@ function createInitialForm() {
     requester_name: clean(context.profile.full_name),
     requester_email: clean(context.profile.contact_email || context.user.email),
     template_name: '',
+    repeat_on: false,
+    repeat_days: [],
+    repeat_interval_weeks: 1,
+    repeat_until: '',
   };
 }
 
@@ -610,10 +614,54 @@ function summaryRows() {
   ];
 }
 
+// A repeating booking is a pattern, not a set of appointments. The pattern is
+// declared once here and MaxDock generates ordinary appointments from it, each
+// with its own reference and its own cancel button — because the truck changing
+// on one Thursday is the normal case on a dock, not a break in the schedule.
+const WEEKDAYS = Object.freeze([
+  { value: 1, label: 'Mon' }, { value: 2, label: 'Tue' }, { value: 3, label: 'Wed' },
+  { value: 4, label: 'Thu' }, { value: 5, label: 'Fri' }, { value: 6, label: 'Sat' },
+  { value: 0, label: 'Sun' },
+]);
+
+function repeatDates() {
+  return format.repeatingDates({
+    from: selectedDate(),
+    until: state.form.repeat_until,
+    days: state.form.repeat_days,
+    intervalWeeks: state.form.repeat_interval_weeks,
+  });
+}
+
+function renderRepeat() {
+  const host = hosts.step.querySelector('[data-repeat]');
+  if (!host) return;
+  const on = state.form.repeat_on;
+  const dates = on ? repeatDates() : [];
+  host.innerHTML = `
+    <label class="check-row check-row--spaced"><input type="checkbox" data-field="repeat_on" ${on ? 'checked' : ''}><span><strong>Repeat this booking</strong><small>MaxDock books each date separately, so any one of them can be changed or cancelled on its own.</small></span></label>
+    ${on ? `
+      <div class="frow">
+        <div class="field field--sm"><span class="field__label">Repeat</span><select class="select" data-field="repeat_interval_weeks">
+          <option value="1" ${Number(state.form.repeat_interval_weeks) === 1 ? 'selected' : ''}>Every week</option>
+          <option value="2" ${Number(state.form.repeat_interval_weeks) === 2 ? 'selected' : ''}>Every 2 weeks</option>
+          <option value="3" ${Number(state.form.repeat_interval_weeks) === 3 ? 'selected' : ''}>Every 3 weeks</option>
+          <option value="4" ${Number(state.form.repeat_interval_weeks) === 4 ? 'selected' : ''}>Every 4 weeks</option>
+        </select></div>
+        <div class="field field--md"><span class="field__label">Until<span class="field__req" aria-hidden="true">*</span></span><input class="input" type="date" data-field="repeat_until" min="${escapeHtml(selectedDate() || '')}" value="${escapeHtml(state.form.repeat_until)}"></div>
+      </div>
+      <div class="grouplabel">On these days</div>
+      <div class="daypick">${WEEKDAYS.map(day => `<label class="check-row"><input type="checkbox" data-repeat-day="${day.value}" ${state.form.repeat_days.includes(day.value) ? 'checked' : ''}><span>${day.label}</span></label>`).join('')}</div>
+      <p class="hint hint--wide">${dates.length
+        ? `${dates.length} appointment${dates.length === 1 ? '' : 's'} at ${escapeHtml(selectedTime() || 'the chosen time')}, first on ${escapeHtml(dates[0])}, last on ${escapeHtml(dates[dates.length - 1])}. Any date with no room is skipped and reported, the rest still book.`
+        : 'Pick the days and a last date to see which appointments this will book.'}</p>` : ''}`;
+}
+
 function renderConfirmStep() {
   hosts.step.innerHTML = `
     <p class="hint hint--lead">Review the booking before reserving the dock${state.form.movement_kind === 'max' ? 's' : ''}.</p>
     <div class="card" data-confirm-grid></div>
+    <div class="section-gap" data-repeat></div>
     ${state.form.after_hours ? '<div class="inline-note inline-note--warning"><strong>After-hours override</strong><span>Your acknowledgement will be recorded with the booking.</span></div>' : ''}
     <div class="frow">
       <label class="field field--full"><span class="field__label">Notes <span class="field__opt">optional</span></span><textarea class="input" data-field="notes" maxlength="1000" rows="2" placeholder="Handling instructions only — no passwords or personal information."></textarea></label>
@@ -632,6 +680,7 @@ function renderConfirmStep() {
     cell.append(element('span', 'confirmgrid__l', label), element('strong', 'confirmgrid__v', value));
     grid.append(cell);
   }
+  renderRepeat();
   hosts.step.querySelector('[data-field="notes"]').value = state.form.notes;
   // Naming it is what saves it — a separate checkbox asked the same question twice.
   const name = hosts.step.querySelector('[data-field="template_name"]');
@@ -652,8 +701,45 @@ function confirmationText(result) {
   ].join('\n');
 }
 
+// A series confirms as a list of what was booked and what was not. There is no
+// one reference to show and no one QR code to print, because there is no one
+// appointment — every date is its own booking on My appointments.
+function renderSeriesConfirmation() {
+  const result = state.confirmation;
+  const booked = result.booked || [];
+  const skipped = result.skipped || [];
+  hosts.step.innerHTML = `
+    <div class="booked">
+      <span class="tag ${skipped.length ? 'tag--warn' : 'tag--ok'}">✓ ${booked.length} appointment${booked.length === 1 ? '' : 's'} booked</span>
+      <h3 class="booked__ref">${escapeHtml(currentLocation().name)}</h3>
+      <p class="hint">${skipped.length ? `${skipped.length} date${skipped.length === 1 ? '' : 's'} had no room and ${skipped.length === 1 ? 'was' : 'were'} skipped. Book ${skipped.length === 1 ? 'it' : 'them'} separately at another time.` : 'Every date in the pattern was booked.'}</p>
+    </div>
+    <div class="card" data-series-list></div>
+    <div class="booked__actions">
+      <button class="btn btn--quiet" type="button" data-action="book-another">Book another</button>
+      <a class="btn btn--primary" href="my-appointments.html">View my appointments</a>
+    </div>`;
+  const list = hosts.step.querySelector('[data-series-list]');
+  for (const entry of booked) {
+    const row = element('div', 'setrow');
+    row.append(
+      element('div', '', `${entry.date} · ${format.time(entry.start_at, receivingLocation())}`),
+      element('strong', 'data', entry.booking_reference || ''),
+    );
+    list.append(row);
+  }
+  for (const entry of skipped) {
+    const row = element('div', 'setrow');
+    const left = element('div');
+    left.append(element('div', '', entry.date), element('div', 'setrow__d', entry.reason || 'No room that day'));
+    row.append(left, element('span', 'tag tag--warn', 'Skipped'));
+    list.append(row);
+  }
+}
+
 function renderConfirmation() {
   const result = state.confirmation;
+  if (result?.series_id) { renderSeriesConfirmation(); return; }
   const text = confirmationText(result);
   hosts.step.innerHTML = `
     <div class="booked">
@@ -710,7 +796,11 @@ function renderActions() {
   back.type = 'button';
   back.dataset.action = state.step > 0 ? 'back' : 'close-booking';
   hosts.actions.append(back);
-  const primary = element('button', 'btn btn--primary', state.step === STEPS.length - 1 ? 'Book appointment' : 'Continue');
+  // The button says how many bookings it is about to make. "Book appointment" on
+  // a control that creates nine of them is the wrong promise.
+  const repeatCount = state.form.repeat_on ? repeatDates().length : 0;
+  const bookLabel = repeatCount > 1 ? `Book ${repeatCount} appointments` : 'Book appointment';
+  const primary = element('button', 'btn btn--primary', state.step === STEPS.length - 1 ? bookLabel : 'Continue');
   primary.type = 'button';
   primary.dataset.action = state.step === STEPS.length - 1 ? 'book' : 'continue';
   primary.disabled = state.busy;
@@ -766,6 +856,11 @@ function validateStep(step = state.step) {
   if (step === 3) {
     if (!clean(form.requester_name)) return 'Enter the requester name.';
     if (!clean(form.requester_email) || !form.requester_email.includes('@')) return 'Enter a valid requester email.';
+  }
+  if (step === 4 && form.repeat_on) {
+    if (!form.repeat_days.length) return 'Choose at least one day for the repeat.';
+    if (!form.repeat_until) return 'Choose the last date for the repeat.';
+    if (form.after_hours) return 'A repeating booking cannot use an after-hours time.';
   }
   return '';
 }
@@ -1070,6 +1165,37 @@ function combinedNotes() {
   return notes ? `${notes}\n${line}` : line;
 }
 
+// The series carries the load details as defaults and the pattern beside them.
+// The server books each date through the ordinary booking function, so the
+// notice period, the capacity check, the direction windows and the dock
+// selection all apply exactly as they would to a single booking.
+function seriesArgs() {
+  const routed = state.form.movement_kind === 'max';
+  return {
+    p_location_id: currentLocation().id,
+    p_name: clean(state.form.template_name) || null,
+    p_direction: state.form.direction,
+    p_requester_type: routed ? counterpartLocation()?.name || 'Max Solutions' : state.form.requester_type,
+    p_company_name: routed ? counterpartLocation()?.name || null : clean(state.form.company_name) || null,
+    p_requester_location_id: routed ? state.form.requester_location_id : null,
+    p_appointment_type_code: state.form.appointment_type_code,
+    p_truck_type_code: state.form.truck_type_code,
+    p_skid_count: Number(state.form.skid_count || 0),
+    p_handling_type_code: state.form.handling_type_code,
+    p_is_priority: isStaff() && Boolean(state.form.is_priority),
+    p_requester_name: clean(state.form.requester_name),
+    p_requester_email: clean(state.form.requester_email).toLowerCase(),
+    p_external_reference: clean(state.form.external_reference),
+    p_carrier_name: clean(state.form.carrier_name) || null,
+    p_notes: combinedNotes(),
+    p_start_time: selectedTime(),
+    p_days_of_week: state.form.repeat_days,
+    p_interval_weeks: Number(state.form.repeat_interval_weeks || 1),
+    p_starts_on: selectedDate(),
+    p_ends_on: state.form.repeat_until || null,
+  };
+}
+
 function bookingArgs() {
   const routed = state.form.movement_kind === 'max';
   return {
@@ -1101,11 +1227,17 @@ async function submitBooking() {
   try {
     if (!(await slotStillAvailable())) return;
     const routed = state.form.movement_kind === 'max';
-    const result = await db.rpc(routed ? 'book_routed_appointment' : 'book_appointment', bookingArgs(), {
-      key: `booking:create:${crypto.randomUUID()}`,
-      retry: 0,
-      userMessage: 'The appointment could not be booked.',
-    });
+    const result = state.form.repeat_on
+      ? await db.rpc('create_appointment_series', seriesArgs(), {
+        key: `booking:series:${crypto.randomUUID()}`,
+        retry: 0,
+        userMessage: 'The repeating booking could not be created.',
+      })
+      : await db.rpc(routed ? 'book_routed_appointment' : 'book_appointment', bookingArgs(), {
+        key: `booking:create:${crypto.randomUUID()}`,
+        retry: 0,
+        userMessage: 'The appointment could not be booked.',
+      });
     try {
       await saveTemplate();
     } catch (templateError) {
@@ -1114,7 +1246,9 @@ async function submitBooking() {
     state.confirmation = result;
     poll.resume(SLOT_SUSPENSION);
     renderAll();
-    toast(`Appointment ${result.booking_reference} booked.`, 'success');
+    toast(result.series_id
+      ? `${result.booked_count} appointment${result.booked_count === 1 ? '' : 's'} booked.`
+      : `Appointment ${result.booking_reference} booked.`, 'success');
   } catch (error) {
     setMessage(error.userMessage || 'The appointment could not be booked. Review the details and try again.');
   } finally {
@@ -1229,6 +1363,16 @@ function updateField(target) {
   const slotFieldChanged = slotFields.has(field) && previous !== value;
   if (slotFieldChanged) clearSlotSelection();
   if (field === 'truck_type_code' || field === 'skid_count') renderFullness();
+  if (field.startsWith('repeat_')) {
+    // Ticking Repeat opens the pattern controls, and every control inside it
+    // changes which dates the summary line names.
+    if (field === 'repeat_on' && value && !state.form.repeat_days.length && selectedDate()) {
+      state.form.repeat_days = [format.dayOfWeek(selectedDate())];
+    }
+    renderRepeat();
+    renderActions();
+    return;
+  }
   if (field === 'after_hours' && !value) {
     state.form.custom_time = '';
     state.form.after_hours_acknowledged = false;
@@ -1342,6 +1486,17 @@ function bindInteractions() {
     const combineKey = event.target.dataset?.combine;
     if (combineKey !== undefined) {
       if (event.type === 'change') toggleCombine(combineKey, event.target.checked);
+      return;
+    }
+    const repeatDay = event.target.dataset?.repeatDay;
+    if (repeatDay !== undefined) {
+      if (event.type !== 'change') return;
+      const day = Number(repeatDay);
+      state.form.repeat_days = event.target.checked
+        ? [...new Set([...state.form.repeat_days, day])].sort((a, b) => a - b)
+        : state.form.repeat_days.filter(entry => entry !== day);
+      renderRepeat();
+      renderActions();
       return;
     }
     updateField(event.target);

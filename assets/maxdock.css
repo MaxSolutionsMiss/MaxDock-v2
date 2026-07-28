@@ -287,6 +287,14 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
    stacking, so every row is the same height and the table keeps its shape. The
    full value is in the cell's title attribute and on the record itself. */
 .table td.cell-elide{max-width:0;width:100%;overflow:hidden;text-overflow:ellipsis}
+/* A table of five short columns has no business spanning a wide monitor: the row
+   action ends up a hand's width from the last thing it acts on. Capped, the
+   columns stay together and the eliding cell still shrinks below it. */
+.table--fit{max-width:860px}
+/* Seven day boxes on one line, sized to the word inside them, wrapping only when
+   the dialog is too narrow to hold a week. */
+.daypick{display:flex;flex-wrap:wrap;gap:var(--s2) var(--s3)}
+.daypick .check-row{flex:0 0 auto}
 /* Capped rather than filling: the cell takes what it needs up to a limit and the
    row's action stays beside it, with an empty .col-fill header taking the rest. */
 .table td.cell-cap{max-width:24ch;overflow:hidden;text-overflow:ellipsis}
@@ -372,6 +380,11 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
    as a company name, which is the "long fields for two numbers" the owner called
    out — and a bare number with no unit beside it tells you nothing. */
 .inputwrap{display:flex;align-items:stretch;min-width:0}
+/* A control that acts on a field rather than labelling it stands apart from it,
+   at the same gap the fields either side of it use. Glued to the input the way a
+   unit chip is, Suggest read as part of the password rather than a button. */
+.withaction{display:flex;align-items:stretch;gap:var(--s4);min-width:0}
+.withaction .input{min-width:0}
 .inputwrap .input{border-top-right-radius:0;border-bottom-right-radius:0;min-width:0}
 .input__unit{display:flex;align-items:center;min-height:var(--ctl-h);padding:0 10px;border:1px solid var(--rule-strong);border-left:none;border-radius:0 var(--radius) var(--radius) 0;background:var(--surface-sunk);color:var(--ink-muted);font-size:var(--t-small);white-space:nowrap}
 /* Same shape as a fixed unit label, but the unit is the manager's to pick. */
@@ -414,10 +427,6 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 /* Two cards abreast where the panel has the width for it. The dock table is
    five short columns and the truck list is a name and a number, so stacking them
    left half the panel empty and pushed the second card below the fold. */
-.sidebyside{display:flex;flex-wrap:wrap;gap:var(--s4);align-items:start}
-.sidebyside>*{flex:1 1 340px;min-width:0}
-.sidebyside>:first-child{flex-grow:2}
-.sidebyside>.card+.card{margin-top:0}
 .dirlist{display:grid;gap:var(--s2)}
 .dirrow{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1.2fr) minmax(0,1.2fr) auto auto auto;gap:var(--s2);align-items:center;max-width:820px}
 .dirrow .input[type="time"]{width:auto}
@@ -426,7 +435,11 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 .countset>legend{padding:0;font-size:var(--t-micro);text-transform:uppercase;letter-spacing:.07em;color:var(--ink-muted);font-weight:600}
 /* Keyed to the container, not the viewport: a dialog is a fixed 760px wide however
    large the window is, so a viewport media query collapsed rows that had room. */
-.modal__body,.card{container-type:inline-size}
+/* A ruled part of a stack is a container too. It was not, and the field rows
+   inside it stopped collapsing on a phone — an unnamed container query with no
+   container above it simply never matches, so a twelve-column row stayed twelve
+   columns at 390px and the labels ran out of their fields. */
+.modal__body,.card,.stack>*{container-type:inline-size}
 @container (max-width:560px){
   .frow{grid-template-columns:repeat(6,1fr)}
   .frow>*,.frow>.field--md,.frow>.field--lg,.frow>.field--xl{grid-column:span 6}
@@ -504,7 +517,14 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
    wrapper and a scroll container contributes nothing to a max-content parent —
    so every line of text wrapped one word at a time. A ceiling takes the empty
    space off a wide monitor without asking the card to measure itself. */
-.card--fit{max-width:min(100%,720px)}
+/* One window to a settings section, its parts divided by a hairline rather than
+   each floating in a box of its own. Two boxes stacked at different widths read
+   as two unrelated screens; a single window with ruled parts reads as one page
+   of settings, which is what every professional settings screen does. Each part
+   keeps its own form and its own Save, because they save independently. */
+.stack{background:var(--surface);border:1px solid var(--rule);border-radius:var(--radius-lg)}
+.stack>*{padding:var(--s4);margin:0;border:0;border-radius:0;background:none;max-width:none}
+.stack>*+*{border-top:1px solid var(--rule)}
 .card__title .btn{margin-left:auto}
 /* One vertical rhythm inside cards, dialogs and wizard steps. A .frow spaces its
    own children but carried no margin of its own, so two stacked rows read as a
@@ -696,8 +716,11 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 /* Cards from two different strips are two groups, ruled apart and each named,
    rather than one run of near-identical labels. */
 .pickgroup{--check-col:180px;border:none;padding:0;margin:0}
-.pickgroup+.pickgroup{margin-top:var(--s3);padding-top:var(--s3);border-top:1px solid var(--rule)}
-.pickgroup>legend{margin-bottom:var(--s2)}
+/* A group heading has to sit nearer the boxes it names than the group above it.
+   Equal air either side of the rule left "Appointment block" reading as the tail
+   of the metric cards. */
+.pickgroup+.pickgroup{margin-top:var(--s4);padding-top:var(--s4);border-top:1px solid var(--rule-strong)}
+.pickgroup>legend{margin-bottom:var(--s1)}
 /* One box for "all of them", above the rule that separates it from the groups it
    governs — a long list should not have to be cleared one tick at a time. */
 .pickall{font-weight:600;padding-bottom:var(--s3);margin-bottom:var(--s3);border-bottom:1px solid var(--rule-strong)}
@@ -825,10 +848,16 @@ body.modal-open{overflow:hidden}
    line, so a card is two lines rather than six and more of the list is on screen
    at once. The border carries its own weight — a card that fades into the page
    stops separating one booking from the next. */
+/* Fifty rows of the same shape are a wall. The alternating wash is the oldest
+   trick in the book for reading across one of them without losing the line —
+   it costs no height, no width and no extra rule. */
 .appointment-card{background:var(--surface);border:1px solid var(--rule-strong);border-radius:var(--radius);padding:var(--s2) var(--s3)}
+.appointment-list>.appointment-card:nth-child(even){background:var(--surface-sunk)}
 .appointment-card__head{display:flex;align-items:center;gap:var(--s2);min-width:0}
 .appointment-card__identity{display:flex;align-items:baseline;gap:var(--s2);min-width:0;flex:1;overflow:hidden}
-.appointment-card__reference{color:var(--dock-deep);font-size:var(--t-small);font-weight:600;white-space:nowrap}
+/* The reference is what somebody is scanning the list for, so it is the largest
+   thing on the row rather than the smallest. */
+.appointment-card__reference{color:var(--dock-deep);font-size:calc(var(--t-base) * 1.08);font-weight:700;white-space:nowrap;font-variant-numeric:tabular-nums}
 .appointment-card__title{margin:0;font-size:var(--t-base);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .appointment-card__time{color:var(--ink-muted);font-size:var(--t-small);white-space:nowrap}
 .appointment-card__details{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:0 var(--s3);padding:var(--s2) 0 0;margin-top:var(--s2);border-top:1px solid var(--rule)}

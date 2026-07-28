@@ -213,6 +213,10 @@ export const session = Object.freeze({
     const allowed = new Set(['normal', 'large', 'larger']);
     const textSize = allowed.has(value) ? value : 'normal';
     document.documentElement.dataset.text = textSize;
+    // Anything sized by measurement rather than by CSS has to be told: the dock
+    // board decides how many lines fit in a block by measuring it, and a bigger
+    // type scale changes that answer without changing a single box.
+    document.dispatchEvent(new CustomEvent('maxdock:text-size', { detail: { textSize } }));
     await this.saveShellPreference({ text_size: textSize });
     return textSize;
   },
