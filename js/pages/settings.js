@@ -290,7 +290,7 @@ function renderTruckCapacity(canEdit) {
     .filter(type => enabled.some(row => row.truck_type_code === type.code))
     .map(type => {
       const row = enabled.find(item => item.truck_type_code === type.code);
-      return `<div class="setrow" data-capacity-code="${type.code}">
+      return `<div class="setrow setrow--compact" data-capacity-code="${type.code}">
         <div><div class="setrow__t">${escapeHtml(type.name)}</div></div>
         <div class="setrow__ctl"><span class="inputwrap">
           <input class="input input--mins" type="number" min="1" name="skid_capacity" value="${row?.skid_capacity ?? ''}" placeholder="—" ${disabled} aria-label="${escapeHtml(type.name)} skid capacity">
@@ -355,7 +355,7 @@ function renderDocks() {
   const locationTypes = state.locationTruckTypes;
   const truckRows = state.truckTypes.map(type => {
     const enabled = locationTypes.find(row => row.truck_type_code === type.code);
-    return `<div class="setrow" data-truck-code="${type.code}">
+    return `<div class="setrow setrow--compact" data-truck-code="${type.code}">
       <div><div class="setrow__t">${escapeHtml(type.name)}</div></div>
       <div class="setrow__ctl">
         <span class="inputwrap"><input class="input input--mins" type="number" min="0" name="setup_minutes" value="${enabled ? enabled.setup_minutes : 0}" ${state.canManage ? '' : 'disabled'} aria-label="${escapeHtml(type.name)} setup minutes"><span class="input__unit">min setup</span></span>

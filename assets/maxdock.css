@@ -221,7 +221,10 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 .tl__ruler{display:grid;grid-template-columns:var(--tl-label) minmax(0,1fr);border-bottom:1px solid var(--rule-strong);background:var(--surface-sunk);flex:none}
 .tl__corner{padding:6px var(--s3);font-size:var(--t-micro);text-transform:uppercase;letter-spacing:.07em;color:var(--ink-muted);font-weight:600;border-right:1px solid var(--rule-strong);display:flex;align-items:center}
 .tl__scale{position:relative;height:26px}
-.tl__scale .tl__tick{top:0;height:100%;display:flex;align-items:center;padding-left:4px;font-size:calc(var(--tl-type) * .9);color:var(--ink-muted);font-variant-numeric:tabular-nums;white-space:nowrap}
+/* The hour sits clear of the line that marks it. At 4px it read as if it were
+   printed on the gridline; it is still left-aligned to its own hour, just not
+   touching it. */
+.tl__scale .tl__tick{top:0;height:100%;display:flex;align-items:center;padding-left:9px;font-size:calc(var(--tl-type) * .9);color:var(--ink-muted);font-variant-numeric:tabular-nums;white-space:nowrap}
 .tl__lanes{flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column}
 /* Lanes take the height they need, then share whatever is left over rather than
    leaving half the panel blank — a five-dock board used to draw a short strip of
@@ -295,6 +298,12 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
    the dialog is too narrow to hold a week. */
 .daypick{display:flex;flex-wrap:wrap;gap:var(--s2) var(--s3)}
 .daypick .check-row{flex:0 0 auto}
+/* The code beside what it is for, rather than a panel of its own. Smaller than
+   the confirmation's copy and left-aligned, because here it sits inside a list
+   of facts rather than being the point of the screen. */
+.qrblock{display:flex;align-items:center;gap:var(--s4);flex-wrap:wrap;padding:var(--s3) 0;border-top:1px solid var(--rule);border-bottom:1px solid var(--rule)}
+.qrblock .qr-frame{flex:none;width:150px;margin:0}
+.qrblock>div{min-width:0;flex:1 1 220px}
 /* Capped rather than filling: the cell takes what it needs up to a limit and the
    row's action stays beside it, with an empty .col-fill header taking the rest. */
 .table td.cell-cap{max-width:24ch;overflow:hidden;text-overflow:ellipsis}
@@ -522,7 +531,10 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
    as two unrelated screens; a single window with ruled parts reads as one page
    of settings, which is what every professional settings screen does. Each part
    keeps its own form and its own Save, because they save independently. */
-.stack{background:var(--surface);border:1px solid var(--rule);border-radius:var(--radius-lg)}
+/* Settings is a column of rules, not a spreadsheet. Left to fill a wide monitor
+   the window put a truck's name at one edge and its number at the other with
+   half a metre of nothing between them. */
+.stack{background:var(--surface);border:1px solid var(--rule);border-radius:var(--radius-lg);max-width:900px}
 .stack>*{padding:var(--s4);margin:0;border:0;border-radius:0;background:none;max-width:none}
 .stack>*+*{border-top:1px solid var(--rule)}
 .card__title .btn{margin-left:auto}
@@ -666,6 +678,11 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 /* A single on/off with a one-word label does not need the 220px name column the
    settings list uses — the switch sits beside the word. */
 .setrow--tight{grid-template-columns:auto auto;gap:var(--s3);border-bottom:none}
+/* A list of names each carrying one control: the names share a column so they
+   line up, and the control sits directly after the longest of them rather than
+   being flung to the far edge of the card. */
+.setrow.setrow--compact{grid-template-columns:minmax(0,22ch) max-content;justify-content:start;column-gap:var(--s4)}
+.setrow--compact .setrow__ctl{justify-content:flex-start}
 /* In a dialog the setting takes the width and its switch sits at the far edge.
    The 220px text column is right on a settings page where rows line up in a
    column, but in a 760px dialog it left the switch stranded a third of the way
@@ -858,13 +875,19 @@ body.modal-open{overflow:hidden}
 /* The reference is what somebody is scanning the list for, so it is the largest
    thing on the row rather than the smallest. */
 .appointment-card__reference{color:var(--dock-deep);font-size:calc(var(--t-base) * 1.08);font-weight:700;white-space:nowrap;font-variant-numeric:tabular-nums}
-.appointment-card__title{margin:0;font-size:var(--t-base);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* Origin, arrow, destination — the movement in three parts, taking the width the
+   row has rather than leaving it empty. Either end elides before the arrow does,
+   so the shape of the line survives a long company name. */
+.appointment-card__title{margin:0;font-size:var(--t-base);font-weight:600;display:flex;align-items:baseline;gap:var(--s2);min-width:0;flex:1}
+.appointment-card__place{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.appointment-card__arrow{color:var(--ink-faint);font-weight:400;flex:none}
 .appointment-card__time{color:var(--ink-muted);font-size:var(--t-small);white-space:nowrap}
 .appointment-card__details{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:0 var(--s3);padding:var(--s2) 0 0;margin-top:var(--s2);border-top:1px solid var(--rule)}
 .appointment-detail{min-width:0;display:flex;align-items:baseline;gap:var(--s1);font-size:var(--t-small);line-height:1.5}
 .appointment-detail__label{color:var(--ink-muted);font-size:var(--t-micro);white-space:nowrap;flex:none}
 .appointment-detail__value{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500}
 .appointment-card__actions{display:flex;gap:var(--s1);margin-left:auto;flex:none}
+.appointment-card__actions .btn:disabled{opacity:.4;cursor:not-allowed}
 /* More than one action can apply to a row — a late truck can still arrive, or be
    written off. They sit together and the cell does not grow. */
 .rowactions{display:flex;gap:var(--s2);justify-content:flex-end}

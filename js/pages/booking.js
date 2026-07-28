@@ -166,7 +166,7 @@ async function loadReferenceData() {
     loadEnabledRows('location_truck_types', 'truck_type_code', 'truck_types', locationId, 'skid_capacity'),
     loadEnabledRows('location_handling_types', 'handling_type_code', 'handling_types', locationId),
     db.select('location_settings', query => query
-      .select('slot_interval_minutes, suggest_same_day_consolidation, consolidation_window_hours')
+      .select('slot_interval_minutes, suggest_same_day_consolidation, consolidation_window_hours, maximum_advance_days')
       .eq('location_id', locationId)
       .single(), {
       key: `booking:settings:${locationId}`,
@@ -330,13 +330,14 @@ function renderSteps() {
 async function renderCheckInCode(result) {
   const host = hosts.step.querySelector('[data-qr]');
   if (!host) return;
+  // Through the RPC, not off the table. Reading the column directly needed
+  // appointment.view, which a customer booking their own shipment does not have —
+  // so the one account that most needs a code to hand a driver never got one.
   let token = null;
   try {
-    const row = await db.select('appointments', query => query
-      .select('check_in_token')
-      .eq('id', result.appointment_id)
-      .maybeSingle(), { key: `booking:token:${result.appointment_id}`, cache: 0, retry: 1 });
-    token = row?.check_in_token || null;
+    token = await db.rpc('get_appointment_check_in_token', { p_appointment_id: result.appointment_id }, {
+      key: `booking:token:${result.appointment_id}`, cache: 0, retry: 1,
+    });
   } catch { token = null; }
   if (!token) {
     host.innerHTML = '<p class="hint">The check-in code is not available for this booking yet.</p>';
@@ -633,11 +634,22 @@ function repeatDates() {
   });
 }
 
+// How far ahead this site will take a booking at all. Mississauga's window is ten
+// days, so "every Wednesday until Christmas" books one Wednesday and the booking
+// function refuses the rest — correctly, and until now silently. The repeat says
+// so before anything is booked, and the date field will not go past it.
+function bookingWindowEnd() {
+  const days = Number(state.reference.settings.maximum_advance_days || 0);
+  if (!days) return '';
+  return format.addDaysInput(format.todayInput(receivingLocation()), days);
+}
+
 function renderRepeat() {
   const host = hosts.step.querySelector('[data-repeat]');
   if (!host) return;
   const on = state.form.repeat_on;
   const dates = on ? repeatDates() : [];
+  const windowEnd = bookingWindowEnd();
   host.innerHTML = `
     <label class="check-row check-row--spaced"><input type="checkbox" data-field="repeat_on" ${on ? 'checked' : ''}><span><strong>Repeat this booking</strong><small>MaxDock books each date separately, so any one of them can be changed or cancelled on its own.</small></span></label>
     ${on ? `
@@ -648,13 +660,14 @@ function renderRepeat() {
           <option value="3" ${Number(state.form.repeat_interval_weeks) === 3 ? 'selected' : ''}>Every 3 weeks</option>
           <option value="4" ${Number(state.form.repeat_interval_weeks) === 4 ? 'selected' : ''}>Every 4 weeks</option>
         </select></div>
-        <div class="field field--md"><span class="field__label">Until<span class="field__req" aria-hidden="true">*</span></span><input class="input" type="date" data-field="repeat_until" min="${escapeHtml(selectedDate() || '')}" value="${escapeHtml(state.form.repeat_until)}"></div>
+        <div class="field field--md"><span class="field__label">Until<span class="field__req" aria-hidden="true">*</span></span><input class="input" type="date" data-field="repeat_until" min="${escapeHtml(selectedDate() || '')}" ${windowEnd ? `max="${escapeHtml(windowEnd)}"` : ''} value="${escapeHtml(state.form.repeat_until)}"></div>
       </div>
       <div class="grouplabel">On these days</div>
       <div class="daypick">${WEEKDAYS.map(day => `<label class="check-row"><input type="checkbox" data-repeat-day="${day.value}" ${state.form.repeat_days.includes(day.value) ? 'checked' : ''}><span>${day.label}</span></label>`).join('')}</div>
       <p class="hint hint--wide">${dates.length
         ? `${dates.length} appointment${dates.length === 1 ? '' : 's'} at ${escapeHtml(selectedTime() || 'the chosen time')}, first on ${escapeHtml(dates[0])}, last on ${escapeHtml(dates[dates.length - 1])}. Any date with no room is skipped and reported, the rest still book.`
-        : 'Pick the days and a last date to see which appointments this will book.'}</p>` : ''}`;
+        : 'Pick the days and a last date to see which appointments this will book.'}</p>
+      ${windowEnd ? `<p class="inline-note${dates.some(date => date > windowEnd) ? ' inline-note--warning' : ''}">${escapeHtml(currentLocation().name)} takes bookings up to ${Number(state.reference.settings.maximum_advance_days)} days ahead — to ${escapeHtml(windowEnd)}.${dates.some(date => date > windowEnd) ? ' Dates after that will be skipped. Raise the booking window under Settings › Booking window &amp; notice to schedule further out.' : ''}</p>` : ''}` : ''}`;
 }
 
 function renderConfirmStep() {
@@ -1115,12 +1128,28 @@ async function toggleCombine(key, checked) {
   state.combineSelected = checked
     ? [...new Set([...state.combineSelected, key])]
     : state.combineSelected.filter(entry => entry !== key);
+  // Ticking a load is a decision, and the wizard must not ask about these loads
+  // again at the end. It used to, which put the user in a loop: choose loads,
+  // come back, get asked the same question, choose loads again.
+  state.combineReviewed = true;
   if (state.form.after_hours) {
     renderCombinePicker();
     return;
   }
+  // The times are re-fetched for the combined load, so the chosen one has to be
+  // re-checked rather than thrown away. Clearing it silently sent the user back
+  // to the time step with nothing selected and no idea why.
+  const wanted = state.form.selected_slot?.slot_start || null;
   clearSlotSelection();
-  await findSlots({ keepCombinable: true });
+  const slots = await findSlots({ keepCombinable: true });
+  if (!wanted) return;
+  const stillThere = slots.find(slot => slot.slot_start === wanted);
+  if (stillThere) {
+    state.form.selected_slot = stillThere;
+    renderTimeStep();
+  } else {
+    setMessage(`${combinedSkids()} skids no longer fits at that time. Choose another time below.`);
+  }
 }
 
 async function saveTemplate() {
@@ -1263,10 +1292,12 @@ async function attemptBooking() {
     setMessage(error);
     return;
   }
-  if (!state.sameDayAccepted) {
+  if (!state.sameDayAccepted && !state.combineReviewed) {
     try {
       // Loads already ticked on the Time step are a decision, not a surprise —
-      // only the ones left unticked are worth stopping the booking for.
+      // only the ones left unticked are worth stopping the booking for. And once
+      // the picker has been opened at all, the question has been asked: coming
+      // back to the end of the wizard must not ask it a second time.
       const chosen = new Set(state.combineSelected);
       const matches = (await findSameDayAppointments()).filter(match => !chosen.has(matchKey(match)));
       if (matches.length) {
@@ -1432,6 +1463,7 @@ async function handleAction(button) {
     // telling the user to work it out themselves.
     sameDayModal.close();
     state.sameDayAccepted = false;
+    state.combineReviewed = true;
     state.step = 2;
     state.maxStep = Math.max(state.maxStep, 4);
     renderAll();
@@ -1471,6 +1503,7 @@ async function handleAction(button) {
       sameDayAccepted: false,
       combineMatches: [],
       combineSelected: [],
+      combineReviewed: false,
       combineLoading: false,
       confirmation: null,
       busy: false,
@@ -1542,6 +1575,7 @@ const page = {
       sameDayAccepted: false,
       combineMatches: [],
       combineSelected: [],
+      combineReviewed: false,
       combineLoading: false,
       confirmation: null,
       busy: false,

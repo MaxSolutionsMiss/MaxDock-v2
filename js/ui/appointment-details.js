@@ -1,6 +1,7 @@
 import { db } from '../db.js';
 import { createModal } from './modal.js';
 import { format } from '../format.js';
+import { renderQr } from './qr.js';
 
 // One appointment, everything known about it, from anywhere it appears.
 //
@@ -42,6 +43,10 @@ export function createAppointmentDetails({ location, onEdit } = {}) {
       </div>
       <div class="modal__body">
         <div class="confirmgrid" data-grid></div>
+        <div class="section-gap qrblock" data-checkin hidden>
+          <div class="qr-frame" data-qr></div>
+          <div><h3 class="watch__t">Check-in code</h3><p class="hint hint--flush" data-qr-note></p></div>
+        </div>
         <h3 class="watch__t section-gap">Activity</h3>
         <div data-log></div>
       </div>
@@ -55,6 +60,9 @@ export function createAppointmentDetails({ location, onEdit } = {}) {
     grid: backdrop.querySelector('[data-grid]'),
     log: backdrop.querySelector('[data-log]'),
     edit: backdrop.querySelector('[data-edit]'),
+    checkin: backdrop.querySelector('[data-checkin]'),
+    qr: backdrop.querySelector('[data-qr]'),
+    qrNote: backdrop.querySelector('[data-qr-note]'),
   };
   let current = null;
 
@@ -100,7 +108,9 @@ export function createAppointmentDetails({ location, onEdit } = {}) {
       cell('First scanned', record.checked_in_at ? format.timestamp(record.checked_in_at, site) : 'Not scanned yet'),
     ].join('');
     els.log.innerHTML = '<p class="hint">Loading activity…</p>';
+    els.checkin.hidden = true;
     modal.open({ trigger });
+    renderCheckIn(record, site);
 
     try {
       const rows = await db.rpc('get_appointment_history', { p_appointment_id: record.id || record.appointment_id }, {
@@ -112,6 +122,28 @@ export function createAppointmentDetails({ location, onEdit } = {}) {
       // permission, not a fault, and the details above are still worth showing.
       els.log.innerHTML = `<p class="hint">${escapeHtml(error.userMessage || 'The activity log is not available for your account.')}</p>`;
     }
+  }
+
+  // Every appointment carries its check-in code, not just the one you have this
+  // second finished booking. A driver turns up with a printed sheet from three
+  // weeks ago, or a coordinator needs to read the code down the phone — the code
+  // belongs to the appointment, so it lives wherever the appointment is shown.
+  async function renderCheckIn(record, site) {
+    const id = record.id || record.appointment_id;
+    if (!id || record.entry_kind === 'block') return;
+    let token = null;
+    try {
+      token = await db.rpc('get_appointment_check_in_token', { p_appointment_id: id }, {
+        key: `appointment:token:${id}`, cache: 60000, retry: 1,
+      });
+    } catch { token = null; }
+    if (!token || current !== record) return;
+    const url = new URL('receiving.html', globalThis.location.href);
+    url.searchParams.set('t', token);
+    renderQr(els.qr, url.href, { label: `Check-in code for MaxDock appointment ${record.booking_reference || ''}` });
+    els.qrNote.textContent = `Scan at the dock to check ${record.booking_reference || 'this appointment'} in. Generated in this browser — nothing about the appointment is sent anywhere to draw it.`;
+    els.checkin.hidden = false;
+    void site;
   }
 
   return { open, close: () => modal.close(), destroy: () => { modal.destroy(); backdrop.remove(); } };

@@ -23,6 +23,7 @@ if (!errors.length) {
   const html = read('app/book.html');
   const page = read('js/pages/booking.js');
   const qr = read('js/ui/qr.js');
+  const details = read('js/ui/appointment-details.js');
   const css = read('assets/maxdock.css');
   const db = read('js/db.js');
   const router = read('js/router.js');
@@ -48,6 +49,12 @@ if (!errors.length) {
   requireText(page, /create_appointment_series/, 'The repeat pattern is not sent to the series RPC.');
   requireText(page, /format\.repeatingDates/, 'Repeat dates must be worked out in format.js, not with local date maths.');
   requireText(page, /data-repeat-day/, 'The repeat day picker is missing.');
+  // The check-in code goes through the RPC, not a table read: reading the column
+  // needs appointment.view, which the customer booking their own shipment — the
+  // one account that most needs a code for a driver — does not hold.
+  requireText(page, /get_appointment_check_in_token/, 'The check-in code must be read through its RPC.');
+  requireText(details, /get_appointment_check_in_token/, 'Every appointment must offer its check-in code, not only a freshly booked one.');
+  requireText(page, /combineReviewed/, 'The consolidation prompt must not ask again once the picker has been used.');
   requireText(page, /poll\.suspend\(SLOT_SUSPENSION\)/, 'The five-second poll is not suspended while the slot picker is open.');
   requireText(page, /poll\.resume\(SLOT_SUSPENSION\)/, 'The slot-picker poll suspension is not released.');
   requireText(page, /p_after_hours_confirmed:\s*isStaff\(\)/, 'After-hours confirmation is not guarded as staff-only.');

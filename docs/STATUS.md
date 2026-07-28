@@ -754,3 +754,74 @@ booking reference is now the largest thing on the row rather than the smallest �
 no change to any card's width or height. And the customize panel's group heading
 had equal air above and below its rule, which made "Appointment block" read as
 the tail of the metric cards instead of the name of what follows it.
+
+## Why "every Wednesday" only booked one Wednesday (2026-07-28)
+
+Nothing was wrong with the repeat. Mississauga's `maximum_advance_days` is 10,
+and Milton's is 10 — every Wednesday past the tenth day was refused by
+`book_appointment`, which is the location's own rule doing exactly what it is
+set to do. The series reported them as skipped, and the owner read the result as
+"it is not repeating".
+
+The defect was that nothing said so before booking. The repeat now names the
+window — "Mississauga takes bookings up to 10 days ahead — to 2026-08-07" — puts
+that date as the `max` on the Until field, and warns, with the setting to change
+and where to find it, when the chosen pattern runs past it. The rule has not
+moved; it is simply no longer invisible.
+
+## Combining stopped looping (2026-07-28)
+
+Two defects, one symptom. Ticking a load re-fetched the times for the combined
+skid count and threw the chosen one away in the process, so the wizard appeared
+to bounce the user back to the time step for no reason — it now re-selects the
+same time if it still fits and says plainly when it does not. And the end-of-flow
+prompt asked about the same loads again after the user had been to the picker and
+made a choice, which is the loop: choose loads, come back, get asked, choose
+loads. Once the picker has been opened, the question has been asked.
+
+## The check-in code belongs to the appointment (2026-07-28)
+
+It was read straight off `appointments.check_in_token`, and the read policy on
+that table requires `appointment.view`. A customer booking their own shipment
+holds `appointment.view_own` — so the one account that most needs a code to hand
+to a driver was the one account that always saw "the check-in code is not
+available for this booking yet".
+
+`get_appointment_check_in_token` says the rule once: you can have the code for an
+appointment you are allowed to see, whether by permission or because it is yours.
+Verified live for both — a system_admin on any appointment, and the customer
+account on its own booking, which previously got nothing.
+
+And the code now appears wherever an appointment appears, not only on the
+confirmation of one just booked. A driver turns up with a sheet printed three
+weeks ago; a coordinator reads the code down the phone. The details dialog on the
+board, the queue and My appointments all draw it.
+
+Three smaller things. The hour labels on both timelines sat 4px from the gridline
+they name and read as if printed on it — 9px now, still left-aligned to their own
+hour. Settings caps at 900px and a list of names each carrying one control shares
+a label column, so the trucks and their numbers sit together and line up instead
+of being flung to opposite edges of a wide monitor. And the tab icon is the badge
+the rail and the sign-in page already use — the mark on MaxDock blue, squared off
+— rather than a white knockout that was invisible on a light tab.
+
+## The appointment row says what the movement is (2026-07-28)
+
+The headline named the Max Solutions site, which is the one thing every row in
+the list has in common — so fifty rows shared a headline and the middle of the
+card carried nothing. It reads as the movement now: reference, origin, arrow,
+destination, then when. Inbound is somebody else's site to ours, outbound is ours
+to theirs, and either end elides before the arrow does so the shape of the line
+survives a long company name.
+
+Move and Cancel were not missing, they were hidden. They are shown to anyone
+holding the permission — coordinator, shipping manager and customer all do — and
+disabled with the reason on them when the appointment is past or already closed:
+"This appointment has passed", "Already arrived". A control that vanishes reads
+as a missing feature; one greyed out with a reason reads as the rule it is.
+
+**Not built: no email goes out when an appointment is cancelled.** Transactional
+email has never been configured on this project, so nothing is sent on booking,
+change or cancellation — the confirmation is the screen and the copy-to-clipboard
+draft. This needs an email provider and a sender domain before it can be real,
+and saying it is coming would be worse than saying it is not there.

@@ -58,6 +58,14 @@ function statusLabel(value) {
   return format.role(normaliseStatus(value));
 }
 
+// Origin and destination, in the direction the load actually travels. Inbound is
+// somebody else's site to ours; outbound is ours to theirs.
+function routeEnds(record) {
+  const here = record.location_name || 'Max Solutions';
+  const other = String(record.company_name || record.display_counterpart_location_name || record.requester_name || '').trim() || 'Not named';
+  return String(record.direction || '').toLowerCase() === 'outbound' ? [here, other] : [other, here];
+}
+
 function isUpcoming(record, now = format.nowEpoch()) {
   return !TERMINAL_STATUSES.has(normaliseStatus(record.status))
     && format.epoch(record.start_at) >= now;
@@ -236,9 +244,19 @@ function createAppointmentCard(record) {
   const head = createElement('div', 'appointment-card__head');
   const identity = createElement('div', 'appointment-card__identity');
   const reference = createElement('span', 'appointment-card__reference data');
-  const location = createElement('h3', 'appointment-card__title');
+  // The line reads as the movement itself: which booking, from where, to where.
+  // It used to name only the Max Solutions site, which is the one thing every row
+  // in the list has in common — so fifty rows shared a headline and the empty
+  // middle of the card carried nothing at all.
+  const route = createElement('h3', 'appointment-card__title');
+  const origin = createElement('span', 'appointment-card__place');
+  const arrow = createElement('span', 'appointment-card__arrow');
+  arrow.setAttribute('aria-hidden', 'true');
+  arrow.textContent = '→';
+  const destination = createElement('span', 'appointment-card__place');
+  route.append(origin, arrow, destination);
   const when = createElement('span', 'appointment-card__time');
-  identity.append(reference, location, when);
+  identity.append(reference, route, when);
   const status = createElement('span', 'status');
   const actions = createElement('div', 'appointment-card__actions');
   const copy = createCardAction('copy', 'Copy confirmation');
@@ -268,7 +286,10 @@ function createAppointmentCard(record) {
   function update(nextRecord) {
     currentRecord = nextRecord;
     reference.textContent = nextRecord.booking_reference;
-    location.textContent = nextRecord.location_name;
+    const [from, to] = routeEnds(nextRecord);
+    origin.textContent = from;
+    destination.textContent = to;
+    route.title = `${from} → ${to}`;
     when.textContent = appointmentTime(nextRecord);
     const nextStatus = normaliseStatus(nextRecord.status);
     status.className = `status status--${nextStatus}`;
@@ -281,9 +302,20 @@ function createAppointmentCard(record) {
       detail.value.textContent = detailValue(rawValue);
     }
 
-    const changeable = CANCELLABLE_STATUSES.has(nextStatus) && isUpcoming(nextRecord);
-    cancel.hidden = !(activeContext?.can('appointment.cancel_own') && changeable);
-    move.hidden = !(activeContext?.can('appointment.create') && changeable);
+    // Shown to anyone allowed to use them and disabled rather than removed when
+    // the appointment is past or already closed. A control that vanishes reads as
+    // a missing feature; one that is greyed out with a reason on it reads as the
+    // rule it is — you cannot cancel a truck that has already been and gone.
+    const closed = !CANCELLABLE_STATUSES.has(nextStatus);
+    const past = !isUpcoming(nextRecord);
+    const why = closed ? `Already ${statusLabel(nextStatus).toLowerCase()}` : past ? 'This appointment has passed' : '';
+    cancel.hidden = !activeContext?.can('appointment.cancel_own');
+    move.hidden = !activeContext?.can('appointment.create');
+    for (const [button, label] of [[cancel, 'Cancel appointment'], [move, 'Move to another time']]) {
+      button.disabled = Boolean(why);
+      button.title = why || label;
+      button.setAttribute('aria-label', why ? `${label} — ${why.toLowerCase()}` : label);
+    }
   }
 
   element.append(head, details);
