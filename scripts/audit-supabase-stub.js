@@ -179,6 +179,11 @@
       { partner_name: 'Guelph', partner_kind: 'location', trucks: 11, skids: 96, completed: 10, on_time: 6, late: 5, no_shows: 0, cancelled: 1, on_time_pct: 54.5, avg_minutes_late: 41, avg_dwell_minutes: 58, truck_types: '48 ft Trailer ×11', last_movement: iso(8) },
       { partner_name: 'Nordic Freight', partner_kind: 'company', trucks: 3, skids: 12, completed: 0, on_time: 0, late: 0, no_shows: 2, cancelled: 1, on_time_pct: null, avg_minutes_late: null, avg_dwell_minutes: null, truck_types: 'Cube Van ×3', last_movement: iso(7) },
     ],
+    list_dock_direction_windows: () => [
+      { id: 'w1', dock_id: null, dock_name: null, day_of_week: null, direction: 'inbound', start_time: '06:00:00', end_time: '12:00:00' },
+      { id: 'w2', dock_id: null, dock_name: null, day_of_week: null, direction: 'outbound', start_time: '12:00:00', end_time: '18:00:00' },
+    ],
+    save_dock_direction_windows: () => 2,
     settle_due_appointments: () => 0,
     reschedule_my_appointment: () => ({ appointment_id: 'a4', booking_reference: 'MXD-2026-000143', start_at: iso(11, 0, 3), end_at: iso(12, 0, 3), dock_name: 'Dock 2' }),
     // The booking wizard is only reachable past step 3 if slots come back, so the

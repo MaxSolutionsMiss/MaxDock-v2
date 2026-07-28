@@ -30,6 +30,7 @@ const state = {
   truckTypes: [],
   locationTruckTypes: [],
   dockTruckTypes: [],
+  directionWindows: [],
   elements: {},
   dockModal: null,
   editingDockId: null,
@@ -87,7 +88,7 @@ function durationValue(data, name, baseUnit, units) {
 
 async function fetchAll() {
   const locationId = state.locationId;
-  const [hours, settings, docks, truckTypes, locationTruckTypes, dockTruckTypes, capacity] = await Promise.all([
+  const [hours, settings, docks, truckTypes, locationTruckTypes, dockTruckTypes, capacity, directionWindows] = await Promise.all([
     db.select('location_operating_hours', q => q.select('location_id,day_of_week,is_open,open_time,close_time').eq('location_id', locationId), { key: `settings:hours:${locationId}`, cache: 0 }),
     db.select('location_settings', q => q.select('*').eq('location_id', locationId).maybeSingle(), { key: `settings:row:${locationId}`, cache: 0 }),
     db.select('docks', q => q.select('id,name,description,sort_order,direction_mode,is_active').eq('location_id', locationId).order('sort_order').order('name'), { key: `settings:docks:${locationId}`, cache: 0 }),
@@ -95,6 +96,7 @@ async function fetchAll() {
     db.select('location_truck_types', q => q.select('truck_type_code,setup_minutes,is_active').eq('location_id', locationId), { key: `settings:location-truck-types:${locationId}`, cache: 0 }),
     db.select('dock_truck_types', q => q.select('dock_id,truck_type_code').eq('location_id', locationId), { key: `settings:dock-truck-types:${locationId}`, cache: 0 }),
     db.rpc('get_location_capacity_projection', { p_location_id: locationId, p_at: format.nowIso(), p_direction: 'inbound', p_skid_count: 0 }, { key: `settings:capacity:${locationId}`, cache: 0, retry: 1 }).catch(() => null),
+    db.rpc('list_dock_direction_windows', { p_location_id: locationId }, { key: `settings:windows:${locationId}`, cache: 0, retry: 1 }).catch(() => []),
   ]);
   state.hours = hours || [];
   state.capacity = Array.isArray(capacity) ? capacity[0] || null : capacity || null;
@@ -103,6 +105,7 @@ async function fetchAll() {
   state.truckTypes = truckTypes || [];
   state.locationTruckTypes = locationTruckTypes || [];
   state.dockTruckTypes = dockTruckTypes || [];
+  state.directionWindows = directionWindows || [];
 }
 
 function saveFoot(canEdit) {
@@ -129,6 +132,44 @@ function renderHours() {
     <h3 class="card__title">Operating hours</h3>
     <div class="hours">${rows}</div>
     <p class="hint">Staff may book outside these hours with a warning. Customers cannot.</p>
+    ${saveFoot(canEdit)}
+  </form>
+  ${renderDirectionWindows(canEdit)}`;
+}
+
+// When this site takes inbound and when it takes outbound.
+//
+// A window with no dock applies to every door here, which is how "inbound before
+// noon, outbound after" is said once instead of once per dock. No windows at all
+// means the site takes either direction whenever it is open, which is how every
+// location behaves today and stays behaving until somebody adds a row.
+function directionWindowRow(row, index, canEdit) {
+  const disabled = canEdit ? '' : 'disabled';
+  const dockOptions = ['<option value="">Every dock</option>']
+    .concat(state.docks.map(dock => `<option value="${dock.id}" ${dock.id === row.dock_id ? 'selected' : ''}>${escapeHtml(dock.name)}</option>`))
+    .join('');
+  const dayOptions = ['<option value="">Every day</option>']
+    .concat(DAY_ORDER.map(day => `<option value="${day}" ${String(row.day_of_week) === String(day) ? 'selected' : ''}>${DAY_LABELS[day]}</option>`))
+    .join('');
+  return `<div class="dirrow" data-window="${index}">
+    <select class="select" data-window-dock aria-label="Dock" ${disabled}>${dockOptions}</select>
+    <select class="select" data-window-day aria-label="Day" ${disabled}>${dayOptions}</select>
+    <select class="select" data-window-direction aria-label="Direction" ${disabled}>
+      <option value="inbound" ${row.direction === 'inbound' ? 'selected' : ''}>takes inbound</option>
+      <option value="outbound" ${row.direction === 'outbound' ? 'selected' : ''}>takes outbound</option>
+    </select>
+    <input class="input" type="time" data-window-start aria-label="From" value="${escapeHtml(timeInput(row.start_time))}" ${disabled}>
+    <input class="input" type="time" data-window-end aria-label="To" value="${escapeHtml(timeInput(row.end_time))}" ${disabled}>
+    ${canEdit ? '<button class="btn btn--danger btn--icon" type="button" data-remove-window aria-label="Remove this window" title="Remove this window">×</button>' : ''}
+  </div>`;
+}
+
+function renderDirectionWindows(canEdit) {
+  const rows = state.directionWindows.map((row, index) => directionWindowRow(row, index, canEdit)).join('');
+  return `<form class="card" data-section-form="direction-windows">
+    <h3 class="card__title">Inbound and outbound hours${canEdit ? '<button class="btn btn--quiet btn--sm at-end" type="button" data-add-window>Add a window</button>' : ''}</h3>
+    <div class="dirlist">${rows || '<p class="hint">No windows set. This location takes inbound and outbound at any time it is open.</p>'}</div>
+    <p class="hint hint--measure">A window says when a door will take a direction — "every dock, every day, takes inbound, 06:00 to 12:00". Leave the dock as Every dock to set the whole site at once. A load has to fit entirely inside a window, so an outbound that would run past the end of the outbound period is not offered. Docks also keep their own Inbound or Outbound setting, which always applies.</p>
     ${saveFoot(canEdit)}
   </form>`;
 }
@@ -411,6 +452,25 @@ async function saveAssignment(form) {
 
 // Only the in-service switches are edited on the dock table itself; everything
 // else about a dock is changed through Add dock or Edit, which save on their own.
+// Read straight off the rows on screen, so what is shown is what is stored.
+async function saveDirectionWindows(form) {
+  const windows = [...form.querySelectorAll('[data-window]')].map(row => ({
+    dock_id: row.querySelector('[data-window-dock]').value || null,
+    day_of_week: row.querySelector('[data-window-day]').value || null,
+    direction: row.querySelector('[data-window-direction]').value,
+    start_time: row.querySelector('[data-window-start]').value,
+    end_time: row.querySelector('[data-window-end]').value,
+  }));
+  if (windows.some(window => !window.start_time || !window.end_time)) {
+    throw { userMessage: 'Every window needs a start and an end time.' };
+  }
+  await db.rpc('save_dock_direction_windows', { p_location_id: state.locationId, p_windows: windows }, {
+    key: `settings:windows:save:${crypto.randomUUID()}`, retry: 0,
+    userMessage: 'The inbound and outbound hours could not be saved.',
+  });
+  db.invalidate(`settings:windows:${state.locationId}`);
+}
+
 async function saveDocks(form) {
   const updates = [...form.querySelectorAll('[data-dock-row]')].map(row => {
     const id = row.dataset.dockRow;
@@ -483,6 +543,7 @@ async function submitSection(event) {
     else if (kind === 'notice') await saveNotice(form);
     else if (kind === 'capacity') await saveCapacity(form);
     else if (kind === 'assignment') await saveAssignment(form);
+    else if (kind === 'direction-windows') await saveDirectionWindows(form);
     else if (kind === 'docks') await saveDocks(form);
     else if (kind === 'truck-types') await saveTruckTypes(form);
     db.invalidate('booking:');
@@ -627,6 +688,16 @@ function buildShell(root) {
   state.dockModal = createModal(state.elements.dockBackdrop, { onRequestClose: () => state.dockModal.close() });
 }
 
+function readWindowRows() {
+  return [...(state.elements.panel?.querySelectorAll('[data-window]') || [])].map(row => ({
+    dock_id: row.querySelector('[data-window-dock]').value || null,
+    day_of_week: row.querySelector('[data-window-day]').value || null,
+    direction: row.querySelector('[data-window-direction]').value,
+    start_time: row.querySelector('[data-window-start]').value,
+    end_time: row.querySelector('[data-window-end]').value,
+  }));
+}
+
 function wireEvents(root) {
   // The hours field only means anything when the window mode asks for one.
   root.addEventListener('change', event => {
@@ -660,6 +731,21 @@ function wireEvents(root) {
     if (checkAll) {
       const checked = checkAll.hasAttribute('data-dock-check-all');
       for (const input of state.elements.dockForm.querySelectorAll('input[name="truck_type_code"]')) input.checked = checked;
+      return;
+    }
+    // Rows are edited in place, so adding or removing one reads the current
+    // rows back out of the DOM first — otherwise an unsaved edit is lost on the
+    // re-render that follows.
+    if (event.target.closest('[data-add-window]')) {
+      state.directionWindows = readWindowRows().concat([{ dock_id: null, day_of_week: null, direction: 'inbound', start_time: '06:00', end_time: '12:00' }]);
+      renderPanel();
+      return;
+    }
+    const removeWindow = event.target.closest('[data-remove-window]');
+    if (removeWindow) {
+      const index = Number(removeWindow.closest('[data-window]').dataset.window);
+      state.directionWindows = readWindowRows().filter((_, position) => position !== index);
+      renderPanel();
       return;
     }
     if (event.target.closest('[data-add-dock]')) { openDockModal(null); return; }

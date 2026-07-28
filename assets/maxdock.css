@@ -407,6 +407,13 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 /* The stock count is its own subject inside the capacity card: a number somebody
    walked the floor for, and the moment they took it. Ruled off from the limits
    above it so the two are not read as one set of numbers. */
+/* One window to a line, read left to right as a sentence: which dock, which day,
+   which direction, from when, to when. Sized to its controls rather than spread
+   across the card. */
+.dirlist{display:grid;gap:var(--s2)}
+.dirrow{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1.2fr) minmax(0,1.2fr) auto auto auto;gap:var(--s2);align-items:center;max-width:820px}
+.dirrow .input[type="time"]{width:auto}
+@container (max-width:640px){.dirrow{grid-template-columns:1fr 1fr;max-width:none}}
 .countset{border:none;border-top:1px solid var(--rule);padding:var(--s4) 0 0;margin:var(--s4) 0 0}
 .countset>legend{padding:0;font-size:var(--t-micro);text-transform:uppercase;letter-spacing:.07em;color:var(--ink-muted);font-weight:600}
 /* Keyed to the container, not the viewport: a dialog is a fixed 760px wide however

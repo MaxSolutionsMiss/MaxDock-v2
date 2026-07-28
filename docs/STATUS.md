@@ -550,3 +550,36 @@ overloads belongs in the same breath as the CREATE.**
 was made directly against the live database with no call exercising it afterwards.
 A schema change that alters a function signature needs one real call through the
 path it serves before the turn ends.**
+
+## Dock direction is enforced, and has windows (2026-07-28)
+
+`docks.direction_mode` — the Inbound / Outbound / Both setting on every dock —
+was referenced by no function in the database. It was a label. An outbound load
+could be assigned to a dock marked Inbound only, at any site, and had been all
+along. The owner's request for time-ranged direction rules only means anything
+once that is real, so the two were built together.
+
+`dock_direction_windows` holds a window per row: a dock (or null for every dock at
+the site, which is how "all docks inbound before noon" is said once), a weekday or
+null for every day, a direction, and a clock range.
+`dock_allows_direction_internal` applies the static mode first, then the windows,
+and only if any window exists for that dock and day — a location that has never
+set one behaves exactly as it did, which is what made this safe to add to a live
+booking path. The appointment must sit entirely inside one window; half an
+outbound running past the end of the outbound period is the case the rule exists
+for.
+
+Threading it into `inspect_routed_appointment_window_internal` meant editing 8.6KB
+of live scheduling logic to change two arguments. Rather than retype it, the
+migration reads the function's own `pg_get_functiondef`, substitutes both call
+sites, asserts each substitution took, and executes the result — so a missed match
+raises and rolls back instead of quietly leaving a call unwired. For a Max-to-Max
+movement the counterpart dock is judged on the opposite direction, because an
+outbound from here is an inbound over there.
+
+Verified against live Milton data, where docks 1–2 are inbound and 3–4 outbound:
+inbound selects Dock 1, outbound selects Dock 3, and a call with no direction
+still selects Dock 1 as before.
+
+**Rule reinforced from the overload incident: never hand-retype a live function to
+change part of it. Transform its stored definition and assert the transformation.**

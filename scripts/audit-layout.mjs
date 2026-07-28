@@ -92,6 +92,7 @@ const FLOWS = {
   // still reported clean.
   settings: [
     { name: 'docks', query: '', act: async page => { await page.click('[data-section="docks"]'); }, expect: '.table' },
+    { name: 'hours', query: '', act: async page => { await page.click('[data-section="hours"]'); }, expect: '.dirrow' },
     { name: 'capacity', query: '', act: async page => { await page.click('[data-section="capacity"]'); }, expect: '.card' },
     { name: 'assignment', query: '', act: async page => { await page.click('[data-section="assignment"]'); }, expect: '.card' },
     { name: 'notice', query: '', act: async page => { await page.click('[data-section="notice"]'); }, expect: '.card' },
