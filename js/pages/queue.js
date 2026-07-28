@@ -270,7 +270,9 @@ const DEFAULT_BRIEF_FIGURES = BRIEF_FIGURES.map(figure => figure.id);
 // schedule rather than a service call, so the brief is never empty.
 function localNarrative() {
   const appointments = state.records.filter(record => record.entry_kind !== 'block');
-  if (!appointments.length) return 'Nothing is scheduled at this location today.';
+  // An array in every branch. The caller spreads this, so a bare string would be
+  // spread one character at a time into one bullet per letter.
+  if (!appointments.length) return ['Nothing is scheduled at this location today.'];
   const skids = rows => rows.reduce((sum, row) => sum + Number(row.skid_count || 0), 0);
   const inbound = appointments.filter(record => record.direction === 'inbound');
   const outbound = appointments.filter(record => record.direction === 'outbound');

@@ -26,6 +26,7 @@ const state = {
   wall: null,
   granularity: 30,
   truckTypeNames: new Map(),
+  signature: '',
 };
 
 const KPI_CARDS = [
@@ -394,15 +395,33 @@ function renderBoard() {
     </div>
     <div class="board__scroll">${timeline}</div>`;
 }
+// One signature covering everything the timeline is drawn from: the day on the
+// axis, the operating hours, the lanes and the movements. The board is only
+// rebuilt when that signature moves, so a five-second poll on an unchanged day
+// costs a KPI pass rather than a full repaint.
+//
+// It has to be computed from the incoming data, not from state after the
+// assignment — comparing state.docks to data.docks once state.docks had already
+// been overwritten always said "unchanged", so a location with docks configured
+// and nothing booked yet never drew at all and sat on "Loading dock schedule…".
+function boardSignature(data) {
+  return JSON.stringify([
+    state.date,
+    data.hours,
+    (data.docks || []).map(dock => [dock.id, dock.name, dock.direction_mode]),
+    data.records || [],
+  ]);
+}
+
 function patchData(data) {
+  const signature = boardSignature(data);
+  const changed = signature !== state.signature;
+  state.signature = signature;
   state.docks = data.docks;
   state.hours = data.hours;
   state.truckTypeNames = data.truckTypeNames || state.truckTypeNames;
-  const before = new Map(state.records.map(record => [record.id, JSON.stringify(record)]));
-  const after = new Map(data.records.map(record => [record.id, JSON.stringify(record)]));
-  const structureChanged = state.records.length !== data.records.length || state.docks.length !== (data.docks || []).length || [...after].some(([id, value]) => before.get(id) !== value);
   state.records = data.records;
-  if (structureChanged) renderBoard();
+  if (changed) renderBoard();
   else renderKpis();
   // Repainted from the same poll that drives the page, so the display stays
   // current on its own — nobody walks over to a wall screen to refresh it.

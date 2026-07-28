@@ -38,6 +38,44 @@ const state = {
 const escapeHtml = value => String(value ?? '').replace(/[&<>'"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[char]));
 const timeInput = value => (value ? String(value).slice(0, 5) : '');
 
+// A duration is stored in one unit and thought about in another. Two hours' notice
+// is two hours to the manager setting it and 120 to the column holding it; making
+// them type 120 is asking them to do the conversion the page can do. The unit is a
+// choice beside the number, and the value comes back in whichever unit the column
+// uses. Reading back, the largest unit the value divides into evenly is picked, so
+// 120 comes back as "2 hours" and 90 as "90 minutes".
+const UNIT_MINUTES = { minutes: 1, hours: 60, days: 1440, weeks: 10080 };
+const NOTICE_UNITS = ['minutes', 'hours', 'days'];
+const AHEAD_UNITS = ['days', 'weeks'];
+// Hours and days only: the column holds hours, so a minute would round away.
+const WINDOW_UNITS = ['hours', 'days'];
+
+function unitParts(storedValue, baseUnit, units) {
+  // An unset value stays unset, so a field with a placeholder does not read as a
+  // deliberate zero.
+  if (storedValue === '' || storedValue === null || storedValue === undefined) return { value: '', unit: baseUnit };
+  const minutes = Number(storedValue || 0) * UNIT_MINUTES[baseUnit];
+  for (const unit of [...units].reverse()) {
+    const size = UNIT_MINUTES[unit];
+    if (minutes >= size && minutes % size === 0) return { value: minutes / size, unit };
+  }
+  return { value: Number(storedValue || 0), unit: baseUnit };
+}
+
+function durationField(label, name, storedValue, baseUnit, units, disabled) {
+  const { value, unit } = unitParts(storedValue, baseUnit, units);
+  const options = units.map(item => `<option value="${item}" ${item === unit ? 'selected' : ''}>${item}</option>`).join('');
+  return `<div class="field field--num field--dur"><span class="field__label">${escapeHtml(label)}</span><span class="inputwrap">
+    <input class="input" type="number" min="0" name="${name}" value="${value}" ${disabled}>
+    <select class="select unitsel" name="${name}__unit" aria-label="${escapeHtml(label)} unit" ${disabled}>${options}</select>
+  </span></div>`;
+}
+
+function durationValue(data, name, baseUnit, units) {
+  const unit = units.includes(data.get(`${name}__unit`)) ? data.get(`${name}__unit`) : baseUnit;
+  return Math.round(Number(data.get(name) || 0) * UNIT_MINUTES[unit] / UNIT_MINUTES[baseUnit]);
+}
+
 async function fetchAll() {
   const locationId = state.locationId;
   const [hours, settings, docks, truckTypes, locationTruckTypes, dockTruckTypes, capacity] = await Promise.all([
@@ -115,8 +153,8 @@ function renderNotice() {
   return `<form class="card" data-section-form="notice">
     <h3 class="card__title">Booking window & notice</h3>
     <div class="frow">
-      <div class="field field--num"><span class="field__label">Minimum notice</span><span class="inputwrap"><input class="input" type="number" min="0" name="minimum_notice_minutes" value="${s.minimum_notice_minutes ?? 0}" ${disabled}><span class="input__unit">min</span></span></div>
-      <div class="field field--num"><span class="field__label">Book ahead up to</span><span class="inputwrap"><input class="input" type="number" min="0" name="maximum_advance_days" value="${s.maximum_advance_days ?? 0}" ${disabled}><span class="input__unit">days</span></span></div>
+      ${durationField('Minimum notice', 'minimum_notice_minutes', s.minimum_notice_minutes ?? 0, 'minutes', NOTICE_UNITS, disabled)}
+      ${durationField('Book ahead up to', 'maximum_advance_days', s.maximum_advance_days ?? 0, 'days', AHEAD_UNITS, disabled)}
     </div>
     <p class="hint">Customers cannot book inside the minimum notice window or beyond the max days ahead.</p>
     ${saveFoot(canEdit)}
@@ -179,27 +217,54 @@ function renderAssignment() {
         <option value="day" ${s.consolidation_window_hours ? '' : 'selected'}>On the same day</option>
         <option value="hours" ${s.consolidation_window_hours ? 'selected' : ''}>Within a set window</option>
       </select></div>
-      <div class="field field--num"><span class="field__label">Window</span><span class="inputwrap"><input class="input" type="number" min="1" max="168" name="consolidation_window_hours" value="${s.consolidation_window_hours ?? ''}" placeholder="8" ${s.consolidation_window_hours ? '' : 'disabled'} ${disabled}><span class="input__unit">hours</span></span></div>
+      ${durationField('Window', 'consolidation_window_hours', s.consolidation_window_hours ?? '', 'hours', WINDOW_UNITS, s.consolidation_window_hours ? disabled : 'disabled')}
     </div>
     ${saveFoot(canEdit)}
   </form>`;
 }
 
+// The truck types this location has turned on. A dock can only accept a type the
+// location itself accepts, so this is the set a dock is measured against.
+function locationTypeCodes() {
+  return state.locationTruckTypes.filter(row => row.is_active !== false).map(row => row.truck_type_code);
+}
+
+function dockTypeCodes(dockId) {
+  return new Set(state.dockTruckTypes.filter(row => row.dock_id === dockId).map(row => row.truck_type_code));
+}
+
+// A dock with no truck types accepts nothing — the database rejects any booking on
+// it. This used to read "All types", which is the opposite of what it means, and a
+// site set up that way looked configured while being unbookable.
 function dockTruckLabels(dockId) {
-  const codes = new Set(state.dockTruckTypes.filter(row => row.dock_id === dockId).map(row => row.truck_type_code));
-  const names = state.truckTypes.filter(type => codes.has(type.code)).map(type => type.name);
-  return names.length ? names.join(', ') : 'All types';
+  const codes = dockTypeCodes(dockId);
+  if (!codes.size) return 'None — nothing can be booked here';
+  const enabled = locationTypeCodes();
+  if (enabled.length && enabled.every(code => codes.has(code))) return 'All types';
+  return state.truckTypes.filter(type => codes.has(type.code)).map(type => type.name).join(', ');
+}
+
+function dockIsRestricted(dockId) {
+  const enabled = locationTypeCodes();
+  if (!enabled.length) return true;
+  const codes = dockTypeCodes(dockId);
+  return !enabled.every(code => codes.has(code));
 }
 
 function renderDocks() {
   const canEditDocks = state.canManageDocks && state.canManage;
+  // Edit follows the truck types it edits. The truck-type cell is capped rather
+  // than allowed to fill, and the leftover width goes to a spacer at the end, so
+  // the button sits beside the row instead of against the right edge of a wide
+  // monitor with a hand's width of nothing in between.
   const rows = state.docks.map(dock => `<tr>
     <td class="data data--strong">${escapeHtml(dock.name)}</td>
     <td>${escapeHtml(dock.direction_mode === 'both' ? 'Both' : format.role(dock.direction_mode))}</td>
     <td>${dock.is_active ? '<span class="tag tag--ok">Active</span>' : '<span class="tag tag--quiet">Inactive</span>'}</td>
-    <td class="data cell-elide" title="${escapeHtml(dockTruckLabels(dock.id))}">${escapeHtml(dockTruckLabels(dock.id))}</td>
+    <td class="data cell-cap" title="${escapeHtml(dockTruckLabels(dock.id))}">${escapeHtml(dockTruckLabels(dock.id))}</td>
     <td>${canEditDocks ? `<button class="btn btn--quiet btn--sm" type="button" data-edit-dock="${dock.id}">Edit</button>` : ''}</td>
-  </tr>`).join('') || '<tr><td colspan="5" class="data">No docks configured for this location.</td></tr>';
+    <td></td>
+  </tr>`).join('') || '<tr><td colspan="6" class="data">No docks configured for this location.</td></tr>';
 
   const locationTypes = state.locationTruckTypes;
   const truckRows = state.truckTypes.map(type => {
@@ -215,7 +280,7 @@ function renderDocks() {
 
   return `<div class="card">
       <h3 class="card__title">Docks${canEditDocks ? '<button class="btn btn--primary btn--sm" type="button" data-add-dock>Add dock</button>' : ''}</h3>
-      <div class="tablewrap"><table class="table"><thead><tr><th>Dock</th><th>Direction</th><th>Status</th><th class="col-fill">Truck types</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
+      <div class="tablewrap"><table class="table"><thead><tr><th>Dock</th><th>Direction</th><th>Status</th><th>Truck types</th><th></th><th class="col-fill"></th></tr></thead><tbody>${rows}</tbody></table></div>
     </div>
     <div class="card" style="margin-top:var(--s4)">
       <form data-section-form="truck-types">
@@ -283,8 +348,8 @@ async function saveTiming(form) {
 async function saveNotice(form) {
   const data = new FormData(form);
   await saveSettingsFields({
-    minimum_notice_minutes: Number(data.get('minimum_notice_minutes')),
-    maximum_advance_days: Number(data.get('maximum_advance_days')),
+    minimum_notice_minutes: durationValue(data, 'minimum_notice_minutes', 'minutes', NOTICE_UNITS),
+    maximum_advance_days: durationValue(data, 'maximum_advance_days', 'days', AHEAD_UNITS),
   });
 }
 
@@ -313,7 +378,7 @@ async function saveAssignment(form) {
     // NULL is the same-day behaviour this setting has always had; a number narrows
     // or widens it to that many hours either side of the proposed appointment.
     consolidation_window_hours: data.get('consolidation_window_mode') === 'hours' && data.get('consolidation_window_hours')
-      ? Number(data.get('consolidation_window_hours'))
+      ? durationValue(data, 'consolidation_window_hours', 'hours', WINDOW_UNITS)
       : null,
   });
 }
@@ -328,9 +393,29 @@ async function saveTruckTypes(form) {
       setup_minutes: Number(row.querySelector('input[name="setup_minutes"]').value || 0),
       is_active: true,
     }));
+  // Which docks currently take everything the location takes. Read before the
+  // location's list changes, because "everything" is about to mean something else.
+  const before = locationTypeCodes();
+  const unrestricted = before.length
+    ? state.docks.filter(dock => { const codes = dockTypeCodes(dock.id); return before.every(code => codes.has(code)); })
+    : [];
+  const after = toEnable.map(row => row.truck_type_code);
+
   await db.remove('location_truck_types', q => q.eq('location_id', state.locationId), { select: false });
   if (toEnable.length) await db.insert('location_truck_types', toEnable, { select: false, single: false });
+
+  // A type the location just turned off cannot stay bookable at a door, and a type
+  // it just turned on has to reach every dock that was set to take all of them —
+  // otherwise "All types" on the dock list stops being true and the database
+  // refuses a booking the settings page says is fine.
+  const removed = before.filter(code => !after.includes(code));
+  if (removed.length) await db.remove('dock_truck_types', q => q.eq('location_id', state.locationId).in('truck_type_code', removed), { select: false });
+  for (const dock of unrestricted) {
+    await db.remove('dock_truck_types', q => q.eq('dock_id', dock.id), { select: false });
+    if (after.length) await db.insert('dock_truck_types', after.map(code => ({ dock_id: dock.id, location_id: state.locationId, truck_type_code: code })), { select: false });
+  }
   db.invalidate(`settings:location-truck-types:${state.locationId}`);
+  db.invalidate(`settings:dock-truck-types:${state.locationId}`);
 }
 
 // Everything on this page applies to whichever site is selected in the top bar.
@@ -368,10 +453,20 @@ async function submitSection(event) {
   }
 }
 
+// Restriction off means this dock takes anything the location takes; on means only
+// the ticked types back up to it. Both are written out as explicit rows, because
+// that is what the database checks a booking against.
+function applyDockRestrict(restricted) {
+  const form = state.elements.dockForm;
+  const fieldset = form.querySelector('[data-dock-restrict-fieldset]');
+  fieldset.disabled = !restricted || !state.canManage;
+  fieldset.hidden = !restricted;
+}
+
 function openDockModal(dockId) {
   state.editingDockId = dockId || null;
   const dock = dockId ? state.docks.find(item => item.id === dockId) : null;
-  const enabledCodes = new Set(dockId ? state.dockTruckTypes.filter(row => row.dock_id === dockId).map(row => row.truck_type_code) : []);
+  const enabledCodes = dockId ? dockTypeCodes(dockId) : new Set(locationTypeCodes());
   const modal = state.elements.dockBackdrop;
   modal.querySelector('[data-dock-modal-title]').textContent = dock ? 'Edit dock' : 'Add dock';
   const form = state.elements.dockForm;
@@ -384,7 +479,16 @@ function openDockModal(dockId) {
   const isActive = dock ? dock.is_active : true;
   activeSwitch.classList.toggle('switch--off', !isActive);
   activeSwitch.setAttribute('aria-pressed', String(isActive));
-  form.querySelector('[data-dock-checks]').innerHTML = state.truckTypes.map(type => `<label class="dock-check" title="${escapeHtml(type.name)}"><input type="checkbox" name="truck_type_code" value="${type.code}" ${enabledCodes.has(type.code) ? 'checked' : ''}><span>${escapeHtml(type.name)}</span></label>`).join('');
+  const offered = locationTypeCodes();
+  form.querySelector('[data-dock-checks]').innerHTML = state.truckTypes
+    .filter(type => offered.includes(type.code))
+    .map(type => `<label class="dock-check" title="${escapeHtml(type.name)}"><input type="checkbox" name="truck_type_code" value="${type.code}" ${enabledCodes.has(type.code) ? 'checked' : ''}><span>${escapeHtml(type.name)}</span></label>`)
+    .join('') || '<p class="hint">No truck types are enabled at this location yet — enable them below before a dock can take anything.</p>';
+  const restricted = dockId ? dockIsRestricted(dockId) : false;
+  const restrictSwitch = form.querySelector('[data-dock-restrict-switch]');
+  restrictSwitch.classList.toggle('switch--off', !restricted);
+  restrictSwitch.setAttribute('aria-pressed', String(restricted));
+  applyDockRestrict(restricted);
   state.dockModal.open({ trigger: document.activeElement });
 }
 
@@ -395,6 +499,17 @@ async function submitDock(event) {
   const submit = form.querySelector('[type="submit"]');
   const name = form.elements.name.value.trim();
   if (!name) { toast('Dock name is required.', 'error'); return; }
+  // A dock with nothing ticked would be saved as a door no truck can be booked
+  // against, which is how a site ends up looking configured and refusing every
+  // booking. Say so here rather than letting the database say it later.
+  const restricted = form.querySelector('[data-dock-restrict-switch]').getAttribute('aria-pressed') === 'true';
+  const codes = restricted
+    ? [...form.querySelectorAll('input[name="truck_type_code"]:checked')].map(input => input.value)
+    : locationTypeCodes();
+  if (!codes.length) {
+    toast(restricted ? 'Choose at least one truck type this dock can take.' : 'Enable at least one truck type at this location first.', 'error');
+    return;
+  }
   submit.disabled = true;
   try {
     const isActive = form.querySelector('[data-dock-active-switch]').getAttribute('aria-pressed') === 'true';
@@ -412,11 +527,8 @@ async function submitDock(event) {
       const created = await db.insert('docks', { ...payload, location_id: state.locationId }, { select: 'id' });
       dockId = created.id;
     }
-    const codes = [...form.querySelectorAll('input[name="truck_type_code"]:checked')].map(input => input.value);
     await db.remove('dock_truck_types', q => q.eq('dock_id', dockId), { select: false });
-    if (codes.length) {
-      await db.insert('dock_truck_types', codes.map(code => ({ dock_id: dockId, location_id: state.locationId, truck_type_code: code })), { select: false });
-    }
+    await db.insert('dock_truck_types', codes.map(code => ({ dock_id: dockId, location_id: state.locationId, truck_type_code: code })), { select: false });
     db.invalidate(`settings:docks:${state.locationId}`);
     db.invalidate(`settings:dock-truck-types:${state.locationId}`);
     db.invalidate('board:docks:');
@@ -450,7 +562,11 @@ function buildShell(root) {
               <label class="field field--md"><span class="field__label">Description <span class="field__opt">optional</span></span><input class="input" name="description" maxlength="200"></label>
             </div>
             <div class="setrow setrow--tight"><div class="setrow__t">Active</div><button type="button" class="switch" data-dock-active-switch aria-label="Dock active"></button></div>
-            <fieldset class="dock-checks"><legend>Truck types this dock accepts (none checked = all types)</legend><div data-dock-checks></div></fieldset>
+            <div class="setrow"><div><div class="setrow__t">Restrict truck types</div><div class="setrow__d">Off, this dock takes every truck type this location accepts. On, only the ones ticked can back up to it.</div></div><button type="button" class="switch" data-dock-restrict-switch aria-label="Restrict truck types"></button></div>
+            <fieldset class="dock-checks" data-dock-restrict-fieldset>
+              <legend>Truck types this dock accepts<span class="checkall"><button class="linkBtn" type="button" data-dock-check-all>Select all</button><button class="linkBtn" type="button" data-dock-check-none>Select none</button></span></legend>
+              <div data-dock-checks></div>
+            </fieldset>
           </div>
           <div class="modal__foot"><button class="btn btn--quiet" type="button" data-close-dock>Cancel</button><button class="btn btn--primary" type="submit">Save dock</button></div>
         </form>
@@ -472,8 +588,11 @@ function wireEvents(root) {
   root.addEventListener('change', event => {
     const mode = event.target.closest('[data-consolidation-mode]');
     if (!mode) return;
-    const hours = mode.closest('form').elements.consolidation_window_hours;
+    const form = mode.closest('form');
+    const hours = form.elements.consolidation_window_hours;
+    const unit = form.elements.consolidation_window_hours__unit;
     hours.disabled = mode.value !== 'hours';
+    if (unit) unit.disabled = hours.disabled;
     if (hours.disabled) hours.value = '';
     else hours.focus();
   });
@@ -490,6 +609,13 @@ function wireEvents(root) {
         const row = toggle.closest('.hourrow');
         row.querySelectorAll('input[type="time"]').forEach(input => { input.disabled = off; });
       }
+      if (toggle.hasAttribute('data-dock-restrict-switch')) applyDockRestrict(!off);
+      return;
+    }
+    const checkAll = event.target.closest('[data-dock-check-all], [data-dock-check-none]');
+    if (checkAll) {
+      const checked = checkAll.hasAttribute('data-dock-check-all');
+      for (const input of state.elements.dockForm.querySelectorAll('input[name="truck_type_code"]')) input.checked = checked;
       return;
     }
     if (event.target.closest('[data-add-dock]')) { openDockModal(null); return; }

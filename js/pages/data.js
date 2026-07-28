@@ -13,12 +13,12 @@ const DATABASE_TYPES = [
   ['other', 'Other'],
 ];
 
-// The page is three jobs, not one long scroll: what is connected, how the MIS
-// feed is configured, and importing a file. Same left nav as Locations & docks so
-// an administrator meets the same shape on both admin screens.
+// Two jobs, not three. How the MIS feed is configured is not a separate subject
+// from whether it is connected — it is the same row on the Connections list, so
+// the settings open under it rather than sitting behind their own nav item an
+// administrator has to know to go and find.
 const SECTIONS = [
   { id: 'connections', label: 'Connections' },
-  { id: 'mis', label: 'MIS connection settings' },
   { id: 'import', label: 'Inventory import' },
 ];
 
@@ -29,6 +29,9 @@ const state = {
   runs: [],
   locations: [],
   section: 'connections',
+  // null until an administrator opens or closes it themselves; before that the
+  // panel follows whether the feed is on, so a connected feed shows its settings.
+  misOpen: null,
   elements: {},
 };
 
@@ -45,16 +48,27 @@ async function fetchAll() {
   state.locations = locations || [];
 }
 
+// The one question this page kept failing to answer: once the feed is switched on,
+// where does the data actually come from? It is one of two things and the page now
+// says which, in the words an administrator would use.
+function feedExplanation(syncMode) {
+  return syncMode === 'secure_bridge'
+    ? 'MaxDock reads it. Once a day at the sync time it opens the table or view named below in your MIS database and takes a snapshot. Nothing is uploaded by hand.'
+    : 'You feed it. Export a snapshot from your MIS and upload the file under Inventory import. MaxDock never connects to your database in this mode.';
+}
+
 function renderConnections() {
   const enabled = state.settings.is_enabled;
+  const open = state.misOpen === null ? Boolean(enabled) : state.misOpen;
   const lastSuccess = state.settings.last_success_at ? format.timestamp(state.settings.last_success_at, state.context.location) : 'Never run';
   return `<div class="card">
     <h3 class="card__title">Connections</h3>
     <div class="integ">
       <span class="integ__ico">MIS</span>
-      <div><div class="integ__name">MIS inventory feed</div><div class="integ__meta">${enabled ? `Last import ${escapeHtml(lastSuccess)}` : 'Not enabled'}</div></div>
-      <span class="integ__st"><button type="button" class="switch ${enabled ? '' : 'switch--off'}" data-feed-switch aria-pressed="${Boolean(enabled)}" aria-label="MIS inventory feed enabled"></button></span>
+      <div><div class="integ__name">MIS inventory feed</div><div class="integ__meta">${enabled ? `Last import ${escapeHtml(lastSuccess)}` : 'Not enabled'} · ${escapeHtml(state.settings.sync_mode === 'secure_bridge' ? 'Secure database bridge' : 'Manual CSV import')}</div></div>
+      <span class="integ__st"><button class="linkBtn" type="button" data-mis-toggle>${open ? 'Hide settings' : 'Settings'}</button><button type="button" class="switch ${enabled ? '' : 'switch--off'}" data-feed-switch aria-pressed="${Boolean(enabled)}" aria-label="MIS inventory feed enabled"></button></span>
     </div>
+    ${open ? `<div class="integ__panel">${renderMisForm()}</div>` : ''}
     <div class="integ">
       <span class="integ__ico">@</span>
       <div><div class="integ__name">Transactional email</div><div class="integ__meta">No provider connected</div></div>
@@ -71,9 +85,8 @@ function renderConnections() {
 function renderMisForm() {
   const s = state.settings;
   const isBridge = s.sync_mode === 'secure_bridge';
-  return `<div class="card">
-    <form data-mis-form>
-      <h3 class="card__title">MIS connection settings</h3>
+  return `<form data-mis-form>
+      <p class="hint hint--measure" data-feed-explanation>${escapeHtml(feedExplanation(s.sync_mode))}</p>
       <div class="frow">
         <div class="field field--sm"><span class="field__label">Database type</span><select class="select" name="database_type">${DATABASE_TYPES.map(([code, label]) => `<option value="${code}" ${s.database_type === code ? 'selected' : ''}>${label}</option>`).join('')}</select></div>
         <div class="field field--sm"><span class="field__label">Sync mode</span><select class="select" name="sync_mode" data-sync-mode>
@@ -92,10 +105,8 @@ function renderMisForm() {
         <div class="field field--md"><span class="field__label">Credential secret name</span><input class="input" name="credential_secret_name" value="${escapeHtml(s.credential_secret_name || '')}" placeholder="e.g. mis-db-password"></div>
       </div>
       <p class="hint" data-bridge-fields ${isBridge ? '' : 'hidden'}>The credential itself is never entered here — this is only the name of a secret stored server-side. The secure bridge is not active until a real network route and credential are configured with a MaxDock administrator.</p>
-      <div class="setrow"><div><div class="setrow__t">Enabled</div><div class="setrow__d">Turn the MIS feed on for this connection mode</div></div><button type="button" class="switch ${s.is_enabled ? '' : 'switch--off'}" data-enabled-switch aria-pressed="${Boolean(s.is_enabled)}" aria-label="MIS feed enabled"></button></div>
       <div class="form-actions"><button class="btn btn--primary" type="submit">Save</button></div>
-    </form>
-  </div>`;
+    </form>`;
 }
 
 function renderImport() {
@@ -126,7 +137,6 @@ function renderRuns() {
 }
 
 function renderSection() {
-  if (state.section === 'mis') return renderMisForm();
   if (state.section === 'import') return `${renderImport()}${renderRuns()}`;
   return renderConnections();
 }
@@ -228,7 +238,9 @@ async function saveMisSettings(event) {
   const form = event.target;
   const submit = form.querySelector('[type="submit"]');
   const data = new FormData(form);
-  const enabled = form.querySelector('[data-enabled-switch]').getAttribute('aria-pressed') === 'true';
+  // On or off is the switch on the connection row, not a second switch buried in
+  // the form saying the same thing in a different place.
+  const enabled = Boolean(state.settings.is_enabled);
   submit.disabled = true;
   try {
     const settings = await db.rpc('admin_save_mis_integration_settings', {
@@ -259,6 +271,11 @@ function wireEvents(root) {
     if (section) { state.section = section.dataset.section; render(); return; }
     if (event.target.closest('[data-run-import]')) { runImport(); return; }
     if (event.target.closest('[data-download-template]')) { downloadTemplate(); return; }
+    if (event.target.closest('[data-mis-toggle]')) {
+      state.misOpen = !(state.misOpen === null ? Boolean(state.settings.is_enabled) : state.misOpen);
+      render();
+      return;
+    }
     const feedSwitch = event.target.closest('[data-feed-switch]');
     if (feedSwitch && !feedSwitch.disabled) {
       setFeedEnabled(feedSwitch.getAttribute('aria-pressed') !== 'true');
@@ -274,6 +291,8 @@ function wireEvents(root) {
     if (event.target.matches('[data-sync-mode]')) {
       const isBridge = event.target.value === 'secure_bridge';
       root.querySelectorAll('[data-bridge-fields]').forEach(field => { field.hidden = !isBridge; });
+      const explanation = root.querySelector('[data-feed-explanation]');
+      if (explanation) explanation.textContent = feedExplanation(event.target.value);
     }
   });
   root.addEventListener('submit', event => {

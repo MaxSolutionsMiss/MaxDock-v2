@@ -219,3 +219,56 @@ every route in headless Chromium to check console errors and screenshot the rend
 how the favicon 404 and the login page's actual (unstyled, at the time) appearance were caught. Signed-in
 role behavior, booking writes and the customer-privacy network check still need a human, per the sign-in
 test script given to the owner.
+
+## A dock with no truck types accepted nothing, and the page said "All types" (2026-07-28)
+
+The owner set up five docks at Milton and could not book against any of them.
+
+`enforce_appointment_dock_compatibility` is a trigger on `appointments`: it requires an
+explicit `dock_truck_types` row matching the appointment's dock and truck type, and
+raises otherwise. There is no "empty means everything" case in it. The settings page
+assumed the opposite: the dock dialog's legend read "none checked = all types", and the
+dock list rendered "All types" whenever the dock had no rows. So a site could be set up
+through the UI, look configured, and refuse every booking — which is exactly what
+happened at Milton, where all five docks had zero rows.
+
+Three changes, none to the trigger:
+
+- Restriction is now an explicit switch on the dock. Off writes one row per truck type
+  the location has enabled; on writes only the ticked ones. Both write real rows, because
+  rows are what the database checks.
+- The dock list says "None — nothing can be booked here" for an empty set, and "All
+  types" only when the dock's set covers every type the location has enabled.
+- Saving the location's truck-type list carries the change down: a newly enabled type
+  reaches every dock that was set to take all of them, and a disabled type is removed
+  from every dock. Otherwise "All types" silently stops being true the next time the
+  location's list changes.
+
+Milton's twenty-five missing rows were backfilled directly.
+
+**Rule: when the UI describes a database constraint in words, the words have to be checked
+against the constraint. "None checked = all types" was the exact inverse of the trigger,
+and nothing in the test suite could have caught a label.**
+
+## The dock board never drew at a site with no bookings (2026-07-28)
+
+`patchData` decided whether to repaint by comparing `state.docks.length` to
+`data.docks.length` — after `state.docks = data.docks` had already run, so it was
+comparing the new value to itself and always said "unchanged". The record comparison
+covered the rest, so any site with at least one appointment repainted anyway and the bug
+stayed invisible. At Milton, with docks configured and nothing booked, nothing ever
+differed, `renderBoard` was never called, and the page sat on "Loading dock schedule…"
+with an empty date field and zeroed KPIs.
+
+Replaced with a signature over everything the board is drawn from — the date on the axis,
+the operating hours, the lanes and the movements — computed from the incoming data before
+any of it is assigned. The first paint is a change by definition, and day navigation
+between two empty days now updates the date field.
+
+## Moving an appointment skipped the minimum notice (2026-07-28)
+
+`book_appointment` applies `minimum_notice_minutes` to everyone.
+`reschedule_my_appointment` checked docks, operating hours and capacity but not notice, so
+a booking could be moved into a window it could never have been booked into — and the Move
+dialog's own hint claimed the notice applied. The same check, in the same wording, now runs
+against the recomputed start time before the update.

@@ -4,7 +4,7 @@ import { poll } from '../poll.js';
 import { startPage } from '../router.js';
 import { renderState } from '../ui/empty.js';
 import { createModal } from '../ui/modal.js';
-import { controlsBar, pageHeadActions } from '../ui/pagehead.js';
+import { controlsBar, pageHeadActions, icon } from '../ui/pagehead.js';
 import { createCustomizePanel } from '../ui/customize.js';
 import { toast } from '../ui/toast.js';
 
@@ -202,31 +202,38 @@ function createDetail(label) {
   return { element: item, value: description };
 }
 
+// A row action is an icon at the same height as every other button, with the
+// wording it replaces kept as its label so it still reads to a screen reader and
+// on hover. Three words of chrome per card, on every card, was the white space.
+function createCardAction(name, label, className = 'btn btn--quiet btn--icon') {
+  const button = createElement('button', className);
+  button.type = 'button';
+  button.innerHTML = icon(name);
+  button.title = label;
+  button.setAttribute('aria-label', label);
+  return button;
+}
+
 function createAppointmentCard(record) {
   let currentRecord = record;
   const element = createElement('article', 'appointment-card');
   element.dataset.appointmentId = record.appointment_id;
 
   const head = createElement('div', 'appointment-card__head');
-  const identity = createElement('div');
-  const reference = createElement('div', 'appointment-card__reference data');
+  const identity = createElement('div', 'appointment-card__identity');
+  const reference = createElement('span', 'appointment-card__reference data');
   const location = createElement('h3', 'appointment-card__title');
-  identity.append(reference, location);
+  const when = createElement('span', 'appointment-card__time');
+  identity.append(reference, location, when);
   const status = createElement('span', 'status');
   const actions = createElement('div', 'appointment-card__actions');
-  const copy = createElement('button', 'btn btn--quiet btn--sm', 'Copy');
-  copy.type = 'button';
-  copy.title = 'Copy confirmation';
-  const move = createElement('button', 'btn btn--quiet btn--sm', 'Move');
-  move.type = 'button';
-  move.title = 'Move to another time';
+  const copy = createCardAction('copy', 'Copy confirmation');
+  const move = createCardAction('move', 'Move to another time');
   move.dataset.moveAppointment = '';
-  const cancel = createElement('button', 'btn btn--danger btn--sm', 'Cancel');
-  cancel.type = 'button';
+  const cancel = createCardAction('cancel', 'Cancel appointment', 'btn btn--danger btn--icon');
   actions.append(copy, move, cancel);
   head.append(identity, status, actions);
 
-  const when = createElement('p', 'appointment-card__time');
   const details = createElement('div', 'appointment-card__details');
   const detailRefs = [
     ['direction', 'Direction'],
@@ -265,7 +272,7 @@ function createAppointmentCard(record) {
     move.hidden = !(activeContext?.can('appointment.create') && changeable);
   }
 
-  element.append(head, when, details);
+  element.append(head, details);
   update(record);
   return Object.freeze({ element, update, destroy: () => element.remove() });
 }

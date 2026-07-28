@@ -5,7 +5,17 @@ const ICONS = {
   fullscreen: '<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"></path>',
   block: '<rect x="3" y="5" width="18" height="16" rx="2"></rect><path d="M3 10h18M8 3v4M16 3v4"></path>',
   add: '<path d="M12 5v14M5 12h14"></path>',
+  copy: '<rect x="9" y="9" width="11" height="11" rx="2"></rect><path d="M5 15V5a2 2 0 0 1 2-2h8"></path>',
+  move: '<circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 2"></path>',
+  cancel: '<circle cx="12" cy="12" r="9"></circle><path d="M5.6 5.6 18.4 18.4"></path>',
 };
+
+// The same glyphs, for the row-level actions a page draws itself. Rendered into a
+// button that carries .btn--icon, so a row action is exactly as tall as every
+// other button on the screen and only narrower.
+export function icon(name) {
+  return ICONS[name] ? `<svg viewBox="0 0 24 24" aria-hidden="true">${ICONS[name]}</svg>` : '';
+}
 
 // Every screen puts the same control in the same place. Operational actions —
 // the ones an operator reaches for all day — sit at the start of the controls

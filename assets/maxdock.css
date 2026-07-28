@@ -274,6 +274,9 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
    stacking, so every row is the same height and the table keeps its shape. The
    full value is in the cell's title attribute and on the record itself. */
 .table td.cell-elide{max-width:0;width:100%;overflow:hidden;text-overflow:ellipsis}
+/* Capped rather than filling: the cell takes what it needs up to a limit and the
+   row's action stays beside it, with an empty .col-fill header taking the rest. */
+.table td.cell-cap{max-width:30ch;overflow:hidden;text-overflow:ellipsis}
 .table tr:last-child td{border-bottom:none}
 .table tbody tr:hover{background:var(--dock-wash)}
 .data{font-family:var(--font-data);font-size:var(--t-small)}
@@ -345,7 +348,12 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 .inputwrap{display:flex;align-items:stretch;min-width:0}
 .inputwrap .input{border-top-right-radius:0;border-bottom-right-radius:0;min-width:0}
 .input__unit{display:flex;align-items:center;min-height:var(--ctl-h);padding:0 10px;border:1px solid var(--rule-strong);border-left:none;border-radius:0 var(--radius) var(--radius) 0;background:var(--surface-sunk);color:var(--ink-muted);font-size:var(--t-small);white-space:nowrap}
+/* Same shape as a fixed unit label, but the unit is the manager's to pick. */
+.unitsel{width:auto;flex:none;border-left:none;border-radius:0 var(--radius) var(--radius) 0;background:var(--surface-sunk);color:var(--ink-muted);font-size:var(--t-small);padding:0 4px 0 6px}
+.field .unitsel{width:auto}
 .frow>.field--num{grid-column:span 2;min-width:96px}
+/* A number with its unit as a choice needs room for the widest unit word. */
+.frow>.field--dur{grid-column:span 3;min-width:150px}
 .frow>.field--num .input{text-align:left;min-width:48px}
 .frow>.field--full{grid-column:1/-1}
 /* Keyed to the container, not the viewport: a dialog is a fixed 760px wide however
@@ -494,7 +502,10 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 .integ__ico{width:36px;height:36px;border-radius:8px;background:var(--dock-wash);color:var(--dock-deep);display:grid;place-items:center;flex:none;font-weight:700}
 .integ__name{font-weight:600}
 .integ__meta{font-size:var(--t-small);color:var(--ink-muted);max-width:56ch}
-.integ__st{margin-left:auto;flex:none}
+.integ__st{margin-left:auto;flex:none;display:flex;align-items:center;gap:var(--s3)}
+/* The connection's own settings, opened under the row they belong to rather than
+   behind a separate nav item an administrator has to know exists. */
+.integ__panel{max-width:760px;margin:calc(var(--s2) * -1) 0 var(--s4);padding:var(--s3);border:1px solid var(--rule);border-top:none;border-radius:0 0 var(--radius) var(--radius);background:var(--surface-sunk)}
 /* locked field (role-aware booking) */
 .locked{position:relative}
 .locked .input,.locked .select{background:var(--surface-sunk);color:var(--ink-muted);pointer-events:none}
@@ -509,7 +520,7 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 /* Operations queue components — approved page-3-queue.html */
 /* The morning rundown: the figures a supervisor would otherwise read off the board
    one at a time, in one band above the queue. */
-.brief{background:linear-gradient(180deg,var(--dock-wash),var(--surface));border:1px solid var(--dock);border-radius:var(--radius-lg);padding:var(--s3) var(--s4);margin-bottom:var(--s3);display:flex;flex-direction:column;gap:var(--s2)}
+.brief{background:linear-gradient(180deg,var(--dock-wash),var(--surface));border:1px solid var(--dock);border-radius:var(--radius-lg);padding:var(--s3) var(--s4);margin-bottom:var(--s3);display:flex;flex-direction:column;gap:var(--s2);min-height:0}
 .brief__head{display:flex;align-items:center;gap:var(--s2)}
 .brieffigs{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:var(--s2)}
 .brieffig{display:flex;flex-direction:column;gap:1px;padding:var(--s2) var(--s3);background:var(--surface);border:1px solid var(--rule);border-left:3px solid var(--dock);border-radius:var(--radius)}
@@ -522,7 +533,10 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 .briefpoints{margin:0;padding-left:1.1em;display:grid;gap:2px}
 .briefpoints li{font-size:var(--t-small);color:var(--ink-muted)}
 .brief__ico{width:32px;height:32px;border-radius:8px;background:var(--dock);color:#fff;display:grid;place-items:center;flex:none;font-weight:700;font-size:14px}
-.brief__body{flex:1}.brief__t{font-weight:600;margin-bottom:2px}.brief__x{color:var(--ink);font-size:var(--t-base)}.brief__x b{color:var(--dock-deep)}
+/* The narrative scrolls inside the band. The queue is a fixed-height page, so a
+   band that grows without limit pushes the schedule off the bottom with nothing
+   left to scroll — the band gives way, not the page. */
+.brief__body{flex:1;min-height:0;max-height:9em;overflow-y:auto}.brief__t{font-weight:600;margin-bottom:2px}.brief__x{color:var(--ink);font-size:var(--t-base)}.brief__x b{color:var(--dock-deep)}
 .split{display:grid;grid-template-columns:repeat(var(--kpi-cols,4),minmax(0,1fr));grid-template-rows:minmax(0,1fr);gap:var(--s3);flex:1;min-height:0}
 .split>*{min-height:0}
 .split>*:first-child{grid-column:span calc(var(--kpi-cols,4) - 1)}
@@ -564,6 +578,11 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 .dock-checks>legend{grid-column:1/-1;float:none;width:100%;padding:0;margin-bottom:var(--s3);
   font-size:var(--t-micro);text-transform:uppercase;letter-spacing:.07em;color:var(--ink-muted);font-weight:600}
 .dock-checks>div{display:contents}
+.dock-checks[disabled]{opacity:.55}
+/* Select all / none sit on the legend line, where the group they act on names
+   itself — a long tick list is otherwise cleared one box at a time. */
+.checkall{float:right;display:flex;gap:var(--s3);text-transform:none;letter-spacing:0}
+.checkall .linkBtn{min-height:0;padding:0}
 .dock-checks--roomy{--check-col:260px}
 .dock-check{display:flex;align-items:center;gap:6px;min-height:32px;font-size:var(--t-small);white-space:nowrap;min-width:0}
 .dock-check span{overflow:hidden;text-overflow:ellipsis}
@@ -670,35 +689,40 @@ body.modal-open{overflow:hidden}
    controls beside it. */
 .controls>.appointment-toolbar__meta{align-self:stretch}
 .appointment-toolbar__count,.page-updated{white-space:nowrap;font-size:var(--t-small);color:var(--ink-muted)}
-.appointment-list{display:grid;gap:var(--s2);padding:var(--s3)}
-/* A card is a row of an operational list, not a page. It was three screens tall
-   for four values, so a customer scrolled to find the booking they came for. */
-.appointment-card{background:var(--surface);border:1px solid var(--rule);border-radius:var(--radius-lg);padding:var(--s3)}
-.appointment-card__head{display:flex;align-items:center;justify-content:space-between;gap:var(--s2);flex-wrap:wrap}
-.appointment-card__reference{margin-bottom:2px;color:var(--dock-deep);font-size:var(--t-small);font-weight:600}
-.appointment-card__title{margin:0;font-size:var(--t-base);font-weight:600}
-.appointment-card__time{margin:2px 0 var(--s2);color:var(--ink-muted);font-size:var(--t-small);width:100%}
-.appointment-card__details{display:grid;grid-template-columns:repeat(auto-fit,minmax(96px,1fr));gap:var(--s1) var(--s3);padding:var(--s2) 0 0;border-top:1px solid var(--rule)}
-.appointment-detail{min-width:0;display:grid;gap:2px}
-.appointment-detail__label{color:var(--ink-muted);font-size:var(--t-micro)}
-.appointment-detail__value{overflow-wrap:anywhere}
-.appointment-card__actions{display:flex;gap:var(--s2);margin-left:auto}
+.appointment-list{display:grid;gap:var(--s2);padding:var(--s2) var(--s3)}
+/* A card is a row of an operational list, not a page. Reference, site, time and
+   status share the head line and each detail puts its label and value on one
+   line, so a card is two lines rather than six and more of the list is on screen
+   at once. The border carries its own weight — a card that fades into the page
+   stops separating one booking from the next. */
+.appointment-card{background:var(--surface);border:1px solid var(--rule-strong);border-radius:var(--radius);padding:var(--s2) var(--s3)}
+.appointment-card__head{display:flex;align-items:center;gap:var(--s2);min-width:0}
+.appointment-card__identity{display:flex;align-items:baseline;gap:var(--s2);min-width:0;flex:1;overflow:hidden}
+.appointment-card__reference{color:var(--dock-deep);font-size:var(--t-small);font-weight:600;white-space:nowrap}
+.appointment-card__title{margin:0;font-size:var(--t-base);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.appointment-card__time{color:var(--ink-muted);font-size:var(--t-small);white-space:nowrap}
+.appointment-card__details{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:0 var(--s3);padding:var(--s2) 0 0;margin-top:var(--s2);border-top:1px solid var(--rule)}
+.appointment-detail{min-width:0;display:flex;align-items:baseline;gap:var(--s1);font-size:var(--t-small);line-height:1.5}
+.appointment-detail__label{color:var(--ink-muted);font-size:var(--t-micro);white-space:nowrap;flex:none}
+.appointment-detail__value{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500}
+.appointment-card__actions{display:flex;gap:var(--s1);margin-left:auto;flex:none}
 .status{min-height:24px;padding:3px 8px;border-radius:var(--radius);display:inline-flex;align-items:center;background:var(--surface-sunk);color:var(--ink-muted);font-size:var(--t-micro);font-weight:600;white-space:nowrap;margin-left:var(--s3)}
 .status--scheduled,.status--confirmed{background:var(--dock-wash);color:var(--dock-deep)}
 .status--arrived,.status--in_progress{background:var(--signal-wash);color:var(--signal)}
 .status--completed{color:var(--ok)}
 .status--cancelled,.status--no_show{background:var(--stop-wash);color:var(--stop)}
 .muted{color:var(--ink-muted)}
-@media (max-width:1040px){.appointment-card__details{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:1040px){.appointment-card__details{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .appointment-card__head{flex-wrap:wrap}
+  .appointment-card__identity{flex:1 1 100%}}
 @media (max-width:700px){
   .next-appointment{align-items:flex-start;flex-direction:column}
   .next-appointment__reference{width:100%;padding:var(--s3) 0 0;border-left:0;border-top:1px solid var(--rule)}
   .appointment-toolbar{align-items:stretch;flex-direction:column}
   .appointment-views{width:100%}
   .appointment-views button{flex:1}
-  .appointment-card__details{grid-template-columns:1fr;gap:var(--s3)}
-  .appointment-card__actions{justify-content:stretch}
-  .appointment-card__actions .btn{flex:1 1 100%}
+  .appointment-card__details{grid-template-columns:1fr}
+  .appointment-card__identity{flex-wrap:wrap}
 }
 
 /* ---------------------------------------------------------------- narrow screens
