@@ -864,3 +864,19 @@ goes *up*, and never on the first load: arriving at a screen with four unread
 notices is not four new notices. There is a Sound switch in the panel, saved to
 the account like every other per-user preference, because a noise that cannot be
 turned off is hostile in a shared office.
+
+## The gap before the hour was drawn in the gridline's colour (2026-07-28)
+
+The hour labels on the timeline ruler kept reading as if printed on the line that
+marks them, and moving the text right kept making the line look thicker instead
+of moving the text. The tick is a 1px box with a background: `padding-left`
+widened the *painted* box, so every pixel of "gap" was another pixel of gridline.
+
+The line is a hairline pseudo-element now and the padding is ordinary background,
+so 14px of air actually reads as air. Worth recording as a rule: **padding on an
+element whose background is the thing you are trying to move away from does not
+move anything — it grows the thing.**
+
+Fields governed by a switch above them also needed to read as a group under it
+rather than a line crammed against a rule, so a `.frow` following a `.setrow`
+carries the section gap.

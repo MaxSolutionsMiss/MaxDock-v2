@@ -221,10 +221,13 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 .tl__ruler{display:grid;grid-template-columns:var(--tl-label) minmax(0,1fr);border-bottom:1px solid var(--rule-strong);background:var(--surface-sunk);flex:none}
 .tl__corner{padding:6px var(--s3);font-size:var(--t-micro);text-transform:uppercase;letter-spacing:.07em;color:var(--ink-muted);font-weight:600;border-right:1px solid var(--rule-strong);display:flex;align-items:center}
 .tl__scale{position:relative;height:26px}
-/* The hour sits clear of the line that marks it. At 4px it read as if it were
-   printed on the gridline; it is still left-aligned to its own hour, just not
-   touching it. */
-.tl__scale .tl__tick{top:0;height:100%;display:flex;align-items:center;padding-left:9px;font-size:calc(var(--tl-type) * .9);color:var(--ink-muted);font-variant-numeric:tabular-nums;white-space:nowrap}
+/* The hour sits clear of the line that marks it — and the space before it is not
+   painted in the line's own colour. The tick is a 1px box with a background, so
+   padding-left widened the painted box: the "gap" between the line and the digits
+   was drawn as more gridline, which is why moving the text right kept making the
+   line look thicker instead. The line is a hairline pseudo-element now and the
+   padding is ordinary background. */
+.tl__scale .tl__tick{top:0;height:100%;display:flex;align-items:center;background:none;padding-left:14px;font-size:calc(var(--tl-type) * .9);color:var(--ink-muted);font-variant-numeric:tabular-nums;white-space:nowrap}
 .tl__lanes{flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column}
 /* Lanes take the height they need, then share whatever is left over rather than
    leaving half the panel blank — a five-dock board used to draw a short strip of
@@ -238,6 +241,7 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 .tl__track{position:relative;min-width:0;overflow:hidden}
 .tl__tick{position:absolute;top:0;bottom:0;width:1px;background:var(--rule)}
 .tl__tick--major{background:var(--rule-strong)}
+.tl__scale .tl__tick::before{content:"";position:absolute;left:0;top:0;bottom:0;width:1px;background:var(--rule-strong)}
 .tl__idle{position:absolute;inset:0;display:flex;align-items:center;padding-left:var(--s3);font-size:var(--t-small);color:var(--ink-faint)}
 /* Blocks are absolutely placed, so their box is the appointment's real extent. */
 /* The block is a line grid, and the stack sits in the middle of it. A lane that
@@ -706,6 +710,9 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
    from its own label, at the far edge of the screen. */
 .setrow.setrow--lead{grid-template-columns:max-content max-content;justify-content:start;column-gap:var(--s4)}
 .setrow:has(+ [hidden]){border-bottom:none}
+/* Fields that belong to the switch above them need to read as a group under it,
+   not as a line crammed against the rule. */
+.setrow+.frow{margin-top:var(--s4)}
 .setrow:last-of-type{border-bottom:none}
 .setrow__ctl{display:flex;align-items:center;gap:var(--s3)}.setrow:last-child{border:none}.setrow__t{font-size:var(--t-base);font-weight:500;white-space:nowrap}.setrow__d{font-size:var(--t-small);color:var(--ink-muted)}
 
