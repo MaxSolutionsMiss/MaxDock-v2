@@ -193,7 +193,7 @@ function renderCapacity() {
       <legend>Counted stock</legend>
       <div class="frow">
         <div class="field field--num"><span class="field__label">Counted</span><span class="inputwrap"><input class="input" type="number" min="0" name="current_occupied_skids" value="${s.current_occupied_skids ?? 0}" ${disabled}><span class="input__unit">skids</span></span></div>
-        <div class="field field--md"><span class="field__label">As of</span><input class="input" type="datetime-local" name="inventory_as_of" value="${escapeHtml(localDateTime(s.inventory_as_of))}" ${disabled}></div>
+        <div class="field field--sm"><span class="field__label">As of</span><input class="input" type="datetime-local" name="inventory_as_of" value="${escapeHtml(localDateTime(s.inventory_as_of))}" ${disabled}></div>
         <div class="field field--num"><span class="field__label">Occupied now</span><span class="inputwrap"><input class="input" value="${state.capacity?.projected_before ?? s.current_occupied_skids ?? 0}" readonly tabindex="-1" aria-label="Occupied now, calculated"><span class="input__unit">skids</span></span></div>
         <div class="field field--num"><span class="field__label">Free now</span><span class="inputwrap"><input class="input" value="${state.capacity?.available_after ?? '—'}" readonly tabindex="-1" aria-label="Free now, calculated"><span class="input__unit">skids</span></span></div>
       </div>

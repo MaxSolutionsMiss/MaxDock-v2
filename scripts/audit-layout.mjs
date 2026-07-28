@@ -340,8 +340,14 @@ function collect(scope) {
     // defect the owner reported as long fields for two numbers — so measuring
     // those rows against the same standard as a row of names and addresses
     // reports the correct layout as a fault.
-    const compact = kids.every(k => k.classList.contains('field--num') || k.classList.contains('field--dur') || k.classList.contains('field--xs') || k.classList.contains('field--sm'));
-    if (compact) return;
+    // A row is only "meant to fill" if something in it holds a long value — a
+    // name, an address, a note. A row of number boxes and short selects is
+    // compact on purpose: "Daily capacity 2000 skids, reserve 50, when over
+    // capacity warn" stretched across 921px is the long-fields-for-two-numbers
+    // complaint that started all of this. Judge by whether the row contains a
+    // wide field at all, rather than by how much space is left over.
+    const hasWideField = kids.some(k => k.classList.contains('field--lg') || k.classList.contains('field--xl') || k.classList.contains('field--full'));
+    if (!hasWideField) return;
     if (unused > rw * 0.15) out.rowFill.push({ unused, rowWidth: Math.round(rw), fields: kids.length });
   });
 
