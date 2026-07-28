@@ -9,13 +9,19 @@ const DAY_LABELS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Fri
 const DAY_ORDER = [1, 2, 3, 4, 5, 6, 0];
 const SLOT_INTERVALS = [5, 10, 15, 20, 30, 60];
 
+// One subject to a section, named for what it is. A section that holds two
+// unrelated subjects makes both harder to find — "Docks & truck types" was two
+// screens with an ampersand between them, and the rule for combining loads was
+// buried under Dock assignment where nobody would look for it.
 const SECTIONS = [
   { id: 'hours', label: 'Operating hours' },
   { id: 'timing', label: 'Timing & duration' },
   { id: 'notice', label: 'Booking window & notice' },
   { id: 'capacity', label: 'Capacity' },
   { id: 'assignment', label: 'Dock assignment' },
-  { id: 'docks', label: 'Docks & truck types' },
+  { id: 'combining', label: 'Combining loads' },
+  { id: 'docks', label: 'Docks' },
+  { id: 'trucks', label: 'Truck types' },
 ];
 
 const state = {
@@ -264,17 +270,35 @@ function renderAssignment() {
       </select></div>
       <div class="field field--num"><span class="field__label">Max concurrent</span><span class="inputwrap"><input class="input" type="number" min="1" name="max_concurrent_appointments" value="${s.max_concurrent_appointments ?? ''}" placeholder="∞" ${disabled}><span class="input__unit">at once</span></span></div>
     </div>
+    ${saveFoot(canEdit)}
+  </form>`;
+}
+
+// When MaxDock offers to put two loads on one truck.
+//
+// "On the same day" is the behaviour this has always had. "Within a set window"
+// narrows or widens it to that many hours either side of the proposed time — an
+// eight-hour window means a load eight hours earlier is still worth combining
+// with, a two-hour window means only something close to it is.
+function renderCombining() {
+  const s = state.settings || {};
+  const canEdit = state.canManage;
+  const disabled = canEdit ? '' : 'disabled';
+  const consolidation = s.suggest_same_day_consolidation !== false;
+  return `<form class="card" data-section-form="combining">
+    <h3 class="card__title">Combining loads</h3>
     <div class="setrow setrow--lead">
-      <div><div class="setrow__t">Consolidation warning</div><div class="setrow__d">Offer to combine same-destination loads</div></div>
-      <button type="button" class="switch ${consolidation ? '' : 'switch--off'}" data-consolidation-switch aria-pressed="${consolidation}" aria-label="Consolidation warning" ${disabled}></button>
+      <div><div class="setrow__t">Offer to combine</div><div class="setrow__d">Point out loads already booked that could travel together</div></div>
+      <button type="button" class="switch ${consolidation ? '' : 'switch--off'}" data-consolidation-switch aria-pressed="${consolidation}" aria-label="Offer to combine loads" ${disabled}></button>
     </div>
     <div class="frow">
-      <div class="field field--sm"><span class="field__label">Look for loads</span><select class="select" name="consolidation_window_mode" data-consolidation-mode ${disabled}>
+      <div class="field field--md"><span class="field__label">Look for loads</span><select class="select" name="consolidation_window_mode" data-consolidation-mode ${disabled}>
         <option value="day" ${s.consolidation_window_hours ? '' : 'selected'}>On the same day</option>
         <option value="hours" ${s.consolidation_window_hours ? 'selected' : ''}>Within a set window</option>
       </select></div>
       ${durationField('Window', 'consolidation_window_hours', s.consolidation_window_hours ?? '', 'hours', WINDOW_UNITS, s.consolidation_window_hours ? disabled : 'disabled')}
     </div>
+    <p class="hint hint--wide">Turned off, MaxDock never mentions other loads and never asks before booking. On the same day is the widest setting; a window narrows it to that many hours either side of the time being booked, so a twelve-hour window catches a morning load for an afternoon one and a two-hour window does not.</p>
     ${saveFoot(canEdit)}
   </form>`;
 }
@@ -348,10 +372,21 @@ function renderDocks() {
     <td class="data data--strong">${escapeHtml(dock.name)}</td>
     <td>${escapeHtml(dock.direction_mode === 'both' ? 'Both' : format.role(dock.direction_mode))}</td>
     <td><button type="button" class="switch ${dock.is_active ? '' : 'switch--off'}" data-dock-active aria-pressed="${Boolean(dock.is_active)}" aria-label="${escapeHtml(dock.name)} in service" ${canEditDocks ? '' : 'disabled'}></button></td>
-    <td class="data cell-elide" title="${escapeHtml(dockTruckLabels(dock.id))}">${escapeHtml(dockTruckLabels(dock.id))}</td>
+    <td class="data cell-cap" title="${escapeHtml(dockTruckLabels(dock.id))}">${escapeHtml(dockTruckLabels(dock.id))}</td>
     <td>${canEditDocks ? `<button class="btn btn--quiet btn--sm" type="button" data-edit-dock="${dock.id}">Edit</button>` : ''}</td>
   </tr>`).join('') || '<tr><td colspan="5" class="data">No docks configured for this location.</td></tr>';
 
+  // Five short columns, so the table is sized to them. Left to fill the panel the
+  // Edit button ended up a hand's width from the truck types it edits.
+  return `<form class="card card--table" data-section-form="docks">
+      <h3 class="card__title">Docks${canEditDocks ? '<button class="btn btn--primary btn--sm at-end" type="button" data-add-dock>Add dock</button>' : ''}</h3>
+      <div class="tablewrap"><table class="table"><thead><tr><th>Dock</th><th>Direction</th><th>In service</th><th>Truck types</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
+      <p class="hint">Add dock and Edit save on their own. Save below applies the in-service switches.</p>
+      ${saveFoot(canEditDocks)}
+    </form>`;
+}
+
+function renderTruckTypes() {
   const locationTypes = state.locationTruckTypes;
   const truckRows = state.truckTypes.map(type => {
     const enabled = locationTypes.find(row => row.truck_type_code === type.code);
@@ -363,23 +398,19 @@ function renderDocks() {
       </div>
     </div>`;
   }).join('');
-
-  return `<div class="stack"><form data-section-form="docks">
-      <h3 class="card__title">Docks${canEditDocks ? '<button class="btn btn--primary btn--sm at-end" type="button" data-add-dock>Add dock</button>' : ''}</h3>
-      <div class="tablewrap"><table class="table table--fit"><thead><tr><th>Dock</th><th>Direction</th><th>In service</th><th class="col-fill">Truck types</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
-      <p class="hint">Add dock and Edit save on their own. Save below applies the in-service switches.</p>
-      ${saveFoot(canEditDocks)}
-    </form>
-    <form data-section-form="truck-types">
+  return `<form class="card card--table" data-section-form="truck-types">
       <h3 class="card__title">Truck types enabled at this location</h3>
       ${truckRows}
-      <p class="hint">Setup minutes here override the truck type's default for this location only.</p>
+      <p class="hint">Setup minutes here override the truck type's default for this location only. Skids per truck is under Capacity.</p>
       ${saveFoot(state.canManage)}
-    </form></div>`;
+    </form>`;
 }
 
 function renderPanel() {
-  const map = { hours: renderHours, timing: renderTiming, notice: renderNotice, capacity: renderCapacity, assignment: renderAssignment, docks: renderDocks };
+  const map = {
+    hours: renderHours, timing: renderTiming, notice: renderNotice, capacity: renderCapacity,
+    assignment: renderAssignment, combining: renderCombining, docks: renderDocks, trucks: renderTruckTypes,
+  };
   state.elements.panel.innerHTML = (map[state.section] || renderHours)();
 }
 
@@ -463,12 +494,18 @@ async function saveCapacity(form) {
 async function saveAssignment(form) {
   const data = new FormData(form);
   const autoAssign = form.querySelector('[data-assign-switch]').getAttribute('aria-pressed') === 'true';
-  const consolidation = form.querySelector('[data-consolidation-switch]').getAttribute('aria-pressed') === 'true';
   const maxConcurrent = data.get('max_concurrent_appointments');
   await saveSettingsFields({
     auto_assign_dock: autoAssign,
     dock_assignment_strategy: data.get('dock_assignment_strategy'),
     max_concurrent_appointments: maxConcurrent ? Number(maxConcurrent) : null,
+  });
+}
+
+async function saveCombining(form) {
+  const data = new FormData(form);
+  const consolidation = form.querySelector('[data-consolidation-switch]').getAttribute('aria-pressed') === 'true';
+  await saveSettingsFields({
     suggest_same_day_consolidation: consolidation,
     // NULL is the same-day behaviour this setting has always had; a number narrows
     // or widens it to that many hours either side of the proposed appointment.
@@ -586,6 +623,7 @@ async function submitSection(event) {
     else if (kind === 'notice') await saveNotice(form);
     else if (kind === 'capacity') await saveCapacity(form);
     else if (kind === 'assignment') await saveAssignment(form);
+    else if (kind === 'combining') await saveCombining(form);
     else if (kind === 'truck-capacity') await saveTruckCapacity(form);
     else if (kind === 'direction-windows') await saveDirectionWindows(form);
     else if (kind === 'docks') await saveDocks(form);

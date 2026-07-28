@@ -104,7 +104,7 @@ function sortRecords(rows) {
 
 function appointmentTime(record) {
   const location = { timezone: record.location_timezone };
-  return `${format.date(record.start_at, location)} · ${format.time(record.start_at, location)}–${format.time(record.end_at, location)}`;
+  return `${format.dateShort(record.start_at, location)} · ${format.time(record.start_at, location)}–${format.time(record.end_at, location)}`;
 }
 
 function detailValue(value, fallback = '—') {

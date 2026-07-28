@@ -825,3 +825,42 @@ email has never been configured on this project, so nothing is sent on booking,
 change or cancellation — the confirmation is the screen and the copy-to-clipboard
 draft. This needs an email provider and a sender domain before it can be real,
 and saying it is coming would be worse than saying it is not there.
+
+## Settings, split by subject (2026-07-28)
+
+Eight sections instead of six, each named for one thing: Operating hours, Timing
+& duration, Booking window & notice, Capacity, Dock assignment, **Combining
+loads**, **Docks**, **Truck types**. "Docks & truck types" was two screens with
+an ampersand between them, and the rule for when MaxDock offers to combine two
+loads was buried under Dock assignment where nobody would look for it — the owner
+thought it had been deleted. It has its own section now, with the switch, the
+same-day-or-window choice and the window in hours, and a plain sentence saying
+what a twelve-hour window means and what a two-hour one does not.
+
+The dock table's card is capped and its table sizes to its columns, so Edit
+follows the truck types rather than sitting at the far edge. The card is capped
+rather than sized to content on purpose: its table sits in an `overflow-x` wrapper,
+and a wrapper that scrolls contributes nothing to a `max-content` parent. That is
+the trap that collapsed this card to the width of its own title once already, and
+it collapsed it again the moment `width:max-content` was tried a second time.
+
+## Two lines to an appointment row (2026-07-28)
+
+The details wrapped onto a second and third line, which is what turned a list of
+fifty into a wall. The row is the movement on top and one line of facts
+underneath: each fact keeps its natural width, and what does not fit is simply
+not drawn. Letting them all shrink together — the first attempt — turned every
+one of them into an ellipsis, which is worse than showing four facts in full. The
+whole record is one click away in the appointment's own dialog, which now carries
+the QR code too. The date lost its year: in a list of bookings a few weeks either
+side of today it is four characters of nothing on a line that has to hold a
+reference, a route and a time.
+
+## A sound on the bell (2026-07-28)
+
+Two short notes, synthesised in eight lines of WebAudio rather than shipped as an
+asset — nothing to load, nothing to fail. It plays only when the unread count
+goes *up*, and never on the first load: arriving at a screen with four unread
+notices is not four new notices. There is a Sound switch in the panel, saved to
+the account like every other per-user preference, because a noise that cannot be
+turned off is hostile in a shared office.

@@ -76,6 +76,9 @@ const MODALS = {
   // Add dock lives in the Docks & truck types section, so the section has to be
   // opened before the control exists.
   settings: [{ name: 'add-dock', prepare: '[data-section="docks"]', trigger: '[data-add-dock]' }],
+  // The bell is on every page; the panel it opens carries a list, a sound switch
+  // and two actions, and was never measured.
+  reports: [{ name: 'notifications', trigger: '.notif__btn' }],
   users: [
     { name: 'add-user', trigger: '[data-add-user]' },
     { name: 'edit-user', trigger: '[data-edit-user]' },
@@ -91,12 +94,14 @@ const FLOWS = {
   // exactly where a card collapsed to the width of its title and the whole sweep
   // still reported clean.
   settings: [
-    { name: 'docks', query: '', act: async page => { await page.click('[data-section="docks"]'); }, expect: '.stack .table' },
+    { name: 'docks', query: '', act: async page => { await page.click('[data-section="docks"]'); }, expect: '.card--table .table' },
     { name: 'hours', query: '', act: async page => { await page.click('[data-section="hours"]'); }, expect: '.stack .dirrow' },
     // Capacity, hours and docks each draw one window with ruled parts rather than
     // a card per part, so .card is the wrong thing to wait for — it is .stack.
     { name: 'capacity', query: '', act: async page => { await page.click('[data-section="capacity"]'); }, expect: '.stack' },
     { name: 'assignment', query: '', act: async page => { await page.click('[data-section="assignment"]'); }, expect: '.card' },
+    { name: 'combining', query: '', act: async page => { await page.click('[data-section="combining"]'); }, expect: '.card' },
+    { name: 'trucks', query: '', act: async page => { await page.click('[data-section="trucks"]'); }, expect: '.card--table' },
     { name: 'notice', query: '', act: async page => { await page.click('[data-section="notice"]'); }, expect: '.card' },
     { name: 'timing', query: '', act: async page => { await page.click('[data-section="timing"]'); }, expect: '.card' },
   ],

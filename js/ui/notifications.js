@@ -4,6 +4,7 @@ import { createModal } from './modal.js';
 import { toast } from './toast.js';
 
 const POLL_MS = 60000;
+const SOUND_PREFERENCE = 'notification-sound';
 
 const escapeHtml = value => String(value ?? '').replace(/[&<>'"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[char]));
 
@@ -30,6 +31,39 @@ export function createNotificationBell(context) {
   const userId = context.user.id;
   let rows = [];
   let timer = null;
+  // -1 rather than 0 so the first load never chimes: arriving at a screen with
+  // four unread notices is not four new notices.
+  let lastUnread = -1;
+  let soundOn = true;
+  let audio = null;
+
+  // Two short notes, synthesised. A sound file would be another asset to ship and
+  // another request to make; this is eight lines and cannot fail to load. The
+  // context is created on the first chime because a browser will not let one
+  // start before the user has interacted with the page.
+  function chime() {
+    if (!soundOn) return;
+    try {
+      audio = audio || new (globalThis.AudioContext || globalThis.webkitAudioContext)();
+      if (audio.state === 'suspended') audio.resume();
+      const now = audio.currentTime;
+      for (const [index, hz] of [880, 1174.7].entries()) {
+        const osc = audio.createOscillator();
+        const gain = audio.createGain();
+        osc.type = 'sine';
+        osc.frequency.value = hz;
+        const at = now + index * 0.11;
+        gain.gain.setValueAtTime(0.0001, at);
+        gain.gain.exponentialRampToValueAtTime(0.12, at + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.0001, at + 0.22);
+        osc.connect(gain).connect(audio.destination);
+        osc.start(at);
+        osc.stop(at + 0.24);
+      }
+    } catch {
+      // No audio device, or the browser refused. The badge still moved.
+    }
+  }
 
   const host = document.createElement('div');
   host.className = 'notif';
@@ -54,6 +88,7 @@ export function createNotificationBell(context) {
       </div>
       <div class="modal__body"><div data-notif-list></div></div>
       <div class="modal__foot">
+        <label class="check-row check-row--inline"><input type="checkbox" data-notif-sound><span>Sound</span></label>
         <button class="btn btn--quiet" type="button" data-notif-mark-all>Mark all as read</button>
         <button class="btn btn--primary" type="button" data-notif-close>Done</button>
       </div>
@@ -96,6 +131,9 @@ export function createNotificationBell(context) {
     try {
       db.invalidate(`notifications:${userId}`);
       rows = (await fetchNotifications(userId)) || [];
+      const unread = unreadCount();
+      if (lastUnread >= 0 && unread > lastUnread) chime();
+      lastUnread = unread;
       renderBadge();
       if (modal.isOpen()) renderList();
     } catch {
@@ -136,12 +174,36 @@ export function createNotificationBell(context) {
     modal.open({ trigger: button });
   });
 
+  const soundBox = backdrop.querySelector('[data-notif-sound]');
+  soundBox.addEventListener('change', async () => {
+    soundOn = soundBox.checked;
+    if (soundOn) chime();
+    try {
+      await db.rpc('save_user_preference', { p_preference_key: SOUND_PREFERENCE, p_preferences: { on: soundOn } }, {
+        key: `preference:${SOUND_PREFERENCE}:save`, retry: 1, userMessage: 'The notification sound setting could not be saved.',
+      });
+      db.invalidate(`preference:${SOUND_PREFERENCE}`);
+    } catch (error) {
+      toast(error.userMessage || 'The notification sound setting could not be saved.', 'error');
+    }
+  });
+
   backdrop.addEventListener('click', event => {
     if (event.target.closest('[data-notif-close]')) { modal.close(); return; }
     if (event.target.closest('[data-notif-mark-all]')) { markAllRead(); return; }
     const item = event.target.closest('[data-notif-id]');
     if (item) markOneRead(item.dataset.notifId);
   });
+
+  (async () => {
+    try {
+      const stored = await db.rpc('get_user_preference', { p_preference_key: SOUND_PREFERENCE }, {
+        key: `preference:${SOUND_PREFERENCE}`, cache: 60000, retry: 1,
+      });
+      soundOn = stored?.on !== false;
+    } catch { soundOn = true; }
+    soundBox.checked = soundOn;
+  })();
 
   refresh();
   timer = globalThis.setInterval(() => {

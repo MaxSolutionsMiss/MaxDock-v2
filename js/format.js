@@ -136,6 +136,16 @@ export const format = Object.freeze({
 
   // "27 Jul 2026" — short enough for a subtitle, unambiguous about the month,
   // and never a bare ISO string in front of an operator.
+  // Weekday and day and month, no year. In a list of bookings a few weeks either
+  // side of today the year is four characters of nothing, and the row it sits on
+  // has to hold a reference, a route and a time on one line.
+  dateShort(value, location) {
+    return new Intl.DateTimeFormat('en-CA', {
+      weekday: 'short', day: 'numeric', month: 'short',
+      timeZone: location?.timezone || DEFAULT_TIMEZONE,
+    }).format(makeDate(value));
+  },
+
   shortDateInput(dateInput, location) {
     return new Intl.DateTimeFormat('en-CA', {
       month: 'short', day: 'numeric', year: 'numeric',

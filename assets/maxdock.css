@@ -293,7 +293,14 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 /* A table of five short columns has no business spanning a wide monitor: the row
    action ends up a hand's width from the last thing it acts on. Capped, the
    columns stay together and the eliding cell still shrinks below it. */
-.table--fit{max-width:860px}
+/* A card holding one short table. The table hugs its columns instead of being
+   stretched across the card, so the row action follows the last column rather
+   than sitting a hand's width from it. The card itself is capped rather than
+   sized to content: its table sits in an overflow-x wrapper, and a wrapper that
+   scrolls contributes nothing to a max-content parent — that is the trap that
+   collapsed this card to the width of its own title once already. */
+.card--table{max-width:min(100%,720px)}
+.card--table .table{width:auto}
 /* Seven day boxes on one line, sized to the word inside them, wrapping only when
    the dialog is too narrow to hold a week. */
 .daypick{display:flex;flex-wrap:wrap;gap:var(--s2) var(--s3)}
@@ -356,6 +363,9 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 .modal__body{padding:var(--s4);overflow-y:auto;flex:1 1 auto;min-height:0}
 .modal__foot{display:flex;flex-wrap:wrap;gap:var(--s2);padding:var(--s3) var(--s4);border-top:1px solid var(--rule);background:var(--surface-sunk);flex:none}
 .modal__foot .btn--primary{margin-left:auto}
+/* A switch that belongs with the footer's buttons rather than above them, and
+   stands exactly as tall as they do — every control on a row is one height. */
+.check-row.check-row--inline{margin:0;padding:0 var(--s2) 0 0;border:0;background:none;align-items:center;min-height:var(--ctl-h);height:var(--ctl-h)}
 
 .field{display:flex;flex-direction:column;gap:4px}
 .field__label{font-size:var(--t-micro);text-transform:uppercase;letter-spacing:.07em;color:var(--ink-muted);font-weight:600}
@@ -736,8 +746,11 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 /* A group heading has to sit nearer the boxes it names than the group above it.
    Equal air either side of the rule left "Appointment block" reading as the tail
    of the metric cards. */
-.pickgroup+.pickgroup{margin-top:var(--s4);padding-top:var(--s4);border-top:1px solid var(--rule-strong)}
-.pickgroup>legend{margin-bottom:var(--s1)}
+/* The air goes above the rule, not below it. A heading with equal space either
+   side belongs to neither group; sitting just under the rule and just above its
+   own boxes, it plainly names what follows. */
+.pickgroup+.pickgroup{margin-top:var(--s5);padding-top:var(--s2);border-top:1px solid var(--rule-strong)}
+.pickgroup>legend{margin-bottom:2px}
 /* One box for "all of them", above the rule that separates it from the groups it
    governs — a long list should not have to be cleared one tick at a time. */
 .pickall{font-weight:600;padding-bottom:var(--s3);margin-bottom:var(--s3);border-bottom:1px solid var(--rule-strong)}
@@ -859,7 +872,7 @@ body.modal-open{overflow:hidden}
    controls beside it. */
 .controls>.appointment-toolbar__meta{align-self:stretch}
 .appointment-toolbar__count,.page-updated{white-space:nowrap;font-size:var(--t-small);color:var(--ink-muted)}
-.appointment-list{display:grid;gap:var(--s2);padding:var(--s2) var(--s3)}
+.appointment-list{display:grid;grid-template-columns:minmax(0,1fr);gap:var(--s2);padding:var(--s2) var(--s3)}
 /* A card is a row of an operational list, not a page. Reference, site, time and
    status share the head line and each detail puts its label and value on one
    line, so a card is two lines rather than six and more of the list is on screen
@@ -868,7 +881,7 @@ body.modal-open{overflow:hidden}
 /* Fifty rows of the same shape are a wall. The alternating wash is the oldest
    trick in the book for reading across one of them without losing the line —
    it costs no height, no width and no extra rule. */
-.appointment-card{background:var(--surface);border:1px solid var(--rule-strong);border-radius:var(--radius);padding:var(--s2) var(--s3)}
+.appointment-card{background:var(--surface);border:1px solid var(--rule-strong);border-radius:var(--radius);padding:var(--s2) var(--s3);min-width:0}
 .appointment-list>.appointment-card:nth-child(even){background:var(--surface-sunk)}
 .appointment-card__head{display:flex;align-items:center;gap:var(--s2);min-width:0}
 .appointment-card__identity{display:flex;align-items:baseline;gap:var(--s2);min-width:0;flex:1;overflow:hidden}
@@ -882,7 +895,16 @@ body.modal-open{overflow:hidden}
 .appointment-card__place{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
 .appointment-card__arrow{color:var(--ink-faint);font-weight:400;flex:none}
 .appointment-card__time{color:var(--ink-muted);font-size:var(--t-small);white-space:nowrap}
-.appointment-card__details{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:0 var(--s3);padding:var(--s2) 0 0;margin-top:var(--s2);border-top:1px solid var(--rule)}
+/* Two lines to a row and no more: the movement on top, everything else on one
+   line underneath. The details used to wrap onto a second and third line, which
+   is what turned a list of fifty into a wall. Each fact elides rather than
+   wrapping, and the whole line scrolls sideways only if the card is narrower
+   than the facts can survive. */
+.appointment-card__details{display:flex;align-items:baseline;gap:0 var(--s4);padding:var(--s2) 0 0;margin-top:var(--s2);border-top:1px solid var(--rule);white-space:nowrap;overflow:hidden}
+/* Each fact keeps its natural width. Letting them all shrink together turned
+   every one of them into an ellipsis; what does not fit is simply not drawn, and
+   the whole record is one click away in the appointment's own dialog. */
+.appointment-card__details>*{flex:0 0 auto}
 .appointment-detail{min-width:0;display:flex;align-items:baseline;gap:var(--s1);font-size:var(--t-small);line-height:1.5}
 .appointment-detail__label{color:var(--ink-muted);font-size:var(--t-micro);white-space:nowrap;flex:none}
 .appointment-detail__value{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500}
@@ -902,7 +924,7 @@ body.modal-open{overflow:hidden}
 .status--completed{color:var(--ok)}
 .status--cancelled,.status--no_show{background:var(--stop-wash);color:var(--stop)}
 .muted{color:var(--ink-muted)}
-@media (max-width:1040px){.appointment-card__details{grid-template-columns:repeat(2,minmax(0,1fr))}
+@media (max-width:1040px){.appointment-card__details{overflow-x:auto}
   .appointment-card__head{flex-wrap:wrap}
   .appointment-card__identity{flex:1 1 100%}}
 @media (max-width:700px){
@@ -911,7 +933,7 @@ body.modal-open{overflow:hidden}
   .appointment-toolbar{align-items:stretch;flex-direction:column}
   .appointment-views{width:100%}
   .appointment-views button{flex:1}
-  .appointment-card__details{grid-template-columns:1fr}
+  .appointment-card__details{overflow-x:auto}
   .appointment-card__identity{flex-wrap:wrap}
 }
 
