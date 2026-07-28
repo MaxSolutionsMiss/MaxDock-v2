@@ -11,7 +11,8 @@ const VIEWS = [
   { id: 'truck-flow', label: 'Truck flow' },
   { id: 'skid-movement', label: 'Skid movement' },
   { id: 'dock-utilisation', label: 'Dock utilisation' },
-  { id: 'scorecard', label: 'Vendor scorecard' },
+  { id: 'scorecard-company', label: 'Vendor scorecard' },
+  { id: 'scorecard-location', label: 'Site scorecard' },
 ];
 
 const PRESETS = [
@@ -204,26 +205,30 @@ function scoreTone(percent) {
   return percent >= 75 ? 'tag--warn' : 'tag--stop';
 }
 
-function renderScorecard() {
-  const rows = state.scorecard || [];
+// Vendors and sister sites answer different questions. "Which carrier keeps us
+// waiting" and "which Max site turns our transfers around" are both worth asking
+// and neither is improved by averaging them together, so each is its own view
+// over the same query.
+function renderScorecard(kind) {
+  const rows = (state.scorecard || []).filter(row => row.partner_kind === kind);
   const arrived = rows.reduce((sum, row) => sum + num(row.on_time) + num(row.late), 0);
   const onTime = rows.reduce((sum, row) => sum + num(row.on_time), 0);
   const overall = arrived ? Math.round((onTime / arrived) * 1000) / 10 : null;
   return `<div class="kpis" style="--kpi-cols:4">
       <article class="kpi kpi--ok"><span class="kpi__label">On time</span><span class="kpi__value">${overall === null ? '—' : overall.toFixed(1)}<span>%</span></span></article>
-      <article class="kpi"><span class="kpi__label">Partners</span><span class="kpi__value">${rows.length}</span></article>
+      <article class="kpi"><span class="kpi__label">${kind === 'location' ? 'Sites' : 'Vendors'}</span><span class="kpi__value">${rows.length}</span></article>
       <article class="kpi kpi--out"><span class="kpi__label">Trucks</span><span class="kpi__value">${compact(rows.reduce((sum, row) => sum + num(row.trucks), 0))}</span></article>
       <article class="kpi kpi--stop"><span class="kpi__label">No shows</span><span class="kpi__value">${rows.reduce((sum, row) => sum + num(row.no_shows), 0)}</span></article>
     </div>
     <div class="panel panel--fill">
-      <div class="panel__head"><h3 class="panel__title">Vendor &amp; site scorecard</h3><div class="panel__actions"><span class="sub">${escapeHtml(rangeLabel())}</span></div></div>
+      <div class="panel__head"><h3 class="panel__title">${kind === 'location' ? 'Max site scorecard' : 'Vendor &amp; carrier scorecard'}</h3><div class="panel__actions"><span class="sub">${escapeHtml(rangeLabel())}</span></div></div>
       <div class="panel__scroll"><table class="table"><thead><tr>
         <th>Partner</th><th>On time</th><th>Trucks</th><th>Skids</th><th>Late</th><th>Avg late</th><th>No show</th><th>Cancelled</th><th>Avg at dock</th><th class="col-fill">Truck types</th>
       </tr></thead><tbody>${
         rows.length ? rows.map(row => {
           const pct = row.on_time_pct === null || row.on_time_pct === undefined ? null : Number(row.on_time_pct);
           return `<tr>
-            <td class="data data--strong">${escapeHtml(row.partner_name)}${row.partner_kind === 'location' ? ' <span class="tag tag--quiet">Max site</span>' : ''}</td>
+            <td class="data data--strong">${escapeHtml(row.partner_name)}</td>
             <td><span class="tag ${scoreTone(pct)}">${pct === null ? 'No arrivals' : `${pct.toFixed(1)}%`}</span></td>
             <td class="data">${num(row.trucks)}</td>
             <td class="data">${num(row.skids)} sk</td>
@@ -234,7 +239,7 @@ function renderScorecard() {
             <td class="data">${row.avg_dwell_minutes === null || row.avg_dwell_minutes === undefined ? '—' : format.duration(row.avg_dwell_minutes)}</td>
             <td class="data cell-elide" title="${escapeHtml(row.truck_types || '')}">${escapeHtml(row.truck_types || '—')}</td>
           </tr>`;
-        }).join('') : '<tr><td colspan="10" class="data">No movements from any partner in this range.</td></tr>'
+        }).join('') : `<tr><td colspan="10" class="data">No movements from any ${kind === 'location' ? 'Max site' : 'vendor or carrier'} in this range.</td></tr>`
       }</tbody></table></div>
       <p class="hint">On time counts a truck checked in within 15 minutes of its booked start. Percentages are over trucks that arrived, so a cancellation is not counted as a late arrival.</p>
     </div>`;
@@ -242,16 +247,22 @@ function renderScorecard() {
 
 function renderView() {
   if (!state.data) return;
-  const renderers = { overview: renderOverview, 'truck-flow': renderTruckFlow, 'skid-movement': renderSkidMovement, 'dock-utilisation': renderDockUtilisation, scorecard: renderScorecard };
+  const renderers = {
+    overview: renderOverview, 'truck-flow': renderTruckFlow, 'skid-movement': renderSkidMovement,
+    'dock-utilisation': renderDockUtilisation,
+    'scorecard-company': () => renderScorecard('company'),
+    'scorecard-location': () => renderScorecard('location'),
+  };
   state.elements.host.innerHTML = (renderers[state.view] || renderOverview)();
 }
 
 function csvRowsForView() {
   const data = state.data || {};
-  if (state.view === 'scorecard') {
+  if (state.view.startsWith('scorecard')) {
+    const kind = state.view === 'scorecard-location' ? 'location' : 'company';
     return [
       ['Partner', 'Kind', 'On time %', 'Trucks', 'Skids', 'Completed', 'On time', 'Late', 'Avg minutes late', 'No shows', 'Cancelled', 'Avg minutes at dock', 'Truck types'],
-      ...(state.scorecard || []).map(row => [
+      ...(state.scorecard || []).filter(row => row.partner_kind === kind).map(row => [
         row.partner_name, row.partner_kind, row.on_time_pct ?? '', num(row.trucks), num(row.skids), num(row.completed),
         num(row.on_time), num(row.late), row.avg_minutes_late ?? '', num(row.no_shows), num(row.cancelled),
         row.avg_dwell_minutes ?? '', row.truck_types || '',

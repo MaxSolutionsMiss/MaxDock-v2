@@ -618,6 +618,16 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 /* A single on/off with a one-word label does not need the 220px name column the
    settings list uses — the switch sits beside the word. */
 .setrow--tight{grid-template-columns:auto auto;gap:var(--s3);border-bottom:none}
+/* In a dialog the setting takes the width and its switch sits at the far edge.
+   The 220px text column is right on a settings page where rows line up in a
+   column, but in a 760px dialog it left the switch stranded a third of the way
+   across with a hand's width of nothing after it. */
+.modal__body .setrow{grid-template-columns:minmax(0,1fr) auto;justify-content:stretch}
+.modal__body .setrow--tight{grid-template-columns:minmax(0,1fr) auto}
+/* A rule under a row whose section is closed is a line with nothing beneath it.
+   The divider belongs to the pair, so it goes when the pair is not shown. */
+.setrow:has(+ [hidden]){border-bottom:none}
+.setrow:last-of-type{border-bottom:none}
 .setrow__ctl{display:flex;align-items:center;gap:var(--s3)}.setrow:last-child{border:none}.setrow__t{font-size:var(--t-base);font-weight:500}.setrow__d{font-size:var(--t-small);color:var(--ink-muted)}
 
 /* Password reveal — approved production stylesheet */

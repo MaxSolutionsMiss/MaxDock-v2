@@ -511,3 +511,42 @@ place in the row — rather than a second, competing pattern. Both filter as you
 across reference, company, carrier, PO and site; My appointments recounts its metric
 cards with the filter applied, so "3 upcoming" always means three of the ones on
 screen.
+
+## Adding a defaulted parameter forked a live function and broke booking (2026-07-28)
+
+The worst defect of the week, and entirely self-inflicted.
+
+Making dock selection direction-aware, I wrote:
+
+    CREATE OR REPLACE FUNCTION select_policy_dock_internal(
+      ..., p_exclude_appointment_id uuid DEFAULT NULL, p_direction text DEFAULT NULL)
+
+reasoning that a trailing parameter with a default is backwards compatible. It is
+not. **Postgres keys a function by its argument list**, so CREATE OR REPLACE with
+an extra parameter does not replace anything — it creates a second function beside
+the first. Both then existed:
+
+    select_policy_dock_internal(uuid,text,timestamptz,timestamptz,uuid)
+    select_policy_dock_internal(uuid,text,timestamptz,timestamptz,uuid,text)
+
+Every caller passes five arguments. That matches the five-parameter function
+exactly *and* the six-parameter one via its default, so the call became ambiguous
+and Postgres refused it rather than choosing. Dock selection raised, and the
+routed booking path went with it: the owner opened Book appointment, reached the
+time step, and got no slots at all.
+
+Fixed by dropping the five-argument version — the six-argument one is identical
+when p_direction is null. Verified by calling it with five arguments and getting a
+dock back, not by assuming. Then swept every function in the schema for the same
+shape: `admin_update_user` also has two overloads, but its extra parameters carry
+no defaults and the client passes all of them, so that one resolves unambiguously
+and was left alone.
+
+**Rule: adding a parameter to a live Postgres function is a fork, not an edit. The
+old signature must be dropped in the same migration, and the sweep for duplicate
+overloads belongs in the same breath as the CREATE.**
+
+**Second rule, learned the harder way: this reached the owner because the change
+was made directly against the live database with no call exercising it afterwards.
+A schema change that alters a function signature needs one real call through the
+path it serves before the turn ends.**
