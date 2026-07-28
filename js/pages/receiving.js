@@ -66,12 +66,22 @@ function tokenFromScan(text) {
   return null;
 }
 
-// What a receiver types off the paperwork. References run MXD-2026-000071, so
-// the last few digits are enough — anything from two digits up, with or without
-// the MXD and the dashes, because nobody standing at a dock types punctuation.
+// The fixed part of this year's references, filled in for them. Every reference
+// is MXD-<year>-<serial>, so the only thing that varies between two loads booked
+// this year is the serial — and that is all a receiver should have to key. The
+// prefix stays editable rather than being a locked adornment, because a code
+// from last year is still a code somebody may need to look up in January.
+const referencePrefix = () => `MXD-${new Date().getFullYear()}-`;
+
+// What a receiver types off the paperwork. Anything from two digits up, with or
+// without the prefix and the dashes, because nobody standing at a dock types
+// punctuation. The prefix is prefilled, so in practice this receives the whole
+// reference and the serial is what they actually touched.
 function referenceFromInput(text) {
   const raw = String(text || '').trim();
   const digits = raw.replace(/\D/g, '');
+  // The prefix alone is not a search — the year's digits would match everything.
+  if (raw.replace(/[^0-9a-z]/gi, '').toUpperCase() === referencePrefix().replace(/[^0-9a-z]/gi, '').toUpperCase()) return null;
   return digits.length >= 2 ? raw : null;
 }
 
@@ -91,8 +101,8 @@ function renderIdle(message = '') {
       </section>
       <section class="card recv__box">
         <h3 class="card__title">Or enter the booking number</h3>
-        <p class="hint">The last few digits off the paperwork are enough — for MXD-2026-000071, type 71 or 0071.</p>
-        <label class="field field--full"><span class="field__label">Booking number</span><input class="input" data-token placeholder="0071" autocomplete="off" inputmode="numeric" enterkeyhint="search"></label>
+        <p class="hint">Type the number off the paperwork — the rest is already filled in.</p>
+        <label class="field field--full"><span class="field__label">Booking number</span><input class="input" data-token value="${referencePrefix()}" placeholder="${referencePrefix()}000071" autocomplete="off" inputmode="text" enterkeyhint="search"></label>
         <div class="form-actions"><button class="btn btn--quiet btn--block" type="button" data-lookup>Find the appointment</button></div>
       </section>
       ${message ? `<p class="form-message">${escapeHtml(message)}</p>` : ''}
@@ -315,8 +325,12 @@ const page = {
     state.elements = { host: context.pageRoot.querySelector('[data-receiving-host]') };
     wireEvents(context.pageRoot);
     const token = tokenFromUrl();
-    if (token) await lookup(token);
-    else renderIdle();
+    if (token) { await lookup(token); return; }
+    renderIdle();
+    // Caret after the prefix, so the first key they press is the first digit
+    // that matters rather than a correction to text MaxDock filled in.
+    const box = state.elements.host.querySelector('[data-token]');
+    if (box) { box.focus(); box.setSelectionRange(box.value.length, box.value.length); }
   },
   // The camera stops when the page does. An app that walks away leaving the
   // camera light on is the fastest way to lose the trust of somebody holding it.

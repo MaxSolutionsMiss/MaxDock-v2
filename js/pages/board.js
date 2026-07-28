@@ -16,7 +16,7 @@ const state = {
   docks: [],
   hours: null,
   records: [],
-  filters: { direction: 'all', status: 'all' },
+  filters: { direction: 'all', status: 'all', search: '' },
   elements: {},
   blockModal: null,
   editModal: null,
@@ -218,7 +218,8 @@ function buildShell(root) {
         <button class="iconbtn" type="button" data-day="1" aria-label="Next day">›</button>
       </div></div>`,
       filters: `<div class="ctrl-field"><label for="board-direction">Direction</label><select class="select" id="board-direction" data-filter-direction><option value="all">All movements</option><option value="inbound">Inbound</option><option value="outbound">Outbound</option></select></div>
-      <div class="ctrl-field"><label for="board-status">Status</label><select class="select" id="board-status" data-filter-status><option value="all">All statuses</option><option value="scheduled">Scheduled</option><option value="arrived">Arrived</option><option value="complete">Complete</option><option value="cancelled">Cancelled</option></select></div>`,
+      <div class="ctrl-field"><label for="board-status">Status</label><select class="select" id="board-status" data-filter-status><option value="all">All statuses</option><option value="scheduled">Scheduled</option><option value="arrived">Arrived</option><option value="complete">Complete</option><option value="cancelled">Cancelled</option></select></div>
+      <div class="ctrl-field ctrl-field--grow"><label for="board-search">Search</label><input class="input" type="search" id="board-search" placeholder="Reference, company, PO" data-filter-search autocomplete="off"></div>`,
       trailing: [['block', can('block.manage')], ['book', can('appointment.create')]],
     })}
     <section class="kpis" aria-label="Dock board summary" data-kpis></section>
@@ -304,11 +305,23 @@ function buildShell(root) {
   });
   state.editModal = createModal(state.elements.editBackdrop, { onRequestClose: () => state.editModal.close() });
 }
+// Everything an operator has in their hand when they are looking for a load: the
+// booking reference off the paperwork, the company that sent it, the carrier on
+// the gate, or the PO the office quoted down the phone.
+function matchesSearch(record, term) {
+  if (!term) return true;
+  return [
+    record.booking_reference, record.company_name, record.display_counterpart_location_name,
+    record.carrier_name, record.external_reference, record.requester_name, record.driver_name,
+  ].some(value => String(value || '').toLowerCase().includes(term));
+}
+
 function visibleRecords() {
+  const term = state.filters.search.trim().toLowerCase();
   return state.records.filter(record => {
     if (state.filters.direction !== 'all' && record.direction !== state.filters.direction) return false;
     if (state.filters.status !== 'all' && record.status !== state.filters.status) return false;
-    return true;
+    return matchesSearch(record, term);
   });
 }
 
@@ -548,11 +561,19 @@ function wireEvents(root) {
     event.preventDefault();
     openRecord(openTarget);
   });
+  // Filtering as you type. The search box lives in the controls band, outside the
+  // timeline that gets rebuilt, so the caret stays where the operator left it.
+  root.addEventListener('input', event => {
+    if (!event.target.matches('[data-filter-search]')) return;
+    state.filters.search = event.target.value;
+    renderBoard();
+  });
   root.addEventListener('change', async event => {
     if (event.target.matches('[data-board-date]')) { state.date = event.target.value; patchData(await fetchBoardData()); }
     if (event.target.matches('[data-granularity]')) { state.granularity = Number(event.target.value); renderBoard(); }
     if (event.target.matches('[data-filter-direction]')) { state.filters.direction = event.target.value; renderBoard(); }
     if (event.target.matches('[data-filter-status]')) { state.filters.status = event.target.value; renderBoard(); }
+    if (event.target.matches('[data-filter-search]')) { state.filters.search = event.target.value; renderBoard(); }
   });
   state.elements.blockForm?.addEventListener('submit', submitBlock);
   state.elements.editForm?.addEventListener('submit', submitEdit);

@@ -393,8 +393,17 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
    offset on each of them. Dialog feet already place their primary button; this
    is for the bands that are not dialog feet. */
 .at-end{margin-left:auto}
+/* The find box on My appointments shares the controls band with the view
+   switcher, so it must not swallow the whole row the way a lone search field in
+   a filter band can. */
+.appointment-search{max-width:280px}
 /* A heading that opens a new subject inside a dialog body or card. */
 .section-gap{margin-top:var(--s5)}
+/* The stock count is its own subject inside the capacity card: a number somebody
+   walked the floor for, and the moment they took it. Ruled off from the limits
+   above it so the two are not read as one set of numbers. */
+.countset{border:none;border-top:1px solid var(--rule);padding:var(--s4) 0 0;margin:var(--s4) 0 0}
+.countset>legend{padding:0;font-size:var(--t-micro);text-transform:uppercase;letter-spacing:.07em;color:var(--ink-muted);font-weight:600}
 /* Keyed to the container, not the viewport: a dialog is a fixed 760px wide however
    large the window is, so a viewport media query collapsed rows that had room. */
 .modal__body,.card{container-type:inline-size}

@@ -38,6 +38,15 @@ const state = {
 const escapeHtml = value => String(value ?? '').replace(/[&<>'"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[char]));
 const timeInput = value => (value ? String(value).slice(0, 5) : '');
 
+// A datetime-local input speaks the browser's local clock with no zone. The
+// stored value is an instant, so it is rendered in the location's own time —
+// a count taken at 7am in Langley is 7am to the person who took it.
+function localDateTime(value) {
+  if (!value) return '';
+  const location = state.context?.location;
+  return `${format.inputDate(value, location)}T${format.inputTime(value, location)}`;
+}
+
 // A duration is stored in one unit and thought about in another. Two hours' notice
 // is two hours to the manager setting it and 120 to the column holding it; making
 // them type 120 is asking them to do the conversion the page can do. The unit is a
@@ -179,10 +188,17 @@ function renderCapacity() {
         <option value="warn" ${s.capacity_enforcement_mode === 'warn' ? 'selected' : ''}>Warn only</option>
         <option value="enforce" ${s.capacity_enforcement_mode === 'enforce' ? 'selected' : ''}>Block booking</option>
       </select></div>
-      <div class="field field--num"><span class="field__label">Occupied now</span><span class="inputwrap"><input class="input" value="${state.capacity?.projected_before ?? s.current_occupied_skids ?? 0}" readonly><span class="input__unit">skids</span></span></div>
-      <div class="field field--num"><span class="field__label">Free now</span><span class="inputwrap"><input class="input" value="${state.capacity?.available_after ?? '—'}" readonly><span class="input__unit">skids</span></span></div>
     </div>
-    <p class="hint">Counted from ${s.current_occupied_skids ?? 0} skids${s.inventory_as_of ? ` as of ${format.timestamp(s.inventory_as_of, state.context.location)}` : ''} (${s.capacity_last_source === 'mis' ? 'from MIS import' : 'manual entry'}), then every booked inbound added and every outbound subtracted.</p>
+    <fieldset class="countset">
+      <legend>Counted stock</legend>
+      <div class="frow">
+        <div class="field field--num"><span class="field__label">Counted</span><span class="inputwrap"><input class="input" type="number" min="0" name="current_occupied_skids" value="${s.current_occupied_skids ?? 0}" ${disabled}><span class="input__unit">skids</span></span></div>
+        <div class="field field--md"><span class="field__label">As of</span><input class="input" type="datetime-local" name="inventory_as_of" value="${escapeHtml(localDateTime(s.inventory_as_of))}" ${disabled}></div>
+        <div class="field field--num"><span class="field__label">Occupied now</span><span class="inputwrap"><input class="input" value="${state.capacity?.projected_before ?? s.current_occupied_skids ?? 0}" readonly tabindex="-1" aria-label="Occupied now, calculated"><span class="input__unit">skids</span></span></div>
+        <div class="field field--num"><span class="field__label">Free now</span><span class="inputwrap"><input class="input" value="${state.capacity?.available_after ?? '—'}" readonly tabindex="-1" aria-label="Free now, calculated"><span class="input__unit">skids</span></span></div>
+      </div>
+      <p class="hint hint--measure">Walk the floor once, put the count in and stamp it with the time you took it. From that moment MaxDock keeps it current on its own — every booked inbound adds, every outbound subtracts — so nobody has to keep a running total. Occupied now and Free now are what that arithmetic says right now${s.capacity_last_source === 'mis' ? ', last set from an MIS import' : ''}.</p>
+    </fieldset>
     ${saveFoot(canEdit)}
   </form>`;
 }
@@ -358,12 +374,21 @@ async function saveCapacity(form) {
   const data = new FormData(form);
   const enabled = form.querySelector('[data-capacity-switch]').getAttribute('aria-pressed') === 'true';
   const capacity = data.get('skid_capacity');
+  // A stock count is only meaningful with the moment it was taken, so the two
+  // move together. An empty timestamp stamps the save itself, which is what
+  // somebody who just walked the floor means by "as of now"; a manual count
+  // supersedes whatever the last MIS import left behind.
+  const countedAt = data.get('inventory_as_of');
   await saveSettingsFields({
     capacity_enabled: enabled,
     skid_capacity: capacity ? Number(capacity) : null,
     capacity_reserve_skids: Number(data.get('capacity_reserve_skids')),
     capacity_enforcement_mode: data.get('capacity_enforcement_mode'),
+    current_occupied_skids: Number(data.get('current_occupied_skids') || 0),
+    inventory_as_of: countedAt ? new Date(countedAt).toISOString() : format.nowIso(),
+    capacity_last_source: 'manual',
   });
+  db.invalidate(`settings:capacity:${state.locationId}`);
 }
 
 async function saveAssignment(form) {

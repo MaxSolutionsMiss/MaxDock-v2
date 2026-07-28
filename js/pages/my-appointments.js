@@ -32,6 +32,7 @@ let cards = new Map();
 let nextAppointmentSignature = '';
 let customizePanel = null;
 let visibleCards = [];
+let searchTerm = '';
 
 // Same markup, same element types and the same accent colours the board and the
 // queue use, so a metric card reads identically wherever it appears.
@@ -62,8 +63,21 @@ function isUpcoming(record, now = format.nowEpoch()) {
     && format.epoch(record.start_at) >= now;
 }
 
+// What a customer or coordinator has in hand when they come looking: the booking
+// reference from the confirmation, the site, the PO the office quoted, or the
+// carrier on the gate.
+function matchesSearch(record) {
+  const term = searchTerm.trim().toLowerCase();
+  if (!term) return true;
+  return [
+    record.booking_reference, record.location_name, record.company_name,
+    record.carrier_name, record.external_reference, record.truck_type,
+  ].some(value => String(value || '').toLowerCase().includes(term));
+}
+
 function filterRecords(view, rows) {
   const now = format.nowEpoch();
+  rows = rows.filter(matchesSearch);
   switch (view) {
     case 'cancelled':
       return rows.filter(record => normaliseStatus(record.status) === 'cancelled');
@@ -533,13 +547,22 @@ function buildPage(root, context) {
   controls.innerHTML = controlsBar({ label: 'Appointment controls', actions: [['book', context.can('appointment.create')]] });
   const controlsHost = controls.firstElementChild;
   const views = createViewControls();
+  const search = createElement('label', 'ctrl-field ctrl-field--grow appointment-search');
+  const searchLabel = createElement('span', '', 'Search');
+  const searchInput = createElement('input', 'input');
+  searchInput.type = 'search';
+  searchInput.placeholder = 'Reference, site, PO';
+  searchInput.autocomplete = 'off';
+  searchInput.dataset.appointmentSearch = '';
+  search.append(searchLabel, searchInput);
+
   const toolbarMeta = createElement('div', 'profile appointment-toolbar__meta');
   const count = createElement('span', 'appointment-toolbar__count data');
   count.setAttribute('aria-live', 'polite');
   const updated = createElement('span', 'page-updated muted');
   toolbarMeta.append(count, updated);
   const lead = controlsHost.querySelector('.controls__lead') || controlsHost;
-  lead.append(views);
+  lead.append(views, search);
   lead.after(toolbarMeta);
 
   // Left column scrolls on its own so the appointments below the fold can be
@@ -656,6 +679,15 @@ function bindInteractions() {
     });
   };
 
+  // Filtering as you type. The metric cards recount too, so "3 upcoming" always
+  // means three of the ones actually on screen.
+  const onSearch = event => {
+    if (!event.target.matches('[data-appointment-search]')) return;
+    searchTerm = event.target.value;
+    renderMetrics();
+    renderAppointments();
+  };
+
   const onHeadAction = event => {
     if (event.target.closest('[data-export]')) exportCsv();
     if (event.target.closest('[data-print]')) globalThis.print();
@@ -667,6 +699,7 @@ function bindInteractions() {
 
   hosts.views.addEventListener('click', onViewClick);
   activeContext.pageRoot.addEventListener('click', onHeadAction);
+  activeContext.pageRoot.addEventListener('input', onSearch);
   hosts.cancelDismiss.addEventListener('click', closeCancelModal);
   hosts.cancelConfirm.addEventListener('click', confirmCancellation);
   activeContext.pageRoot.addEventListener('focusin', onFocusIn);
@@ -675,6 +708,7 @@ function bindInteractions() {
   interactionCleanup = [
     () => hosts?.views.removeEventListener('click', onViewClick),
     () => activeContext?.pageRoot?.removeEventListener('click', onHeadAction),
+    () => activeContext?.pageRoot?.removeEventListener('input', onSearch),
     () => hosts?.cancelDismiss.removeEventListener('click', closeCancelModal),
     () => hosts?.cancelConfirm.removeEventListener('click', confirmCancellation),
     () => activeContext?.pageRoot?.removeEventListener('focusin', onFocusIn),
@@ -696,6 +730,7 @@ const page = {
     activeContext = context;
     records = [];
     activeView = 'upcoming';
+    searchTerm = '';
     cards = new Map();
     nextAppointmentSignature = '';
     buildPage(context.pageRoot, context);

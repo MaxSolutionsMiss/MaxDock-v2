@@ -470,3 +470,44 @@ scan is now its own line, named as one, with the driver on it.
 The board blocks carry the live status beside the reference for the same reason: a
 receiver moves a truck to Loading in seconds and the board is what the room is
 looking at.
+
+## Capacity: the counted-stock baseline already existed (2026-07-28)
+
+The owner asked for v1's behaviour back — walk the floor, enter the count and the
+moment it was taken, and let MaxDock keep it current from there.
+
+It was never lost. `location_settings.current_occupied_skids` is the baseline and
+`inventory_as_of` is the instant it counts from, and
+`location_capacity_projection_internal` already sums every booked inbound as a plus
+and every outbound as a minus from that instant forward — including the mirrored
+side of a Max-to-Max movement, so a transfer counts once at each end in the right
+direction. What was missing was any way to *set* the two: the Capacity section
+showed Occupied now and Free now as read-only outputs and offered no input for the
+count behind them, so the feature was complete and unreachable.
+
+Both are now fields in a ruled "Counted stock" group, with the calculated pair
+beside them. Saving stamps `capacity_last_source = 'manual'`, and an empty
+timestamp means "as of now", which is what somebody who has just walked the floor
+means.
+
+**Worth remembering: before building what a request describes, check whether the
+engine is already there and only the surface is missing. Three requests this week
+turned out to be a working rule with no control attached to it.**
+
+## Search, and the prefilled reference prefix (2026-07-28)
+
+Two ways to find a load, both shaped by what a person actually has in their hand.
+
+Receiving prefills `MXD-<current year>-` and puts the caret after it, so a receiver
+keys only the serial off the paperwork. The prefix stays editable — a code from
+last year is still a code somebody needs in January — and the year comes from the
+clock rather than a constant, so it rolls over on its own. Submitting the bare
+prefix is treated as no search, because the year's digits would otherwise match
+every reference booked that year.
+
+Board and My appointments got a find box in the controls band, matching the one the
+Users page already had — same `.ctrl-field--grow` wrapper, same "Search" label, same
+place in the row — rather than a second, competing pattern. Both filter as you type
+across reference, company, carrier, PO and site; My appointments recounts its metric
+cards with the filter applied, so "3 upcoming" always means three of the ones on
+screen.
