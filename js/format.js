@@ -119,6 +119,19 @@ export const format = Object.freeze({
   // A span of time as a person says it: "90 minutes" is how long the door is
   // held, but "1 h 30 min" is what a shipping office schedules around. Always
   // carries its units, never a bare number.
+  // How long a shift is, in hours, from two clock times. A shift that ends earlier
+  // than it starts crosses midnight and is measured forward — 22:00 to 06:00 is
+  // eight hours, not minus sixteen. Lives here because clock arithmetic belongs in
+  // one place, and the server works this out the same way.
+  shiftHours(startTime, endTime) {
+    const minutes = value => {
+      const [hours, mins] = String(value || '').split(':').map(Number);
+      return (Number.isFinite(hours) ? hours : 0) * 60 + (Number.isFinite(mins) ? mins : 0);
+    };
+    const span = minutes(endTime) - minutes(startTime);
+    return (span > 0 ? span : span + 1440) / 60;
+  },
+
   duration(minutes) {
     const total = Math.max(0, Math.round(Number(minutes) || 0));
     const hours = Math.floor(total / 60);

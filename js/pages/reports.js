@@ -331,11 +331,11 @@ function renderLabour() {
           <td class="data">${num(row.trucks)}</td>
           <td class="data">${Number(row.truck_hours || 0).toFixed(1)} h</td>
           <td>${labourCell(row)}</td>
-          <td><span class="tag ${row.source === 'recorded' ? 'tag--ok' : 'tag--quiet'}">${row.source === 'recorded' ? 'Recorded' : 'Standing'}</span></td>
+          <td><span class="tag ${row.source === 'recorded' ? 'tag--ok' : 'tag--quiet'}">${row.source === 'recorded' ? 'Recorded' : 'Shift roster'}</span></td>
           <td class="data cell-wrap2">${escapeHtml(row.note || '')}</td>
         </tr>`).join('') : '<tr><td colspan="9" class="data">No days in this range.</td></tr>'
       }</tbody></table></div>
-      <p class="hint hint--wide">Hours on trucks is every booked window multiplied by the crew a truck takes — the same arithmetic the operations brief uses, so the two cannot disagree. Cancelled and no-show loads are left out; nobody worked them. Available hours come from the day's recorded crew where there is one and from Settings › Labour where there is not, which is what the Crew figures column says. ${recorded} of ${rows.length} day${rows.length === 1 ? '' : 's'} in this range ${recorded === 1 ? 'has' : 'have'} recorded hours.${busiest && busiest.utilization_percent !== null ? ` Busiest day was ${escapeHtml(String(busiest.work_date))} at ${Number(busiest.utilization_percent).toFixed(1)}%.` : ''}</p>
+      <p class="hint hint--wide">Hours on trucks is every booked window multiplied by the crew a truck takes — the same arithmetic the operations brief uses, so the two cannot disagree. Cancelled and no-show loads are left out; nobody worked them. Available hours come from the day's recorded crew where somebody recorded one, and from the shift roster under Settings › Labour where nobody did — which is what the Crew figures column says. There is no fudge factor in it: it is the shifts running that weekday, each one's length times the people on it. ${recorded} of ${rows.length} day${rows.length === 1 ? '' : 's'} in this range ${recorded === 1 ? 'has' : 'have'} recorded hours.${busiest && busiest.utilization_percent !== null ? ` Busiest day was ${escapeHtml(String(busiest.work_date))} at ${Number(busiest.utilization_percent).toFixed(1)}%.` : ''}</p>
     </div>`;
 }
 

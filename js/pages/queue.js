@@ -52,6 +52,7 @@ const state = {
   combineLanes: [],
   combineDialog: null,
   labour: null,
+  shifts: [],
   detailsModal: null,
 };
 
@@ -78,7 +79,7 @@ function normalizeRecord(row) {
 async function fetchQueueData() {
   const locationId = state.context.location.id;
   const day = format.dayOfWeek(state.date);
-  const [, scheduleRows, docks, hours, returnLoads, truckTypes, truckCapacities, labour] = await Promise.all([
+  const [, scheduleRows, docks, hours, returnLoads, truckTypes, truckCapacities, labour, shifts] = await Promise.all([
     // Settle first, so the schedule that comes back already reflects any load whose
     // booked time has run out. There is no pg_cron on this project, so the screens
     // that are always open are what move a received truck to complete.
@@ -93,7 +94,11 @@ async function fetchQueueData() {
     // a list of appointments into "you need six people and there are two trucks
     // going to the same place".
     db.select('location_truck_types', q => q.select('truck_type_code,skid_capacity').eq('location_id', locationId), { key: `queue:truck-capacity:${locationId}`, cache: 60000 }).catch(() => []),
-    db.select('location_settings', q => q.select('handlers_per_truck,max_concurrent_appointments,crew_size,shift_hours,crew_availability_percent').eq('location_id', locationId).maybeSingle(), { key: `queue:labour:${locationId}`, cache: 60000 }).catch(() => null),
+    db.select('location_settings', q => q.select('handlers_per_truck,max_concurrent_appointments').eq('location_id', locationId).maybeSingle(), { key: `queue:labour:${locationId}`, cache: 60000 }).catch(() => null),
+    // The shifts this site runs. The brief divides by the same roster the
+    // utilisation report divides by, so the two cannot disagree about what today
+    // had to spend.
+    db.select('location_shifts', q => q.select('name,start_time,end_time,people,days_of_week,is_active').eq('location_id', locationId).eq('is_active', true), { key: `queue:shifts:${locationId}`, cache: 60000 }).catch(() => []),
   ]);
   const records = (scheduleRows || []).map(normalizeRecord).filter(record => record.start_at && format.sameLocalDate(record.start_at, state.date, state.context.location));
   return {
@@ -104,6 +109,7 @@ async function fetchQueueData() {
     truckTypeNames: new Map((truckTypes || []).map(type => [type.code, type.name])),
     truckCapacity: new Map((truckCapacities || []).map(row => [row.truck_type_code, Number(row.skid_capacity || 0)])),
     labour: labour || null,
+    shifts: shifts || [],
   };
 }
 
@@ -369,47 +375,46 @@ function briefGroups() {
   return groups;
 }
 
-// People and hours, from the two numbers a site already sets: how many people work
-// one truck, and how many trucks can be worked at once. The floor number is what
-// is needed at the busiest moment — running three trucks at once with two people
-// each is six people, whatever the day's total is — and the hours are the day's
-// booked dock time multiplied by the crew on each truck.
 // The staffing question a site actually asks is not "how many bodies at the worst
 // moment" — it is "is there room in this day". So the brief reports the hours the
 // day's bookings cost against the hours the crew has, and says how much is left.
 // That is the number to look at before agreeing to a day off next Thursday.
 //
-// Cost: every truck's window multiplied by the crew a truck takes.
-// Available: people on shift × shift length × the share of a shift that is
-// realistically spent on trucks. Nobody unloads for eight hours out of eight, so
-// the percentage is the honest part, and it is the site's own number to set.
+// Cost: every truck's window multiplied by the crew a truck takes. The window is
+// not typed in anywhere — it is what the timing rules already worked out for that
+// load — so this is derived, not guessed.
+//
+// Available: the shifts running today, each one's length times the people on it.
+// This used to be crew × shift length × a percentage, and the percentage was a
+// number nobody had measured that scaled the whole answer. A roster is a fact.
 function labourPoints(appointments) {
   const perTruck = Number(state.labour?.handlers_per_truck ?? 0);
   if (!perTruck) return [];
   const minutes = appointments.reduce((sum, record) => sum + format.minutesBetween(record.start_at, record.end_at), 0);
   const bookedHours = Math.round((minutes * perTruck) / 60 * 10) / 10;
-  const crew = Number(state.labour?.crew_size || 0);
-  const shift = Number(state.labour?.shift_hours || 0);
-  const share = Number(state.labour?.crew_availability_percent || 0);
+  const today = format.dayOfWeek(state.date);
+  const running = (state.shifts || []).filter(shift => (shift.days_of_week || []).map(Number).includes(today));
+  const availableHours = Math.round(running.reduce((sum, shift) => sum + Number(shift.people || 0) * format.shiftHours(shift.start_time, shift.end_time), 0) * 10) / 10;
+  const people = running.reduce((sum, shift) => sum + Number(shift.people || 0), 0);
 
-  // No crew on record: say what the day costs and leave capacity alone rather
+  // No roster for today: say what the day costs and leave capacity alone rather
   // than inventing a number the site never gave.
-  if (!crew || !shift || !share) {
+  if (!availableHours) {
     return [
       `${bookedHours} hours of dock labour booked today — ${perTruck} people per truck across ${appointments.length} truck${appointments.length === 1 ? '' : 's'}.`,
-      'Set Crew on shift under Settings to see this against what the day has.',
+      'No shift covers today. Set the roster under Settings › Labour to see this against what the day has.',
     ];
   }
 
-  const availableHours = Math.round(crew * shift * (share / 100) * 10) / 10;
   const spare = Math.round((availableHours - bookedHours) * 10) / 10;
-  const used = availableHours ? Math.round((bookedHours / availableHours) * 100) : 0;
+  const used = Math.round((bookedHours / availableHours) * 100);
+  const perPerson = people ? availableHours / people : 0;
   const points = [
     `${bookedHours} of ${availableHours} dock hours booked today — ${used}% of the crew's day.`,
-    `${crew} on shift × ${shift} h at ${share}% on the dock, ${perTruck} people per truck.`,
+    `${people} on across ${running.length} shift${running.length === 1 ? '' : 's'}, ${perTruck} people per truck.`,
   ];
-  if (spare < 0) points.push(`${Math.abs(spare)} hours short. The day needs ${Math.ceil(Math.abs(spare) / (shift * (share / 100)))} more on the floor, or trucks moved off it.`);
-  else points.push(`${spare} hours spare — room for about ${Math.floor(spare / (shift * (share / 100)))} of the crew to be off and still clear the day.`);
+  if (spare < 0) points.push(`${Math.abs(spare)} hours short. The day needs ${perPerson ? Math.ceil(Math.abs(spare) / perPerson) : 1} more on the floor, or trucks moved off it.`);
+  else points.push(`${spare} hours spare — room for about ${perPerson ? Math.floor(spare / perPerson) : 0} of the crew to be off and still clear the day.`);
   return points;
 }
 
@@ -588,6 +593,7 @@ async function refreshData() {
   state.truckTypeNames = data.truckTypeNames || state.truckTypeNames;
   state.truckCapacity = data.truckCapacity || state.truckCapacity;
   state.labour = data.labour ?? state.labour;
+  state.shifts = data.shifts ?? state.shifts;
   renderAll();
   if (state.wall && !state.wall.closed) paintWall(state.wall, wallPayload());
 }
@@ -734,6 +740,7 @@ const page = {
     state.truckTypeNames = data.truckTypeNames || state.truckTypeNames;
     state.truckCapacity = data.truckCapacity || state.truckCapacity;
     state.labour = data.labour ?? state.labour;
+  state.shifts = data.shifts ?? state.shifts;
     renderAll();
   },
   destroy() { state.customizePanel?.destroy(); state.detailsModal?.destroy(); state.combineDialog?.destroy(); },

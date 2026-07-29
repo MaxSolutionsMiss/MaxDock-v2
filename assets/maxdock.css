@@ -677,6 +677,13 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 .card>*+*,.modal__body>*+*,[data-booking-step]>*+*,[data-section-form]>*+*{margin-top:var(--s4)}
 .card>.card__title+*,.modal__body>.card__title+*,[data-section-form]>.card__title+*{margin-top:0}
 .card>.setrow+.setrow,.modal__body>.setrow+.setrow,[data-booking-step]>.setrow+.setrow,[data-section-form]>.setrow+.setrow{margin-top:0}
+/* A row of fields under another row of fields needs more air than two blocks do,
+   because what lands beside the first row's controls is the second row's LABELS.
+   At the block rhythm they read as one crowded group — the owner has caught this
+   twice, on Timing & duration and on Labour. Two classes, so it wins over the
+   block rule wherever a .frow follows a .frow: this is the norm, not an
+   exception, and it holds in cards, dialogs and wizard steps alike. */
+.frow+.frow{margin-top:var(--s5)}
 /* Pairs, close together, two or three across — not one row per value with the
    label and the value pushed to opposite edges. */
 .confirmgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:var(--s2) var(--s4);padding:var(--s3)}
@@ -888,6 +895,21 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
    governs — a long list should not have to be cleared one tick at a time. */
 .pickall{font-weight:600;padding-bottom:var(--s3);margin-bottom:var(--s3);border-bottom:1px solid var(--rule-strong)}
 .dock-check{display:flex;align-items:center;gap:6px;min-height:32px;font-size:var(--t-small);white-space:nowrap;min-width:0}
+/* A shift is one line: what it is called, when it runs, how many people, which
+   days. The days are seven initials rather than seven words, because the row has
+   to sit beside the times and a manager reading a roster already knows which
+   letter is which — the full day name is on the control for a screen reader and
+   on hover. */
+.shiftrow{display:flex;align-items:end;flex-wrap:wrap;gap:var(--s2) var(--s3)}
+.shiftrow+.shiftrow{margin-top:var(--s4);padding-top:var(--s4);border-top:1px solid var(--rule)}
+.shiftrow>.field{max-width:none}
+.shiftrow>.btn{margin-bottom:2px}
+.daypicks{display:flex;gap:4px}
+.daypick{display:grid;place-items:center;min-width:32px;min-height:32px;border:1px solid var(--rule-strong);border-radius:var(--radius);font-size:var(--t-micro);font-weight:600;color:var(--ink-muted);cursor:pointer;position:relative}
+.daypick input{position:absolute;inset:0;opacity:0;cursor:pointer;margin:0}
+.daypick:has(input:checked){background:var(--dock);border-color:var(--dock);color:#fff}
+.daypick:has(input:disabled){cursor:default;opacity:.6}
+.sr{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
 .dock-check span{overflow:hidden;text-overflow:ellipsis}
 input[type="checkbox"],input[type="radio"]{width:16px;height:16px;accent-color:var(--dock);flex:none;margin:0}
 .table input[type="checkbox"]{width:16px;height:16px}

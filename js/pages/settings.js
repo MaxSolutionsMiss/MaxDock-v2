@@ -33,6 +33,7 @@ const state = {
   canManageDocks: false,
   canManageLabour: false,
   labourDay: null,
+  shifts: [],
   section: 'hours',
   hours: [],
   settings: null,
@@ -112,7 +113,7 @@ function durationValue(data, name, baseUnit, units) {
 async function fetchAll() {
   const locationId = state.locationId;
   const [hours, settings, docks, truckTypes, locationTruckTypes, dockTruckTypes, capacity, directionWindows,
-    appointmentTypes, handlingTypes, shortcuts, labourDay] = await Promise.all([
+    appointmentTypes, handlingTypes, shortcuts, labourDay, shifts] = await Promise.all([
     db.select('location_operating_hours', q => q.select('location_id,day_of_week,is_open,open_time,close_time').eq('location_id', locationId), { key: `settings:hours:${locationId}`, cache: 0 }),
     db.select('location_settings', q => q.select('*').eq('location_id', locationId).maybeSingle(), { key: `settings:row:${locationId}`, cache: 0 }),
     db.select('docks', q => q.select('id,name,description,sort_order,direction_mode,is_active').eq('location_id', locationId).order('sort_order').order('name'), { key: `settings:docks:${locationId}`, cache: 0 }),
@@ -129,11 +130,13 @@ async function fetchAll() {
     // Today's recorded crew, if there is one, so the form opens showing what is
     // already on record for today rather than an empty box that overwrites it.
     db.select('location_labour_days', q => q.select('work_date,people,hours_each,note').eq('location_id', locationId).order('work_date', { ascending: false }).limit(1), { key: `settings:labour-day:${locationId}`, cache: 0 }).catch(() => []),
+    db.select('location_shifts', q => q.select('id,name,start_time,end_time,people,days_of_week,is_active,sort_order').eq('location_id', locationId).order('sort_order').order('start_time'), { key: `settings:shifts:${locationId}`, cache: 0 }).catch(() => []),
   ]);
   state.hours = hours || [];
   state.capacity = Array.isArray(capacity) ? capacity[0] || null : capacity || null;
   state.settings = settings || null;
   state.labourDay = (labourDay || [])[0] || null;
+  state.shifts = shifts || [];
   state.docks = docks || [];
   state.truckTypes = truckTypes || [];
   state.locationTruckTypes = locationTruckTypes || [];
@@ -369,6 +372,27 @@ function renderAssignment() {
 // rather than riding on settings.manage. A manager who knows how many hands were
 // on the dock on Tuesday is not a Site Admin, and handing them every other
 // location setting so they can say "six people" is the wrong trade.
+// One row per shift: what it is called, when it runs, which days, how many people.
+// A day picker of seven initials rather than seven words, because the row has to
+// fit beside the times and a manager reading it already knows which letter is
+// which. Rows are edited together and saved together — see saveShifts.
+function shiftRows(canEdit) {
+  const disabled = canEdit ? '' : 'disabled';
+  const rows = (state.shifts || []).map((shift, index) => {
+    const days = new Set((shift.days_of_week || []).map(String));
+    const picks = DAY_ORDER.map(day => `<label class="daypick" title="${DAY_LABELS[day]}"><input type="checkbox" data-shift-day value="${day}" ${days.has(String(day)) ? 'checked' : ''} ${disabled}><span aria-hidden="true">${DAY_LABELS[day][0]}</span><span class="sr">${DAY_LABELS[day]}</span></label>`).join('');
+    return `<div class="shiftrow" data-shift-row="${index}">
+      <label class="field field--md"><span class="field__label">Shift</span><input class="input" data-shift-name maxlength="40" value="${escapeHtml(shift.name || '')}" placeholder="Day" ${disabled}></label>
+      <label class="field field--sm"><span class="field__label">Starts</span><input class="input" type="time" data-shift-start value="${escapeHtml(timeInput(shift.start_time))}" ${disabled}></label>
+      <label class="field field--sm"><span class="field__label">Ends</span><input class="input" type="time" data-shift-end value="${escapeHtml(timeInput(shift.end_time))}" ${disabled}></label>
+      <div class="field field--num"><span class="field__label">People</span><span class="inputwrap"><input class="input" type="number" min="0" max="500" data-shift-people value="${shift.people ?? 0}" ${disabled}></span></div>
+      <div class="field"><span class="field__label">Days</span><div class="daypicks">${picks}</div></div>
+      ${canEdit ? '<button class="btn btn--quiet btn--sm" type="button" data-remove-shift>Remove</button>' : ''}
+    </div>`;
+  }).join('');
+  return rows || '<p class="hint">No shifts set. Until there are, the utilisation report shows what the day costs and leaves the percentage blank rather than dividing by a number this site never gave.</p>';
+}
+
 function renderLabour() {
   const s = state.settings || {};
   const canEdit = state.canManageLabour;
@@ -380,20 +404,23 @@ function renderLabour() {
       <p class="hint hint--wide hint--lead">What a truck costs in people, and what the site has on a normal day. The operations brief and the labour utilisation report both count from these.</p>
       <div class="frow">
         <div class="field field--num"><span class="field__label">Crew per truck</span><span class="inputwrap"><input class="input" type="number" min="0" max="50" name="handlers_per_truck" value="${s.handlers_per_truck ?? 2}" ${disabled}><span class="input__unit">people</span></span></div>
-        <div class="field field--num"><span class="field__label">Crew on shift</span><span class="inputwrap"><input class="input" type="number" min="0" max="500" name="crew_size" value="${s.crew_size ?? 0}" ${disabled}><span class="input__unit">people</span></span></div>
-        <div class="field field--num"><span class="field__label">Shift length</span><span class="inputwrap"><input class="input" type="number" min="1" max="24" step="0.5" name="shift_hours" value="${s.shift_hours ?? 8}" ${disabled}><span class="input__unit">hours</span></span></div>
-        <div class="field field--num"><span class="field__label">On the dock</span><span class="inputwrap"><input class="input" type="number" min="1" max="100" name="crew_availability_percent" value="${s.crew_availability_percent ?? 80}" ${disabled}><span class="input__unit">%</span></span></div>
       </div>
-      <p class="hint hint--wide">Nobody unloads trucks for eight hours out of eight, so <strong>On the dock</strong> is the share of a shift realistically spent on them — six people on an eight-hour shift at 80% is 38.4 dock hours to work with. Leave <strong>Crew on shift</strong> at 0 and MaxDock states what the day costs and says nothing about capacity, rather than guessing at a number this site never gave.</p>
+      <p class="hint hint--wide">The hours a truck costs are not typed in anywhere: they come from the window MaxDock already worked out for it under Timing &amp; duration, multiplied by this. A 75-minute truck at two people is 2.5 hours of dock labour.</p>
+      ${saveFoot(canEdit)}
+    </form>
+    <form data-section-form="shifts">
+      <h3 class="card__title">Shifts${canEdit ? '<button class="btn btn--primary btn--sm at-end" type="button" data-unlocked data-add-shift>Add shift</button>' : ''}</h3>
+      <p class="hint hint--wide hint--lead">The shifts this site runs and how many people are on each. Summed for a weekday, this is the hours available for dock work — which is what the utilisation report divides by, so it is worth being right.</p>
+      ${shiftRows(canEdit)}
       ${saveFoot(canEdit)}
     </form>
     <form data-section-form="labour-day">
       <h3 class="card__title">Hours actually worked</h3>
-      <p class="hint hint--wide hint--lead">The standing figures above cover a normal day. Record a date here when it was not one — a holiday, somebody off, a Saturday with two people — and the utilisation report uses what you recorded for that date instead of the standing figures.</p>
+      <p class="hint hint--wide hint--lead">The shifts above cover a normal week. Record a date here when it was not one — a holiday, somebody off, a Saturday with two people — and the utilisation report uses what you recorded for that date instead of the shift roster.</p>
       <div class="frow">
         <label class="field field--md"><span class="field__label">Date</span><input class="input" type="date" name="work_date" value="${escapeHtml(day.work_date || format.todayInput(state.context?.location))}" ${disabled}></label>
-        <div class="field field--num"><span class="field__label">People on</span><span class="inputwrap"><input class="input" type="number" min="0" max="500" name="people" value="${day.people ?? s.crew_size ?? 0}" ${disabled}><span class="input__unit">people</span></span></div>
-        <div class="field field--num"><span class="field__label">Hours each</span><span class="inputwrap"><input class="input" type="number" min="0.5" max="24" step="0.5" name="hours_each" value="${day.hours_each ?? s.shift_hours ?? 8}" ${disabled}><span class="input__unit">hours</span></span></div>
+        <div class="field field--num"><span class="field__label">People on</span><span class="inputwrap"><input class="input" type="number" min="0" max="500" name="people" value="${day.people ?? 0}" ${disabled}><span class="input__unit">people</span></span></div>
+        <div class="field field--num"><span class="field__label">Hours each</span><span class="inputwrap"><input class="input" type="number" min="0.5" max="24" step="0.5" name="hours_each" value="${day.hours_each ?? 8}" ${disabled}><span class="input__unit">hours</span></span></div>
       </div>
       <div class="frow">
         <label class="field field--full"><span class="field__label">Note <span class="field__opt">optional</span></span><input class="input" name="note" maxlength="120" value="${escapeHtml(day.note || '')}" placeholder="Civic holiday — skeleton crew" ${disabled}></label>
@@ -706,11 +733,27 @@ async function saveLabour(form) {
   await db.rpc('save_location_labour', {
     p_location_id: state.locationId,
     p_handlers_per_truck: Number(data.get('handlers_per_truck') || 0),
-    p_crew_size: Number(data.get('crew_size') || 0),
-    p_shift_hours: Number(data.get('shift_hours') || 8),
-    p_crew_availability_percent: Number(data.get('crew_availability_percent') || 80),
   }, { key: `settings:labour:${state.locationId}`, retry: 0, userMessage: 'The labour settings could not be saved.' });
   db.invalidate(`settings:row:${state.locationId}`);
+}
+
+// The whole roster in one call. Rows added, rows removed and people changed all
+// travel together, because a half-saved roster is a wrong denominator rather than
+// a missing one — and the report would show a number instead of admitting it.
+async function saveShifts(form) {
+  const shifts = [...form.querySelectorAll('[data-shift-row]')].map(row => ({
+    name: row.querySelector('[data-shift-name]').value.trim(),
+    start_time: row.querySelector('[data-shift-start]').value,
+    end_time: row.querySelector('[data-shift-end]').value,
+    people: Number(row.querySelector('[data-shift-people]').value || 0),
+    days_of_week: [...row.querySelectorAll('[data-shift-day]:checked')].map(box => Number(box.value)),
+    is_active: true,
+  }));
+  await db.rpc('save_location_shifts', {
+    p_location_id: state.locationId,
+    p_shifts: shifts,
+  }, { key: `settings:shifts:save:${state.locationId}`, retry: 0, userMessage: 'The shifts could not be saved.' });
+  db.invalidate(`settings:shifts:${state.locationId}`);
 }
 
 async function saveLabourDay(form) {
@@ -889,6 +932,7 @@ async function submitSection(event) {
     else if (kind === 'assignment') await saveAssignment(form);
     else if (kind === 'labour') await saveLabour(form);
     else if (kind === 'labour-day') await saveLabourDay(form);
+    else if (kind === 'shifts') await saveShifts(form);
     else if (kind === 'combining') await saveCombining(form);
     else if (kind === 'truck-capacity') await saveTruckCapacity(form);
     else if (kind === 'direction-windows') await saveDirectionWindows(form);
@@ -1410,6 +1454,25 @@ function wireEvents(root) {
     if (event.target.closest('[data-apply-yes]')) { settleApply(true); return; }
     if (event.target.closest('[data-apply-no]')) { settleApply(false); return; }
     if (event.target.closest('[data-add-dock]')) { openDockModal(null); return; }
+    // Shift rows are edited in place, so Add and Remove change the rows on screen
+    // and Save writes the roster as a whole. Nothing is written until Save, which
+    // is what the buttons under the list say.
+    if (event.target.closest('[data-add-shift]')) {
+      state.shifts = [...(state.shifts || []), { name: '', start_time: '07:00', end_time: '15:30', people: 0, days_of_week: [1, 2, 3, 4, 5] }];
+      renderPanel();
+      state.editing.add('shifts');
+      applyLocks();
+      return;
+    }
+    const removeShift = event.target.closest('[data-remove-shift]');
+    if (removeShift) {
+      const index = Number(removeShift.closest('[data-shift-row]')?.dataset.shiftRow);
+      state.shifts = (state.shifts || []).filter((_, at) => at !== index);
+      renderPanel();
+      state.editing.add('shifts');
+      applyLocks();
+      return;
+    }
     const editDock = event.target.closest('[data-edit-dock]');
     if (editDock) { openDockModal(editDock.dataset.editDock); return; }
     if (event.target.closest('[data-close-dock]')) state.dockModal.close();
