@@ -14,6 +14,7 @@ const VIEWS = [
   { id: 'scorecard-company', label: 'Vendor scorecard' },
   { id: 'scorecard-location', label: 'Site scorecard' },
   { id: 'fullness', label: 'Truck fullness' },
+  { id: 'labour', label: 'Labour utilisation', permission: 'reports.view_labour' },
 ];
 
 const PRESETS = [
@@ -32,6 +33,7 @@ const state = {
   data: null,
   scorecard: [],
   fullness: [],
+  labour: [],
   elements: {},
   customizePanel: null,
   visibleCards: [],
@@ -297,6 +299,57 @@ function renderFullness() {
     </div>`;
 }
 
+// How much of the crew's day the trucks actually took. The denominator is the
+// day's recorded crew where somebody recorded one and the standing setting where
+// they did not, and the row says which — a manager reading 42% needs to know
+// whether it was measured or assumed.
+function renderLabour() {
+  const rows = state.labour || [];
+  const worked = rows.filter(row => num(row.available_hours) > 0 || num(row.trucks) > 0);
+  const available = rows.reduce((sum, row) => sum + num(row.available_hours), 0);
+  const truckHours = rows.reduce((sum, row) => sum + num(row.truck_hours), 0);
+  const trucks = rows.reduce((sum, row) => sum + num(row.trucks), 0);
+  const overall = available ? Math.round((truckHours / available) * 1000) / 10 : null;
+  const recorded = rows.filter(row => row.source === 'recorded').length;
+  const busiest = [...worked].sort((a, b) => num(b.utilization_percent) - num(a.utilization_percent))[0];
+  return `<div class="kpis" style="--kpi-cols:4">
+      <article class="kpi kpi--ok"><span class="kpi__label">Crew used</span><span class="kpi__value">${overall === null ? '—' : overall.toFixed(1)}<span>%</span></span></article>
+      <article class="kpi kpi--out"><span class="kpi__label">Hours available</span><span class="kpi__value">${compact(Math.round(available))}</span></article>
+      <article class="kpi kpi--signal"><span class="kpi__label">Hours on trucks</span><span class="kpi__value">${compact(Math.round(truckHours))}</span></article>
+      <article class="kpi"><span class="kpi__label">Trucks handled</span><span class="kpi__value">${compact(trucks)}</span></article>
+    </div>
+    <div class="panel panel--fill">
+      <div class="panel__head"><h3 class="panel__title">Labour utilisation</h3><div class="panel__actions"><span class="sub">${escapeHtml(rangeLabel())}</span></div></div>
+      <div class="panel__scroll"><table class="table"><thead><tr>
+        <th>Date</th><th>People</th><th>Hours each</th><th>Available</th><th>Trucks</th><th>Hours on trucks</th><th>Crew used</th><th>Crew figures</th><th class="col-fill">Note</th>
+      </tr></thead><tbody>${
+        rows.length ? rows.map(row => `<tr>
+          <td class="data data--strong">${escapeHtml(format.dateShort(`${row.work_date}T12:00:00Z`, state.context.location))}</td>
+          <td class="data">${num(row.people)}</td>
+          <td class="data">${Number(row.hours_each || 0).toFixed(1)}</td>
+          <td class="data">${Number(row.available_hours || 0).toFixed(1)} h</td>
+          <td class="data">${num(row.trucks)}</td>
+          <td class="data">${Number(row.truck_hours || 0).toFixed(1)} h</td>
+          <td>${labourCell(row)}</td>
+          <td><span class="tag ${row.source === 'recorded' ? 'tag--ok' : 'tag--quiet'}">${row.source === 'recorded' ? 'Recorded' : 'Standing'}</span></td>
+          <td class="data cell-wrap2">${escapeHtml(row.note || '')}</td>
+        </tr>`).join('') : '<tr><td colspan="9" class="data">No days in this range.</td></tr>'
+      }</tbody></table></div>
+      <p class="hint hint--wide">Hours on trucks is every booked window multiplied by the crew a truck takes — the same arithmetic the operations brief uses, so the two cannot disagree. Cancelled and no-show loads are left out; nobody worked them. Available hours come from the day's recorded crew where there is one and from Settings › Labour where there is not, which is what the Crew figures column says. ${recorded} of ${rows.length} day${rows.length === 1 ? '' : 's'} in this range ${recorded === 1 ? 'has' : 'have'} recorded hours.${busiest && busiest.utilization_percent !== null ? ` Busiest day was ${escapeHtml(String(busiest.work_date))} at ${Number(busiest.utilization_percent).toFixed(1)}%.` : ''}</p>
+    </div>`;
+}
+
+// Over 100% is the finding, not an error: it means the day's trucks needed more
+// crew hours than the crew had, which is how a site discovers it was short.
+function labourCell(row) {
+  const pct = row.utilization_percent === null || row.utilization_percent === undefined ? null : Number(row.utilization_percent);
+  if (pct === null) return '<span class="sub">No crew recorded</span>';
+  return `<div class="fullness${pct > 100 ? ' fullness--over' : ''}">
+    <div class="fullness__bar"><span style="width:${Math.min(100, Math.round(pct))}%"></span></div>
+    <div class="fullness__t">${pct.toFixed(1)}%${pct > 100 ? ` · ${(Number(row.truck_hours) - Number(row.available_hours)).toFixed(1)} h short` : ''}</div>
+  </div>`;
+}
+
 function renderView() {
   if (!state.data) return;
   const renderers = {
@@ -304,7 +357,7 @@ function renderView() {
     'dock-utilisation': renderDockUtilisation,
     'scorecard-company': () => renderScorecard('company'),
     'scorecard-location': () => renderScorecard('location'),
-    fullness: renderFullness,
+    fullness: renderFullness, labour: renderLabour,
   };
   state.elements.host.innerHTML = (renderers[state.view] || renderOverview)();
 }
@@ -329,6 +382,15 @@ function csvRowsForView() {
         row.partner_name, row.partner_kind, num(row.trucks), num(row.measured_trucks), num(row.full_trucks),
         num(row.part_trucks), num(row.combined_trucks), num(row.loads_absorbed), row.trucks_saved_pct ?? '',
         num(row.skids), num(row.capacity_skids), row.fullness_pct ?? '',
+      ]),
+    ];
+  }
+  if (state.view === 'labour') {
+    return [
+      ['Date', 'People', 'Hours each', 'Available hours', 'Trucks', 'Hours on trucks', 'Crew used %', 'Crew figures', 'Note'],
+      ...(state.labour || []).map(row => [
+        row.work_date, num(row.people), row.hours_each ?? '', row.available_hours ?? '',
+        num(row.trucks), row.truck_hours ?? '', row.utilization_percent ?? '', row.source || '', row.note || '',
       ]),
     ];
   }
@@ -360,7 +422,7 @@ async function reload() {
     // The scorecard is its own query, fetched alongside so switching views does
     // not go back to the network. A failure there must not take the rest of the
     // report down with it.
-    const [data, scorecard, fullness] = await Promise.all([
+    const [data, scorecard, fullness, labour] = await Promise.all([
       fetchReport(),
       db.rpc('get_partner_scorecard', {
         p_location_id: state.context.location.id,
@@ -372,10 +434,20 @@ async function reload() {
         p_start_date: state.from,
         p_end_date: state.to,
       }, { key: `reports:fullness:${state.context.location.id}:${state.from}:${state.to}`, cache: 60000, retry: 1 }).catch(() => []),
+      // Only asked for by an account allowed to see it. The RPC refuses anyone
+      // else anyway, but a report nobody may read is not a request worth making.
+      state.context.can('reports.view_labour')
+        ? db.rpc('get_labour_utilization', {
+          p_location_id: state.context.location.id,
+          p_from: state.from,
+          p_to: state.to,
+        }, { key: `reports:labour:${state.context.location.id}:${state.from}:${state.to}`, cache: 60000, retry: 1 }).catch(() => [])
+        : Promise.resolve([]),
     ]);
     state.data = data;
     state.scorecard = Array.isArray(scorecard) ? scorecard : [];
     state.fullness = Array.isArray(fullness) ? fullness : [];
+    state.labour = Array.isArray(labour) ? labour : [];
     renderView();
   } catch (error) {
     renderState(state.elements.host, {
@@ -401,7 +473,7 @@ function buildShell(root) {
     ${pageHead('Reports', { actions: ['export', 'print', 'customize'] })}
     ${controlsBar({
       label: 'Report controls',
-      filters: `<div class="ctrl-field"><label for="report-view">View</label><select class="select" id="report-view" data-view>${VIEWS.map(view => `<option value="${view.id}">${view.label}</option>`).join('')}</select></div>
+      filters: `<div class="ctrl-field"><label for="report-view">View</label><select class="select" id="report-view" data-view>${VIEWS.filter(view => !view.permission || state.context.can(view.permission)).map(view => `<option value="${view.id}">${view.label}</option>`).join('')}</select></div>
       <div class="ctrl-field"><label for="report-preset">Range</label><select class="select" id="report-preset" data-preset>${PRESETS.map(preset => `<option value="${preset.id}">${preset.label}</option>`).join('')}</select></div>
       <div class="ctrl-field"><label for="report-from">From</label><input class="input input--date" type="date" id="report-from" data-from></div>
       <div class="ctrl-field"><label for="report-to">To</label><input class="input input--date" type="date" id="report-to" data-to></div>

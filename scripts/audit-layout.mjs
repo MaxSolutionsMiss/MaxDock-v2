@@ -44,8 +44,8 @@ const TEXT_SIZES = ['normal', 'large', 'larger'];
 // because it is the role most Max Solutions sites are administered under.
 const ROLES = {
   system_admin: null,
-  site_admin: ['ai.insights', 'appointment.assign', 'appointment.cancel', 'appointment.cancel_own', 'appointment.complete', 'appointment.create', 'appointment.update', 'appointment.view', 'appointment.view_own', 'audit.view', 'block.manage', 'dock.manage', 'dock.view', 'location.view', 'notifications.view', 'operations.queue.view', 'reports.view', 'settings.manage', 'settings.view', 'user.manage', 'user.view', 'appointment.check_in'],
-  shipping_manager: ['ai.insights', 'appointment.assign', 'appointment.cancel', 'appointment.cancel_own', 'appointment.complete', 'appointment.create', 'appointment.update', 'appointment.view', 'appointment.view_own', 'audit.view', 'block.manage', 'dock.view', 'location.view', 'notifications.view', 'operations.queue.view', 'reports.view', 'settings.view', 'appointment.check_in'],
+  site_admin: ['ai.insights', 'appointment.assign', 'appointment.cancel', 'appointment.cancel_own', 'appointment.complete', 'appointment.create', 'appointment.update', 'appointment.view', 'appointment.view_own', 'audit.view', 'block.manage', 'dock.manage', 'dock.view', 'location.view', 'notifications.view', 'operations.queue.view', 'reports.view', 'reports.view_labour', 'settings.manage', 'settings.manage_labour', 'settings.view', 'user.manage', 'user.view', 'appointment.check_in'],
+  shipping_manager: ['ai.insights', 'appointment.assign', 'appointment.cancel', 'appointment.cancel_own', 'appointment.complete', 'appointment.create', 'appointment.update', 'appointment.view', 'appointment.view_own', 'audit.view', 'block.manage', 'dock.view', 'location.view', 'notifications.view', 'operations.queue.view', 'reports.view', 'reports.view_labour', 'settings.manage_labour', 'settings.view', 'appointment.check_in'],
   coordinator: ['ai.insights', 'appointment.assign', 'appointment.cancel_own', 'appointment.complete', 'appointment.create', 'appointment.update', 'appointment.view', 'appointment.view_own', 'audit.view', 'dock.view', 'location.view', 'notifications.view', 'operations.queue.view', 'reports.view', 'appointment.check_in'],
   customer: ['appointment.cancel_own', 'appointment.create', 'appointment.view_own', 'location.view', 'notifications.view'],
 };
@@ -116,6 +116,7 @@ const FLOWS = {
     { name: 'combining', query: '', act: async page => { await page.click('[data-section="combining"]'); await page.waitForTimeout(250); await page.locator('[data-edit-section] >> visible=true').first().click({ timeout: 2000 }).catch(() => {}); }, expect: '.card' },
     { name: 'trucks', query: '', act: async page => { await page.click('[data-section="trucks"]'); await page.waitForTimeout(250); await page.locator('[data-edit-section] >> visible=true').first().click({ timeout: 2000 }).catch(() => {}); }, expect: '.card--table' },
     { name: 'labour', query: '', act: async page => { await page.click('[data-section="labour"]'); await page.waitForTimeout(250); await page.locator('[data-edit-section] >> visible=true').first().click({ timeout: 2000 }).catch(() => {}); }, expect: '[name="crew_size"]' },
+    { name: 'labour-day', query: '', act: async page => { await page.click('[data-section="labour"]'); await page.waitForTimeout(250); await page.locator('[data-edit-section] >> visible=true').nth(1).click({ timeout: 2000 }).catch(() => {}); }, expect: '[name="hours_each"]' },
     { name: 'quickqr', query: '', act: async page => { await page.click('[data-section="quickqr"]'); await page.waitForTimeout(250); await page.locator('[data-edit-section] >> visible=true').first().click({ timeout: 2000 }).catch(() => {}); }, expect: '[data-print-shortcut]' },
     { name: 'notice', query: '', act: async page => { await page.click('[data-section="notice"]'); await page.waitForTimeout(250); await page.locator('[data-edit-section] >> visible=true').first().click({ timeout: 2000 }).catch(() => {}); }, expect: '.card' },
     { name: 'timing', query: '', act: async page => { await page.click('[data-section="timing"]'); await page.waitForTimeout(250); await page.locator('[data-edit-section] >> visible=true').first().click({ timeout: 2000 }).catch(() => {}); }, expect: '.card' },
@@ -127,6 +128,7 @@ const FLOWS = {
     { name: 'scorecard-location', query: '', act: async page => { await page.selectOption('[data-view]', 'scorecard-location'); }, expect: '.table' },
     { name: 'truck-flow', query: '', act: async page => { await page.selectOption('[data-view]', 'truck-flow'); }, expect: '.table' },
     { name: 'fullness', query: '', act: async page => { await page.selectOption('[data-view]', 'fullness'); }, expect: '.fullness__bar' },
+    { name: 'labour', query: '', act: async page => { await page.selectOption('[data-view]', 'labour'); }, expect: '.fullness__bar' },
   ],
   receiving: [
     { name: 'idle', query: '' },

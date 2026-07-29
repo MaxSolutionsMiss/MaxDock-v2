@@ -31,6 +31,8 @@ const state = {
   locationId: null,
   canManage: false,
   canManageDocks: false,
+  canManageLabour: false,
+  labourDay: null,
   section: 'hours',
   hours: [],
   settings: null,
@@ -110,7 +112,7 @@ function durationValue(data, name, baseUnit, units) {
 async function fetchAll() {
   const locationId = state.locationId;
   const [hours, settings, docks, truckTypes, locationTruckTypes, dockTruckTypes, capacity, directionWindows,
-    appointmentTypes, handlingTypes, shortcuts] = await Promise.all([
+    appointmentTypes, handlingTypes, shortcuts, labourDay] = await Promise.all([
     db.select('location_operating_hours', q => q.select('location_id,day_of_week,is_open,open_time,close_time').eq('location_id', locationId), { key: `settings:hours:${locationId}`, cache: 0 }),
     db.select('location_settings', q => q.select('*').eq('location_id', locationId).maybeSingle(), { key: `settings:row:${locationId}`, cache: 0 }),
     db.select('docks', q => q.select('id,name,description,sort_order,direction_mode,is_active').eq('location_id', locationId).order('sort_order').order('name'), { key: `settings:docks:${locationId}`, cache: 0 }),
@@ -124,10 +126,14 @@ async function fetchAll() {
     db.select('booking_templates', q => q
       .select('id,owner_user_id,location_id,name,is_shared,direction,requester_type,company_name,appointment_type_code,truck_type_code,skid_count,handling_type_code,is_priority,carrier_name,auto_time,lead_minutes,updated_at')
       .eq('location_id', locationId).eq('is_shared', true).order('name'), { key: `settings:shortcuts:${locationId}`, cache: 0 }),
+    // Today's recorded crew, if there is one, so the form opens showing what is
+    // already on record for today rather than an empty box that overwrites it.
+    db.select('location_labour_days', q => q.select('work_date,people,hours_each,note').eq('location_id', locationId).order('work_date', { ascending: false }).limit(1), { key: `settings:labour-day:${locationId}`, cache: 0 }).catch(() => []),
   ]);
   state.hours = hours || [];
   state.capacity = Array.isArray(capacity) ? capacity[0] || null : capacity || null;
   state.settings = settings || null;
+  state.labourDay = (labourDay || [])[0] || null;
   state.docks = docks || [];
   state.truckTypes = truckTypes || [];
   state.locationTruckTypes = locationTruckTypes || [];
@@ -359,22 +365,42 @@ function renderAssignment() {
 // assignment. It is not about docks — it is about people, it is the setting a
 // site revisits when the crew changes, and buried under a heading about dock
 // choice nobody would go looking for it.
+// Labour is the site manager's own subject, so it carries its own permission
+// rather than riding on settings.manage. A manager who knows how many hands were
+// on the dock on Tuesday is not a Site Admin, and handing them every other
+// location setting so they can say "six people" is the wrong trade.
 function renderLabour() {
   const s = state.settings || {};
-  const canEdit = state.canManage;
+  const canEdit = state.canManageLabour;
   const disabled = canEdit ? '' : 'disabled';
-  return `<form data-section-form="labour">
-    <h3 class="card__title">Labour</h3>
-    <p class="hint hint--wide hint--lead">What a truck costs in people, and what the site has to spend on a normal day. The operations brief reports the day's booked hours against that — the number to look at before agreeing to a day off.</p>
-    <div class="frow">
-      <div class="field field--num"><span class="field__label">Crew per truck</span><span class="inputwrap"><input class="input" type="number" min="0" max="50" name="handlers_per_truck" value="${s.handlers_per_truck ?? 2}" ${disabled}><span class="input__unit">people</span></span></div>
-      <div class="field field--num"><span class="field__label">Crew on shift</span><span class="inputwrap"><input class="input" type="number" min="0" max="500" name="crew_size" value="${s.crew_size ?? 0}" ${disabled}><span class="input__unit">people</span></span></div>
-      <div class="field field--num"><span class="field__label">Shift length</span><span class="inputwrap"><input class="input" type="number" min="1" max="24" step="0.5" name="shift_hours" value="${s.shift_hours ?? 8}" ${disabled}><span class="input__unit">hours</span></span></div>
-      <div class="field field--num"><span class="field__label">On the dock</span><span class="inputwrap"><input class="input" type="number" min="1" max="100" name="crew_availability_percent" value="${s.crew_availability_percent ?? 80}" ${disabled}><span class="input__unit">%</span></span></div>
-    </div>
-    <p class="hint hint--wide">Nobody unloads trucks for eight hours out of eight, so <strong>On the dock</strong> is the share of a shift realistically spent on them — six people on an eight-hour shift at 80% is 38.4 dock hours to work with. Leave <strong>Crew on shift</strong> at 0 and the brief states what the day costs and says nothing about capacity, rather than guessing at a number this site never gave.</p>
-    ${saveFoot(canEdit)}
-  </form>`;
+  const day = state.labourDay || {};
+  return `<div class="stack stack--narrow">
+    <form data-section-form="labour">
+      <h3 class="card__title">Labour</h3>
+      <p class="hint hint--wide hint--lead">What a truck costs in people, and what the site has on a normal day. The operations brief and the labour utilisation report both count from these.</p>
+      <div class="frow">
+        <div class="field field--num"><span class="field__label">Crew per truck</span><span class="inputwrap"><input class="input" type="number" min="0" max="50" name="handlers_per_truck" value="${s.handlers_per_truck ?? 2}" ${disabled}><span class="input__unit">people</span></span></div>
+        <div class="field field--num"><span class="field__label">Crew on shift</span><span class="inputwrap"><input class="input" type="number" min="0" max="500" name="crew_size" value="${s.crew_size ?? 0}" ${disabled}><span class="input__unit">people</span></span></div>
+        <div class="field field--num"><span class="field__label">Shift length</span><span class="inputwrap"><input class="input" type="number" min="1" max="24" step="0.5" name="shift_hours" value="${s.shift_hours ?? 8}" ${disabled}><span class="input__unit">hours</span></span></div>
+        <div class="field field--num"><span class="field__label">On the dock</span><span class="inputwrap"><input class="input" type="number" min="1" max="100" name="crew_availability_percent" value="${s.crew_availability_percent ?? 80}" ${disabled}><span class="input__unit">%</span></span></div>
+      </div>
+      <p class="hint hint--wide">Nobody unloads trucks for eight hours out of eight, so <strong>On the dock</strong> is the share of a shift realistically spent on them — six people on an eight-hour shift at 80% is 38.4 dock hours to work with. Leave <strong>Crew on shift</strong> at 0 and MaxDock states what the day costs and says nothing about capacity, rather than guessing at a number this site never gave.</p>
+      ${saveFoot(canEdit)}
+    </form>
+    <form data-section-form="labour-day">
+      <h3 class="card__title">Hours actually worked</h3>
+      <p class="hint hint--wide hint--lead">The standing figures above cover a normal day. Record a date here when it was not one — a holiday, somebody off, a Saturday with two people — and the utilisation report uses what you recorded for that date instead of the standing figures.</p>
+      <div class="frow">
+        <label class="field field--md"><span class="field__label">Date</span><input class="input" type="date" name="work_date" value="${escapeHtml(day.work_date || format.todayInput(state.context?.location))}" ${disabled}></label>
+        <div class="field field--num"><span class="field__label">People on</span><span class="inputwrap"><input class="input" type="number" min="0" max="500" name="people" value="${day.people ?? s.crew_size ?? 0}" ${disabled}><span class="input__unit">people</span></span></div>
+        <div class="field field--num"><span class="field__label">Hours each</span><span class="inputwrap"><input class="input" type="number" min="0.5" max="24" step="0.5" name="hours_each" value="${day.hours_each ?? s.shift_hours ?? 8}" ${disabled}><span class="input__unit">hours</span></span></div>
+      </div>
+      <div class="frow">
+        <label class="field field--full"><span class="field__label">Note <span class="field__opt">optional</span></span><input class="input" name="note" maxlength="120" value="${escapeHtml(day.note || '')}" placeholder="Civic holiday — skeleton crew" ${disabled}></label>
+      </div>
+      ${saveFoot(canEdit)}
+    </form>
+  </div>`;
 }
 
 // When MaxDock offers to put two loads on one truck.
@@ -671,14 +697,32 @@ async function saveAssignment(form) {
   });
 }
 
+// Through the RPC, not through the table. A site manager holds
+// settings.manage_labour and not settings.manage, so the table's own update
+// policy refuses them — and it should: that permission must not become a way to
+// change the booking window. The function writes those four columns and no others.
 async function saveLabour(form) {
   const data = new FormData(form);
-  await saveSettingsFields({
-    handlers_per_truck: Number(data.get('handlers_per_truck') || 0),
-    crew_size: Number(data.get('crew_size') || 0),
-    shift_hours: Number(data.get('shift_hours') || 8),
-    crew_availability_percent: Number(data.get('crew_availability_percent') || 80),
-  });
+  await db.rpc('save_location_labour', {
+    p_location_id: state.locationId,
+    p_handlers_per_truck: Number(data.get('handlers_per_truck') || 0),
+    p_crew_size: Number(data.get('crew_size') || 0),
+    p_shift_hours: Number(data.get('shift_hours') || 8),
+    p_crew_availability_percent: Number(data.get('crew_availability_percent') || 80),
+  }, { key: `settings:labour:${state.locationId}`, retry: 0, userMessage: 'The labour settings could not be saved.' });
+  db.invalidate(`settings:row:${state.locationId}`);
+}
+
+async function saveLabourDay(form) {
+  const data = new FormData(form);
+  await db.rpc('record_labour_day', {
+    p_location_id: state.locationId,
+    p_work_date: data.get('work_date'),
+    p_people: Number(data.get('people') || 0),
+    p_hours_each: Number(data.get('hours_each') || 0),
+    p_note: String(data.get('note') || '').trim() || null,
+  }, { key: `settings:labour-day:${state.locationId}:${data.get('work_date')}`, retry: 0, userMessage: 'The day could not be recorded.' });
+  db.invalidate(`settings:labour-day:${state.locationId}`);
 }
 
 async function saveCombining(form) {
@@ -844,6 +888,7 @@ async function submitSection(event) {
     else if (kind === 'capacity') await saveCapacity(form);
     else if (kind === 'assignment') await saveAssignment(form);
     else if (kind === 'labour') await saveLabour(form);
+    else if (kind === 'labour-day') await saveLabourDay(form);
     else if (kind === 'combining') await saveCombining(form);
     else if (kind === 'truck-capacity') await saveTruckCapacity(form);
     else if (kind === 'direction-windows') await saveDirectionWindows(form);
@@ -1385,6 +1430,9 @@ const page = {
     state.locationId = context.location.id;
     state.canManage = context.can('settings.manage');
     state.canManageDocks = context.can('dock.manage');
+    // Labour has a permission of its own so a site manager can state the crew
+    // without being handed every other setting at the location.
+    state.canManageLabour = context.can('settings.manage_labour');
     document.title = `Settings · ${context.location.name} · MaxDock`;
     buildShell(context.pageRoot);
     wireEvents(context.pageRoot);

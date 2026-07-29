@@ -661,6 +661,8 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
    last column share one right edge — and the note under it wraps rather than
    running the width of a monitor. */
 .stack--table{max-width:620px}
+/* Two panels of short number fields, sized to them rather than to the monitor. */
+.stack--narrow{max-width:680px}
 .stack--table .table{width:100%}
 .stack>*{padding:var(--s4);margin:0;border:0;border-radius:0;background:none;max-width:none}
 .stack>*+*{border-top:1px solid var(--rule)}

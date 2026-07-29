@@ -178,6 +178,18 @@
       { user_id: 'u3', username: 'haleon.orders', full_name: 'Haleon Oakhill', email: 'orders@haleon.com', role_code: 'customer', role_name: 'Customer', is_active: true, must_change_password: true, location_ids: ['loc-1'], location_names: ['Pickering'], created_at: iso(6), last_sign_in_at: null, external_party_type: 'Customer', organization_name: 'Haleon' },
     ],
     admin_list_user_usage: () => [{ user_id: UID, tracked_logins: 12, active_days: 9, active_days_7: 5, active_days_30: 9, page_views_30: 140, active_seconds_7: 9300, active_seconds_30: 39600, first_activity_at: iso(6), last_activity_at: iso(8) }],
+    get_labour_utilization: () => [0, 1, 2, 3, 4].map(back => ({
+      work_date: iso(0, 0, -back).slice(0, 10),
+      people: back === 2 ? 2 : 6, hours_each: back === 2 ? 6 : 8,
+      available_hours: back === 2 ? 12 : 38.4,
+      source: back === 2 ? 'recorded' : 'standing',
+      trucks: back === 2 ? 9 : 4, truck_minutes: back === 2 ? 540 : 300,
+      truck_hours: back === 2 ? 18 : 10,
+      utilization_percent: back === 2 ? 150 : 26.0,
+      note: back === 2 ? 'Civic holiday — skeleton crew' : null,
+    })),
+    save_location_labour: () => null,
+    record_labour_day: () => null,
     admin_get_mis_integration_settings: () => ({ database_type: 'sql_server', server_name: '', server_port: null, database_name: '', source_name: '', sync_mode: 'manual_csv', daily_sync_time: '05:00', is_enabled: false, credential_secret_name: '', last_success_at: null }),
     admin_list_mis_import_runs: () => [{ id: 2048, import_type: 'inventory_snapshot', file_name: 'inventory-2026-07-26.csv', row_count: 1204, status: 'completed', summary: '1204 rows imported.', imported_by_name: 'Javad Resa', created_at: iso(6) }],
     // Reports used to be audited against an empty object, so every rule passed on a
