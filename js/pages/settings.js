@@ -39,6 +39,8 @@ const state = {
   locationTruckTypes: [],
   dockTruckTypes: [],
   directionWindows: [],
+  // Which windows are unlocked for editing right now, by section-form name.
+  editing: new Set(),
   appointmentTypes: [],
   handlingTypes: [],
   shortcuts: [],
@@ -126,18 +128,55 @@ async function fetchAll() {
   state.truckTypes = truckTypes || [];
   state.locationTruckTypes = locationTruckTypes || [];
   state.dockTruckTypes = dockTruckTypes || [];
-  state.directionWindows = directionWindows || [];
+  state.directionWindows = groupWindows(directionWindows);
   state.appointmentTypes = appointmentTypes || [];
   state.handlingTypes = handlingTypes || [];
   state.shortcuts = shortcuts || [];
 }
 
+// Every settings window ends the same way: Edit, Reset, Save, the same size, in
+// that order. A form arrives locked — nothing on a settings screen should change
+// because somebody leaned on a dropdown while reading it. Edit unlocks the window
+// it belongs to; Save puts it back to locked; Reset throws the edit away and does
+// the same.
 function saveFoot(canEdit) {
   if (!canEdit) return '';
-  return `<div class="form-actions">
+  return `<div class="form-actions form-actions--edit">
+    <button class="btn btn--primary" type="button" data-edit-section>Edit</button>
     <button class="btn btn--quiet" type="button" data-reset>Reset</button>
     <button class="btn btn--primary" type="submit">Save</button>
   </div><p class="form-message" data-save-message aria-live="polite"></p>`;
+}
+
+// Locking is applied after the markup is drawn, not baked into it, so a control
+// that is already disabled for its own reason — a closing time on a day the site
+// is shut, the window length when the mode is "same day" — stays disabled when
+// the window is unlocked. What that control was before the lock is remembered on
+// the element itself, because the panel is re-rendered from scratch on every
+// change and there is nowhere else for it to live.
+function applyLocks() {
+  for (const form of state.elements.panel.querySelectorAll('[data-section-form]')) {
+    const foot = form.querySelector('.form-actions--edit');
+    if (!foot) continue;
+    const editing = state.editing.has(form.dataset.sectionForm);
+    for (const control of form.querySelectorAll('input,select,textarea,button')) {
+      if (foot.contains(control)) continue;
+      if (editing) control.disabled = control.dataset.lockedWas === '1';
+      else {
+        control.dataset.lockedWas = control.disabled ? '1' : '0';
+        control.disabled = true;
+      }
+    }
+    foot.querySelector('[data-edit-section]').disabled = editing;
+    foot.querySelector('[data-reset]').disabled = !editing;
+    foot.querySelector('[type="submit"]').disabled = !editing;
+  }
+}
+
+function editSection(form) {
+  state.editing.add(form.dataset.sectionForm);
+  applyLocks();
+  form.querySelector('input:not([disabled]),select:not([disabled]),textarea:not([disabled])')?.focus();
 }
 
 function renderHours() {
@@ -167,25 +206,29 @@ function renderHours() {
 // noon, outbound after" is said once instead of once per dock. No windows at all
 // means the site takes either direction whenever it is open, which is how every
 // location behaves today and stays behaving until somebody adds a row.
+// One window on screen can stand for several stored rows: the database keeps a
+// row per dock per day, which is what the booking rules read, and the owner sets
+// them the way he says them — "docks one, two and three take inbound, Monday to
+// Thursday, before noon" is one thing to say, not twelve.
 function directionWindowRow(row, index, canEdit) {
   const disabled = canEdit ? '' : 'disabled';
-  const dockOptions = ['<option value="">Every dock</option>']
-    .concat(state.docks.map(dock => `<option value="${dock.id}" ${dock.id === row.dock_id ? 'selected' : ''}>${escapeHtml(dock.name)}</option>`))
-    .join('');
-  const dayOptions = ['<option value="">Every day</option>']
-    .concat(DAY_ORDER.map(day => `<option value="${day}" ${String(row.day_of_week) === String(day) ? 'selected' : ''}>${DAY_LABELS[day]}</option>`))
-    .join('');
-  return `<div class="dirrow" data-window="${index}">
-    <select class="select" data-window-dock aria-label="Dock" ${disabled}>${dockOptions}</select>
-    <select class="select" data-window-day aria-label="Day" ${disabled}>${dayOptions}</select>
-    <select class="select" data-window-direction aria-label="Direction" ${disabled}>
-      <option value="inbound" ${row.direction === 'inbound' ? 'selected' : ''}>takes inbound</option>
-      <option value="outbound" ${row.direction === 'outbound' ? 'selected' : ''}>takes outbound</option>
-    </select>
-    <input class="input" type="time" data-window-start aria-label="From" value="${escapeHtml(timeInput(row.start_time))}" ${disabled}>
-    <input class="input" type="time" data-window-end aria-label="To" value="${escapeHtml(timeInput(row.end_time))}" ${disabled}>
-    ${canEdit ? '<button class="btn btn--danger btn--icon" type="button" data-remove-window aria-label="Remove this window" title="Remove this window">×</button>' : ''}
-  </div>`;
+  const docks = new Set(row.dock_ids || []);
+  const days = new Set((row.days || []).map(String));
+  const dockChecks = state.docks.map(dock => `<label class="dock-check"><input type="checkbox" data-window-dock value="${dock.id}" ${docks.has(dock.id) ? 'checked' : ''} ${disabled}><span>${escapeHtml(dock.name)}</span></label>`).join('');
+  const dayChecks = DAY_ORDER.map(day => `<label class="dock-check"><input type="checkbox" data-window-day value="${day}" ${days.has(String(day)) ? 'checked' : ''} ${disabled}><span>${DAY_LABELS[day]}</span></label>`).join('');
+  return `<fieldset class="dock-checks dirwin" data-window="${index}">
+    <legend>Window ${index + 1}${canEdit ? '<button class="btn btn--danger btn--icon at-end" type="button" data-remove-window aria-label="Remove this window" title="Remove this window">×</button>' : ''}</legend>
+    <fieldset class="pickgroup"><div class="frow">
+      <div class="field field--md"><span class="field__label">This site</span><select class="select" data-window-direction ${disabled}>
+        <option value="inbound" ${row.direction === 'inbound' ? 'selected' : ''}>takes inbound</option>
+        <option value="outbound" ${row.direction === 'outbound' ? 'selected' : ''}>takes outbound</option>
+      </select></div>
+      <div class="field field--sm"><span class="field__label">From</span><input class="input" type="time" data-window-start value="${escapeHtml(timeInput(row.start_time))}" ${disabled}></div>
+      <div class="field field--sm"><span class="field__label">To</span><input class="input" type="time" data-window-end value="${escapeHtml(timeInput(row.end_time))}" ${disabled}></div>
+    </div></fieldset>
+    <fieldset class="dock-checks pickgroup"><legend>Docks · none ticked means every dock</legend>${dockChecks}</fieldset>
+    <fieldset class="dock-checks pickgroup"><legend>Days · none ticked means every day</legend>${dayChecks}</fieldset>
+  </fieldset>`;
 }
 
 function renderDirectionWindows(canEdit) {
@@ -193,7 +236,7 @@ function renderDirectionWindows(canEdit) {
   return `<form data-section-form="direction-windows">
     <h3 class="card__title">Inbound and outbound hours${canEdit ? '<button class="btn btn--quiet btn--sm at-end" type="button" data-add-window>Add a window</button>' : ''}</h3>
     <div class="dirlist">${rows || '<p class="hint">No windows set. This location takes inbound and outbound at any time it is open.</p>'}</div>
-    <p class="hint hint--wide">A window says when a door takes a direction. Leave the dock as Every dock to set the whole site at once. A load must fit entirely inside a window, so an outbound running past the end of the outbound period is not offered. Each dock's own Inbound or Outbound setting still applies.</p>
+    <p class="hint hint--wide">A window says when a door takes a direction. Tick the docks and the days it applies to, or leave a list empty to mean all of them. A load must fit entirely inside a window, so an outbound running past the end of the outbound period is not offered. Each dock's own Inbound or Outbound setting still applies.</p>
     ${saveFoot(canEdit)}
   </form>`;
 }
@@ -235,6 +278,15 @@ function renderNotice() {
   </form>`;
 }
 
+// What MaxDock will actually fill: the floor less whatever is held back. Shown
+// because "Free now 80" against a capacity of 100 reads as arithmetic nobody
+// asked for until the 20 being reserved is on the same row.
+function workingLimit(settings) {
+  const total = Number(settings.skid_capacity || 0);
+  if (!total) return '—';
+  return Math.max(total - Number(settings.capacity_reserve_skids || 0), 0);
+}
+
 function renderCapacity() {
   const s = state.settings || {};
   const canEdit = state.canManage;
@@ -243,13 +295,14 @@ function renderCapacity() {
   return `<div class="stack"><form data-section-form="capacity">
     <h3 class="card__title">Capacity</h3>
     <div class="setrow setrow--lead">
-      <div><div class="setrow__t">Enforce skid capacity</div><div class="setrow__d">Track occupied skids against a daily capacity for this location</div></div>
+      <div><div class="setrow__t">Enforce skid capacity</div><div class="setrow__d">Track occupied skids against how much this floor holds</div></div>
       <button type="button" class="switch ${enabled ? '' : 'switch--off'}" data-capacity-switch aria-pressed="${enabled}" aria-label="Enforce skid capacity" ${disabled}></button>
     </div>
     <div class="frow">
-      <div class="field field--num"><span class="field__label">Daily capacity</span><span class="inputwrap"><input class="input" type="number" min="1" name="skid_capacity" value="${s.skid_capacity ?? ''}" ${disabled}><span class="input__unit">skids</span></span></div>
+      <div class="field field--num"><span class="field__label">Floor capacity</span><span class="inputwrap"><input class="input" type="number" min="1" name="skid_capacity" value="${s.skid_capacity ?? ''}" ${disabled}><span class="input__unit">skids</span></span></div>
       <div class="field field--num"><span class="field__label">Reserve</span><span class="inputwrap"><input class="input" type="number" min="0" name="capacity_reserve_skids" value="${s.capacity_reserve_skids ?? 0}" ${disabled}><span class="input__unit">skids</span></span></div>
-      <div class="field field--md"><span class="field__label">When over capacity</span><select class="select" name="capacity_enforcement_mode" ${disabled}>
+      <div class="field field--num"><span class="field__label">Working limit</span><span class="inputwrap"><input class="input" value="${workingLimit(s)}" readonly tabindex="-1" aria-label="Working limit, calculated"><span class="input__unit">skids</span></span></div>
+      <div class="field field--lg"><span class="field__label">When over capacity</span><select class="select" name="capacity_enforcement_mode" ${disabled}>
         <option value="warn" ${s.capacity_enforcement_mode === 'warn' ? 'selected' : ''}>Warn only</option>
         <option value="enforce" ${s.capacity_enforcement_mode === 'enforce' ? 'selected' : ''}>Block booking</option>
       </select></div>
@@ -262,7 +315,7 @@ function renderCapacity() {
         <div class="field field--num"><span class="field__label">Occupied now</span><span class="inputwrap"><input class="input" value="${state.capacity?.projected_before ?? s.current_occupied_skids ?? 0}" readonly tabindex="-1" aria-label="Occupied now, calculated"><span class="input__unit">skids</span></span></div>
         <div class="field field--num"><span class="field__label">Free now</span><span class="inputwrap"><input class="input" value="${state.capacity?.available_after ?? '—'}" readonly tabindex="-1" aria-label="Free now, calculated"><span class="input__unit">skids</span></span></div>
       </div>
-      <p class="hint hint--wide">Enter a floor count and the time it was taken. MaxDock keeps it current from there: every booked inbound adds, every outbound subtracts. Occupied now and Free now are calculated${s.capacity_last_source === 'mis' ? ', last set from an MIS import' : ''}.</p>
+      <p class="hint hint--wide">Floor capacity is how many skids this site holds; the reserve is held back and never booked into, so the working limit is what MaxDock will fill. Enter a floor count and the time it was taken. MaxDock keeps it current from there: every booked inbound adds, every outbound subtracts. Occupied now and Free now are calculated${s.capacity_last_source === 'mis' ? ', last set from an MIS import' : ''}.</p>
     </fieldset>
     ${saveFoot(canEdit)}
   </form>
@@ -479,6 +532,7 @@ function renderPanel() {
     quickqr: renderQuickQr,
   };
   state.elements.panel.innerHTML = (map[state.section] || renderHours)();
+  applyLocks();
 }
 
 function renderNav() {
@@ -487,6 +541,10 @@ function renderNav() {
 
 function switchSection(id) {
   state.section = id;
+  // Leaving a section abandons whatever was being edited in it. Coming back to a
+  // window that is still unlocked, but showing saved values again, would be a lie
+  // about what is about to be saved.
+  state.editing.clear();
   renderNav();
   renderPanel();
 }
@@ -598,16 +656,17 @@ async function saveTruckCapacity(form) {
 }
 
 async function saveDirectionWindows(form) {
-  const windows = [...form.querySelectorAll('[data-window]')].map(row => ({
-    dock_id: row.querySelector('[data-window-dock]').value || null,
-    day_of_week: row.querySelector('[data-window-day]').value || null,
+  const onScreen = [...form.querySelectorAll('[data-window]')].map(row => ({
+    dock_ids: [...row.querySelectorAll('[data-window-dock]:checked')].map(box => box.value),
+    days: [...row.querySelectorAll('[data-window-day]:checked')].map(box => Number(box.value)),
     direction: row.querySelector('[data-window-direction]').value,
     start_time: row.querySelector('[data-window-start]').value,
     end_time: row.querySelector('[data-window-end]').value,
   }));
-  if (windows.some(window => !window.start_time || !window.end_time)) {
+  if (onScreen.some(window => !window.start_time || !window.end_time)) {
     throw { userMessage: 'Every window needs a start and an end time.' };
   }
+  const windows = expandWindows(onScreen);
   await db.rpc('save_dock_direction_windows', { p_location_id: state.locationId, p_windows: windows }, {
     key: `settings:windows:save:${crypto.randomUUID()}`, retry: 0,
     userMessage: 'The inbound and outbound hours could not be saved.',
@@ -717,6 +776,8 @@ async function submitSection(event) {
     db.invalidate('booking:');
     await fetchAll();
     toast('Settings saved.', 'success');
+    // Saved is locked again: Save goes grey, Edit comes back.
+    state.editing.delete(kind);
     renderPanel();
   } catch (error) {
     showMessage(form, error.userMessage || 'This could not be saved.', true);
@@ -959,12 +1020,68 @@ function buildShell(root) {
 
 function readWindowRows() {
   return [...(state.elements.panel?.querySelectorAll('[data-window]') || [])].map(row => ({
-    dock_id: row.querySelector('[data-window-dock]').value || null,
-    day_of_week: row.querySelector('[data-window-day]').value || null,
+    dock_ids: [...row.querySelectorAll('[data-window-dock]:checked')].map(box => box.value),
+    days: [...row.querySelectorAll('[data-window-day]:checked')].map(box => Number(box.value)),
     direction: row.querySelector('[data-window-direction]').value,
     start_time: row.querySelector('[data-window-start]').value,
     end_time: row.querySelector('[data-window-end]').value,
   }));
+}
+
+// Stored rows are one dock and one day each. A set of them that is exactly every
+// combination of some docks and some days is the same thing as one window with
+// those ticked, so it is shown that way. Anything that is not a complete
+// combination is left as it is stored rather than being widened into one — that
+// would add windows nobody asked for.
+function groupWindows(rows) {
+  const groups = new Map();
+  for (const row of rows || []) {
+    const key = `${row.direction}|${timeInput(row.start_time)}|${timeInput(row.end_time)}`;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(row);
+  }
+  const windows = [];
+  for (const [, members] of groups) {
+    const docks = [...new Set(members.map(row => row.dock_id || ''))];
+    const days = [...new Set(members.map(row => (row.day_of_week === null || row.day_of_week === undefined ? '' : String(row.day_of_week))))];
+    const one = members[0];
+    const shape = {
+      direction: one.direction,
+      start_time: one.start_time,
+      end_time: one.end_time,
+      dock_ids: docks.filter(Boolean),
+      days: days.filter(day => day !== '').map(Number),
+    };
+    if (members.length === docks.length * days.length) windows.push(shape);
+    else {
+      for (const row of members) {
+        windows.push({
+          direction: row.direction,
+          start_time: row.start_time,
+          end_time: row.end_time,
+          dock_ids: row.dock_id ? [row.dock_id] : [],
+          days: row.day_of_week === null || row.day_of_week === undefined ? [] : [Number(row.day_of_week)],
+        });
+      }
+    }
+  }
+  return windows;
+}
+
+// The other direction: one window on screen becomes every dock-and-day pair it
+// covers, because that is the shape the booking rules read.
+function expandWindows(windows) {
+  return windows.flatMap(window => {
+    const docks = window.dock_ids.length ? window.dock_ids : [null];
+    const days = window.days.length ? window.days : [null];
+    return docks.flatMap(dock => days.map(day => ({
+      dock_id: dock,
+      day_of_week: day,
+      direction: window.direction,
+      start_time: window.start_time,
+      end_time: window.end_time,
+    })));
+  });
 }
 
 function wireEvents(root) {
@@ -980,11 +1097,32 @@ function wireEvents(root) {
     if (hours.disabled) hours.value = '';
     else hours.focus();
   });
+  // The working limit is arithmetic on two fields on the same row, so it follows
+  // them as they are typed rather than waiting for a save to tell you what you
+  // just set.
+  root.addEventListener('input', event => {
+    if (!event.target.matches('[name="skid_capacity"],[name="capacity_reserve_skids"]')) return;
+    const form = event.target.closest('form');
+    const limit = form.querySelector('[aria-label="Working limit, calculated"]');
+    if (limit) {
+      limit.value = workingLimit({
+        skid_capacity: form.elements.skid_capacity.value,
+        capacity_reserve_skids: form.elements.capacity_reserve_skids.value,
+      });
+    }
+  });
   root.addEventListener('click', event => {
     const navButton = event.target.closest('[data-set-nav] button');
     if (navButton) { switchSection(navButton.dataset.section); return; }
     if (event.target.closest('[data-print]')) { globalThis.print(); return; }
-    if (event.target.closest('[data-reset]')) { renderPanel(); return; }
+    const startEdit = event.target.closest('[data-edit-section]');
+    if (startEdit) { editSection(startEdit.closest('[data-section-form]')); return; }
+    const reset = event.target.closest('[data-reset]');
+    if (reset) {
+      state.editing.delete(reset.closest('[data-section-form]').dataset.sectionForm);
+      renderPanel();
+      return;
+    }
     const toggle = event.target.closest('.switch');
     if (toggle && !toggle.disabled) {
       const off = toggle.classList.toggle('switch--off');
@@ -1006,7 +1144,7 @@ function wireEvents(root) {
     // rows back out of the DOM first — otherwise an unsaved edit is lost on the
     // re-render that follows.
     if (event.target.closest('[data-add-window]')) {
-      state.directionWindows = readWindowRows().concat([{ dock_id: null, day_of_week: null, direction: 'inbound', start_time: '06:00', end_time: '12:00' }]);
+      state.directionWindows = readWindowRows().concat([{ dock_ids: [], days: [], direction: 'inbound', start_time: '06:00', end_time: '12:00' }]);
       renderPanel();
       return;
     }

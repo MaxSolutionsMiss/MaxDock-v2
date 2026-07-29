@@ -1080,3 +1080,69 @@ explanation. Changing a function's return type means dropping it, which reset it
 grants to the database default of EXECUTE to PUBLIC — those were revoked back to
 `authenticated` and `service_role`, matching every sibling RPC. **A recreated
 function has to have its ACL checked, not assumed.**
+
+## A settings window opens locked (2026-07-29)
+
+Every settings window was live the moment it was drawn: leaning on a dropdown
+while reading how a site books trucks changed how that site books trucks, and
+Save was always there to be hit.
+
+Every window now ends with **Edit · Reset · Save**, one size, in that order, and
+opens locked. Edit unlocks that window and only that window — Capacity and Skids
+per truck sit in one stack and are two separate saves, so they lock and unlock
+separately. Save writes and locks again; Reset throws the edit away and locks.
+Leaving the section abandons whatever was being edited, because coming back to an
+unlocked window showing saved values again would be a lie about what was about to
+be saved.
+
+The lock is applied to what was drawn rather than written into each field:
+`applyLocks()` runs after every render and remembers on each control what it was
+before — so a closing time on a day the site is shut, or the window length when
+combining is set to "same day", stays disabled when the window is unlocked.
+
+## Inbound and outbound hours, said the way he says them (2026-07-29)
+
+A window used to be one dock and one day: "docks one, two and three take inbound,
+Monday to Thursday, before noon" was twelve rows to add by hand.
+
+A window on screen now carries a tick list of docks and a tick list of days, and
+nothing ticked means all of them. The database is unchanged — it still stores a
+row per dock per day, which is what the booking rules read — so the screen
+expands what is ticked on the way in and groups it back on the way out. The
+grouping is exact: a set of rows is shown as one window only when it is every
+combination of the docks and days in it. Anything else stays as separate windows,
+because widening it would add windows nobody asked for.
+
+Proved in a browser: four stored rows (Dock 1 and Dock 2 × Monday and Tuesday,
+outbound, 12:00–18:00) came back as one window with both docks and both days
+ticked; ticking Dock 3 and saving sent six rows plus the untouched whole-site
+window.
+
+## Floor capacity, reserve, working limit (2026-07-29)
+
+"100 capacity, 20 reserve, 0 counted, free now 80" is right, and it reads as if a
+number came from nowhere. The row now names the whole chain: **Floor capacity**
+(what the site holds) minus **Reserve** (held back, never booked into) is the
+**Working limit** — calculated, on the same row, and following the two fields as
+they are typed. Free now is measured against that limit, so 80 is now visibly 100
+less 20.
+
+Nothing was wrong with the arithmetic and nothing failed to save: Milton is stored
+with capacity 100, reserve 20, mode warn, counted 0 as of the save, source manual.
+
+## What a cross-site run already does (2026-07-29)
+
+Checked against the live functions rather than answered from memory. A
+Mississauga → Guelph load prices its window at both ends and takes the longer of
+the two: `calculate_appointment_duration_internal` is called for the primary
+location and again for the counterpart, and `greatest()` of the two is what the
+slot search looks for. 20 skids on a 53 ft trailer is **75 minutes at Mississauga
+and 90 at Guelph**, so that run books 90 minutes at both docks. The search then
+walks the receiving site's own operating hours in its own timezone and only offers
+a time where a dock is free at *both* ends.
+
+One thing worth knowing: at Mississauga 5 skids and 20 skids both come out at 75
+minutes, because the 53 ft trailer qualifies as a full truck and the full-truck
+minimum floors the per-skid arithmetic. That is the redundancy the owner suspected
+in Timing & duration — the number is doing all the work and the per-skid rate is
+doing none.

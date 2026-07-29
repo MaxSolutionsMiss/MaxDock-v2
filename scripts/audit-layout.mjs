@@ -105,17 +105,17 @@ const FLOWS = {
   // exactly where a card collapsed to the width of its title and the whole sweep
   // still reported clean.
   settings: [
-    { name: 'docks', query: '', act: async page => { await page.click('[data-section="docks"]'); }, expect: '.card--table .table' },
-    { name: 'hours', query: '', act: async page => { await page.click('[data-section="hours"]'); }, expect: '.stack .dirrow' },
+    { name: 'docks', query: '', act: async page => { await page.click('[data-section="docks"]'); await page.waitForTimeout(250); await page.locator('[data-edit-section] >> visible=true').first().click({ timeout: 2000 }).catch(() => {}); }, expect: '.card--table .table' },
+    { name: 'hours', query: '', act: async page => { await page.click('[data-section="hours"]'); await page.waitForTimeout(250); await page.locator('[data-edit-section] >> visible=true').first().click({ timeout: 2000 }).catch(() => {}); }, expect: '.stack .dirwin' },
     // Capacity, hours and docks each draw one window with ruled parts rather than
     // a card per part, so .card is the wrong thing to wait for — it is .stack.
-    { name: 'capacity', query: '', act: async page => { await page.click('[data-section="capacity"]'); }, expect: '.stack' },
-    { name: 'assignment', query: '', act: async page => { await page.click('[data-section="assignment"]'); }, expect: '.card' },
-    { name: 'combining', query: '', act: async page => { await page.click('[data-section="combining"]'); }, expect: '.card' },
-    { name: 'trucks', query: '', act: async page => { await page.click('[data-section="trucks"]'); }, expect: '.card--table' },
-    { name: 'quickqr', query: '', act: async page => { await page.click('[data-section="quickqr"]'); }, expect: '[data-print-shortcut]' },
-    { name: 'notice', query: '', act: async page => { await page.click('[data-section="notice"]'); }, expect: '.card' },
-    { name: 'timing', query: '', act: async page => { await page.click('[data-section="timing"]'); }, expect: '.card' },
+    { name: 'capacity', query: '', act: async page => { await page.click('[data-section="capacity"]'); await page.waitForTimeout(250); await page.locator('[data-edit-section] >> visible=true').first().click({ timeout: 2000 }).catch(() => {}); }, expect: '.stack' },
+    { name: 'assignment', query: '', act: async page => { await page.click('[data-section="assignment"]'); await page.waitForTimeout(250); await page.locator('[data-edit-section] >> visible=true').first().click({ timeout: 2000 }).catch(() => {}); }, expect: '.card' },
+    { name: 'combining', query: '', act: async page => { await page.click('[data-section="combining"]'); await page.waitForTimeout(250); await page.locator('[data-edit-section] >> visible=true').first().click({ timeout: 2000 }).catch(() => {}); }, expect: '.card' },
+    { name: 'trucks', query: '', act: async page => { await page.click('[data-section="trucks"]'); await page.waitForTimeout(250); await page.locator('[data-edit-section] >> visible=true').first().click({ timeout: 2000 }).catch(() => {}); }, expect: '.card--table' },
+    { name: 'quickqr', query: '', act: async page => { await page.click('[data-section="quickqr"]'); await page.waitForTimeout(250); await page.locator('[data-edit-section] >> visible=true').first().click({ timeout: 2000 }).catch(() => {}); }, expect: '[data-print-shortcut]' },
+    { name: 'notice', query: '', act: async page => { await page.click('[data-section="notice"]'); await page.waitForTimeout(250); await page.locator('[data-edit-section] >> visible=true').first().click({ timeout: 2000 }).catch(() => {}); }, expect: '.card' },
+    { name: 'timing', query: '', act: async page => { await page.click('[data-section="timing"]'); await page.waitForTimeout(250); await page.locator('[data-edit-section] >> visible=true').first().click({ timeout: 2000 }).catch(() => {}); }, expect: '.card' },
   ],
   // Each report view is its own table and chart; the tab that is open on load was
   // the only one ever measured.

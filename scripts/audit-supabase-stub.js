@@ -209,9 +209,15 @@
       { partner_name: 'Guelph', partner_kind: 'location', trucks: 11, skids: 96, completed: 10, on_time: 6, late: 5, no_shows: 0, cancelled: 1, on_time_pct: 54.5, avg_minutes_late: 41, avg_dwell_minutes: 58, truck_types: '48 ft Trailer ×11', last_movement: iso(8) },
       { partner_name: 'Nordic Freight', partner_kind: 'company', trucks: 3, skids: 12, completed: 0, on_time: 0, late: 0, no_shows: 2, cancelled: 1, on_time_pct: null, avg_minutes_late: null, avg_dwell_minutes: null, truck_types: 'Cube Van ×3', last_movement: iso(7) },
     ],
+    // Three shapes on purpose: a whole-site window, and one that covers two docks
+    // across two days — six stored rows the screen has to show back as two
+    // windows with ticks, not six lines.
     list_dock_direction_windows: () => [
       { id: 'w1', dock_id: null, dock_name: null, day_of_week: null, direction: 'inbound', start_time: '06:00:00', end_time: '12:00:00' },
-      { id: 'w2', dock_id: null, dock_name: null, day_of_week: null, direction: 'outbound', start_time: '12:00:00', end_time: '18:00:00' },
+      { id: 'w2', dock_id: 'dock-1', dock_name: 'Dock 1', day_of_week: 1, direction: 'outbound', start_time: '12:00:00', end_time: '18:00:00' },
+      { id: 'w3', dock_id: 'dock-1', dock_name: 'Dock 1', day_of_week: 2, direction: 'outbound', start_time: '12:00:00', end_time: '18:00:00' },
+      { id: 'w4', dock_id: 'dock-2', dock_name: 'Dock 2', day_of_week: 1, direction: 'outbound', start_time: '12:00:00', end_time: '18:00:00' },
+      { id: 'w5', dock_id: 'dock-2', dock_name: 'Dock 2', day_of_week: 2, direction: 'outbound', start_time: '12:00:00', end_time: '18:00:00' },
     ],
     save_dock_direction_windows: () => 2,
     settle_due_appointments: () => 0,
