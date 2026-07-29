@@ -85,25 +85,31 @@ function referenceFromInput(text) {
   return digits.length >= 2 ? raw : null;
 }
 
-// Two boxes, not one. Scanning and typing a code are two different jobs and a
-// receiver should be able to see at a glance which one they are doing — on a
-// phone they stack, so whichever is in front of you fills the screen.
+// One panel, two ways in. Scanning and typing a code are two ways of doing the
+// same job, so they are halves of one thing with a rule and the word between
+// them rather than two cards that could be mistaken for two steps. On a phone
+// they stack and the rule turns with them.
 function renderIdle(message = '') {
   state.elements.host.innerHTML = `
     <div class="recv">
-      <section class="card recv__box">
-        <h3 class="card__title">Scan the code</h3>
-        <p class="hint">Point your phone camera at the QR code on the driver's paperwork.</p>
-        ${hasScanner()
-          ? '<div class="form-actions"><button class="btn btn--primary btn--block" type="button" data-scan>Open the camera</button></div>'
-          : '<p class="hint">This browser cannot scan inside the app — use the phone’s own camera app on the code, and it will open MaxDock here.</p>'}
-        <div class="recv__stage" data-stage hidden><video class="recv__video" data-video playsinline muted></video><div class="recv__frame" aria-hidden="true"></div></div>
-      </section>
-      <section class="card recv__box">
-        <h3 class="card__title">Or enter the booking number</h3>
-        <p class="hint">Type the number off the paperwork — the rest is already filled in.</p>
-        <label class="field field--full"><span class="field__label">Booking number</span><input class="input" data-token value="${referencePrefix()}" placeholder="${referencePrefix()}000071" autocomplete="off" inputmode="text" enterkeyhint="search"></label>
-        <div class="form-actions"><button class="btn btn--quiet btn--block" type="button" data-lookup>Find the appointment</button></div>
+      <section class="card recv__panel">
+        <div class="recv__box">
+          <svg class="recv__ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"></rect><rect x="14" y="3" width="7" height="7" rx="1"></rect><rect x="3" y="14" width="7" height="7" rx="1"></rect><path d="M14 14h3v3h-3zM20 14v3M14 20h7"></path></svg>
+          <h3 class="card__title">Scan the code</h3>
+          <p class="hint">Point your phone camera at the QR code on the driver's paperwork.</p>
+          ${hasScanner()
+            ? '<div class="form-actions"><button class="btn btn--primary btn--block" type="button" data-scan>Open the camera</button></div>'
+            : '<p class="hint">This browser cannot scan inside the app — use the phone’s own camera app on the code, and it will open MaxDock here.</p>'}
+          <div class="recv__stage" data-stage hidden><video class="recv__video" data-video playsinline muted></video><div class="recv__frame" aria-hidden="true"></div></div>
+        </div>
+        <div class="recv__or"><span class="tag tag--quiet">or</span></div>
+        <div class="recv__box">
+          <svg class="recv__ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="6" width="19" height="12" rx="2"></rect><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M6 14h12"></path></svg>
+          <h3 class="card__title">Enter the booking number</h3>
+          <p class="hint">Type the number off the paperwork — the rest is already filled in.</p>
+          <label class="field field--full"><span class="field__label">Booking number</span><input class="input" data-token value="${referencePrefix()}" placeholder="${referencePrefix()}000071" autocomplete="off" inputmode="text" enterkeyhint="search"></label>
+          <div class="form-actions"><button class="btn btn--quiet btn--block" type="button" data-lookup>Find the appointment</button></div>
+        </div>
       </section>
       ${message ? `<p class="form-message">${escapeHtml(message)}</p>` : ''}
     </div>`;

@@ -7,10 +7,9 @@
   --signal:#B8690E; --signal-wash:#FDF2E2; --ok:#1B7A4B; --ok-wash:#E6F2EC;
   --warn:#8A6D00; --warn-wash:#FBF3D8; --stop:#B3261E; --stop-wash:#FBEAE9;
   --rail:#16202A; --rail-ink:#A8B4BE; --rail-rule:rgba(255,255,255,.08); --rail-label:#6B7A86;
-  /* One face throughout. The monospace was used for references, dates and the
-     board, and the owner reads it as the wrong voice for this product — the
-     detail labels on My appointments are the reference. Tabular figures come
-     from font-variant-numeric on body, so columns of numbers still line up. */
+  /* One face throughout. The monospace on references, dates and the board reads as
+     the wrong voice for this product. Tabular figures come from
+     font-variant-numeric on body, so columns of numbers still line up. */
   --font-ui:'IBM Plex Sans',system-ui,sans-serif; --font-data:var(--font-ui);
   --scale:1;
   /* Raised one step across the board: 13px base reads small for a screen an
@@ -88,7 +87,6 @@ body{background:var(--ground);color:var(--ink);font-family:var(--font-ui);font-s
 .who{display:flex;align-items:center;gap:var(--s3);white-space:nowrap;margin-left:var(--s3)}
 .avatar{width:28px;height:28px;border-radius:50%;background:var(--dock-wash);color:var(--dock-deep);display:grid;place-items:center;font-size:var(--t-small);font-weight:600}
 .who__name{font-size:var(--t-small);font-weight:600;line-height:1.2}
-.who__role{font-size:var(--t-micro);color:var(--ink-faint)}
 .linkBtn{font-family:inherit;font-size:var(--t-small);color:var(--dock);background:none;border:none;cursor:pointer;white-space:nowrap;min-height:var(--ctl-h);padding:0 var(--s1);display:inline-flex;align-items:center}
 
 /* The page scrolls when its content is taller than the window. It did not, so a
@@ -109,10 +107,9 @@ body{background:var(--ground);color:var(--ink);font-family:var(--font-ui);font-s
 .btn--sm{padding:0 10px;font-size:var(--t-small)}
 .btn--block{width:100%}
 
-/* A grid, not a wrapping flex row: as flex, the right-hand utilities were the
-   first thing to lose the line and dropped onto a row of their own under a band
-   of empty white. Three columns keep them pinned top-right at every width while
-   the filters wrap inside their own cell. */
+/* A grid, not a wrapping flex row: as flex the right-hand utilities lost the line
+   first and dropped under a band of white. Three columns pin them top-right at
+   every width while the filters wrap in their own cell. */
 .controls{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:end;gap:var(--s2) var(--s3);padding:var(--s2) var(--s3);background:var(--surface);border:1px solid var(--rule);border-radius:var(--radius-lg);margin-bottom:var(--s3);flex:none}
 /* The band's two fixed anchors: the page's context control and its operational
    actions at the start, output and view controls at the far right. Everything
@@ -147,8 +144,23 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 /* Controls at their own width on one line, bottom aligned — for the places a
    grid column would only stretch a button across half a page. */
 .inline-controls{display:flex;flex-wrap:wrap;align-items:end;gap:var(--s3)}
-.recv{max-width:640px;display:grid;gap:var(--s3)}
-.recv__box{display:grid;gap:var(--s2)}
+.recv{max-width:760px;display:grid;gap:var(--s3)}
+/* One panel, halved. Two ways of starting the same job, so they are ruled apart
+   rather than boxed apart, and both halves stand the same height. */
+.recv__panel{display:grid;grid-template-columns:1fr auto 1fr;gap:var(--s6);padding:var(--s6)}
+.recv__box{display:grid;gap:var(--s2);align-content:start;justify-items:start;min-width:0}
+/* The panel's halves are grid cells, not a stack: the card's own vertical rhythm
+   would push the second heading a row's air below the first. */
+.recv .recv__panel>*+*{margin-top:0}
+.recv__ico{width:30px;height:30px;color:var(--dock);margin-bottom:var(--s1)}
+.recv__box .form-actions,.recv__box .field{width:100%;margin-top:var(--s2)}
+.recv__or{display:grid;grid-template-rows:1fr auto 1fr;justify-items:center;gap:var(--s3)}
+.recv__or::before,.recv__or::after{content:"";width:1px;background:var(--rule)}
+@media (max-width:720px){
+  .recv__panel{grid-template-columns:minmax(0,1fr);gap:var(--s4)}
+  .recv__or{grid-template-rows:none;grid-template-columns:1fr auto 1fr;align-items:center;width:100%}
+  .recv__or::before,.recv__or::after{width:auto;height:1px}
+}
 .recv__stage{position:relative;margin-top:var(--s2);border-radius:var(--radius-lg);overflow:hidden;background:#000;aspect-ratio:1}
 .recv__video{width:100%;height:100%;object-fit:cover;display:block}
 .recv__frame{position:absolute;inset:14%;border:3px solid #fff;border-radius:var(--radius-lg);box-shadow:0 0 0 100vmax rgba(0,0,0,.35)}
@@ -178,15 +190,15 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 /* Cards wrap to fit rather than being forced into a fixed column count. At 768px the
    old repeat(5,1fr) squeezed them to 55-104px wide; on a wide screen the same rule
    stretched them into empty horizontal slabs. */
-/* The metric strip and the panels beneath it share one column grid, so the edge
-   between the list and the side column lands exactly on a card boundary rather
-   than somewhere arbitrary. --kpi-cols is set from the visible card count, so the
-   strip still fills its row whichever cards are turned off. */
+/* The metric strip and the panels under it share one column grid, so the edge
+   between the list and the side column lands on a card boundary rather than
+   somewhere arbitrary. --kpi-cols comes from the visible card count, so the strip
+   fills its row whichever cards are off. */
 .kpis{display:grid;gap:var(--s3);margin-bottom:var(--s3);flex:none;grid-template-columns:repeat(var(--kpi-cols,4),minmax(0,1fr))}
 /* The customize control belongs to the cards, so it sits at the end of their row
-   at their height rather than up in the page header where nothing said what it
-   applied to. It occupies its own narrow column, which the panels below share, so
-   the side column still starts on a card boundary. */
+   at their height, not in the page header where nothing said what it applied to.
+   Its own narrow column, shared by the panels below, so the side column still
+   starts on a card boundary. */
 @media (max-width:900px){.kpis{grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}}
 /* One rounded outline carrying a single accent edge, rather than a detached top rule
    floating above the card — the treatment v1 settled on at DB66. */
@@ -220,13 +232,12 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
    the board is always compressed to fit the window. */
 .board__scroll{flex:1;min-height:0;overflow:hidden;container-type:inline-size;container-name:board}
 /* Timeline. Every lane spans the same window and every block is placed by its own
-   start and end, so a four-hour call looks four times a one-hour call. The whole
-   day is compressed to fit — these screens are broadcast on wall displays where
-   nobody can scroll, so there is no horizontal overflow at any width. */
-/* One line unit for everything inside a block, and a row tall enough for the five
-   the block can ask for: the clock, two lines of company name, two of detail.
-   Derived from the type tokens rather than a magic number, so it still holds when
-   the reader turns the text size up. */
+   start and end, so a four-hour call looks four times a one-hour call. The day is
+   compressed to fit: these screens are broadcast on wall displays where nobody can
+   scroll, so nothing overflows sideways at any width. */
+/* One line unit inside a block, and a row tall enough for the five it can ask for:
+   the clock, two lines of company, two of detail. Derived from the type tokens, not
+   a magic number, so it holds when the text size goes up. */
 .tl{display:flex;flex-direction:column;min-height:0;height:100%;--tl-label:clamp(110px,10vw,190px);--tl-type:clamp(var(--t-base), .95vw, calc(var(--t-base) * 1.7));--tl-line:calc(var(--tl-type) * 1.35);--tl-lines:4;--tl-row:calc(var(--tl-line) * var(--tl-lines) + 14px)}
 .tl__ruler{display:grid;grid-template-columns:var(--tl-label) minmax(0,1fr);border-bottom:1px solid var(--rule-strong);background:var(--surface-sunk);flex:none}
 .tl__corner{padding:6px var(--s3);font-size:var(--t-micro);text-transform:uppercase;letter-spacing:.07em;color:var(--ink-muted);font-weight:600;border-right:1px solid var(--rule-strong);display:flex;align-items:center}
@@ -234,12 +245,11 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 /* The tick is a 1px box with a background, so padding-left widened the painted
    box: every pixel of "gap" was another pixel of gridline. The line is a hairline
    pseudo-element now and the padding is ordinary background. */
-.tl__scale .tl__tick{top:0;height:100%;display:flex;align-items:center;background:none;padding-left:14px;font-size:calc(var(--tl-type) * .9);color:var(--ink-muted);font-variant-numeric:tabular-nums;white-space:nowrap}
+.tl__scale .tl__tick{top:0;height:100%;width:var(--tl-slot,0);display:flex;align-items:center;justify-content:center;background:none;font-size:calc(var(--tl-type) * .9);color:var(--ink-muted);font-variant-numeric:tabular-nums;white-space:nowrap}
 .tl__lanes{flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column}
-/* Lanes take the height they need, then share whatever is left over rather than
-   leaving half the panel blank — a five-dock board used to draw a short strip of
-   rows above an empty white field. Capped at twice the row height so a two-dock
-   site does not get two enormous bands. */
+/* Lanes take the height they need, then share what is left rather than leaving
+   half the panel blank — a five-dock board drew a short strip above empty white.
+   Capped at twice the row height so a two-dock site gets no giant bands. */
 .tl__lane{display:grid;grid-template-columns:var(--tl-label) minmax(0,1fr);border-bottom:1px solid var(--rule);flex:var(--rows,1) 1 auto;min-height:calc(var(--tl-row) * var(--rows,1));max-height:calc(var(--tl-row) * var(--rows,1) * 2)}
 .tl__lane:last-child{border-bottom:none}
 .tl__label{padding:6px var(--s3);border-right:1px solid var(--rule-strong);background:var(--surface-sunk);display:flex;flex-direction:column;justify-content:center;min-width:0}
@@ -257,9 +267,9 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 .tlb{position:absolute;border-radius:4px;border-left:3px solid;padding:3px 6px;overflow:hidden;cursor:pointer;display:grid;grid-auto-rows:min-content;align-content:center;line-height:var(--tl-line);min-width:10px}
 .tlb>*{min-width:0;overflow-wrap:anywhere}
 /* A fact wraps onto as many lines as it needs and is never abbreviated. Half a
-   booking reference followed by an ellipsis tells nobody anything; the whole
-   reference over two lines tells them what they walked up to the board to find
-   out. What does not fit is dropped whole by fitTimelineBlocks, not trimmed. */
+   reference and an ellipsis tells nobody anything; the whole reference over two
+   lines is what they walked up to the board for. What does not fit is dropped
+   whole by fitTimelineBlocks, not trimmed. */
 .tlb__l{font-size:calc(var(--tl-type) * .9);color:var(--ink-muted);grid-row:span 1}
 .tlb__l--key{font-size:var(--tl-type);font-weight:700;color:inherit;font-variant-numeric:tabular-nums}
 .tlb--in{background:var(--dock-wash);border-left-color:var(--dock)}
@@ -299,9 +309,8 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
    action ends up a hand's width from the last thing it acts on. Capped, the
    columns stay together and the eliding cell still shrinks below it. */
 /* The table hugs its columns so the row action follows the last one. The card is
-   capped, not sized to content: its table sits in an overflow-x wrapper, and a
-   scrolling wrapper contributes nothing to a max-content parent — the trap that
-   collapsed this card to the width of its title twice. */
+   capped, not sized to content: a scrolling wrapper contributes nothing to a
+   max-content parent — the trap that collapsed this card to its title twice. */
 .card--table{max-width:min(100%,720px)}
 .card--table .table{width:auto}
 /* Seven day boxes on one line, sized to the word inside them, wrapping only when
@@ -438,16 +447,14 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
    browser clips the minutes off the end rather than shrinking the text. */
 .input[type="datetime-local"]{min-width:206px}
 .frow>.field--full{grid-column:1/-1}
-/* A control that acts on the field beside it sits on that field's baseline, not
-   the row's top — otherwise it floats above the label it belongs to. Alignment
-   only: the width still comes from a field-- class, because baking a span in
-   here overrode the one the element already carried and left the rest of the
-   row empty. */
+/* A control acting on the field beside it sits on that field's baseline, not the
+   row's top, or it floats above its label. Alignment only: the width comes from a
+   field-- class, since a span baked in here overrode the element's own and left
+   the row half empty. */
 .frow>.field-action{align-self:end}
-/* One name for "this control sits at the end of its band". The same declaration
-   was written inline on six pages, which is how one role drifts to a different
-   offset on each of them. Dialog feet already place their primary button; this
-   is for the bands that are not dialog feet. */
+/* One name for "this control sits at the end of its band" — the same declaration
+   was inline on six pages, which is how one control drifts to a different offset
+   on each. Dialog feet place their own primary button. */
 .at-end{margin-left:auto}
 /* The find box on My appointments shares the controls band with the view
    switcher, so it must not swallow the whole row the way a lone search field in
@@ -480,10 +487,9 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 .countset>legend{padding:0;font-size:var(--t-micro);text-transform:uppercase;letter-spacing:.07em;color:var(--ink-muted);font-weight:600}
 /* Keyed to the container, not the viewport: a dialog is a fixed 760px wide however
    large the window is, so a viewport media query collapsed rows that had room. */
-/* A ruled part of a stack is a container too. It was not, and the field rows
-   inside it stopped collapsing on a phone — an unnamed container query with no
-   container above it simply never matches, so a twelve-column row stayed twelve
-   columns at 390px and the labels ran out of their fields. */
+/* A ruled part of a stack is a container too. It was not, so field rows inside it
+   stopped collapsing on a phone: a container query with no container above it
+   never matches, and a twelve-column row stayed twelve columns at 390px. */
 .modal__body,.card,.stack>*{container-type:inline-size}
 @container (max-width:560px){
   .frow{grid-template-columns:repeat(6,1fr)}
@@ -568,13 +574,19 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
    the window put a truck's name at one edge and its number at the other with
    half a metre of nothing between them. */
 .stack{background:var(--surface);border:1px solid var(--rule);border-radius:var(--radius-lg);max-width:900px}
+/* A window whose widest part is a five-column table. Narrower than a form window,
+   with the table filling it so the action above the table and the action in its
+   last column share one right edge — and the note under it wraps rather than
+   running the width of a monitor. */
+.stack--table{max-width:620px}
+.stack--table .table{width:100%}
 .stack>*{padding:var(--s4);margin:0;border:0;border-radius:0;background:none;max-width:none}
 .stack>*+*{border-top:1px solid var(--rule)}
 .card__title .btn{margin-left:auto}
 /* One vertical rhythm inside cards, dialogs and wizard steps. A .frow spaces its
-   own children but carried no margin of its own, so two stacked rows read as a
-   single crowded block — the label of the second row sat on the control of the
-   first. Setting rows are excluded: they are a bordered list and space themselves. */
+   children but had no margin of its own, so two stacked rows crowded — the second
+   row's label sat on the first row's control. Setting rows are excluded: they are
+   a bordered list and space themselves. */
 .card>*+*,.modal__body>*+*,[data-booking-step]>*+*{margin-top:var(--s4)}
 .card>.card__title+*,.modal__body>.card__title+*{margin-top:0}
 .card>.setrow+.setrow,.modal__body>.setrow+.setrow,[data-booking-step]>.setrow+.setrow{margin-top:0}
@@ -604,11 +616,10 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 .switch--off::before{background:var(--rule-strong)} .switch--off::after{left:6px}
 .switch:disabled{cursor:default;opacity:.55}
 
-/* Full-screen wall display.
-   Read from across a shop floor, not from a desk: every size is a clamp() against
-   the viewport so the same markup works on a laptop and on a mounted screen. One
-   lane per dock, so an operator finds their door by position rather than by
-   reading every row — which is what the previous dark table required. */
+/* Full-screen wall display. Read from across a shop floor, not from a desk: every
+   size is a clamp() against the viewport, so one markup works on a laptop and on a
+   mounted screen. One lane per dock, so a door is found by position rather than by
+   reading every row. */
 .wall{min-height:100vh;background:#F1F5F8;color:var(--ink);padding:clamp(12px,1.4vw,28px);display:flex;flex-direction:column;gap:clamp(10px,1vw,20px)}
 .wall__head{display:flex;align-items:center;gap:var(--s4);flex:none}
 .wall__title{font-size:clamp(22px,2vw,40px);font-weight:700;letter-spacing:-.015em}
@@ -628,7 +639,6 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 .wall .tl__scale .tl__tick{font-size:clamp(12px,.9vw,18px)}
 .wall .tlb__l--key{font-size:clamp(13px,1vw,22px)}
 .wall .tlb__l{font-size:clamp(12px,.9vw,19px)}
-.wall .tlb__meta,.wall .tlb__note{font-size:clamp(11px,.8vw,17px)}
 
 /* ===== additions: icon buttons, rail admin-at-bottom, queue, data, fullscreen ===== */
 .btn--icon{padding:0;width:var(--ctl-h);color:var(--ink-muted)}
@@ -638,10 +648,10 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 .rail__spacer{flex:1}
 .rail__group--admin,.rail__group--ruled{border-top:1px solid var(--rail-rule)}
 .rail__group--admin{margin-top:var(--s2);padding-top:var(--s3)}
-/* A ruled group with no heading still needs the hairline to read as a break, but
-   not the heading's worth of air under it. Receiving and Settings are modules
-   like the ones above them, not a different part of the app, so the hairline is
-   the whole separation — the extra air read as a gap between sections. */
+/* A ruled group with no heading needs the hairline to read as a break, but not a
+   heading's worth of air under it. Receiving and Settings are modules like the
+   ones above them, so the hairline is the whole separation — the extra air read
+   as a gap between sections. */
 .rail__group--ruled{margin-top:var(--s1);padding-top:var(--s2);padding-bottom:0}
 /* queue rows */
 .statusdot{display:inline-flex;align-items:center;gap:6px}
@@ -716,10 +726,9 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
    being flung to the far edge of the card. */
 .setrow.setrow--compact{grid-template-columns:minmax(0,22ch) max-content;justify-content:start;column-gap:var(--s4)}
 .setrow--compact .setrow__ctl{justify-content:flex-start}
-/* In a dialog the setting takes the width and its switch sits at the far edge.
-   The 220px text column is right on a settings page where rows line up in a
-   column, but in a 760px dialog it left the switch stranded a third of the way
-   across with a hand's width of nothing after it. */
+/* In a dialog the setting takes the width and its switch sits at the far edge. The
+   220px text column is right on a settings page, but in a 760px dialog it stranded
+   the switch a third of the way across. */
 .modal__body .setrow{grid-template-columns:minmax(0,1fr) auto;justify-content:stretch}
 .modal__body .setrow--tight{grid-template-columns:minmax(0,1fr) auto}
 /* A rule under a row whose section is closed is a line with nothing beneath it.
@@ -867,10 +876,10 @@ body.modal-open{overflow:hidden}
 .login-card{background:var(--surface);border:1px solid var(--rule);border-radius:var(--radius-lg);padding:var(--s5)}
 /* Quieter under the wordmark: at title size these two lines competed with the
    brand lockup above them and made the card read busy. */
-/* Ordered the way it reads: the brand, then what this screen is, then the two
-   fields, then the way out if you have forgotten, then the action. The long
-   "contact an administrator" paragraph between the password and the button made
-   the card feel busy and put text where the eye was looking for the button. */
+/* Ordered the way it reads: the brand, what this screen is, the two fields, the
+   way out if you have forgotten, then the action. The "contact an administrator"
+   paragraph between password and button put text where the eye was looking for
+   the button. */
 .login-card__title{margin:var(--s3) 0 0;font-size:var(--t-lead);font-weight:600}
 .login-card__intro{margin:var(--s1) 0 var(--s6);color:var(--ink-muted);font-size:var(--t-small)}
 .login-card .field{margin-bottom:var(--s3)}
@@ -1005,9 +1014,8 @@ body.modal-open{overflow:hidden}
 }
 
 /* ===== hidden means hidden =====
-   Any component that sets its own `display` outranks the browser's [hidden] rule
-   at equal specificity, so `element.hidden = true` did nothing to a .frow. That
-   left the Add user dialog showing the Account type and Company fields for a
-   Coordinator, and both account-setup branches at once. Last rule in the file so
-   it wins on source order against every component above it. */
+   A component setting its own display outranks [hidden] at equal specificity, so
+   element.hidden did nothing to a .frow and the Add user dialog showed both
+   account-setup branches at once. Last rule in the file, so it wins on source
+   order. */
 [hidden]{display:none}

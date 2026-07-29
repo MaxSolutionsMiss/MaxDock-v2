@@ -152,7 +152,7 @@ async function loadEnabledRows(mappingTable, codeColumn, masterTable, locationId
 // lets it answer, rather than trying to state the rule twice.
 async function loadTemplates() {
   return db.select('booking_templates', query => query
-    .select('id, owner_user_id, location_id, name, is_shared, direction, requester_type, company_name, appointment_type_code, truck_type_code, skid_count, handling_type_code, is_priority, carrier_name, preferred_start_time, preferred_end_time, created_at, updated_at')
+    .select('id, owner_user_id, location_id, name, is_shared, direction, requester_type, company_name, appointment_type_code, truck_type_code, skid_count, handling_type_code, is_priority, carrier_name, auto_time, lead_minutes, preferred_start_time, preferred_end_time, created_at, updated_at')
     .order('updated_at', { ascending: false }), {
     key: `booking:templates:${context.user.id}`,
     cache: 30000,
@@ -1359,7 +1359,37 @@ async function attemptBooking() {
   await submitBooking();
 }
 
-function applyTemplate(template) {
+// A quick code set to choose its own time takes the first slot the destination
+// can actually take the load, no earlier than the lead its code carries. The lead
+// is the point: it leaves room to make the truck up, and room for the load to be
+// combined with something else already going that way. The slot search already
+// walks forward a week, so a lead of a day lands on tomorrow without anything
+// here knowing what a day is.
+async function continueWithAutoTime() {
+  setMessage('Finding the first time this load can go…');
+  const slot = await autoPickSlot(state.autoTime);
+  if (!slot) {
+    setStep(2);
+    setMessage(`Nothing is free ${format.duration(Number(state.autoTime.lead_minutes || 0))} from now or later. Choose a time below.`);
+    return;
+  }
+  state.maxStep = STEPS.length - 1;
+  setStep(STEPS.length - 1);
+  setMessage('');
+  toast(`Time chosen: ${format.timestamp(slot.slot_start, receivingLocation())}.`, 'success');
+}
+
+async function autoPickSlot(template) {
+  const earliest = format.afterNow(template.lead_minutes);
+  state.form.date = format.inputDate(earliest, receivingLocation());
+  const slots = await findSlots({ quiet: true });
+  const slot = (slots || []).find(item => format.isAtOrAfter(item.slot_start, earliest));
+  if (!slot) return null;
+  state.form.selected_slot = slot;
+  return slot;
+}
+
+async function applyTemplate(template) {
   if (!template) return;
   if (template.location_id !== currentLocation().id) {
     const url = new URL(globalThis.location.href);
@@ -1386,7 +1416,12 @@ function applyTemplate(template) {
   state.step = 0;
   state.maxStep = Math.max(state.maxStep, 1);
   renderAll();
-  toast(`Template “${template.name}” loaded.`, 'success');
+  // Remembered rather than acted on now: the time is chosen once the load has
+  // been described, which is the step after this one.
+  state.autoTime = template.auto_time ? { lead_minutes: Number(template.lead_minutes || 0) } : null;
+  toast(template.auto_time
+    ? `“${template.name}” loaded. MaxDock will pick the time.`
+    : `Template “${template.name}” loaded.`, 'success');
 }
 
 async function removeTemplate() {
@@ -1477,6 +1512,12 @@ async function handleAction(button) {
   } else if (action === 'continue') {
     const error = validateStep();
     if (error) setMessage(error);
+    // A quick code told to choose its own time skips the time step: the load is
+    // described, so MaxDock takes the first slot the destination can take it,
+    // no earlier than the code's lead. It happens here rather than when the code
+    // is scanned because until the load is described there is nothing to look a
+    // time up for.
+    else if (state.step === 1 && state.autoTime) await continueWithAutoTime();
     else setStep(state.step + 1);
   } else if (action === 'back') {
     setStep(state.step - 1);
@@ -1519,7 +1560,7 @@ async function handleAction(button) {
     sameDayModal.close();
     await submitBooking();
   } else if (action === 'use-template') {
-    applyTemplate(state.reference.templates.find(template => template.id === button.dataset.templateId));
+    await applyTemplate(state.reference.templates.find(template => template.id === button.dataset.templateId));
   } else if (action === 'delete-template') {
     deleteTemplateId = button.dataset.templateId;
     deleteTemplateModal.open({ trigger: button });
@@ -1546,6 +1587,7 @@ async function handleAction(button) {
       slotError: '',
       sameDayMatches: [],
       sameDayAccepted: false,
+      autoTime: null,
       merged: null,
       combineMatches: [],
       combineSelected: [],
@@ -1598,7 +1640,7 @@ async function applyRequestedTemplate() {
   const templateId = new URLSearchParams(globalThis.location.search).get('template');
   if (!templateId) return;
   const template = state.reference.templates.find(item => item.id === templateId);
-  if (template) applyTemplate(template);
+  if (template) await applyTemplate(template);
 }
 
 const page = {
@@ -1619,6 +1661,7 @@ const page = {
       slotError: '',
       sameDayMatches: [],
       sameDayAccepted: false,
+      autoTime: null,
       merged: null,
       combineMatches: [],
       combineSelected: [],

@@ -73,6 +73,14 @@ if (!errors.length) {
   requireText(settings, /function renderQuickQr/, 'Settings is missing the Quick QR section.');
   requireText(settings, /data-print-shortcut/, 'Quick QR offers no printable code.');
   requireText(settings, /is_shared: true/, 'A code on a wall has to work for whoever scans it.');
+  // A quick code can choose its own time. The lead is the whole point of the
+  // setting — the gap that leaves room to make the truck up or to combine the
+  // load — so a code set to choose must carry one, and choosing must go through
+  // the ordinary slot search rather than inventing a time.
+  requireText(settings, /auto_time/, 'A quick code cannot be told to choose its own time.');
+  requireText(settings, /lead_minutes/, 'A code that chooses its own time must carry the gap it has to leave.');
+  requireText(page, /function autoPickSlot/, 'Nothing picks the time for a code set to choose it.');
+  requireText(page, /await findSlots\(\{ quiet: true \}\)/, 'An automatic time must come from the slot search, not from arithmetic.');
   if (/qrserver|chart\.googleapis/i.test(shortcutCard)) errors.push('A quick code must not be drawn by a third-party service.');
   requireText(page, /poll\.suspend\(SLOT_SUSPENSION\)/, 'The five-second poll is not suspended while the slot picker is open.');
   requireText(page, /poll\.resume\(SLOT_SUSPENSION\)/, 'The slot-picker poll suspension is not released.');

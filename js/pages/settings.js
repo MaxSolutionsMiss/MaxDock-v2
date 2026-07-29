@@ -19,11 +19,10 @@ const SECTIONS = [
   { id: 'timing', label: 'Timing & duration' },
   { id: 'notice', label: 'Booking window & notice' },
   { id: 'capacity', label: 'Capacity' },
-  { id: 'assignment', label: 'Dock assignment' },
   { id: 'combining', label: 'Combining loads' },
   { id: 'docks', label: 'Docks' },
   { id: 'trucks', label: 'Truck types' },
-  { id: 'quickqr', label: 'Quick QR' },
+  { id: 'quickqr', label: 'Quick QR (QQ)' },
 ];
 
 const state = {
@@ -76,6 +75,7 @@ const NOTICE_UNITS = ['minutes', 'hours', 'days'];
 const AHEAD_UNITS = ['days', 'weeks'];
 // Hours and days only: the column holds hours, so a minute would round away.
 const WINDOW_UNITS = ['hours', 'days'];
+const LEAD_UNITS = ['hours', 'days'];
 
 function unitParts(storedValue, baseUnit, units) {
   // An unset value stays unset, so a field with a placeholder does not read as a
@@ -118,7 +118,7 @@ async function fetchAll() {
     db.select('appointment_types', q => q.select('code,name').eq('is_active', true).order('sort_order'), { key: 'appointment-types:active', cache: 60000 }),
     db.select('handling_types', q => q.select('code,name').eq('is_active', true).order('sort_order'), { key: 'handling-types:active', cache: 60000 }),
     db.select('booking_templates', q => q
-      .select('id,owner_user_id,location_id,name,is_shared,direction,requester_type,company_name,appointment_type_code,truck_type_code,skid_count,handling_type_code,is_priority,carrier_name,updated_at')
+      .select('id,owner_user_id,location_id,name,is_shared,direction,requester_type,company_name,appointment_type_code,truck_type_code,skid_count,handling_type_code,is_priority,carrier_name,auto_time,lead_minutes,updated_at')
       .eq('location_id', locationId).eq('is_shared', true).order('name'), { key: `settings:shortcuts:${locationId}`, cache: 0 }),
   ]);
   state.hours = hours || [];
@@ -331,7 +331,7 @@ function renderAssignment() {
   const disabled = canEdit ? '' : 'disabled';
   const autoAssign = s.auto_assign_dock !== false;
   const consolidation = s.suggest_same_day_consolidation !== false;
-  return `<form class="card" data-section-form="assignment">
+  return `<form data-section-form="assignment">
     <h3 class="card__title">Dock assignment</h3>
     <div class="setrow setrow--lead">
       <div><div class="setrow__t">Auto-assign docks</div><div class="setrow__d">MaxDock picks the dock for each booking</div></div>
@@ -450,14 +450,20 @@ function renderDocks() {
     <td>${canEditDocks ? `<button class="btn btn--quiet btn--sm" type="button" data-unlocked data-edit-dock="${dock.id}">Edit</button>` : ''}</td>
   </tr>`).join('') || '<tr><td colspan="5" class="data">No docks configured for this location.</td></tr>';
 
-  // Five short columns, so the table is sized to them. Left to fill the panel the
-  // Edit button ended up a hand's width from the truck types it edits.
-  return `<form class="card card--table" data-section-form="docks">
+  // Five short columns, so the window is sized to them: Add dock lands over the
+  // Edit column rather than out at the edge of a wide monitor, and the note under
+  // the table wraps instead of running the width of the screen.
+  //
+  // Dock assignment sits under the table it decides between. It is about docks, so
+  // it is found where the docks are rather than under a heading of its own.
+  return `<div class="stack stack--table">
+    <form data-section-form="docks">
       <h3 class="card__title">Docks${canEditDocks ? '<button class="btn btn--primary btn--sm at-end" type="button" data-unlocked data-add-dock>Add dock</button>' : ''}</h3>
-      <div class="tablewrap"><table class="table"><thead><tr><th>Dock</th><th>Direction</th><th>In service</th><th>Truck types</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
+      <div class="tablewrap"><table class="table"><thead><tr><th>Dock</th><th>Direction</th><th>In service</th><th class="col-fill">Truck types</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
       <p class="hint">Add dock and Edit save on their own. Save below applies the in-service switches.</p>
       ${saveFoot(canEditDocks)}
-    </form>`;
+    </form>
+    ${renderAssignment()}</div>`;
 }
 
 function renderTruckTypes() {
@@ -508,6 +514,9 @@ function shortcutDetail(shortcut) {
     labelFor(state.truckTypes, shortcut.truck_type_code),
     `${Number(shortcut.skid_count || 0)} skids`,
     labelFor(state.handlingTypes, shortcut.handling_type_code),
+    shortcut.auto_time
+      ? `MaxDock picks the time${shortcut.lead_minutes ? `, ${format.duration(shortcut.lead_minutes)} ahead at the earliest` : ''}`
+      : 'The person picks the time',
   ].join(' · ');
 }
 
@@ -525,7 +534,7 @@ function renderQuickQr() {
       </div>
     </div>`).join('');
   return `<form class="card" data-section-form="quickqr">
-    <h3 class="card__title">Quick QR${canEdit ? '<button class="btn btn--primary btn--sm at-end" type="button" data-add-shortcut>New code</button>' : ''}</h3>
+    <h3 class="card__title">Quick QR (QQ)${canEdit ? '<button class="btn btn--primary btn--sm at-end" type="button" data-add-shortcut>New code</button>' : ''}</h3>
     ${rows || '<p class="hint">No quick codes yet. Make one for a run this site books over and over.</p>'}
     <p class="hint hint--wide">A quick code is a booking saved with everything but the time. Print it, put it where the loads are made up, and scanning it opens MaxDock with the load already in — the person booking picks a time and confirms. Edit a code and every printed copy of it changes with it; the paper does not have to be replaced.</p>
   </form>`;
@@ -534,7 +543,7 @@ function renderQuickQr() {
 function renderPanel() {
   const map = {
     hours: renderHours, timing: renderTiming, notice: renderNotice, capacity: renderCapacity,
-    assignment: renderAssignment, combining: renderCombining, docks: renderDocks, trucks: renderTruckTypes,
+    combining: renderCombining, docks: renderDocks, trucks: renderTruckTypes,
     quickqr: renderQuickQr,
   };
   state.elements.panel.innerHTML = (map[state.section] || renderHours)();
@@ -901,7 +910,23 @@ function openShortcutModal(shortcutId) {
   form.elements.company_name.value = shortcut?.company_name || '';
   form.elements.skid_count.value = Number(shortcut?.skid_count || 0);
   form.elements.carrier_name.value = shortcut?.carrier_name || '';
+  // A code that picks its own time carries the gap it must leave; one that does
+  // not has no gap to show, so the field goes with the choice.
+  const auto = Boolean(shortcut?.auto_time);
+  form.elements.time_mode.value = auto ? 'auto' : 'manual';
+  const { value, unit } = unitParts(Number(shortcut?.lead_minutes || 0), 'minutes', LEAD_UNITS);
+  form.elements.lead_minutes.value = value;
+  form.elements.lead_minutes__unit.value = unit;
+  applyShortcutTimeMode(form);
   state.shortcutModal.open();
+}
+
+function applyShortcutTimeMode(form) {
+  const auto = form.elements.time_mode.value === 'auto';
+  const row = form.querySelector('[data-lead-row]');
+  row.hidden = !auto;
+  form.elements.lead_minutes.disabled = !auto;
+  form.elements.lead_minutes__unit.disabled = !auto;
 }
 
 // A new truck type is two things: the company-wide code, and this site switched
@@ -969,6 +994,8 @@ async function submitShortcut(event) {
     carrier_name: String(data.get('carrier_name') || '').trim() || null,
     is_priority: false,
     is_shared: true,
+    auto_time: data.get('time_mode') === 'auto',
+    lead_minutes: data.get('time_mode') === 'auto' ? durationValue(data, 'lead_minutes', 'minutes', LEAD_UNITS) : 0,
   };
   try {
     if (state.editingShortcutId) {
@@ -1047,6 +1074,15 @@ function buildShell(root) {
             </div>
             <div class="frow">
               <label class="field field--full"><span class="field__label">Carrier <span class="field__opt">optional</span></span><input class="input" name="carrier_name" maxlength="120"></label>
+            </div>
+            <fieldset class="dock-checks dock-checks--roomy">
+              <legend>When it is scanned</legend>
+              <label class="dock-check"><input type="radio" name="time_mode" value="manual" checked><span>The person picks the time</span></label>
+              <label class="dock-check"><input type="radio" name="time_mode" value="auto"><span>MaxDock takes the first time it can</span></label>
+            </fieldset>
+            <div data-lead-row>
+              <div class="frow">${durationField('No earlier than', 'lead_minutes', 0, 'minutes', LEAD_UNITS, '')}</div>
+              <p class="hint hint--wide">The gap before the earliest time MaxDock will take, so there is room to make the truck up — and room for the load to be combined with something else going the same way.</p>
             </div>
             <p class="hint hint--wide">Saved for everyone at this site, so any printed copy of the code works for whoever picks it up.</p>
           </div>
@@ -1160,6 +1196,7 @@ function expandWindows(windows) {
 function wireEvents(root) {
   // The hours field only means anything when the window mode asks for one.
   root.addEventListener('change', event => {
+    if (event.target.matches('[name="time_mode"]')) { applyShortcutTimeMode(event.target.closest('form')); return; }
     const mode = event.target.closest('[data-consolidation-mode]');
     if (!mode) return;
     const form = mode.closest('form');

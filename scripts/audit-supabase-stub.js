@@ -74,10 +74,13 @@
     // renders empty and that state is the only one the sweep ever measures.
     { id: 'a5', appointment_id: 'a5', booking_reference: 'MXD-2026-000144', entry_kind: 'appointment', status: 'scheduled', direction: 'inbound', dock_id: 'dock-2', start_at: iso(13, 0, 2), end_at: iso(14, 0, 2), skid_count: 8, company_name: 'Haleon – Oakhill', requester_name: 'Maria Chen', requester_email: 'mchen@maxpkgsolutions.com', carrier_name: 'Day & Ross', external_reference: 'PO-99404', appointment_type_code: 'raw_material', truck_type_code: 'trailer_48', handling_type_code: 'live_unload', is_priority: false, notes: '', completed_at: null, location_id: 'loc-1', ...SHOWN },
   ];
-  const SLOTS = [9, 11, 13, 15].map((hour, index) => ({
-    slot_start: iso(hour), slot_end: iso(hour + 1),
+  // Today and tomorrow, the way the real search walks forward a week. With only
+  // today's times a quick code told to leave four hours before it books had
+  // nothing to find whenever the audit ran late in the day.
+  const SLOTS = [[9, 0], [11, 0], [13, 0], [15, 0], [8, 1], [10, 1]].map(([hour, day], index) => ({
+    slot_start: iso(hour, 0, day), slot_end: iso(hour + 1, 0, day),
     recommendation_rank: index + 1, recommendation_score: 90 - index * 10,
-    capacity_warning: index === 3, alternative_date: null,
+    capacity_warning: index === 3, alternative_date: day > 0,
     recommended_dock_name: 'Dock 1', counterpart_dock_name: 'Dock 2', available_docks: 3,
   }));
   // The audit injects a role to render the app as somebody other than an admin;
@@ -109,8 +112,8 @@
     // One shared shortcut and one private one, so the quick-book list, the Shared
 // tag and the shortcut card are all measured rather than an empty region.
     booking_templates: [
-      { id: 'tpl-1', owner_user_id: UID, location_id: 'loc-1', name: 'Mississauga to Guelph', is_shared: true, direction: 'outbound', requester_type: 'Guelph', company_name: 'Guelph', appointment_type_code: 'wip', truck_type_code: 'trailer_53', skid_count: 22, handling_type_code: 'live_load', is_priority: false, carrier_name: 'Day & Ross', preferred_start_time: null, preferred_end_time: null, created_at: iso(6), updated_at: iso(6) },
-      { id: 'tpl-2', owner_user_id: UID, location_id: 'loc-1', name: 'Weekly board run', is_shared: false, direction: 'inbound', requester_type: 'Customer', company_name: 'Haleon – Oakhill', appointment_type_code: 'raw_material', truck_type_code: 'trailer_48', skid_count: 10, handling_type_code: 'live_unload', is_priority: false, carrier_name: null, preferred_start_time: null, preferred_end_time: null, created_at: iso(6), updated_at: iso(6) },
+      { id: 'tpl-1', owner_user_id: UID, location_id: 'loc-1', name: 'Mississauga to Guelph', is_shared: true, direction: 'outbound', requester_type: 'Guelph', company_name: 'Guelph', appointment_type_code: 'wip', truck_type_code: 'trailer_53', skid_count: 22, handling_type_code: 'live_load', is_priority: false, carrier_name: 'Day & Ross', auto_time: true, lead_minutes: 240, preferred_start_time: null, preferred_end_time: null, created_at: iso(6), updated_at: iso(6) },
+      { id: 'tpl-2', owner_user_id: UID, location_id: 'loc-1', name: 'Weekly board run', is_shared: false, direction: 'inbound', requester_type: 'Customer', company_name: 'Haleon – Oakhill', appointment_type_code: 'raw_material', truck_type_code: 'trailer_48', skid_count: 10, handling_type_code: 'live_unload', is_priority: false, carrier_name: null, auto_time: false, lead_minutes: 0, preferred_start_time: null, preferred_end_time: null, created_at: iso(6), updated_at: iso(6) },
     ],
     user_notifications: [
       { id: 1, notification_type: 'appointment_booked', title: 'Appointment booked', message: 'MXD-2026-000141 was booked for Pickering at 08:00.', appointment_id: 'a2', read_at: null, created_at: iso(8) },

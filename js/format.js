@@ -175,6 +175,17 @@ export const format = Object.freeze({
     return new Date().toISOString();
   },
 
+  // A moment a number of minutes from now, and whether a timestamp has reached
+  // it. A quick code that books its own time needs both — "no earlier than four
+  // hours from now" — and both are date arithmetic, which lives here.
+  afterNow(minutes) {
+    return new Date(Date.now() + Math.max(0, Number(minutes) || 0) * 60000).toISOString();
+  },
+
+  isAtOrAfter(value, moment) {
+    return this.epoch(value) >= this.epoch(moment);
+  },
+
   nowEpoch() {
     return Date.now();
   },

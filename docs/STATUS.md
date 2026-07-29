@@ -1163,3 +1163,91 @@ that already exist. Saving writes the company-wide type and switches this site o
 for it in the same go, because a type nobody can book is not what "add a truck
 type" means. How many skids it holds stays under Capacity, where it belongs — the
 same trailer is loaded differently at different sites.
+
+## Every field you tick is a field you see (2026-07-29)
+
+The owner ticked every field for the appointment blocks and got three lines, at
+some sites and not others. Two causes, one symptom.
+
+A lane was a fixed four lines tall (`--tl-lines:4`), and anything past what fitted
+was dropped by the measured fit pass. Which fields survived therefore depended on
+how much spare height the lanes had to share out — and that depends on how many
+docks a site has. Milton and Pickering have five docks and showed three facts;
+Bristol has fewer, so its lanes were taller and showed more. Nothing was wrong
+with the data and nothing was wrong per location: it was the dock count.
+
+Counting the ticked fields is not enough either — in an hour-wide block the
+reference alone is two lines. So the lane is now **measured**: every line is shown,
+the tallest block is measured, and the lane is grown to hold it, capped at twelve
+lines so one dock cannot take the screen. Only then does the fit pass drop
+anything, and with the lane grown it usually drops nothing.
+
+One trap inside that: a block centres its content, and `scrollHeight` does not
+count content overflowing *upward*. The measurement is taken with the block
+temporarily aligned to the top, or a block needing twelve lines reports eleven and
+one fact is still lost.
+
+Proved in a browser at 1440 with all eight fields on: seven facts on the block,
+nothing hidden, on every block.
+
+## The hour sits in the middle of its hour (2026-07-29)
+
+The ruler's labels were anchored at the gridline, which read as belonging to
+whatever was to their left. Each label is now one slot wide and centred in it, so
+09:00 sits in the middle of the 09:00 column. The gridline is still the hairline
+at the slot's left edge. The slot width is passed to the stylesheet as `--tl-slot`
+from the same arithmetic that places the ticks, so it follows the timeline
+granularity control without a second source of truth.
+
+## Receiving is one panel with two ways in (2026-07-29)
+
+Two cards read as two steps. It is one job — find the load — with two ways to
+start it, so it is one panel halved by a hairline with **or** on the rule, both
+halves the same height, each with its own mark: a QR glyph and a keypad. The
+booking-number field is the width of its half rather than the width of the page.
+On a phone the halves stack and the rule turns with them.
+
+## Docks, and Dock assignment with them (2026-07-29)
+
+Dock assignment was a section of its own in the settings rail, which is not where
+anybody looks for it — it is about docks. It is now the second window in the Docks
+section, under the table it decides between, and the rail is one entry shorter.
+
+The docks window is sized to its table: Add dock lands over the Edit column
+instead of out at the edge of a monitor, the note under the table wraps to two
+lines instead of running the width of the screen, and the truck-types column takes
+the slack so the two actions share a right edge.
+
+## A quick code that books its own time (2026-07-29)
+
+A QQ is scanned by somebody with a truck to move and no time to spend picking a
+slot. Each code now carries how its time is decided:
+
+- **The person picks the time** — the wizard as it is.
+- **MaxDock takes the first time it can** — with a lead the code carries: "no
+  earlier than four hours from now". The gap is the point. It leaves room to make
+  the truck up, and room for the load to be combined with something else already
+  going that way.
+
+The choice happens after the load is described, not when the code is scanned:
+until MaxDock knows the truck and the skids there is nothing to look a time up
+for. Then it runs the ordinary slot search — same capacity rules, same dock
+rules, same window at both ends of a Max-to-Max run — takes the first slot at or
+past the lead, and lands on Confirm. Nothing about the search was special-cased;
+if nothing is free that soon it says so and drops the person on the time step.
+
+`booking_templates` carries `auto_time` and `lead_minutes` (capped at 30 days).
+The date arithmetic went into `format.js` as `afterNow` and `isAtOrAfter`, where
+the architecture gate insists it lives — it caught the first version doing it
+inline.
+
+## The stylesheet is at its ceiling (2026-07-29)
+
+This batch needed about 1.5KB of new rules and the file budget is 80KB including
+comments. It fits, at 81.5KB of 81.9KB, by compressing a dozen of the longest
+comments and dropping two rules whose classes no longer exist (`.tlb__meta`,
+`.tlb__note`, `.who__role`). Declarations alone are around 54KB against their own
+60KB budget, so the binding limit is the prose, which the same architecture asks
+to be written. **Worth a decision from the owner:** raise the file budget to 96KB
+and keep the 60KB declaration budget as the real gate, or keep trimming comments
+by hand every time a feature needs three rules.

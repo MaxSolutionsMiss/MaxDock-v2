@@ -56,11 +56,44 @@ function labelEvery(spanMinutes, granularity) {
 // all. A ten-minute call on a phone is a coloured bar marking the time; half a
 // booking number spilling over the door below it is worse than a bar, and the
 // full details are one tap away either way.
+// Before anything is dropped, the lane is given the height the blocks actually
+// need. A field is not shown or not shown by whether it was ticked — it is shown
+// or not by whether the box is tall enough, and the box used to be a fixed four
+// lines. Two sites with the same fields ticked showed different amounts of them,
+// because a site with fewer docks had more leftover height to share out. Counting
+// the chosen fields is not enough either: in an hour-wide block the reference is
+// two lines on its own, so the lane is sized by measurement, not by arithmetic.
+function growLanes(root) {
+  const timeline = root.querySelector('.tl') || (root.classList?.contains('tl') ? root : null);
+  const blocks = [...root.querySelectorAll('.tlb')];
+  if (!timeline || !blocks.length) return;
+  // Measured from the top, not from the middle: a block centres its content, and
+  // content that overflows upward is not counted by scrollHeight — so a block
+  // needing twelve lines in a ten-line box reported eleven, and one line was
+  // dropped from a lane that had been grown to hold it.
+  for (const block of blocks) block.style.alignContent = 'start';
+  let needed = 0;
+  for (const block of blocks) {
+    const lineHeight = Number.parseFloat(getComputedStyle(block).lineHeight);
+    if (!lineHeight) continue;
+    const rows = Number(block.closest('.tl__lane')?.style.getPropertyValue('--rows')) || 1;
+    needed = Math.max(needed, Math.ceil(((block.scrollHeight + 6) * rows) / lineHeight));
+  }
+  for (const block of blocks) block.style.alignContent = '';
+  const asked = Number(timeline.dataset.lines) || 4;
+  // Capped: a fifteen-minute call is a sliver, and a lane tall enough to spell
+  // every fact out inside it would push the next dock off the screen.
+  timeline.style.setProperty('--tl-lines', String(Math.min(12, Math.max(asked, needed))));
+}
+
 export function fitTimelineBlocks(root) {
   if (!root) return;
   for (const block of root.querySelectorAll('.tlb')) {
+    for (const line of block.querySelectorAll('.tlb__l')) line.hidden = false;
+  }
+  growLanes(root);
+  for (const block of root.querySelectorAll('.tlb')) {
     const lines = [...block.querySelectorAll('.tlb__l')];
-    for (const line of lines) line.hidden = false;
     for (let index = lines.length - 1; index >= 0 && block.scrollHeight > block.clientHeight + 1; index -= 1) {
       lines[index].hidden = true;
     }
@@ -137,7 +170,20 @@ export function renderTimeline({ lanes, blocks, windowStart, windowEnd, granular
     </div>`;
   }).join('');
 
-  return `<div class="tl">
+  // A lane is as tall as the block that asks for the most lines. It used to be a
+  // fixed four, so a board with every field turned on quietly dropped everything
+  // past the fourth — and how many actually survived depended on how much space
+  // the lanes had left over, which is why one site showed more than another with
+  // the same fields ticked. Capped so a full set does not make one dock a screen
+  // tall; past that the panel scrolls, which it already does.
+  // One row of slack: in a narrow block the reference is two lines on its own, and
+  // a lane sized to the count exactly would drop the last fact to pay for it.
+  const wanted = blocks.reduce((most, block) => Math.max(most, (block.lines || []).filter(Boolean).length), 0);
+  const lineCount = Math.min(9, Math.max(3, wanted + 1));
+  // The hour sits in the middle of the hour it names. Anchored at the gridline it
+  // read as belonging to whatever was to its left.
+  const slot = (granularity * step / span) * 100;
+  return `<div class="tl" data-lines="${lineCount}" style="--tl-lines:${lineCount};--tl-slot:${slot}%">
     <div class="tl__ruler"><div class="tl__corner">Dock</div><div class="tl__scale">${scaleTicks.join('')}</div></div>
     <div class="tl__lanes">${laneMarkup}</div>
   </div>`;
