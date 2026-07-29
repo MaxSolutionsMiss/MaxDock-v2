@@ -60,6 +60,10 @@ const MODALS = {
     { name: 'appointment-details', trigger: '[data-open-record]' },
     { name: 'book-appointment', trigger: '[data-open-booking]', walkSteps: 5 },
     { name: 'notifications', trigger: '.notif__btn' },
+    // The printable card behind a saved booking: a QR, the run in words, and the
+    // link under it. Opened from inside the booking dialog, so the booking dialog
+    // has to be opened first.
+    { name: 'quick-book-shortcut', prepare: '[data-open-booking]', trigger: '[data-action="shortcut-template"]' },
   ],
   // The queue is a status screen, not a booking screen — it deliberately has no
   // Book appointment action.

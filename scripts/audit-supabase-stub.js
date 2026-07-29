@@ -106,7 +106,12 @@
     location_appointment_types: ['raw_material', 'finished_goods', 'wip', 'customer_pickup', 'return_rework', 'other'].map(appointment_type_code => ({ location_id: 'loc-1', appointment_type_code, is_active: true })),
     location_handling_types: [{ location_id: 'loc-1', handling_type_code: 'live_unload', is_active: true }, { location_id: 'loc-1', handling_type_code: 'drop_trailer', is_active: true }],
     dock_truck_types: [{ dock_id: 'dock-1', location_id: 'loc-1', truck_type_code: 'trailer_53' }],
-    booking_templates: [],
+    // One shared shortcut and one private one, so the quick-book list, the Shared
+// tag and the shortcut card are all measured rather than an empty region.
+    booking_templates: [
+      { id: 'tpl-1', owner_user_id: UID, location_id: 'loc-1', name: 'Mississauga to Guelph', is_shared: true, direction: 'outbound', requester_type: 'Guelph', company_name: 'Guelph', appointment_type_code: 'wip', truck_type_code: 'trailer_53', skid_count: 22, handling_type_code: 'live_load', is_priority: false, carrier_name: 'Day & Ross', preferred_start_time: null, preferred_end_time: null, created_at: iso(6), updated_at: iso(6) },
+      { id: 'tpl-2', owner_user_id: UID, location_id: 'loc-1', name: 'Weekly board run', is_shared: false, direction: 'inbound', requester_type: 'Customer', company_name: 'Haleon – Oakhill', appointment_type_code: 'raw_material', truck_type_code: 'trailer_48', skid_count: 10, handling_type_code: 'live_unload', is_priority: false, carrier_name: null, preferred_start_time: null, preferred_end_time: null, created_at: iso(6), updated_at: iso(6) },
+    ],
     user_notifications: [
       { id: 1, notification_type: 'appointment_booked', title: 'Appointment booked', message: 'MXD-2026-000141 was booked for Pickering at 08:00.', appointment_id: 'a2', read_at: null, created_at: iso(8) },
       { id: 2, notification_type: 'appointment_status', title: 'Appointment completed', message: 'MXD-2026-000142 was marked complete.', appointment_id: 'a3', read_at: iso(11), created_at: iso(11) },

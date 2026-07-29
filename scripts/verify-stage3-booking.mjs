@@ -55,6 +55,13 @@ if (!errors.length) {
   requireText(page, /get_appointment_check_in_token/, 'The check-in code must be read through its RPC.');
   requireText(details, /get_appointment_check_in_token/, 'Every appointment must offer its check-in code, not only a freshly booked one.');
   requireText(page, /combineReviewed/, 'The consolidation prompt must not ask again once the picker has been used.');
+  // A shortcut is a saved booking plus a way to reach it without a keyboard. The
+  // link is the booking page with a location and a template on it — the pair the
+  // page has understood since templates were built — and the QR is drawn here.
+  requireText(page, /function openShortcut/, 'The quick-book shortcut card is missing.');
+  requireText(page, /data-action="shortcut-template"/, 'Saved bookings offer no shortcut to print.');
+  requireText(page, /is_shared/, 'A shortcut for the wall has to be shareable beyond the person who saved it.');
+  if (/qrserver|chart\.googleapis/i.test(page)) errors.push('A shortcut QR must not be drawn by a third-party service.');
   requireText(page, /poll\.suspend\(SLOT_SUSPENSION\)/, 'The five-second poll is not suspended while the slot picker is open.');
   requireText(page, /poll\.resume\(SLOT_SUSPENSION\)/, 'The slot-picker poll suspension is not released.');
   requireText(page, /p_after_hours_confirmed:\s*isStaff\(\)/, 'After-hours confirmation is not guarded as staff-only.');

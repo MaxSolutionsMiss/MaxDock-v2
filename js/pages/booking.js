@@ -22,6 +22,8 @@ let hosts = null;
 let sameDayModal = null;
 let deleteTemplateModal = null;
 let deleteTemplateId = null;
+let shortcutModal = null;
+let shortcutUrl = '';
 let cleanup = [];
 
 function element(tag, className, text) {
@@ -110,6 +112,7 @@ function createInitialForm() {
     requester_name: clean(context.profile.full_name),
     requester_email: clean(context.profile.contact_email || context.user.email),
     template_name: '',
+    template_shared: false,
     repeat_on: false,
     repeat_days: [],
     repeat_interval_weeks: 1,
@@ -147,10 +150,12 @@ async function loadEnabledRows(mappingTable, codeColumn, masterTable, locationId
   return (rows || []).map(row => ({ ...byCode.get(row.code), ...row }));
 }
 
+// Your own templates and the shared ones for the sites you can see. The row-level
+// policy decides which of those you are allowed to read; this asks for both and
+// lets it answer, rather than trying to state the rule twice.
 async function loadTemplates() {
   return db.select('booking_templates', query => query
-    .select('id, owner_user_id, location_id, name, direction, requester_type, company_name, appointment_type_code, truck_type_code, skid_count, handling_type_code, is_priority, carrier_name, preferred_start_time, preferred_end_time, created_at, updated_at')
-    .eq('owner_user_id', context.user.id)
+    .select('id, owner_user_id, location_id, name, is_shared, direction, requester_type, company_name, appointment_type_code, truck_type_code, skid_count, handling_type_code, is_priority, carrier_name, preferred_start_time, preferred_end_time, created_at, updated_at')
     .order('updated_at', { ascending: false }), {
     key: `booking:templates:${context.user.id}`,
     cache: 30000,
@@ -252,6 +257,26 @@ function buildShell() {
         </div>
       </section>
     </div>
+    <div class="scrim" data-shortcut-modal hidden aria-hidden="true">
+      <section class="modal modal--sm" role="dialog" aria-modal="true" aria-labelledby="shortcut-title">
+        <div class="modal__head"><div><h2 class="modal__title" id="shortcut-title" data-shortcut-name>Shortcut</h2><p class="modal__sub" data-shortcut-sub></p></div><button class="modal__x" type="button" data-action="dismiss-shortcut" aria-label="Close">×</button></div>
+        <div class="modal__body">
+          <div class="shortcut" data-shortcut-card>
+            <div class="qr-frame" data-shortcut-qr></div>
+            <div class="shortcut__body">
+              <div class="shortcut__title" data-shortcut-heading></div>
+              <div class="shortcut__det" data-shortcut-detail></div>
+              <p class="hint hint--flush">Scan to open MaxDock with this booking already filled in. Sign in once on the phone and it opens straight to the form.</p>
+            </div>
+          </div>
+          <p class="hint hint--wide" data-shortcut-url></p>
+        </div>
+        <div class="modal__foot">
+          <button class="btn btn--quiet" type="button" data-action="copy-shortcut">Copy link</button>
+          <button class="btn btn--primary" type="button" data-action="print-shortcut">Print</button>
+        </div>
+      </section>
+    </div>
     <div class="scrim" data-template-delete-modal hidden aria-hidden="true">
       <section class="modal" role="dialog" aria-modal="true" aria-labelledby="template-delete-title">
         <div class="modal__head"><div><h2 class="modal__title" id="template-delete-title">Delete this booking template?</h2></div></div>
@@ -271,6 +296,7 @@ function buildShell() {
     consolidationBackdrop: root.querySelector('[data-consolidation-modal]'),
     consolidationList: root.querySelector('[data-consolidation-list]'),
     deleteBackdrop: root.querySelector('[data-template-delete-modal]'),
+    shortcutBackdrop: root.querySelector('[data-shortcut-modal]'),
   };
 
   root.querySelector('[data-action="close-booking"]').addEventListener('click', () => context.onClose?.());
@@ -282,6 +308,9 @@ function buildShell() {
   });
   deleteTemplateModal = createModal(hosts.deleteBackdrop, {
     initialFocus: '[data-action="dismiss-template-delete"]',
+  });
+  shortcutModal = createModal(hosts.shortcutBackdrop, {
+    initialFocus: '[data-action="print-shortcut"]',
   });
 }
 
@@ -350,14 +379,16 @@ async function renderCheckInCode(result) {
 
 function renderQuickRebook() {
   if (!state.reference.templates.length) return '';
-  const items = state.reference.templates.slice(0, 4).map(template => {
+  const items = state.reference.templates.slice(0, 6).map(template => {
     const location = context.locations.find(item => item.id === template.location_id);
-    return `<div class="rebook"><div class="integ__ico">${template.name.slice(0, 1).toUpperCase()}</div>
-      <div class="rebook__body"><div class="rebook__ref">${template.name}</div><div class="rebook__det">${location?.name || 'Location'} · ${selectedName(state.reference.truckTypes, template.truck_type_code, template.truck_type_code)}</div></div>
-      <button class="btn btn--primary btn--sm" type="button" data-action="use-template" data-template-id="${template.id}">Use</button>
-      <button class="btn btn--quiet btn--sm" type="button" data-action="delete-template" data-template-id="${template.id}">Delete</button></div>`;
+    const mine = template.owner_user_id === context.user.id;
+    return `<div class="rebook"><div class="integ__ico">${escapeHtml(template.name.slice(0, 1).toUpperCase())}</div>
+      <div class="rebook__body"><div class="rebook__ref">${escapeHtml(template.name)}${template.is_shared ? ' <span class="tag tag--ok">Shared</span>' : ''}</div><div class="rebook__det">${escapeHtml(location?.name || 'Location')} · ${escapeHtml(selectedName(state.reference.truckTypes, template.truck_type_code, template.truck_type_code))} · ${Number(template.skid_count || 0)} skids</div></div>
+      <button class="btn btn--primary btn--sm" type="button" data-action="use-template" data-template-id="${escapeHtml(template.id)}">Use</button>
+      <button class="btn btn--quiet btn--sm" type="button" data-action="shortcut-template" data-template-id="${escapeHtml(template.id)}">Shortcut</button>
+      ${mine ? `<button class="btn btn--quiet btn--sm" type="button" data-action="delete-template" data-template-id="${escapeHtml(template.id)}">Delete</button>` : ''}</div>`;
   }).join('');
-  return `<div class="grouplabel">Quick rebook — saved templates</div><div>${items}</div><p class="hint">Use a template to prefill this booking, then continue through the steps.</p>`;
+  return `<div class="grouplabel">Quick book — saved shortcuts</div><div>${items}</div><p class="hint">Use fills this booking in from the shortcut. Shortcut prints a QR code to post by the shipping desk — scanning it opens this form already filled in.</p>`;
 }
 
 function renderLoadStep() {
@@ -680,8 +711,9 @@ function renderConfirmStep() {
       <label class="field field--full"><span class="field__label">Notes <span class="field__opt">optional</span></span><textarea class="input" data-field="notes" maxlength="1000" rows="2" placeholder="Handling instructions only — no passwords or personal information."></textarea></label>
     </div>
     <div class="frow">
-      <label class="field field--full"><span class="field__label">Save as template <span class="field__opt">optional</span></span><input class="input" data-field="template_name" maxlength="80" placeholder="Name it to save these load and vehicle details"></label>
-    </div>`;
+      <label class="field field--full"><span class="field__label">Save as a shortcut <span class="field__opt">optional</span></span><input class="input" data-field="template_name" maxlength="80" placeholder="Name it — “Mississauga to Guelph”, “Weekly board run”"></label>
+    </div>
+    ${isStaff() ? `<label class="check-row"><input type="checkbox" data-field="template_shared" ${state.form.template_shared ? 'checked' : ''}><span><strong>Share it with everyone at this site</strong><small>A shared shortcut can be used by anyone here and printed as a QR code for the wall. Only you can change or delete it.</small></span></label>` : ''}`;
 
   const grid = hosts.step.querySelector('[data-confirm-grid]');
   // Two columns of label-and-value pairs rather than one full-width row each: the
@@ -1169,6 +1201,7 @@ async function saveTemplate() {
     carrier_name: clean(state.form.carrier_name) || null,
     preferred_start_time: state.form.preferred_start_time || null,
     preferred_end_time: state.form.preferred_end_time || null,
+    is_shared: isStaff() && Boolean(state.form.template_shared),
   };
   const saved = await db.insert('booking_templates', values, {
     key: `booking:template:save:${crypto.randomUUID()}`,
@@ -1344,6 +1377,59 @@ function applyTemplate(template) {
   toast(`Template “${template.name}” loaded.`, 'success');
 }
 
+// A shortcut is a saved booking plus a way to reach it without a keyboard.
+//
+// The link is the booking page with the location and the template on it — the
+// page has understood that pair since templates were built, so nothing new has
+// to be trusted. The QR is drawn in this browser from that link; no appointment
+// data and no identifier leaves the machine to make it.
+function openShortcut(template, trigger) {
+  if (!template) return;
+  const location = context.locations.find(item => item.id === template.location_id);
+  const url = new URL('book.html', globalThis.location.href);
+  url.searchParams.set('location', template.location_id);
+  url.searchParams.set('template', template.id);
+  shortcutUrl = url.href;
+
+  const truck = selectedName(state.reference.truckTypes, template.truck_type_code, template.truck_type_code);
+  const type = selectedName(state.reference.appointmentTypes, template.appointment_type_code, template.appointment_type_code);
+  const party = clean(template.company_name) || clean(template.requester_type) || 'Not named';
+  const route = clean(template.direction).toLowerCase() === 'outbound'
+    ? `${location?.name || 'Here'} → ${party}`
+    : `${party} → ${location?.name || 'Here'}`;
+
+  hosts.shortcutBackdrop.querySelector('[data-shortcut-name]').textContent = template.name;
+  hosts.shortcutBackdrop.querySelector('[data-shortcut-sub]').textContent = template.is_shared
+    ? 'Shared with everyone at this site'
+    : 'Yours only — turn on sharing to let others use it';
+  hosts.shortcutBackdrop.querySelector('[data-shortcut-heading]').textContent = route;
+  hosts.shortcutBackdrop.querySelector('[data-shortcut-detail]').textContent =
+    `${type} · ${truck} · ${Number(template.skid_count || 0)} skids`;
+  hosts.shortcutBackdrop.querySelector('[data-shortcut-url]').textContent = shortcutUrl;
+  renderQr(hosts.shortcutBackdrop.querySelector('[data-shortcut-qr]'), shortcutUrl, {
+    label: `Quick book shortcut for ${template.name}`,
+  });
+  shortcutModal.open({ trigger });
+}
+
+// Printed from its own window rather than by printing the page behind it: the
+// dock board is not what anybody is taping to a wall. The card carries the same
+// markup and the same stylesheet, so what comes out of the printer is what was
+// on screen.
+function printShortcut() {
+  const card = hosts.shortcutBackdrop.querySelector('[data-shortcut-card]');
+  const popup = globalThis.open('', 'maxdock-shortcut', 'popup=yes,width=720,height=560');
+  if (!popup) { toast('Allow pop-ups to print the shortcut.', 'error'); return; }
+  const href = new URL('../assets/maxdock.css', import.meta.url).href;
+  popup.document.open();
+  popup.document.write(`<!doctype html><html lang="en"><head><meta charset="utf-8">
+    <title>MaxDock quick book shortcut</title>
+    <link rel="stylesheet" href="${escapeHtml(href)}"></head>
+    <body class="shortcut-print"><div class="shortcut">${card.innerHTML}</div></body></html>`);
+  popup.document.close();
+  popup.addEventListener('load', () => { popup.focus(); popup.print(); });
+}
+
 async function removeTemplate() {
   const id = deleteTemplateId;
   if (!id) return;
@@ -1473,6 +1559,19 @@ async function handleAction(button) {
     state.sameDayAccepted = true;
     sameDayModal.close();
     await submitBooking();
+  } else if (action === 'shortcut-template') {
+    openShortcut(state.reference.templates.find(template => template.id === button.dataset.templateId), button);
+  } else if (action === 'dismiss-shortcut') {
+    shortcutModal.close();
+  } else if (action === 'copy-shortcut') {
+    try {
+      await navigator.clipboard.writeText(shortcutUrl);
+      toast('Shortcut link copied.', 'success');
+    } catch {
+      toast('The shortcut link could not be copied.', 'error');
+    }
+  } else if (action === 'print-shortcut') {
+    printShortcut();
   } else if (action === 'use-template') {
     applyTemplate(state.reference.templates.find(template => template.id === button.dataset.templateId));
   } else if (action === 'delete-template') {
@@ -1601,6 +1700,7 @@ const page = {
     poll.resume(SLOT_SUSPENSION);
     sameDayModal?.destroy();
     deleteTemplateModal?.destroy();
+    shortcutModal?.destroy();
     for (const fn of cleanup.splice(0)) fn();
     context = null;
     state = null;

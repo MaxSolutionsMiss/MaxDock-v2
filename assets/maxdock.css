@@ -312,6 +312,16 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 /* The code beside what it is for, rather than a panel of its own. Smaller than
    the confirmation's copy and left-aligned, because here it sits inside a list
    of facts rather than being the point of the screen. */
+/* The card that gets printed and taped to a wall: a code big enough to scan from
+   arm's length and, beside it, the run it books in words — because somebody has
+   to be able to tell one card from another without a phone. */
+.shortcut{display:flex;align-items:center;gap:var(--s4);flex-wrap:wrap;padding:var(--s4);border:1px solid var(--rule-strong);border-radius:var(--radius-lg);background:var(--surface)}
+.shortcut .qr-frame{flex:none;width:180px;margin:0}
+.shortcut__body{min-width:0;flex:1 1 220px}
+.shortcut__title{font-size:calc(var(--t-base) * 1.15);font-weight:700}
+.shortcut__det{color:var(--ink-muted);font-size:var(--t-small);margin:var(--s1) 0 var(--s2)}
+.shortcut-print{padding:var(--s5);background:var(--surface)}
+.shortcut-print .shortcut{border-width:2px}
 .qrblock{display:flex;align-items:center;gap:var(--s4);flex-wrap:wrap;padding:var(--s3) 0;border-top:1px solid var(--rule);border-bottom:1px solid var(--rule)}
 .qrblock .qr-frame{flex:none;width:150px;margin:0}
 .qrblock>div{min-width:0;flex:1 1 220px}

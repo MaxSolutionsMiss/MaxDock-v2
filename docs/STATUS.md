@@ -880,3 +880,32 @@ move anything — it grows the thing.**
 Fields governed by a switch above them also needed to read as a group under it
 rather than a line crammed against a rule, so a `.frow` following a `.setrow`
 carries the section gap.
+
+## Quick book: a booking you can scan (2026-07-28)
+
+Mississauga sends to Guelph every week and somebody fills the same form every
+time. The shortcut is that form, saved, with a way to reach it that needs no
+keyboard: a printed card carrying a QR code, the run in words, and the load it
+books. Scan it at the shipping desk and the wizard opens with the direction,
+counterpart, appointment type, truck, skid count, handling and carrier already
+in — type the count if it differs, pick a time, done.
+
+Almost none of this is new machinery. `booking_templates` has existed since
+Stage 3 and the booking page has understood `book.html?location=…&template=…`
+just as long. What was missing was two things.
+
+**A shortcut on a wall has to work for whoever scans it.** Templates were private
+to whoever saved them, which is right for "my usual booking" and useless for a
+card taped beside the desk. `is_shared` makes one readable by everyone with
+access to the location, while update and delete stay with the owner — sharing is
+not handing it over. The select policy asks the database which templates you may
+read rather than the page trying to state the rule a second time.
+
+**And the card itself.** The QR is drawn in the browser from the link, the same
+way the check-in code is: no appointment data and no identifier is sent anywhere
+to make a picture. Print opens a window containing the card and the stylesheet
+and prints that, rather than printing the dock board behind it.
+
+Verified end to end at phone width by loading the scanned URL directly: the form
+came up with the WIP appointment type, 22 skids, outbound, Max-to-Max to Guelph,
+and said which shortcut it had loaded.
