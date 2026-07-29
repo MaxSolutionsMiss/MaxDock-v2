@@ -61,6 +61,13 @@ if (!errors.length) {
   require_(settings, /function groupWindows/, 'Stored direction windows are not grouped for display.');
   require_(settings, /function expandWindows/, 'A window with several docks or days is not expanded back into rows.');
   require_(settings, /data-window-dock[^>]*type="checkbox"|type="checkbox" data-window-dock/, 'Docks on a direction window must be a tick list, not one dock.');
+
+  // Add dock, Edit dock and Add truck type open their own dialogs and save on
+  // their own, so the window's lock has nothing to do with them. Locking them was
+  // the first thing the lock got wrong.
+  require_(settings, /data-unlocked data-add-dock/, 'Add dock must stay usable while the dock table is locked.');
+  require_(settings, /data-unlocked data-add-truck-type/, 'The truck types section has no way to add one.');
+  require_(settings, /function submitTruckType/, 'Adding a truck type does not save anything.');
 }
 
 if (errors.length) {

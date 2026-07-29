@@ -82,6 +82,7 @@ const MODALS = {
   // opened before the control exists.
   settings: [
     { name: 'add-dock', prepare: '[data-section="docks"]', trigger: '[data-add-dock]' },
+    { name: 'add-truck-type', prepare: '[data-section="trucks"]', trigger: '[data-add-truck-type]' },
     { name: 'new-quick-qr', prepare: '[data-section="quickqr"]', trigger: '[data-add-shortcut]' },
     // The printable card: a code, the run in words and the link under it.
     { name: 'quick-qr-card', prepare: '[data-section="quickqr"]', trigger: '[data-print-shortcut]' },

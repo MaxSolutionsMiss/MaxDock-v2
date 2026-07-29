@@ -160,7 +160,10 @@ function applyLocks() {
     if (!foot) continue;
     const editing = state.editing.has(form.dataset.sectionForm);
     for (const control of form.querySelectorAll('input,select,textarea,button')) {
-      if (foot.contains(control)) continue;
+      // A control that opens its own dialog and saves on its own is not part of
+      // this window's Save, so the lock has nothing to do with it — Add dock is
+      // still Add dock while the in-service switches beside it are locked.
+      if (foot.contains(control) || control.hasAttribute('data-unlocked')) continue;
       if (editing) control.disabled = control.dataset.lockedWas === '1';
       else {
         control.dataset.lockedWas = control.disabled ? '1' : '0';
@@ -444,13 +447,13 @@ function renderDocks() {
     <td>${escapeHtml(dock.direction_mode === 'both' ? 'Both' : format.role(dock.direction_mode))}</td>
     <td><button type="button" class="switch ${dock.is_active ? '' : 'switch--off'}" data-dock-active aria-pressed="${Boolean(dock.is_active)}" aria-label="${escapeHtml(dock.name)} in service" ${canEditDocks ? '' : 'disabled'}></button></td>
     <td class="data cell-cap" title="${escapeHtml(dockTruckLabels(dock.id))}">${escapeHtml(dockTruckLabels(dock.id))}</td>
-    <td>${canEditDocks ? `<button class="btn btn--quiet btn--sm" type="button" data-edit-dock="${dock.id}">Edit</button>` : ''}</td>
+    <td>${canEditDocks ? `<button class="btn btn--quiet btn--sm" type="button" data-unlocked data-edit-dock="${dock.id}">Edit</button>` : ''}</td>
   </tr>`).join('') || '<tr><td colspan="5" class="data">No docks configured for this location.</td></tr>';
 
   // Five short columns, so the table is sized to them. Left to fill the panel the
   // Edit button ended up a hand's width from the truck types it edits.
   return `<form class="card card--table" data-section-form="docks">
-      <h3 class="card__title">Docks${canEditDocks ? '<button class="btn btn--primary btn--sm at-end" type="button" data-add-dock>Add dock</button>' : ''}</h3>
+      <h3 class="card__title">Docks${canEditDocks ? '<button class="btn btn--primary btn--sm at-end" type="button" data-unlocked data-add-dock>Add dock</button>' : ''}</h3>
       <div class="tablewrap"><table class="table"><thead><tr><th>Dock</th><th>Direction</th><th>In service</th><th>Truck types</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
       <p class="hint">Add dock and Edit save on their own. Save below applies the in-service switches.</p>
       ${saveFoot(canEditDocks)}
@@ -469,8 +472,11 @@ function renderTruckTypes() {
       </div>
     </div>`;
   }).join('');
+  // A truck type is a company-wide code, so only a System Admin makes one — which
+  // is also what the database allows. The rest of the section is per-location.
+  const canAdd = state.context?.profile?.role_code === 'system_admin';
   return `<form class="card card--table" data-section-form="truck-types">
-      <h3 class="card__title">Truck types enabled at this location</h3>
+      <h3 class="card__title">Truck types enabled at this location${canAdd ? '<button class="btn btn--primary btn--sm at-end" type="button" data-unlocked data-add-truck-type>Add truck type</button>' : ''}</h3>
       ${truckRows}
       <p class="hint">Setup minutes here override the truck type's default for this location only. Skids per truck is under Capacity.</p>
       ${saveFoot(state.canManage)}
@@ -898,6 +904,51 @@ function openShortcutModal(shortcutId) {
   state.shortcutModal.open();
 }
 
+// A new truck type is two things: the company-wide code, and this site switched
+// on for it. Made together, because a type nobody can book is not what "add a
+// truck type" means to the person adding one.
+function truckCode(name) {
+  return String(name).toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '').slice(0, 40);
+}
+
+async function submitTruckType(event) {
+  event.preventDefault();
+  const form = state.elements.truckForm;
+  const data = new FormData(form);
+  const name = String(data.get('name') || '').trim();
+  const code = truckCode(name);
+  if (!code) { toast('Give the truck type a name.', 'error'); return; }
+  if (state.truckTypes.some(type => type.code === code)) {
+    toast(`There is already a truck type called ${name}.`, 'error');
+    return;
+  }
+  const setup = Number(data.get('default_setup_minutes') || 0);
+  try {
+    await db.insert('truck_types', {
+      code,
+      name,
+      default_setup_minutes: setup,
+      qualifies_as_full_truck: data.get('qualifies_as_full_truck') === 'on',
+      sort_order: state.truckTypes.length + 1,
+      is_active: true,
+    }, { select: false });
+    await db.insert('location_truck_types', {
+      location_id: state.locationId,
+      truck_type_code: code,
+      setup_minutes: setup,
+      is_active: true,
+    }, { select: false });
+    db.invalidate('truck-types:active');
+    db.invalidate(`settings:location-truck-types:${state.locationId}`);
+    state.truckModal.close();
+    await fetchAll();
+    renderPanel();
+    toast(`${name} added and switched on here.`, 'success');
+  } catch (error) {
+    toast(error.userMessage || 'The truck type could not be added.', 'error');
+  }
+}
+
 async function submitShortcut(event) {
   event.preventDefault();
   const form = state.elements.shortcutForm;
@@ -1002,6 +1053,25 @@ function buildShell(root) {
           <div class="modal__foot"><button class="btn btn--quiet" type="button" data-close-shortcut>Cancel</button><button class="btn btn--primary" type="submit">Save code</button></div>
         </form>
       </section>
+    </div>
+    <div class="scrim" data-truck-backdrop hidden aria-hidden="true">
+      <section class="modal modal--md" role="dialog" aria-modal="true" aria-labelledby="truck-modal-title">
+        <div class="modal__head"><div><h2 class="modal__title" id="truck-modal-title">Add a truck type</h2><p class="modal__sub">A truck type is shared by every Max Solutions site. This one is switched on here.</p></div><button class="modal__x" type="button" data-close-truck aria-label="Close">×</button></div>
+        <form data-truck-form>
+          <div class="modal__body">
+            <div class="frow">
+              <label class="field field--lg"><span class="field__label">Name<span class="field__req" aria-hidden="true">*</span></span><input class="input" name="name" maxlength="60" required placeholder="40 ft flatbed"></label>
+              <div class="field field--num"><span class="field__label">Setup</span><span class="inputwrap"><input class="input" type="number" name="default_setup_minutes" min="0" value="0"><span class="input__unit">min</span></span></div>
+            </div>
+            <fieldset class="dock-checks dock-checks--roomy">
+              <legend>Counts as</legend>
+              <label class="dock-check"><input type="checkbox" name="qualifies_as_full_truck"><span>A full truck, so the full-truck minimum applies</span></label>
+            </fieldset>
+            <p class="hint hint--wide">How many skids it holds is set per site under Capacity, because the same trailer is loaded differently at different sites.</p>
+          </div>
+          <div class="modal__foot"><button class="btn btn--quiet" type="button" data-close-truck>Cancel</button><button class="btn btn--primary" type="submit">Add truck type</button></div>
+        </form>
+      </section>
     </div>`;
   state.elements = {
     root,
@@ -1012,9 +1082,12 @@ function buildShell(root) {
     dockForm: root.querySelector('[data-dock-form]'),
     shortcutBackdrop: root.querySelector('[data-shortcut-backdrop]'),
     shortcutForm: root.querySelector('[data-shortcut-form]'),
+    truckBackdrop: root.querySelector('[data-truck-backdrop]'),
+    truckForm: root.querySelector('[data-truck-form]'),
   };
   state.dockModal = createModal(state.elements.dockBackdrop, { onRequestClose: () => state.dockModal.close() });
   state.shortcutModal = createModal(state.elements.shortcutBackdrop, { onRequestClose: () => state.shortcutModal.close() });
+  state.truckModal = createModal(state.elements.truckBackdrop, { onRequestClose: () => state.truckModal.close() });
   state.shortcutCard = createShortcutCard();
 }
 
@@ -1173,6 +1246,9 @@ function wireEvents(root) {
       return;
     }
     if (event.target.closest('[data-close-shortcut]')) { state.shortcutModal.close(); return; }
+    const addTruck = event.target.closest('[data-add-truck-type]');
+    if (addTruck) { state.elements.truckForm.reset(); state.truckModal.open({ trigger: addTruck }); return; }
+    if (event.target.closest('[data-close-truck]')) { state.truckModal.close(); return; }
     if (event.target.closest('[data-add-dock]')) { openDockModal(null); return; }
     const editDock = event.target.closest('[data-edit-dock]');
     if (editDock) { openDockModal(editDock.dataset.editDock); return; }
@@ -1183,6 +1259,7 @@ function wireEvents(root) {
   });
   state.elements.dockForm.addEventListener('submit', submitDock);
   state.elements.shortcutForm.addEventListener('submit', submitShortcut);
+  state.elements.truckForm.addEventListener('submit', submitTruckType);
 }
 
 const page = {
@@ -1201,7 +1278,7 @@ const page = {
     switchSection(state.section);
   },
   refresh() {},
-  destroy() { state.dockModal?.destroy(); state.shortcutModal?.destroy(); state.shortcutCard?.destroy(); },
+  destroy() { state.dockModal?.destroy(); state.shortcutModal?.destroy(); state.truckModal?.destroy(); state.shortcutCard?.destroy(); },
 };
 
 startPage(page);

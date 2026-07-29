@@ -1146,3 +1146,20 @@ minutes, because the 53 ft trailer qualifies as a full truck and the full-truck
 minimum floors the per-skid arithmetic. That is the redundancy the owner suspected
 in Timing & duration — the number is doing all the work and the per-skid rate is
 doing none.
+
+## Add a truck type, and what the lock does not touch (2026-07-29)
+
+The lock's first mistake: Add dock was inside the docks form, so locking the form
+locked the button that opens a dialog which saves on its own. Anything marked
+`data-unlocked` is exempt — Add dock, Edit dock, Add truck type — because none of
+them are part of that window's Save. The audit caught it before the owner did:
+`modal-trigger-unreachable · [data-add-dock] could not be clicked`.
+
+**Truck types now has Add truck type**, System Admin only, which is also what the
+database allows: `truck_types` is company-wide and its RLS policy is
+`is_system_admin()`. The dialog takes a name, setup minutes and whether it counts
+as a full truck; the code is derived from the name and checked against the ones
+that already exist. Saving writes the company-wide type and switches this site on
+for it in the same go, because a type nobody can book is not what "add a truck
+type" means. How many skids it holds stays under Capacity, where it belongs — the
+same trailer is loaded differently at different sites.
