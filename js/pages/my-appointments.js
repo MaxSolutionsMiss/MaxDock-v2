@@ -425,8 +425,15 @@ function createAppointmentCard(record) {
     const past = !isUpcoming(nextRecord);
     const why = closed ? `Already ${statusLabel(nextStatus).toLowerCase()}` : past ? 'This appointment has passed' : '';
     cancel.hidden = !activeContext?.can('appointment.cancel_own');
-    move.hidden = !activeContext?.can('appointment.create');
-    for (const [button, label] of [[cancel, 'Cancel appointment'], [move, 'Move to another time']]) {
+    // Whoever booked it may change it — vendor, customer, coordinator alike.
+    // Every row on this page is the signed-in account's own booking, so holding
+    // any of the permissions that let an account make or withdraw its own load is
+    // the same thing as being allowed to correct it. Gating on appointment.create
+    // alone would hide the control from an account that can cancel its booking
+    // but not raise a new one, which is a stranger rule than it sounds.
+    move.hidden = !['appointment.create', 'appointment.cancel_own', 'appointment.update']
+      .some(permission => activeContext?.can(permission));
+    for (const [button, label] of [[cancel, 'Cancel appointment'], [move, 'Edit appointment']]) {
       button.disabled = Boolean(why);
       button.title = why || label;
       button.setAttribute('aria-label', why ? `${label} — ${why.toLowerCase()}` : label);
