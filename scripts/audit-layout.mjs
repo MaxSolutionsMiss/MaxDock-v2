@@ -723,7 +723,9 @@ for (const textSize of ROLE_TEXT_SIZES) {
 // The sidebar closed. It is a second layout for every page — 132px of width comes
 // back and the rail's own contents change — so it is swept like any other, rather
 // than trusted because the width sweep passed with the rail open.
-const RAIL_PAGES = FAST ? ['board', 'queue'] : PAGES;
+// Receiving is the kiosk screen a driver scans into. It has no rail to close, so
+// it is not swept for one.
+const RAIL_PAGES = (FAST ? ['board', 'queue'] : PAGES).filter(name => name !== 'receiving');
 for (const name of RAIL_PAGES) {
   const context = await browser.newContext({ viewport: { width: 1280, height: 900 }, timezoneId: 'America/Toronto', locale: 'en-CA' });
   await context.addInitScript(STUB);

@@ -1153,6 +1153,29 @@ function renderCombinePicker() {
     ${selectedMatches().length ? `${fullnessBar(combinedSkids(), truckCapacity())}<p class="inline-note${overCapacity ? ' inline-note--warning' : ''}">${escapeHtml(combineSummary())}</p>` : ''}`;
 }
 
+// What has to happen whenever the set of ticked loads changes, however it changed:
+// the truck is now carrying more, so it needs a longer window, so the times have
+// to be asked for again. Returns the warning to show, or '' when there is none.
+// The chosen time is re-checked rather than thrown away — clearing it silently
+// sent the user back to the time step with nothing selected and no idea why.
+async function recheckCombinedSlots() {
+  if (state.form.after_hours) {
+    renderCombinePicker();
+    return '';
+  }
+  const wanted = state.form.selected_slot?.slot_start || null;
+  clearSlotSelection();
+  const slots = await findSlots({ keepCombinable: true });
+  if (!wanted) return '';
+  const stillThere = slots.find(slot => slot.slot_start === wanted);
+  if (stillThere) {
+    state.form.selected_slot = stillThere;
+    renderTimeStep();
+    return '';
+  }
+  return `${combinedSkids()} skids no longer fits at that time. Choose another time below.`;
+}
+
 async function toggleCombine(key, checked) {
   state.combineSelected = checked
     ? [...new Set([...state.combineSelected, key])]
@@ -1161,24 +1184,8 @@ async function toggleCombine(key, checked) {
   // again at the end. It used to, which put the user in a loop: choose loads,
   // come back, get asked the same question, choose loads again.
   state.combineReviewed = true;
-  if (state.form.after_hours) {
-    renderCombinePicker();
-    return;
-  }
-  // The times are re-fetched for the combined load, so the chosen one has to be
-  // re-checked rather than thrown away. Clearing it silently sent the user back
-  // to the time step with nothing selected and no idea why.
-  const wanted = state.form.selected_slot?.slot_start || null;
-  clearSlotSelection();
-  const slots = await findSlots({ keepCombinable: true });
-  if (!wanted) return;
-  const stillThere = slots.find(slot => slot.slot_start === wanted);
-  if (stillThere) {
-    state.form.selected_slot = stillThere;
-    renderTimeStep();
-  } else {
-    setMessage(`${combinedSkids()} skids no longer fits at that time. Choose another time below.`);
-  }
+  const warning = await recheckCombinedSlots();
+  if (warning) setMessage(warning);
 }
 
 async function saveTemplate() {
@@ -1547,13 +1554,27 @@ async function handleAction(button) {
     // Back to the Time step, where the loads are listed with a tick box beside
     // each one. It used to land on step one with nothing to tick and a red line
     // telling the user to work it out themselves.
+    //
+    // The loads the prompt just asked about arrive ticked. Pressing this button
+    // is the answer "combine them" — it landed on an unticked list, and pressing
+    // Book again booked separately without asking, because the question counted
+    // as answered. The booking succeeded, so it read as a successful combine
+    // while both trucks stayed on the board. Unticking is still there for anyone
+    // who wants only some of them.
     sameDayModal.close();
     state.sameDayAccepted = false;
     state.combineReviewed = true;
+    state.combineSelected = [...new Set([...state.combineSelected, ...(state.sameDayMatches || []).map(matchKey)])];
     state.step = 2;
     state.maxStep = Math.max(state.maxStep, 4);
     renderAll();
-    setMessage('');
+    // Ticked loads mean a longer truck window, so the times are asked for again
+    // here exactly as they are when a box is ticked by hand.
+    const warning = await recheckCombinedSlots();
+    const count = selectedMatches().length;
+    setMessage(warning || (count
+      ? `${count} load${count === 1 ? '' : 's'} ticked to travel on this truck. Untick anything that should stay on its own, then book.`
+      : ''));
     hosts.step.querySelector('[data-combine]')?.focus();
   } else if (action === 'continue-separately') {
     state.sameDayAccepted = true;

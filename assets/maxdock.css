@@ -63,11 +63,19 @@ html[data-rail="mini"]{--rail-w:64px}
   .rail__icon{width:20px;height:20px}
   .rail__foot{display:none}
 }
-/* The one control that must not move when it is used, so it lives at the head of
-   the top bar in both states rather than inside the panel it closes. */
-.top__rail{width:var(--ctl-h);height:var(--ctl-h);flex:none;display:grid;place-items:center;border:none;background:none;border-radius:var(--radius);color:var(--ink-muted);cursor:pointer}
-.top__rail svg{width:19px;height:19px;stroke:currentColor;fill:none;stroke-width:1.7}
-.top__rail:hover{background:var(--wash);color:var(--ink)}
+/* Closing the sidebar belongs to the sidebar: on the brand row beside the
+   wordmark, level with the top bar next to it, quiet enough not to compete with
+   the logo. Closed, this and the mark are the whole row, so the way back out is
+   where the way in was. */
+.rail__top{display:flex;align-items:center;height:var(--topbar-h);border-bottom:1px solid var(--rail-rule);flex:none}
+.rail__top .rail__brand{flex:1;min-width:0;border-bottom:none;height:auto}
+.rail__collapse{width:30px;height:30px;margin-right:var(--s2);flex:none;display:grid;place-items:center;border:none;background:none;border-radius:var(--radius);color:var(--rail-label);cursor:pointer}
+.rail__collapse svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.7}
+.rail__collapse:hover{background:rgba(255,255,255,.08);color:#fff}
+@container rail (max-width:120px){
+  .rail__top{flex-direction:column;height:auto;padding:var(--s2) 0 var(--s1)}
+  .rail__collapse{margin:2px 0 0}
+}
 
 .main{display:flex;flex-direction:column;overflow:hidden;min-width:0}
 .top{height:var(--topbar-h);background:var(--surface);border-bottom:1px solid var(--rule);display:flex;align-items:center;gap:var(--s4);padding:0 var(--s5);flex:none}
@@ -87,7 +95,12 @@ html[data-rail="mini"]{--rail-w:64px}
 .notif__btn{width:var(--ctl-h);height:var(--ctl-h);border:1px solid var(--rule-strong);background:var(--surface);border-radius:var(--radius);cursor:pointer;color:var(--ink-muted);display:grid;place-items:center;position:relative}
 .notif__btn:hover{color:var(--ink);background:var(--surface-sunk)}
 .notif__btn svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
-.notif__dot{position:absolute;top:-5px;right:-5px;min-width:16px;height:16px;padding:0 4px;border-radius:9px;background:var(--stop);color:#fff;font-size:var(--t-micro);font-weight:700;display:grid;place-items:center;line-height:1}
+/* The count sits dead centre of its circle. Centring a line box is not the same
+   as centring a digit: the box reserves room under the baseline for descenders,
+   which digits do not use, so the number rode high. The box is collapsed to the
+   digit itself (line-height:1) and then centred, with the inherited letter
+   spacing cleared so the gap after the last digit cannot push it left. */
+.notif__dot{position:absolute;top:-5px;right:-5px;min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:var(--stop);color:#fff;font-size:var(--t-micro);font-weight:700;letter-spacing:0;text-indent:0;font-variant-numeric:tabular-nums;display:flex;align-items:center;justify-content:center;line-height:1;padding-top:1px}
 /* The list scrolls inside the panel rather than growing the panel: twenty
    notifications made a dialog taller than the screen with its buttons off the
    bottom. Two thirds of the window is the ceiling. */
@@ -1065,7 +1078,7 @@ body.modal-open{overflow:hidden}
      rules, and the collapsed treatment comes from the rail's own container
      query. Nothing to toggle here, so the control is not offered. */
   :root{--rail-w:60px}
-  .top__rail{display:none}
+  .rail__collapse{display:none}
   .page{padding:var(--s3) var(--s3) var(--s4)}
   .controls{grid-template-columns:1fr}
   .controls__lead,.controls__filters,.controls__end{grid-column:1}
