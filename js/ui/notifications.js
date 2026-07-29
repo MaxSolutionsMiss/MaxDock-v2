@@ -105,17 +105,22 @@ export function createNotificationBell(context) {
   const sub = backdrop.querySelector('[data-notif-sub]');
   const badge = button.querySelector('[data-notif-count]');
 
-  // The dot beside a notice is the colour that status already is on the board, so
-// a glance at the bell reads the same way as a glance at the schedule. The
-// notification carries no status column, so it is read from what the notice is
-// about — which is what the words in it already say.
-function noticeTone(row) {
+  // A notice carries the same status chip the board and My appointments carry, so
+// one status is one colour and one shape wherever it is seen. The notification
+// row has no status column, so it is read from what the notice is about — which
+// is what the words in it already say.
+const NOTICE_STATUS = [
+  [/cancel/, 'cancelled', 'Cancelled'],
+  [/complete/, 'completed', 'Completed'],
+  [/arriv|checked in/, 'arrived', 'Arrived'],
+  [/book|scheduled/, 'scheduled', 'Booked'],
+  [/moved|changed|updated/, 'changed', 'Changed'],
+];
+
+function noticeStatus(row) {
   const text = `${row.title || ''} ${row.message || ''}`.toLowerCase();
-  if (text.includes('cancel')) return 'cancelled';
-  if (text.includes('complete')) return 'completed';
-  if (text.includes('book') || text.includes('scheduled')) return 'booked';
-  if (text.includes('moved') || text.includes('changed') || text.includes('updated')) return 'changed';
-  return 'other';
+  const match = NOTICE_STATUS.find(([pattern]) => pattern.test(text));
+  return match ? { code: match[1], label: match[2] } : null;
 }
 
 function unreadCount() {
@@ -135,13 +140,17 @@ function unreadCount() {
       ? `${unread} unread of ${rows.length} recent`
       : 'Nothing yet';
     list.innerHTML = rows.length
-      ? rows.map(row => `<div class="notif__item notif__item--${noticeTone(row)}${row.read_at ? '' : ' notif__item--unread'}" data-notif-id="${row.id}">
+      ? rows.map(row => {
+        const status = noticeStatus(row);
+        return `<div class="notif__item${row.read_at ? '' : ' notif__item--unread'}" data-notif-id="${row.id}">
           <div class="notif__itemhead">
             <b>${escapeHtml(row.title)}</b>
+            ${status ? `<span class="status status--${status.code}">${status.label}</span>` : ''}
             <span class="sub">${escapeHtml(format.timestamp(row.created_at, context.location))}</span>
           </div>
           <p>${escapeHtml(row.message)}</p>
-        </div>`).join('')
+        </div>`;
+      }).join('')
       : '<p class="hint">You have no notifications.</p>';
   }
 

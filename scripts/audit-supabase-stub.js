@@ -207,6 +207,14 @@
     receive_appointment: (args) => ({ appointment_id: 'a2', booking_reference: 'MXD-2026-000141', status: args?.p_status || 'arrived', checked_in_at: iso(8), driver_name: args?.p_driver_name || null }),
     // The scorecard: one strong partner, one poor one, and one that booked but
     // never arrived — the three shapes the table has to render differently.
+    // Two lanes with capacity set and one without, so the report is measured with
+    // a fullness bar, a lane that combined loads, and the "capacity not set" state
+    // all on screen at once.
+    get_truck_fullness_scorecard: () => [
+      { partner_name: 'Guelph', partner_kind: 'location', trucks: 12, measured_trucks: 12, skids: 214, capacity_skids: 312, fullness_pct: 68.6, full_trucks: 3, part_trucks: 4, combined_trucks: 2, loads_absorbed: 3, trucks_saved_pct: 20.0, last_movement: iso(15) },
+      { partner_name: 'Milton', partner_kind: 'location', trucks: 6, measured_trucks: 6, skids: 148, capacity_skids: 156, fullness_pct: 94.9, full_trucks: 5, part_trucks: 0, combined_trucks: 1, loads_absorbed: 1, trucks_saved_pct: 14.3, last_movement: iso(11) },
+      { partner_name: 'Haleon – Oakhill', partner_kind: 'company', trucks: 4, measured_trucks: 0, skids: 33, capacity_skids: 0, fullness_pct: null, full_trucks: 0, part_trucks: 0, combined_trucks: 0, loads_absorbed: 0, trucks_saved_pct: 0, last_movement: iso(9) },
+    ],
     get_partner_scorecard: () => [
       { partner_name: 'Haleon – Oakhill', partner_kind: 'company', trucks: 24, skids: 310, completed: 22, on_time: 21, late: 2, no_shows: 1, cancelled: 0, on_time_pct: 91.3, avg_minutes_late: 22, avg_dwell_minutes: 74, truck_types: '53 ft Trailer ×18, 26 ft Straight Truck ×6', last_movement: iso(9) },
       { partner_name: 'Guelph', partner_kind: 'location', trucks: 11, skids: 96, completed: 10, on_time: 6, late: 5, no_shows: 0, cancelled: 1, on_time_pct: 54.5, avg_minutes_late: 41, avg_dwell_minutes: 58, truck_types: '48 ft Trailer ×11', last_movement: iso(8) },

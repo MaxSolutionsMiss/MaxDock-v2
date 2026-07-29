@@ -13,6 +13,7 @@ const VIEWS = [
   { id: 'dock-utilisation', label: 'Dock utilisation' },
   { id: 'scorecard-company', label: 'Vendor scorecard' },
   { id: 'scorecard-location', label: 'Site scorecard' },
+  { id: 'fullness', label: 'Truck fullness' },
 ];
 
 const PRESETS = [
@@ -30,6 +31,7 @@ const state = {
   to: '',
   data: null,
   scorecard: [],
+  fullness: [],
   elements: {},
   customizePanel: null,
   visibleCards: [],
@@ -245,6 +247,56 @@ function renderScorecard(kind) {
     </div>`;
 }
 
+// How full the trucks ran on each lane, and what combining did about it.
+//
+// The number that matters is not how many appointments there were: it is how much
+// of each trailer was used, and how many loads were merged onto another truck
+// instead of taking one of their own. A 53 ft trailer leaving with eleven skids is
+// a truck somebody paid for and did not fill — and if the same lane ran three of
+// them in a week, that is two trucks the combining should have caught.
+function fullnessCell(row) {
+  const pct = row.fullness_pct === null || row.fullness_pct === undefined ? null : Number(row.fullness_pct);
+  if (pct === null) return '<span class="sub">Trailer capacity not set</span>';
+  return `<div class="fullness${pct > 100 ? ' fullness--over' : ''}">
+    <div class="fullness__bar"><span style="width:${Math.min(100, Math.round(pct))}%"></span></div>
+    <div class="fullness__t">${pct.toFixed(1)}% · ${num(row.skids)} of ${num(row.capacity_skids)} skids</div>
+  </div>`;
+}
+
+function renderFullness() {
+  const rows = state.fullness || [];
+  const measured = rows.reduce((sum, row) => sum + num(row.measured_trucks), 0);
+  const skids = rows.reduce((sum, row) => sum + (num(row.measured_trucks) ? num(row.skids) : 0), 0);
+  const capacity = rows.reduce((sum, row) => sum + num(row.capacity_skids), 0);
+  const overall = capacity ? Math.round((skids / capacity) * 1000) / 10 : null;
+  const absorbed = rows.reduce((sum, row) => sum + num(row.loads_absorbed), 0);
+  const part = rows.reduce((sum, row) => sum + num(row.part_trucks), 0);
+  return `<div class="kpis" style="--kpi-cols:4">
+      <article class="kpi kpi--ok"><span class="kpi__label">Trailer used</span><span class="kpi__value">${overall === null ? '—' : overall.toFixed(1)}<span>%</span></span></article>
+      <article class="kpi kpi--out"><span class="kpi__label">Trucks measured</span><span class="kpi__value">${compact(measured)}</span></article>
+      <article class="kpi"><span class="kpi__label">Loads combined</span><span class="kpi__value">${compact(absorbed)}</span></article>
+      <article class="kpi kpi--stop"><span class="kpi__label">Under 60% full</span><span class="kpi__value">${compact(part)}</span></article>
+    </div>
+    <div class="panel panel--fill">
+      <div class="panel__head"><h3 class="panel__title">Truck fullness and combining</h3><div class="panel__actions"><span class="sub">${escapeHtml(rangeLabel())}</span></div></div>
+      <div class="panel__scroll"><table class="table"><thead><tr>
+        <th>Lane</th><th>Trucks</th><th>Full</th><th>Under 60%</th><th>Combined</th><th>Loads absorbed</th><th>Trucks saved</th><th class="col-fill">Trailer used</th>
+      </tr></thead><tbody>${
+        rows.length ? rows.map(row => `<tr>
+          <td class="data data--strong">${escapeHtml(row.partner_name)}${row.partner_kind === 'location' ? ' <span class="tag tag--quiet">Max site</span>' : ''}</td>
+          <td class="data">${num(row.trucks)}</td>
+          <td class="data">${num(row.full_trucks)}</td>
+          <td class="data">${num(row.part_trucks)}</td>
+          <td class="data">${num(row.combined_trucks)}</td>
+          <td class="data">${num(row.loads_absorbed)}</td>
+          <td class="data">${row.trucks_saved_pct === null || row.trucks_saved_pct === undefined ? '—' : `${Number(row.trucks_saved_pct).toFixed(1)}%`}</td>
+          <td>${fullnessCell(row)}</td>
+        </tr>`).join('') : '<tr><td colspan="8" class="data">No trucks ran on any lane in this range.</td></tr>'
+      }</tbody></table></div>
+      <p class="hint hint--wide">Fullness is the skids on a truck against what that truck type holds at this site — set under Settings › Capacity, per site, because the same trailer is stacked differently in different buildings. A truck whose type has no capacity set is counted as a truck and left out of the percentage rather than counted as empty. Full is 90% or more. Trucks saved is the loads that were combined onto another truck as a share of the trucks that would otherwise have run.</p>
+    </div>`;
+}
+
 function renderView() {
   if (!state.data) return;
   const renderers = {
@@ -252,6 +304,7 @@ function renderView() {
     'dock-utilisation': renderDockUtilisation,
     'scorecard-company': () => renderScorecard('company'),
     'scorecard-location': () => renderScorecard('location'),
+    fullness: renderFullness,
   };
   state.elements.host.innerHTML = (renderers[state.view] || renderOverview)();
 }
@@ -266,6 +319,16 @@ function csvRowsForView() {
         row.partner_name, row.partner_kind, row.on_time_pct ?? '', num(row.trucks), num(row.skids), num(row.completed),
         num(row.on_time), num(row.late), row.avg_minutes_late ?? '', num(row.no_shows), num(row.cancelled),
         row.avg_dwell_minutes ?? '', row.truck_types || '',
+      ]),
+    ];
+  }
+  if (state.view === 'fullness') {
+    return [
+      ['Lane', 'Kind', 'Trucks', 'Measured', 'Full', 'Under 60%', 'Combined trucks', 'Loads absorbed', 'Trucks saved %', 'Skids', 'Capacity skids', 'Trailer used %'],
+      ...(state.fullness || []).map(row => [
+        row.partner_name, row.partner_kind, num(row.trucks), num(row.measured_trucks), num(row.full_trucks),
+        num(row.part_trucks), num(row.combined_trucks), num(row.loads_absorbed), row.trucks_saved_pct ?? '',
+        num(row.skids), num(row.capacity_skids), row.fullness_pct ?? '',
       ]),
     ];
   }
@@ -297,16 +360,22 @@ async function reload() {
     // The scorecard is its own query, fetched alongside so switching views does
     // not go back to the network. A failure there must not take the rest of the
     // report down with it.
-    const [data, scorecard] = await Promise.all([
+    const [data, scorecard, fullness] = await Promise.all([
       fetchReport(),
       db.rpc('get_partner_scorecard', {
         p_location_id: state.context.location.id,
         p_start_date: state.from,
         p_end_date: state.to,
       }, { key: `reports:scorecard:${state.context.location.id}:${state.from}:${state.to}`, cache: 60000, retry: 1 }).catch(() => []),
+      db.rpc('get_truck_fullness_scorecard', {
+        p_location_id: state.context.location.id,
+        p_start_date: state.from,
+        p_end_date: state.to,
+      }, { key: `reports:fullness:${state.context.location.id}:${state.from}:${state.to}`, cache: 60000, retry: 1 }).catch(() => []),
     ]);
     state.data = data;
     state.scorecard = Array.isArray(scorecard) ? scorecard : [];
+    state.fullness = Array.isArray(fullness) ? fullness : [];
     renderView();
   } catch (error) {
     renderState(state.elements.host, {

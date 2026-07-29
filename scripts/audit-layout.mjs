@@ -123,6 +123,7 @@ const FLOWS = {
     { name: 'scorecard-company', query: '', act: async page => { await page.selectOption('[data-view]', 'scorecard-company'); }, expect: '.table' },
     { name: 'scorecard-location', query: '', act: async page => { await page.selectOption('[data-view]', 'scorecard-location'); }, expect: '.table' },
     { name: 'truck-flow', query: '', act: async page => { await page.selectOption('[data-view]', 'truck-flow'); }, expect: '.table' },
+    { name: 'fullness', query: '', act: async page => { await page.selectOption('[data-view]', 'fullness'); }, expect: '.fullness__bar' },
   ],
   receiving: [
     { name: 'idle', query: '' },

@@ -1251,3 +1251,48 @@ comments and dropping two rules whose classes no longer exist (`.tlb__meta`,
 to be written. **Worth a decision from the owner:** raise the file budget to 96KB
 and keep the 60KB declaration budget as the real gate, or keep trimming comments
 by hand every time a feature needs three rules.
+
+## One family of buttons (2026-07-29)
+
+Reset, Save, Edit — in that order, left to right, at the size Add dock is drawn
+at above them (82px wide, 36px tall, small type). Every settings window ends the
+same way and every one of those buttons is the same shape as the one that opens
+the dialog at the top of the window. The owner's word for it is harmony: controls
+that do the same kind of job should not be two sizes on one screen.
+
+Reset sitting between Save and Edit was wrong — Edit is what you reach for first
+and last, so it sits at the end where the eye lands.
+
+## One status, one colour, wherever it is (2026-07-29)
+
+A notice in the bell carried a coloured dot of its own. It now carries the same
+`.status` chip the board and My appointments carry — the same component, not a
+matching colour — so Booked, Arrived, Completed and Cancelled read identically
+whether they are on the schedule, on a card, or in the notification list. The
+notification row has no status column, so the status is read from what the notice
+says, which is the only place that information exists.
+
+## Truck fullness and combining (2026-07-29)
+
+`get_truck_fullness_scorecard(location, from, to)`, and a **Truck fullness** view
+in Reports beside the two scorecards.
+
+Per lane — the Max site or the vendor at the other end of the run — it answers the
+two questions the combining work was for: how full the trucks went, and how many
+loads were merged onto another truck instead of taking one of their own. Trucks,
+full trucks (90% or more), trucks under 60%, combined trucks, loads absorbed,
+trucks saved as a share of what would have run, and the trailer used as a bar.
+
+Fullness is the skids against what that truck type holds *at this site*, from
+Settings › Capacity, because the same trailer is stacked differently in different
+buildings. A truck whose type has no capacity set is counted as a truck and left
+out of the percentage rather than counted as empty — the report says "Trailer
+capacity not set" so the number that is missing is named rather than guessed. That
+is what every Mississauga lane currently says, and it is accurate: no skids-per-
+truck figures have been entered there yet.
+
+## Receiving, with room (2026-07-29)
+
+The marks are half again as big and the panel is padded at `--s7` all round with
+the same gap between its halves, so the field and the button are not against the
+edge of the card. Same two ways in, same rule, same "or".

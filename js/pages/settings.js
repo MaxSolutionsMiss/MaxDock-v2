@@ -134,17 +134,19 @@ async function fetchAll() {
   state.shortcuts = shortcuts || [];
 }
 
-// Every settings window ends the same way: Edit, Reset, Save, the same size, in
-// that order. A form arrives locked — nothing on a settings screen should change
-// because somebody leaned on a dropdown while reading it. Edit unlocks the window
-// it belongs to; Save puts it back to locked; Reset throws the edit away and does
+// Every settings window ends the same way: Reset, Save, Edit — one size, in that
+// order, and the same size as Add dock at the top of the window, because controls
+// that do the same kind of job should not be two different shapes on one screen.
+// A window arrives locked; nothing on a settings screen should change because
+// somebody leaned on a dropdown while reading it. Edit unlocks the window it
+// belongs to; Save puts it back to locked; Reset throws the edit away and does
 // the same.
 function saveFoot(canEdit) {
   if (!canEdit) return '';
   return `<div class="form-actions form-actions--edit">
-    <button class="btn btn--primary" type="button" data-edit-section>Edit</button>
-    <button class="btn btn--quiet" type="button" data-reset>Reset</button>
-    <button class="btn btn--primary" type="submit">Save</button>
+    <button class="btn btn--quiet btn--sm" type="button" data-reset>Reset</button>
+    <button class="btn btn--primary btn--sm" type="submit">Save</button>
+    <button class="btn btn--primary btn--sm" type="button" data-edit-section>Edit</button>
   </div><p class="form-message" data-save-message aria-live="polite"></p>`;
 }
 

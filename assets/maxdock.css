@@ -70,15 +70,11 @@ body{background:var(--ground);color:var(--ink);font-family:var(--font-ui);font-s
    bottom. Two thirds of the window is the ceiling. */
 .notif__list{max-height:min(52vh,520px);overflow-y:auto}
 .notif__item{padding:var(--s3) 0;border-bottom:1px solid var(--rule)}
-/* The dot beside a notice is the colour that status is everywhere else, so a
-   glance at the bell reads the same way as a glance at the board. */
-.notif__item{position:relative;padding-left:var(--s4)}
-.notif__item::before{content:"";position:absolute;left:0;top:calc(var(--s3) + 7px);width:8px;height:8px;border-radius:50%;background:var(--rule-strong)}
-.notif__item--booked::before{background:var(--dock)}
-.notif__item--completed::before{background:var(--ok)}
-.notif__item--cancelled::before{background:var(--stop)}
-.notif__item--changed::before{background:var(--signal)}
+/* A notice carries the same status chip the board and My appointments carry, not
+   a colour of its own — one status is one colour and one shape wherever it is
+   seen. */
 .notif__item:last-child{border-bottom:none}
+.status--changed{background:var(--signal-wash);color:var(--signal)}
 .notif__item--unread{border-left:3px solid var(--dock);padding-left:var(--s3);margin-left:calc(var(--s3) * -1)}
 .notif__itemhead{display:flex;align-items:baseline;gap:var(--s2);margin-bottom:2px}
 .notif__itemhead b{font-size:var(--t-base)}
@@ -147,13 +143,13 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 .recv{max-width:760px;display:grid;gap:var(--s3)}
 /* One panel, halved. Two ways of starting the same job, so they are ruled apart
    rather than boxed apart, and both halves stand the same height. */
-.recv__panel{display:grid;grid-template-columns:1fr auto 1fr;gap:var(--s6);padding:var(--s6)}
+.recv__panel{display:grid;grid-template-columns:1fr auto 1fr;gap:var(--s7);padding:var(--s7)}
 .recv__box{display:grid;gap:var(--s2);align-content:start;justify-items:start;min-width:0}
 /* The panel's halves are grid cells, not a stack: the card's own vertical rhythm
    would push the second heading a row's air below the first. */
 .recv .recv__panel>*+*{margin-top:0}
-.recv__ico{width:30px;height:30px;color:var(--dock);margin-bottom:var(--s1)}
-.recv__box .form-actions,.recv__box .field{width:100%;margin-top:var(--s2)}
+.recv__ico{width:44px;height:44px;color:var(--dock);margin-bottom:var(--s2)}
+.recv__box .form-actions,.recv__box .field{width:100%;margin-top:var(--s3)}
 .recv__or{display:grid;grid-template-rows:1fr auto 1fr;justify-items:center;gap:var(--s3)}
 .recv__or::before,.recv__or::after{content:"";width:1px;background:var(--rule)}
 @media (max-width:720px){
@@ -810,10 +806,11 @@ body.modal-open{overflow:hidden}
    unrelated control on a wide card. */
 .form-actions>.btn--primary{margin-left:0}
 .modal__foot>.btn--primary{margin-left:auto}
-/* Edit, Reset, Save end every settings window. Three words of different lengths
-   are three different widths unless they are told otherwise, and a row of
-   mismatched buttons is the first thing the eye finds. */
-.form-actions--edit>.btn{min-width:104px;justify-content:center}
+/* Reset, Save, Edit end every settings window, at the size Add dock is drawn at
+   above it. Three words of different lengths are three different widths unless
+   they are told otherwise, and a row of mismatched buttons is the first thing the
+   eye finds. */
+.form-actions--edit>.btn{min-width:82px;justify-content:center}
 .form-actions--stack{display:grid}
 .form-actions--stack>.btn--primary{margin-left:0}
 .form-message{min-height:1.5em;margin:var(--s3) 0 0;color:var(--stop);font-size:var(--t-small)}
