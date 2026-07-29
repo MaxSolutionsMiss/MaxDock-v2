@@ -706,7 +706,7 @@ function buildPage(root, context) {
   controls.innerHTML = controlsBar({ label: 'Appointment controls', actions: [['book', context.can('appointment.create')]] });
   const controlsHost = controls.firstElementChild;
   const views = createViewControls();
-  const search = createElement('label', 'ctrl-field ctrl-field--grow appointment-search');
+  const search = createElement('label', 'ctrl-field appointment-search');
   const searchLabel = createElement('span', '', 'Search');
   const searchInput = createElement('input', 'input');
   searchInput.type = 'search';
@@ -715,19 +715,23 @@ function buildPage(root, context) {
   searchInput.dataset.appointmentSearch = '';
   search.append(searchLabel, searchInput);
 
-  const toolbarMeta = createElement('div', 'profile appointment-toolbar__meta');
+  const toolbarMeta = createElement('div', 'controls__filters appointment-toolbar__meta');
   const count = createElement('span', 'appointment-toolbar__count data');
   count.setAttribute('aria-live', 'polite');
   const updated = createElement('span', 'page-updated muted');
   toolbarMeta.append(count, updated);
   const lead = controlsHost.querySelector('.controls__lead') || controlsHost;
-  // The find box belongs with the count and the timestamp, not in the lead group
-  // with Book appointment and the view switcher — crowded in there it wrapped the
-  // whole band onto a second line. Same order as every other page: what you are
-  // looking at, when it was last read, then the box to narrow it.
   lead.append(views);
-  toolbarMeta.append(search);
+  // Three groups, the same three every band on every page has: what you are
+  // looking at on the left, how much of it and when it was read in the middle,
+  // and the box to narrow it hard against the right edge. The find box used to be
+  // auto-placed into the middle column beside the count and the timestamp, where
+  // it ran straight into them; the band's own end group is where it belongs, and
+  // it lands under the output controls that sit there on every other screen.
   lead.after(toolbarMeta);
+  const end = controlsHost.querySelector('.controls__end') || createElement('div', 'controls__end');
+  end.append(search);
+  controlsHost.append(end);
 
   // Left column scrolls on its own so the appointments below the fold can be
   // reached; previously the list sat directly in the viewport-height page column
