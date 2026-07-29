@@ -348,7 +348,9 @@ function renderAssignment() {
         <option value="fill_first" ${s.dock_assignment_strategy === 'fill_first' ? 'selected' : ''}>Fill one dock first</option>
       </select></div>
       <div class="field field--num"><span class="field__label">Max concurrent</span><span class="inputwrap"><input class="input" type="number" min="1" name="max_concurrent_appointments" value="${s.max_concurrent_appointments ?? ''}" placeholder="∞" ${disabled}><span class="input__unit">at once</span></span></div>
+      <div class="field field--num"><span class="field__label">Crew per truck</span><span class="inputwrap"><input class="input" type="number" min="0" max="50" name="handlers_per_truck" value="${s.handlers_per_truck ?? 2}" ${disabled}><span class="input__unit">people</span></span></div>
     </div>
+    <p class="hint hint--wide">Crew per truck and Max concurrent are what the operations brief counts staffing from: how many people are needed on the floor at the busiest point of a day, and how many hours of labour the day's bookings add up to.</p>
     ${saveFoot(canEdit)}
   </form>`;
 }
@@ -644,6 +646,7 @@ async function saveAssignment(form) {
     auto_assign_dock: autoAssign,
     dock_assignment_strategy: data.get('dock_assignment_strategy'),
     max_concurrent_appointments: maxConcurrent ? Number(maxConcurrent) : null,
+    handlers_per_truck: Number(data.get('handlers_per_truck') || 0),
   });
 }
 

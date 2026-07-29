@@ -12,6 +12,8 @@ const LATE_GRACE_MINUTES = 15;
 const BACK_TO_BACK_MINUTES = 20;
 const ACTIVE_STATUSES = new Set(['arrived', 'in_progress']);
 const EXPECTED_STATUSES = new Set(['scheduled', 'confirmed']);
+// A load already finished, gone or never coming cannot be combined with anything.
+const TERMINAL_QUEUE_STATUSES = new Set(['completed', 'cancelled', 'no_show']);
 
 const KPI_CARDS = [
   { id: 'expected', label: 'Expected', className: 'kpi--signal', suffix: '', compute: recs => recs.filter(r => EXPECTED_STATUSES.has(r.status)).length },
@@ -45,6 +47,8 @@ const state = {
   wall: null,
   blockFields: [],
   truckTypeNames: new Map(),
+  truckCapacity: new Map(),
+  labour: null,
   detailsModal: null,
 };
 
@@ -71,7 +75,7 @@ function normalizeRecord(row) {
 async function fetchQueueData() {
   const locationId = state.context.location.id;
   const day = format.dayOfWeek(state.date);
-  const [, scheduleRows, docks, hours, returnLoads, truckTypes] = await Promise.all([
+  const [, scheduleRows, docks, hours, returnLoads, truckTypes, truckCapacities, labour] = await Promise.all([
     // Settle first, so the schedule that comes back already reflects any load whose
     // booked time has run out. There is no pg_cron on this project, so the screens
     // that are always open are what move a received truck to complete.
@@ -82,6 +86,11 @@ async function fetchQueueData() {
     // Advisory only — a failure here must not take the operational queue down with it.
     db.rpc('list_return_load_opportunities', { p_location_id: locationId, p_date_from: state.date, p_date_to: state.date }, { key: `queue:returns:${locationId}:${state.date}`, cache: 30000, retry: 1 }).catch(() => []),
     db.select('truck_types', q => q.select('code,name').eq('is_active', true), { key: 'queue:truck-type-names', cache: 300000 }),
+    // What each truck holds here, and how the site is staffed: both are what turn
+    // a list of appointments into "you need six people and there are two trucks
+    // going to the same place".
+    db.select('location_truck_types', q => q.select('truck_type_code,skid_capacity').eq('location_id', locationId), { key: `queue:truck-capacity:${locationId}`, cache: 60000 }).catch(() => []),
+    db.select('location_settings', q => q.select('handlers_per_truck,max_concurrent_appointments').eq('location_id', locationId).maybeSingle(), { key: `queue:labour:${locationId}`, cache: 60000 }).catch(() => null),
   ]);
   const records = (scheduleRows || []).map(normalizeRecord).filter(record => record.start_at && format.sameLocalDate(record.start_at, state.date, state.context.location));
   return {
@@ -90,6 +99,8 @@ async function fetchQueueData() {
     records,
     returnLoads: returnLoads || [],
     truckTypeNames: new Map((truckTypes || []).map(type => [type.code, type.name])),
+    truckCapacity: new Map((truckCapacities || []).map(row => [row.truck_type_code, Number(row.skid_capacity || 0)])),
+    labour: labour || null,
   };
 }
 
@@ -304,29 +315,98 @@ const BLOCK_FIELDS = [
 ];
 const DEFAULT_BLOCK_FIELDS = ['reference', 'status', 'route', 'time', 'skids', 'combined'];
 
-// Two or three sentences someone can read out in a morning meeting, built from the
-// schedule rather than a service call, so the brief is never empty.
-function localNarrative() {
-  const appointments = state.records.filter(record => record.entry_kind !== 'block');
-  // An array in every branch. The caller spreads this, so a bare string would be
-  // spread one character at a time into one bullet per letter.
-  if (!appointments.length) return ['Nothing is scheduled at this location today.'];
+// What the day actually asks of this site, in the four groups a shipping manager
+// thinks in. Built from the schedule already on screen rather than from a service
+// call, so it is never empty and never waiting.
+//
+// Trucks is the shape of the day. Labour is the question behind "can somebody have
+// Thursday off". Combining is the duplication nobody has spotted yet. Attention is
+// what is going wrong right now.
+function briefGroups() {
+  const appointments = state.records.filter(record => record.entry_kind !== 'block' && !record.merged_into_appointment_id);
+  if (!appointments.length) return [{ title: 'Trucks', points: ['Nothing is scheduled at this location today.'] }];
   const skids = rows => rows.reduce((sum, row) => sum + Number(row.skid_count || 0), 0);
   const inbound = appointments.filter(record => record.direction === 'inbound');
   const outbound = appointments.filter(record => record.direction === 'outbound');
   const late = appointments.filter(record => isLate(record));
   const priority = appointments.filter(record => record.is_priority);
   const remaining = appointments.filter(record => EXPECTED_STATUSES.has(record.status));
-  const heaviest = [...appointments].sort((a, b) => Number(b.skid_count || 0) - Number(a.skid_count || 0))[0];
-  const sentences = [
-    `${appointments.length} truck${appointments.length === 1 ? '' : 's'} today — ${inbound.length} in with ${skids(inbound)} skids and ${outbound.length} out with ${skids(outbound)}.`,
-    remaining.length
-      ? `${remaining.length} still to arrive${priority.length ? `, ${priority.length} of them priority` : ''}.`
-      : 'Everything booked has already arrived or finished.',
+
+  const groups = [{
+    title: 'Trucks',
+    points: [
+      `${appointments.length} truck${appointments.length === 1 ? '' : 's'} today — ${inbound.length} in with ${skids(inbound)} skids, ${outbound.length} out with ${skids(outbound)}.`,
+      remaining.length ? `${remaining.length} still to arrive.` : 'Everything booked has arrived or finished.',
+    ],
+  }];
+
+  const labour = labourPoints(appointments);
+  if (labour.length) groups.push({ title: 'Labour', points: labour });
+  const combining = combinePoints(appointments);
+  if (combining.length) groups.push({ title: 'Combining', points: combining });
+
+  const attention = [];
+  if (late.length) attention.push(`${late.length} running late — ${late.slice(0, 2).map(record => record.booking_reference || 'an unreferenced booking').join(', ')}.`);
+  if (priority.length) attention.push(`${priority.length} marked priority.`);
+  if (state.brief?.brief?.summary) attention.push(state.brief.brief.summary);
+  if (attention.length) groups.push({ title: 'Attention', points: attention });
+  return groups;
+}
+
+// People and hours, from the two numbers a site already sets: how many people work
+// one truck, and how many trucks can be worked at once. The floor number is what
+// is needed at the busiest moment — running three trucks at once with two people
+// each is six people, whatever the day's total is — and the hours are the day's
+// booked dock time multiplied by the crew on each truck.
+function labourPoints(appointments) {
+  const perTruck = Number(state.labour?.handlers_per_truck ?? 0);
+  if (!perTruck) return [];
+  const atOnce = Math.max(1, Number(state.labour?.max_concurrent_appointments || 0) || state.docks.length || 1);
+  const busiest = peakConcurrent(appointments);
+  const onFloor = perTruck * Math.min(atOnce, Math.max(1, busiest));
+  const minutes = appointments.reduce((sum, record) => sum + format.minutesBetween(record.start_at, record.end_at), 0);
+  const hours = Math.round((minutes * perTruck) / 60 * 10) / 10;
+  return [
+    `${onFloor} on the floor at the busiest point — ${perTruck} per truck, ${Math.min(atOnce, Math.max(1, busiest))} truck${Math.min(atOnce, Math.max(1, busiest)) === 1 ? '' : 's'} at once.`,
+    `${hours} hours of labour booked across the day.`,
   ];
-  if (late.length) sentences.push(`${late.length} running late — check ${late.slice(0, 2).map(record => record.booking_reference || 'an unreferenced booking').join(' and ')}.`);
-  else if (heaviest && Number(heaviest.skid_count || 0) > 0) sentences.push(`Heaviest load is ${heaviest.booking_reference || 'an unreferenced booking'} at ${heaviest.skid_count} skids.`);
-  return sentences;
+}
+
+// How many trucks are on the docks at the same moment, at the worst moment. A day
+// of twenty trucks one after another needs one crew; ten pairs need two.
+function peakConcurrent(appointments) {
+  const edges = appointments.flatMap(record => [
+    { at: format.epoch(record.start_at), delta: 1 },
+    { at: format.epoch(record.end_at), delta: -1 },
+  ]).sort((a, b) => a.at - b.at || a.delta - b.delta);
+  let now = 0;
+  let peak = 0;
+  for (const edge of edges) { now += edge.delta; peak = Math.max(peak, now); }
+  return peak;
+}
+
+// The duplication nobody has spotted: two or more trucks going the same way to the
+// same place on the same day, with room on one of them for the rest. Named, so it
+// can be acted on rather than wondered about.
+function combinePoints(appointments) {
+  const lanes = new Map();
+  for (const record of appointments) {
+    if (TERMINAL_QUEUE_STATUSES.has(record.status)) continue;
+    const partner = String(record.company_name || record.display_counterpart_location_name || '').trim();
+    if (!partner) continue;
+    const key = `${record.direction}|${partner.toLowerCase()}`;
+    if (!lanes.has(key)) lanes.set(key, { partner, direction: record.direction, rows: [] });
+    lanes.get(key).rows.push(record);
+  }
+  const points = [];
+  for (const lane of lanes.values()) {
+    if (lane.rows.length < 2) continue;
+    const total = lane.rows.reduce((sum, row) => sum + Number(row.skid_count || 0), 0);
+    const biggest = Math.max(...lane.rows.map(row => Number(state.truckCapacity.get(row.truck_type_code) || 0)));
+    const fits = biggest > 0 && total <= biggest;
+    points.push(`${lane.rows.length} ${lane.direction} loads ${lane.direction === 'outbound' ? 'to' : 'from'} ${lane.partner} today — ${lane.rows.map(row => row.booking_reference).filter(Boolean).join(', ')}${biggest > 0 ? `, ${total} of ${biggest} skids${fits ? ' — they fit one truck' : ''}` : ''}.`);
+  }
+  return points.slice(0, 3);
 }
 
 function renderBriefCard() {
@@ -334,10 +414,16 @@ function renderBriefCard() {
   const figures = briefFigures()
     .map(item => `<div class="brieffig${item.tone ? ` brieffig--${item.tone}` : ''}"><span class="brieffig__v">${escapeHtml(String(item.value))}</span><span class="brieffig__l">${escapeHtml(item.label)}</span></div>`)
     .join('');
-  const points = [...localNarrative(), ...(state.brief?.brief?.summary ? [state.brief.brief.summary] : [])];
+  // Named columns across the width instead of one stack of bullets down the left.
+  // The card is as wide as the screen and the reader is looking for one kind of
+  // answer at a time — how the day looks, who is needed, what is duplicated, what
+  // is going wrong.
   const narrative = state.briefLoading
     ? '<span class="brief__x">Generating today’s narrative…</span>'
-    : `<ul class="briefpoints">${points.map(point => `<li>${escapeHtml(point)}</li>`).join('')}</ul>${state.brief?.brief ? `<span class="tag tag--quiet">${escapeHtml(state.brief.mode === 'ai' ? 'AI-generated' : 'MaxDock rules analysis')}</span>` : ''}`;
+    : `<div class="briefcols">${briefGroups().map(group => `<section class="briefcol">
+        <h4 class="briefcol__t">${escapeHtml(group.title)}</h4>
+        <ul class="briefpoints">${group.points.map(point => `<li>${escapeHtml(point)}</li>`).join('')}</ul>
+      </section>`).join('')}</div>`;
   host.innerHTML = `<div class="brief__head"><span class="brief__ico">AI</span><div class="brief__t">${escapeHtml(state.context.location.name)} · today at a glance</div><button class="linkBtn" type="button" data-share-brief>Share with team</button></div>
     <div class="brieffigs">${figures}</div>
     <div class="brief__body">${narrative}</div>`;
@@ -466,6 +552,8 @@ async function refreshData() {
   state.records = data.records;
   state.returnLoads = data.returnLoads;
   state.truckTypeNames = data.truckTypeNames || state.truckTypeNames;
+  state.truckCapacity = data.truckCapacity || state.truckCapacity;
+  state.labour = data.labour ?? state.labour;
   renderAll();
   if (state.wall && !state.wall.closed) paintWall(state.wall, wallPayload());
 }
@@ -595,6 +683,8 @@ const page = {
     state.records = data.records;
     state.returnLoads = data.returnLoads;
     state.truckTypeNames = data.truckTypeNames || state.truckTypeNames;
+    state.truckCapacity = data.truckCapacity || state.truckCapacity;
+    state.labour = data.labour ?? state.labour;
     renderAll();
   },
   destroy() { state.customizePanel?.destroy(); state.detailsModal?.destroy(); },

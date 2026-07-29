@@ -1402,3 +1402,47 @@ again respectively, and each half now opens with a tinted badge — the same
 `--dock-wash` the app uses for a selected state — around its mark rather than a
 bare glyph, with the heading a step larger. A receiver under a dock light should
 be able to tell the two halves apart before reading either of them.
+
+## Receiving: the air belongs to each half (2026-07-29)
+
+The previous pass put the padding on the panel, which only gives air on the outer
+edge and leaves the divider hard against the words. The padding is on each half
+now — `--s7`, about half an inch — so every section stands in the same white space
+on all four sides whichever side of the rule it is on. The panel widened to 940px
+to carry it.
+
+## The brief reads across the card (2026-07-29)
+
+One column of bullets down the left of a card as wide as the screen, with a
+"MaxDock rules analysis" tag trailing into the text. It is four named columns now
+and the tag is gone.
+
+**Trucks** — the shape of the day. **Labour** — what the day asks of the people.
+**Combining** — the duplication nobody has spotted. **Attention** — what is going
+wrong right now, including whatever the AI brief adds.
+
+### Labour
+
+Two settings answer it: **Crew per truck** (new, on Dock assignment, default 2)
+and **Max concurrent**, which was already there. The floor number is the crew
+multiplied by how many trucks actually overlap at the worst moment of the day —
+twenty trucks one after another need one crew, ten pairs need two — and the hours
+are the day's booked dock time times the crew. That is the number a site manager
+is really answering when somebody asks for next Thursday off.
+
+### Combining
+
+Group the day's live appointments by direction and by the other end of the run;
+any lane with two or more trucks is a candidate. Add the skids up and compare
+against what the biggest trailer on that lane holds *at this site*, and if they
+fit one truck, say so:
+
+> 2 outbound loads to Guelph today — MXD-2026-000146, MXD-2026-000147, 20 of 26
+> skids — they fit one truck.
+
+No service call and no guessing: it is the schedule already on screen plus the
+skids-per-truck figure from Settings › Capacity. Where no capacity is set the lane
+and its references are still named, without the claim about fitting.
+
+The obvious next step is making that line the action — click it, get the merge
+confirmation, and call the `merge_appointments` that already exists.
