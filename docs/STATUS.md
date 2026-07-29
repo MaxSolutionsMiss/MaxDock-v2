@@ -1386,3 +1386,19 @@ voice, easy to dismiss without reading. It is a MaxDock dialog now, naming the
 location in its title, with Cancel and Apply. A settings change lands on one site
 and the person making it is usually responsible for several, so the site's name
 should be the loudest thing on screen at the moment they commit.
+
+## The KPI bar, doubled (2026-07-29)
+
+The colour bar down the left of a metric card is what identifies it from across a
+room — the number is read second and the label third. At 3px it read as a border.
+It is 6px now, with the card's left padding opened to match so the number does not
+sit against it, and the card a few pixels taller. Checked at Normal and at Larger
+text: the bar is the first thing the eye lands on at both.
+
+## Receiving, more room again (2026-07-29)
+
+The panel's padding and the gap between its halves are up by a fifth and a half
+again respectively, and each half now opens with a tinted badge — the same
+`--dock-wash` the app uses for a selected state — around its mark rather than a
+bare glyph, with the heading a step larger. A receiver under a dock light should
+be able to tell the two halves apart before reading either of them.

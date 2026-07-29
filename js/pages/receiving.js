@@ -94,7 +94,7 @@ function renderIdle(message = '') {
     <div class="recv">
       <section class="card recv__panel">
         <div class="recv__box">
-          <svg class="recv__ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"></rect><rect x="14" y="3" width="7" height="7" rx="1"></rect><rect x="3" y="14" width="7" height="7" rx="1"></rect><path d="M14 14h3v3h-3zM20 14v3M14 20h7"></path></svg>
+          <span class="recv__mark"><svg class="recv__ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"></rect><rect x="14" y="3" width="7" height="7" rx="1"></rect><rect x="3" y="14" width="7" height="7" rx="1"></rect><path d="M14 14h3v3h-3zM20 14v3M14 20h7"></path></svg></span>
           <h3 class="card__title">Scan the code</h3>
           <p class="hint">Point your phone camera at the QR code on the driver's paperwork.</p>
           ${hasScanner()
@@ -104,7 +104,7 @@ function renderIdle(message = '') {
         </div>
         <div class="recv__or"><span class="tag tag--quiet">or</span></div>
         <div class="recv__box">
-          <svg class="recv__ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="6" width="19" height="12" rx="2"></rect><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M6 14h12"></path></svg>
+          <span class="recv__mark"><svg class="recv__ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="6" width="19" height="12" rx="2"></rect><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M6 14h12"></path></svg></span>
           <h3 class="card__title">Enter the booking number</h3>
           <p class="hint">Type the number off the paperwork — the rest is already filled in.</p>
           <label class="field field--full"><span class="field__label">Booking number</span><input class="input" data-token value="${referencePrefix()}" placeholder="${referencePrefix()}000071" autocomplete="off" inputmode="text" enterkeyhint="search"></label>
