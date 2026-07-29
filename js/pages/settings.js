@@ -350,7 +350,12 @@ function renderAssignment() {
       <div class="field field--num"><span class="field__label">Max concurrent</span><span class="inputwrap"><input class="input" type="number" min="1" name="max_concurrent_appointments" value="${s.max_concurrent_appointments ?? ''}" placeholder="∞" ${disabled}><span class="input__unit">at once</span></span></div>
       <div class="field field--num"><span class="field__label">Crew per truck</span><span class="inputwrap"><input class="input" type="number" min="0" max="50" name="handlers_per_truck" value="${s.handlers_per_truck ?? 2}" ${disabled}><span class="input__unit">people</span></span></div>
     </div>
-    <p class="hint hint--wide">Crew per truck and Max concurrent are what the operations brief counts staffing from: how many people are needed on the floor at the busiest point of a day, and how many hours of labour the day's bookings add up to.</p>
+    <div class="frow">
+      <div class="field field--num"><span class="field__label">Crew on shift</span><span class="inputwrap"><input class="input" type="number" min="0" max="500" name="crew_size" value="${s.crew_size ?? 0}" ${disabled}><span class="input__unit">people</span></span></div>
+      <div class="field field--num"><span class="field__label">Shift length</span><span class="inputwrap"><input class="input" type="number" min="1" max="24" step="0.5" name="shift_hours" value="${s.shift_hours ?? 8}" ${disabled}><span class="input__unit">hours</span></span></div>
+      <div class="field field--num"><span class="field__label">On the dock</span><span class="inputwrap"><input class="input" type="number" min="1" max="100" name="crew_availability_percent" value="${s.crew_availability_percent ?? 80}" ${disabled}><span class="input__unit">%</span></span></div>
+    </div>
+    <p class="hint hint--wide">Crew per truck is what one truck costs. Crew on shift, Shift length and On the dock are what the day has to spend — nobody unloads trucks for eight hours out of eight, so the percentage is the share of a shift realistically spent on them. The operations brief reports the day's booked hours against that, which is the number to look at before agreeing to a day off. Leave Crew on shift at 0 and the brief says nothing about capacity rather than guessing at it.</p>
     ${saveFoot(canEdit)}
   </form>`;
 }
@@ -647,6 +652,9 @@ async function saveAssignment(form) {
     dock_assignment_strategy: data.get('dock_assignment_strategy'),
     max_concurrent_appointments: maxConcurrent ? Number(maxConcurrent) : null,
     handlers_per_truck: Number(data.get('handlers_per_truck') || 0),
+    crew_size: Number(data.get('crew_size') || 0),
+    shift_hours: Number(data.get('shift_hours') || 8),
+    crew_availability_percent: Number(data.get('crew_availability_percent') || 80),
   });
 }
 
