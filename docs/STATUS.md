@@ -1446,3 +1446,12 @@ and its references are still named, without the claim about fitting.
 
 The obvious next step is making that line the action — click it, get the merge
 confirmation, and call the `merge_appointments` that already exists.
+
+## Two spacing corrections (2026-07-29)
+
+The half inch around each receiving half was too much: it is `--s6` now, a third
+less, still an existing token so it stays in step with everything else.
+
+The brief's columns were running straight into the metric cards above them, so the
+first bullet read as a caption on the card rather than the start of its own
+column. A gap and a hairline between them.
