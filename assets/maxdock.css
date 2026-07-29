@@ -223,7 +223,11 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
    between the list and the side column lands on a card boundary rather than
    somewhere arbitrary. --kpi-cols comes from the visible card count, so the strip
    fills its row whichever cards are off. */
-.kpis{display:grid;gap:var(--s3);margin-bottom:var(--s3);flex:none;grid-template-columns:repeat(var(--kpi-cols,4),minmax(0,1fr))}
+/* Every row of cards the same height. A grid sizes each row to its own contents,
+   so once the strip wrapped, a row whose labels ran to two lines stood taller
+   than the row below it and the strip looked ragged. 1fr on the implicit rows
+   makes them all as tall as the tallest. */
+.kpis{display:grid;gap:var(--s3);margin-bottom:var(--s3);flex:none;grid-template-columns:repeat(var(--kpi-cols,4),minmax(0,1fr));grid-auto-rows:1fr}
 /* The customize control belongs to the cards, so it sits at the end of their row
    at their height, not in the page header where nothing said what it applied to.
    Its own narrow column, shared by the panels below, so the side column still
@@ -755,7 +759,7 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 /* Nothing but the grid the cards sit on: the cards themselves are .kpi, the same
    element the strip above uses. They had their own type scale and their own bar
    width, so two rows of numbers on one screen looked like two applications. */
-.brieffigs{display:grid;grid-template-columns:repeat(auto-fit,minmax(168px,1fr));gap:var(--s2)}
+.brieffigs{display:grid;grid-template-columns:repeat(auto-fit,minmax(168px,1fr));gap:var(--s2);grid-auto-rows:1fr}
 /* Separate points, not one running line — the owner has to be able to pick a fact
    out of this at a glance in a morning meeting. */
 /* The brief reads across the card, not down one edge of it: four named columns,
