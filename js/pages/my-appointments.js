@@ -295,11 +295,23 @@ function createAppointmentCard(record) {
     status.className = `status status--${nextStatus}`;
     status.textContent = statusLabel(nextStatus);
 
+    // Both ends of a combine are said on the card: the load that was absorbed
+    // says where it went, and the truck that took it says how many it carries.
     const reason = String(nextRecord.cancellation_reason || '').trim();
-    note.hidden = nextStatus !== 'cancelled' || !reason;
-    note.textContent = nextRecord.merged_into_reference
-      ? `Combined onto ${nextRecord.merged_into_reference}. Those skids travel on that truck.`
-      : reason;
+    const combined = Number(nextRecord.combined_from_count || 0);
+    if (nextStatus === 'cancelled' && nextRecord.merged_into_reference) {
+      note.hidden = false;
+      note.textContent = `Combined onto ${nextRecord.merged_into_reference}. Those skids travel on that truck.`;
+    } else if (nextStatus === 'cancelled' && reason) {
+      note.hidden = false;
+      note.textContent = reason;
+    } else if (combined) {
+      note.hidden = false;
+      note.textContent = `⧉ ${combined} other load${combined === 1 ? '' : 's'} combined onto this one. It carries ${nextRecord.skid_count} skids in total.`;
+    } else {
+      note.hidden = true;
+      note.textContent = '';
+    }
 
     for (const detail of detailRefs) {
       const rawValue = detail.key === 'direction'

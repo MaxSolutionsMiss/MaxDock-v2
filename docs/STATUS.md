@@ -1296,3 +1296,33 @@ truck figures have been entered there yet.
 The marks are half again as big and the panel is padded at `--s7` all round with
 the same gap between its halves, so the field and the button are not against the
 edge of the card. Same two ways in, same rule, same "or".
+
+## A combined truck looks like one (2026-07-29)
+
+Combining was invisible once it had happened. The survivor looked like any other
+appointment and the loads it absorbed sat on the board as cancelled rows next to
+the truck actually carrying them.
+
+**On the schedule.** `list_location_schedule` carries `combined_from_count`, so
+the block is marked `⧉` on the reference itself — not on a line that can be turned
+off, because a block that is three loads is not the same thing as a block that is
+one. A line under it says how many, and that line is a block field like the rest.
+The same appointment id is behind the linked-movement row, so the mark shows at
+both ends of a Max-to-Max run.
+
+**Off the schedule.** An appointment with `merged_into_appointment_id` set is not
+a movement any more, so the board and the queue drop it entirely rather than
+showing it cancelled. It leaves the origin's schedule and the destination's.
+
+**On the customer's own list.** `list_my_appointments` carries the count too: the
+truck says "⧉ 2 other loads combined onto this one. It carries 18 skids in total",
+and the absorbed one says which reference replaced it.
+
+**And the person who booked it is told.** `merge_appointments` writes a notice to
+whoever booked each absorbed load — not to whoever did the combining, who is
+looking at it — naming the reference that replaced theirs, the site and the new
+skid count. It is written in the same transaction as the merge, so a rollback
+un-tells it. The row carries their email and `email_delivery_status` stays
+`not_configured`, which is what every notification in this database says until a
+sender domain exists; when one does, these go out with the rest and no code here
+changes.

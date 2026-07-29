@@ -114,6 +114,8 @@ async function fetchBrief() {
 function visibleRecords() {
   const byTab = state.records.filter(record => {
     if (record.entry_kind === 'block') return false;
+    // Combined away: part of another truck now, not a movement of its own.
+    if (record.merged_into_appointment_id) return false;
     if (state.view === 'expected') return EXPECTED_STATUSES.has(record.status);
     if (state.view === 'onsite') return ACTIVE_STATUSES.has(record.status);
     if (state.view === 'completed') return record.status === 'completed';
@@ -160,7 +162,7 @@ function renderTable() {
     // the commonest thing done on this screen and it had no answer here.
     return `<tr data-open-record="${escapeHtml(record.id)}" tabindex="0">
       <td class="data data--strong">${escapeHtml(format.time(record.start_at, state.context.location))}</td>
-      <td class="data">${escapeHtml(record.booking_reference || '—')}</td>
+      <td class="data" title="${Number(record.combined_from_count || 0) ? `${record.combined_from_count} loads combined onto this truck` : ''}">${Number(record.combined_from_count || 0) ? '⧉ ' : ''}${escapeHtml(record.booking_reference || '—')}</td>
       <td class="data">${escapeHtml(dockName(record.dock_id))}</td>
       <td>${escapeHtml(record.company_name || record.display_counterpart_location_name || record.requester_name || '—')}</td>
       <td class="data">${escapeHtml(record.skid_count ?? 0)} sk</td>
@@ -298,8 +300,9 @@ const BLOCK_FIELDS = [
   { id: 'skids', label: 'Skids' },
   { id: 'carrier', label: 'Carrier' },
   { id: 'po', label: 'PO / BOL / job' },
+  { id: 'combined', label: 'Combined loads' },
 ];
-const DEFAULT_BLOCK_FIELDS = ['reference', 'status', 'route', 'time', 'skids'];
+const DEFAULT_BLOCK_FIELDS = ['reference', 'status', 'route', 'time', 'skids', 'combined'];
 
 // Two or three sentences someone can read out in a morning meeting, built from the
 // schedule rather than a service call, so the brief is never empty.
@@ -400,8 +403,12 @@ function blockLines(record, late) {
     show('truck') && state.truckTypeNames?.get(record.truck_type_code),
     show('skids') && `${Number(record.skid_count || 0)} skids`,
   ].filter(Boolean).join(' · ');
+  // Marked on the reference itself so it cannot be turned off: this block is not
+  // one load, and that changes what comes back up to the door.
+  const combined = Number(record.combined_from_count || 0);
   return [
-    show('reference') && record.booking_reference,
+    show('reference') && `${combined ? '⧉ ' : ''}${record.booking_reference}`,
+    combined && show('combined') && `${combined} load${combined === 1 ? '' : 's'} combined in`,
     show('status') && (late ? 'LATE' : format.role(record.status || '')),
     show('route') && `${record.direction === 'outbound' ? 'To' : 'From'} ${record.company_name || record.display_counterpart_location_name || record.requester_name || 'unnamed'}`,
     show('time') && format.time(record.start_at, state.context.location),

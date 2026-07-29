@@ -124,7 +124,7 @@
     get_user_preference: () => ({ text_size: 'normal', location_id: 'loc-1' }),
     save_user_preference: () => ({}),
     record_user_usage: () => ({}),
-    list_location_schedule: () => APPTS.map(schedule_record => ({ schedule_record })),
+    list_location_schedule: () => APPTS.map(record => ({ schedule_record: { ...record, combined_from_count: record.id === 'a1' ? 2 : 0 } })),
     // Two dates booked and one skipped, so the confirmation is measured with both
     // halves of its list on screen rather than only the happy one.
     create_appointment_series: () => ({
@@ -145,8 +145,11 @@
     list_my_appointments: () => [...APPTS, {
       ...APPTS[4], id: 'a6', appointment_id: 'a6', booking_reference: 'MXD-2026-000145',
       status: 'cancelled', cancellation_reason: 'Combined onto MXD-2026-000144',
-      merged_into_reference: 'MXD-2026-000144',
-    }].map(record => ({ ...record, ...RESOLVED })),
+      merged_into_reference: 'MXD-2026-000144', combined_from_count: 0,
+    }].map(record => ({
+      ...record, ...RESOLVED,
+      combined_from_count: record.combined_from_count ?? (record.id === 'a4' ? 2 : 0),
+    })),
     list_return_load_opportunities: () => [{ first_booking_reference: 'MXD-2026-000140', second_booking_reference: 'MXD-2026-000141', recommendation: 'Guelph outbound could pair with a Guelph to Pickering inbound.', turnaround_minutes: 90, combined_skids: 35 }],
     // A real trail: booked, edited, scanned in with a driver, then completed.
     // The scan is the event people come back for, so the fixture has to contain

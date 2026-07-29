@@ -56,8 +56,9 @@ const BLOCK_FIELDS = [
   { id: 'skids', label: 'Skids' },
   { id: 'carrier', label: 'Carrier' },
   { id: 'po', label: 'PO / BOL / job' },
+  { id: 'combined', label: 'Combined loads' },
 ];
-const DEFAULT_BLOCK_FIELDS = ['reference', 'status', 'route', 'time', 'truck', 'skids'];
+const DEFAULT_BLOCK_FIELDS = ['reference', 'status', 'route', 'time', 'truck', 'skids', 'combined'];
 
 const GRANULARITIES = [
   { minutes: 15, label: '15 minutes' },
@@ -338,6 +339,10 @@ function matchesSearch(record, term) {
 function visibleRecords() {
   const term = state.filters.search.trim().toLowerCase();
   return state.records.filter(record => {
+    // A load that was combined onto another truck is not a movement any more —
+    // it is part of one. It leaves the schedule at both ends rather than sitting
+    // there cancelled next to the truck that is actually carrying it.
+    if (record.merged_into_appointment_id) return false;
     if (state.filters.direction !== 'all' && record.direction !== state.filters.direction) return false;
     if (state.filters.status !== 'all' && record.status !== state.filters.status) return false;
     return matchesSearch(record, term);
@@ -394,8 +399,13 @@ function blockLines(record, startMin) {
     show('truck') && state.truckTypeNames?.get(record.truck_type_code),
     show('skids') && `${Number(record.skid_count || 0)} skids`,
   ].filter(Boolean).join(' · ');
+  // A combined truck is marked on the reference itself rather than on a line of
+  // its own, so the mark cannot be turned off and lost: this block is not one
+  // load, and that changes what an operator expects to see back up to the door.
+  const combined = Number(record.combined_from_count || 0);
   return [
-    show('reference') && record.booking_reference,
+    show('reference') && `${combined ? '⧉ ' : ''}${record.booking_reference}`,
+    combined && show('combined') && `${combined} load${combined === 1 ? '' : 's'} combined in`,
     show('status') && format.role(record.status),
     show('route') && `${record.direction === 'outbound' ? 'To' : 'From'} ${record.company_name || record.display_counterpart_location_name || record.requester_name || 'unnamed'}`,
     show('time') && `${clockLabel(startMin)}–${clockLabel(endMin)}`,
