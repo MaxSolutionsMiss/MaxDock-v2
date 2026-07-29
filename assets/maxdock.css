@@ -211,7 +211,7 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 /* The colour bar is the card's whole identity from across a room — the number is
    read second and the label third. Six pixels, not three: at three it read as a
    border, at six it reads as a marker, which is what it is for. */
-.kpi{background:var(--surface);border:1px solid var(--rule);border-left:6px solid var(--rule-strong);border-radius:var(--radius-lg);padding:var(--s2) var(--s3) var(--s2) var(--s4);min-width:0;display:flex;align-items:center;gap:var(--s3);min-height:0}
+.kpi{background:var(--surface);border:1px solid var(--rule);border-left:6px solid var(--rule-strong);border-radius:var(--radius-lg);padding:var(--s2) var(--s3) var(--s2) var(--s4);min-width:0;display:flex;align-items:center;flex-wrap:wrap;gap:0 var(--s3);min-height:0;container-type:inline-size}
 /* The number leads and its name sits beside it, both centred on the card's own
    height rather than sitting on a shared baseline — a baseline pins a two-line
    label to the top of the card and leaves the space under it empty. Stacked, the
@@ -219,8 +219,15 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
    card was tall and the figure was small. Side by side and centred, the card is
    half the height and the figure is 40% bigger, which is what carries across a
    room. Every metric card in the application is this rule. */
-.kpi__label{font-size:var(--t-micro);text-transform:uppercase;letter-spacing:.03em;color:var(--ink-muted);font-weight:600;min-width:0;white-space:normal}
+.kpi__label{font-size:var(--t-micro);text-transform:uppercase;letter-spacing:.03em;color:var(--ink-muted);font-weight:600;min-width:0;white-space:normal;overflow-wrap:anywhere}
 .kpi__value{font-family:var(--font-data);font-size:calc(var(--t-metric) * 1.4);font-weight:600;line-height:1.05;letter-spacing:-.02em;font-variant-numeric:tabular-nums;order:-1}
+/* A narrow card gives the figure back what the label needs, rather than pushing
+   the label off the end of it. Reports draws six cards on one row and the text
+   size is the reader's to set, so the same card has to hold at 260px and at
+   150px — it compresses, it never scrolls and it never clips. */
+@container (max-width:250px){.kpi__value{font-size:calc(var(--t-metric) * 1.15)}}
+@container (max-width:205px){.kpi__value{font-size:var(--t-metric)}}
+@container (max-width:165px){.kpi__value{font-size:calc(var(--t-metric) * .82)}.kpi__label{letter-spacing:0}}
 .kpi__value span{font-size:var(--t-small);font-weight:500;color:var(--ink-muted);margin-left:2px}
 .kpi--ok{border-left-color:var(--ok)} .kpi--ok .kpi__value{color:var(--ok)}
 .kpi--signal{border-left-color:var(--signal)} .kpi--signal .kpi__value{color:var(--signal)}
