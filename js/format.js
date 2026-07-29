@@ -73,6 +73,12 @@ export const format = Object.freeze({
     return this.inputDate(new Date(), location);
   },
 
+  // The calendar year at a location right now. In the site's own zone, because on
+  // New Year's Eve a Langley screen and a Bristol screen are not in the same year.
+  yearOf(location) {
+    return Number(this.todayInput(location).slice(0, 4));
+  },
+
   // The calendar dates a repeating booking lands on: the weekdays chosen, every
   // Nth week counted from the week the first date falls in. All of it is done on
   // date strings through addDaysInput, which steps in UTC — a week is not always

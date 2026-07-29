@@ -34,6 +34,7 @@ const state = {
   canManageLabour: false,
   labourDay: null,
   shifts: [],
+  holidays: [],
   section: 'hours',
   hours: [],
   settings: null,
@@ -113,7 +114,7 @@ function durationValue(data, name, baseUnit, units) {
 async function fetchAll() {
   const locationId = state.locationId;
   const [hours, settings, docks, truckTypes, locationTruckTypes, dockTruckTypes, capacity, directionWindows,
-    appointmentTypes, handlingTypes, shortcuts, labourDay, shifts] = await Promise.all([
+    appointmentTypes, handlingTypes, shortcuts, labourDay, shifts, holidays] = await Promise.all([
     db.select('location_operating_hours', q => q.select('location_id,day_of_week,is_open,open_time,close_time').eq('location_id', locationId), { key: `settings:hours:${locationId}`, cache: 0 }),
     db.select('location_settings', q => q.select('*').eq('location_id', locationId).maybeSingle(), { key: `settings:row:${locationId}`, cache: 0 }),
     db.select('docks', q => q.select('id,name,description,sort_order,direction_mode,is_active').eq('location_id', locationId).order('sort_order').order('name'), { key: `settings:docks:${locationId}`, cache: 0 }),
@@ -131,12 +132,16 @@ async function fetchAll() {
     // already on record for today rather than an empty box that overwrites it.
     db.select('location_labour_days', q => q.select('work_date,people,hours_each,note').eq('location_id', locationId).order('work_date', { ascending: false }).limit(1), { key: `settings:labour-day:${locationId}`, cache: 0 }).catch(() => []),
     db.select('location_shifts', q => q.select('id,name,start_time,end_time,people,days_of_week,is_active,sort_order').eq('location_id', locationId).order('sort_order').order('start_time'), { key: `settings:shifts:${locationId}`, cache: 0 }).catch(() => []),
+    // Only what is still ahead: a list of dates that have already passed is not a
+    // setting anybody reviews.
+    db.select('location_holidays', q => q.select('holiday_date,name,source').eq('location_id', locationId).gte('holiday_date', format.todayInput()).order('holiday_date'), { key: `settings:holidays:${locationId}`, cache: 0 }).catch(() => []),
   ]);
   state.hours = hours || [];
   state.capacity = Array.isArray(capacity) ? capacity[0] || null : capacity || null;
   state.settings = settings || null;
   state.labourDay = (labourDay || [])[0] || null;
   state.shifts = shifts || [];
+  state.holidays = holidays || [];
   state.docks = docks || [];
   state.truckTypes = truckTypes || [];
   state.locationTruckTypes = locationTruckTypes || [];
@@ -215,7 +220,44 @@ function renderHours() {
     <p class="hint">Staff may book outside these hours with a warning. Customers cannot.</p>
     ${saveFoot(canEdit)}
   </form>
+  ${renderHolidays(canEdit)}
   ${renderDirectionWindows(canEdit)}</div>`;
+}
+
+// Statutory holidays, worked out rather than typed in. Operating hours are per
+// weekday and cannot know that this particular Monday is Family Day.
+//
+// Applying the calendar blocks every dock across each date, which is what a closed
+// day already is in this application — so the slot search, every booking path and
+// the board all honour it without learning a new idea. A date that already has
+// trucks booked on it is reported back rather than cleared: cancelling somebody's
+// load behind their back is not MaxDock's decision to make.
+function renderHolidays(canEdit) {
+  const chosen = state.settings?.holiday_calendar || 'none';
+  const year = format.yearOf(state.context?.location);
+  const upcoming = (state.holidays || []).slice(0, 8);
+  const list = upcoming.length
+    ? `<div class="tablewrap"><table class="table"><thead><tr><th>Date</th><th class="col-fill">Holiday</th><th>Source</th></tr></thead><tbody>${upcoming.map(row => `<tr>
+        <td class="data data--strong">${escapeHtml(format.dateShort(`${row.holiday_date}T12:00:00Z`, state.context.location))}</td>
+        <td class="data">${escapeHtml(row.name)}</td>
+        <td><span class="tag tag--quiet">${escapeHtml(row.source === 'manual' ? 'Added by hand' : 'Statutory')}</span></td>
+      </tr>`).join('')}</tbody></table></div>`
+    : '<p class="hint">No dates recorded yet. Choose a calendar and apply it.</p>';
+  return `<form data-section-form="holidays">
+    <h3 class="card__title">Holidays</h3>
+    <div class="frow">
+      <label class="field field--md"><span class="field__label">Calendar</span><select class="select" name="holiday_calendar" ${canEdit ? '' : 'disabled'}>
+        <option value="none" ${chosen === 'none' ? 'selected' : ''}>None — set closures by hand</option>
+        <option value="ca" ${chosen === 'ca' ? 'selected' : ''}>Canada (Ontario)</option>
+        <option value="us" ${chosen === 'us' ? 'selected' : ''}>United States (federal)</option>
+      </select></label>
+      <div class="field field--num"><span class="field__label">Year</span><span class="inputwrap"><input class="input" type="number" min="2020" max="2100" name="holiday_year" value="${year}" ${canEdit ? '' : 'disabled'}></span></div>
+      ${canEdit ? `<div class="field-action"><button class="btn btn--quiet btn--sm" type="button" data-unlocked data-apply-holidays>Block these dates</button></div>` : ''}
+    </div>
+    <p class="hint hint--wide">Choosing a calendar and saving records which dates this site observes. <strong>Block these dates</strong> then closes every dock across each of them, the same way blocking dock time does — so nothing can be booked on them and the board shows why. A date that already has trucks on it is left alone and named back to you, because cancelling a booked load is your call and not MaxDock's.</p>
+    ${list}
+    ${saveFoot(canEdit)}
+  </form>`;
 }
 
 // When this site takes inbound and when it takes outbound.
@@ -740,6 +782,40 @@ async function saveLabour(form) {
 // The whole roster in one call. Rows added, rows removed and people changed all
 // travel together, because a half-saved roster is a wrong denominator rather than
 // a missing one — and the report would show a number instead of admitting it.
+async function saveHolidays(form) {
+  const data = new FormData(form);
+  await saveSettingsFields({ holiday_calendar: data.get('holiday_calendar') || 'none' });
+}
+
+// Blocking the dates is its own action rather than part of Save: it writes a block
+// on every dock across a dozen days, which is not something to do as a side effect
+// of changing a dropdown.
+async function applyHolidays(trigger) {
+  const form = trigger.closest('[data-section-form]');
+  const year = Number(form.querySelector('[name="holiday_year"]').value);
+  const calendar = form.querySelector('[name="holiday_calendar"]').value;
+  if (calendar === 'none') { toast('Choose a calendar first, then save.', 'error'); return; }
+  trigger.disabled = true;
+  try {
+    // Saved first, so applying always uses the calendar on screen rather than the
+    // one that happened to be stored.
+    await saveSettingsFields({ holiday_calendar: calendar });
+    const result = await db.rpc('apply_holiday_calendar', {
+      p_location_id: state.locationId,
+      p_year: year,
+    }, { key: `settings:holidays:apply:${state.locationId}:${year}`, retry: 0, userMessage: 'The holiday dates could not be applied.' });
+    db.invalidate(`settings:holidays:${state.locationId}`);
+    const skipped = Number(result.skipped_count || 0);
+    toast(`${result.holidays} holiday${result.holidays === 1 ? '' : 's'} recorded for ${year}, ${result.docks_blocked} dock closure${result.docks_blocked === 1 ? '' : 's'} added.${skipped ? ` ${skipped} date${skipped === 1 ? '' : 's'} left open because trucks are already booked on ${skipped === 1 ? 'it' : 'them'}.` : ''}`, skipped ? 'warning' : 'success');
+    await fetchAll();
+    renderPanel();
+  } catch (error) {
+    toast(error.userMessage || 'The holiday dates could not be applied.', 'error');
+  } finally {
+    trigger.disabled = false;
+  }
+}
+
 async function saveShifts(form) {
   const shifts = [...form.querySelectorAll('[data-shift-row]')].map(row => ({
     name: row.querySelector('[data-shift-name]').value.trim(),
@@ -933,6 +1009,7 @@ async function submitSection(event) {
     else if (kind === 'labour') await saveLabour(form);
     else if (kind === 'labour-day') await saveLabourDay(form);
     else if (kind === 'shifts') await saveShifts(form);
+    else if (kind === 'holidays') await saveHolidays(form);
     else if (kind === 'combining') await saveCombining(form);
     else if (kind === 'truck-capacity') await saveTruckCapacity(form);
     else if (kind === 'direction-windows') await saveDirectionWindows(form);
@@ -1457,6 +1534,8 @@ function wireEvents(root) {
     // Shift rows are edited in place, so Add and Remove change the rows on screen
     // and Save writes the roster as a whole. Nothing is written until Save, which
     // is what the buttons under the list say.
+    const applyHols = event.target.closest('[data-apply-holidays]');
+    if (applyHols) { applyHolidays(applyHols); return; }
     if (event.target.closest('[data-add-shift]')) {
       state.shifts = [...(state.shifts || []), { name: '', start_time: '07:00', end_time: '15:30', people: 0, days_of_week: [1, 2, 3, 4, 5] }];
       renderPanel();

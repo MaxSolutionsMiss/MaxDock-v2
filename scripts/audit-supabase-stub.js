@@ -111,11 +111,15 @@
     locations: LOC,
     docks: DOCKS,
     location_operating_hours: [{ location_id: 'loc-1', day_of_week: new Date().getDay(), is_open: true, open_time: '07:00:00', close_time: '17:00:00' }],
-    location_settings: [{ location_id: 'loc-1', slot_interval_minutes: 60, buffer_minutes: 10, base_minutes: 30, minutes_per_skid: 3, full_truck_minimum_minutes: 75, full_truck_skid_threshold: 24, priority_minimum_minutes: 75, minimum_notice_minutes: 240, maximum_advance_days: 10, auto_assign_dock: true, is_active: true, capacity_enabled: true, skid_capacity: 120, capacity_reserve_skids: 10, capacity_enforcement_mode: 'warn', current_occupied_skids: 67, inventory_as_of: iso(6), capacity_last_source: 'mis_csv', dock_assignment_strategy: 'balanced', max_concurrent_appointments: 2, suggest_same_day_consolidation: true, consolidation_window_hours: null, handlers_per_truck: 2}],
+    location_settings: [{ location_id: 'loc-1', slot_interval_minutes: 60, buffer_minutes: 10, base_minutes: 30, minutes_per_skid: 3, full_truck_minimum_minutes: 75, full_truck_skid_threshold: 24, priority_minimum_minutes: 75, minimum_notice_minutes: 240, maximum_advance_days: 10, auto_assign_dock: true, is_active: true, capacity_enabled: true, skid_capacity: 120, capacity_reserve_skids: 10, capacity_enforcement_mode: 'warn', current_occupied_skids: 67, inventory_as_of: iso(6), capacity_last_source: 'mis_csv', dock_assignment_strategy: 'balanced', max_concurrent_appointments: 2, suggest_same_day_consolidation: true, consolidation_window_hours: null, handlers_per_truck: 2, holiday_calendar: 'ca'}],
     // The roster the brief and the utilisation report both divide by.
     location_shifts: [
       { id: 'shift-1', location_id: 'loc-1', name: 'Day', start_time: '07:00:00', end_time: '15:30:00', people: 4, days_of_week: [1, 2, 3, 4, 5], is_active: true, sort_order: 1 },
       { id: 'shift-2', location_id: 'loc-1', name: 'Afternoon', start_time: '15:30:00', end_time: '23:30:00', people: 2, days_of_week: [1, 2, 3, 4], is_active: true, sort_order: 2 },
+    ],
+    location_holidays: [
+      { location_id: 'loc-1', holiday_date: iso(0, 0, 40).slice(0, 10), name: 'Civic Holiday', source: 'statutory' },
+      { location_id: 'loc-1', holiday_date: iso(0, 0, 120).slice(0, 10), name: 'Thanksgiving', source: 'statutory' },
     ],
     location_labour_days: [{ location_id: 'loc-1', work_date: iso(0, 0, -2).slice(0, 10), people: 2, hours_each: 6, note: 'Civic holiday — skeleton crew' }],
     truck_types: [{ code: 'trailer_53', name: '53 ft Trailer', sort_order: 1 }, { code: 'trailer_48', name: '48 ft Trailer', sort_order: 2 }, { code: 'straight_truck_26', name: '26 ft Straight Truck', sort_order: 3 }, { code: 'cube_van', name: 'Cube Van', sort_order: 4 }, { code: 'courier_van', name: 'Courier Van', sort_order: 5 }],
@@ -197,6 +201,8 @@
     save_location_labour: () => null,
     record_labour_day: () => null,
     save_location_shifts: () => null,
+    apply_holiday_calendar: () => ({ year: 2026, calendar: 'ca', holidays: 12, docks_blocked: 55, skipped: [], skipped_count: 0 }),
+    statutory_holidays: () => [{ holiday_date: '2026-08-03', name: 'Civic Holiday' }],
     admin_get_mis_integration_settings: () => ({ database_type: 'sql_server', server_name: '', server_port: null, database_name: '', source_name: '', sync_mode: 'manual_csv', daily_sync_time: '05:00', is_enabled: false, credential_secret_name: '', last_success_at: null }),
     admin_list_mis_import_runs: () => [{ id: 2048, import_type: 'inventory_snapshot', file_name: 'inventory-2026-07-26.csv', row_count: 1204, status: 'completed', summary: '1204 rows imported.', imported_by_name: 'Javad Resa', created_at: iso(6) }],
     // Reports used to be audited against an empty object, so every rule passed on a

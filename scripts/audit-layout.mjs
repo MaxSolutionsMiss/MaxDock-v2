@@ -110,6 +110,7 @@ const FLOWS = {
   settings: [
     { name: 'docks', query: '', act: async page => { await page.click('[data-section="docks"]'); await page.waitForTimeout(250); await page.locator('[data-edit-section] >> visible=true').first().click({ timeout: 2000 }).catch(() => {}); }, expect: '.stack--table .table' },
     { name: 'hours', query: '', act: async page => { await page.click('[data-section="hours"]'); await page.waitForTimeout(250); await page.locator('[data-edit-section] >> visible=true').first().click({ timeout: 2000 }).catch(() => {}); }, expect: '.stack .dirwin' },
+    { name: 'holidays', query: '', act: async page => { await page.click('[data-section="hours"]'); await page.waitForTimeout(250); await page.locator('[data-section-form="holidays"] [data-edit-section]').click({ timeout: 2000 }).catch(() => {}); }, expect: '[name="holiday_calendar"]' },
     // Capacity, hours and docks each draw one window with ruled parts rather than
     // a card per part, so .card is the wrong thing to wait for — it is .stack.
     { name: 'capacity', query: '', act: async page => { await page.click('[data-section="capacity"]'); await page.waitForTimeout(250); await page.locator('[data-edit-section] >> visible=true').first().click({ timeout: 2000 }).catch(() => {}); }, expect: '.stack' },
