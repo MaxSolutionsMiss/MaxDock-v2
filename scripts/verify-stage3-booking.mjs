@@ -49,6 +49,15 @@ if (!errors.length) {
   // the duplicate trucks the owner is trying to stop.
   requireText(page, /merge_appointments/, 'Ticked loads are never merged — combining only annotates the booking.');
   requireText(page, /function fullnessBar/, 'A combined truck must say how full it ended up.');
+  // Two places offer combining — the booking wizard, and the operations brief for
+  // loads already on the board — and they must be two doors onto one function.
+  // A second implementation would be a second set of rules about who may cancel
+  // whose load, which is exactly the thing that went wrong the first time.
+  const combineDialog = read('js/ui/combine-loads.js');
+  requireText(combineDialog, /merge_appointments/, 'Combining from the board must call the same merge as booking.');
+  if (/update\(\s*'appointments'|db\.remove\(/.test(combineDialog)) {
+    errors.push('Combining must not cancel or edit appointments directly — that is the merge function\u2019s job.');
+  }
   // A repeating booking is a pattern the server turns into ordinary appointments
   // through the ordinary booking function. If the page ever books the dates
   // itself, every rule a single booking obeys stops applying to a repeat.

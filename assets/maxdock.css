@@ -805,6 +805,9 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 /* Cards from two different strips are two groups, ruled apart and each named,
    rather than one run of near-identical labels. */
 .pickgroup{--check-col:180px;border:none;padding:0;margin:0}
+/* One load per line: a reference, a time and a skid count do not fit in the
+   column width a truck type does, and the tail is the part being judged. */
+.pickgroup--wide{--check-col:100%}
 /* A group heading has to sit nearer the boxes it names than the group above it.
    Equal air either side of the rule left "Appointment block" reading as the tail
    of the metric cards. */

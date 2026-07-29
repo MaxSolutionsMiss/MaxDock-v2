@@ -6,6 +6,7 @@ import { format } from '../format.js';
 import { createCustomizePanel } from '../ui/customize.js';
 import { openWall, paintWall } from '../ui/wall.js';
 import { pageHead } from '../ui/pagehead.js';
+import { createCombineDialog } from '../ui/combine-loads.js';
 import { createAppointmentDetails } from '../ui/appointment-details.js';
 
 const LATE_GRACE_MINUTES = 15;
@@ -48,6 +49,8 @@ const state = {
   blockFields: [],
   truckTypeNames: new Map(),
   truckCapacity: new Map(),
+  combineLanes: [],
+  combineDialog: null,
   labour: null,
   detailsModal: null,
 };
@@ -343,7 +346,16 @@ function briefGroups() {
   const labour = labourPoints(appointments);
   if (labour.length) groups.push({ title: 'Labour', points: labour });
   const combining = combinePoints(appointments);
-  if (combining.length) groups.push({ title: 'Combining', points: combining });
+  state.combineLanes = combining;
+  // The only group whose bullets are worth acting on: everything else on this card
+  // is something to know, this is something to do.
+  if (combining.length) {
+    groups.push({
+      title: 'Combining',
+      points: combining.map(lane => lane.text),
+      action: can('appointment.create') ? { label: 'Combine', attribute: 'data-combine-lane' } : null,
+    });
+  }
 
   const attention = [];
   if (late.length) attention.push(`${late.length} running late — ${late.slice(0, 2).map(record => record.booking_reference || 'an unreferenced booking').join(', ')}.`);
@@ -398,15 +410,18 @@ function combinePoints(appointments) {
     if (!lanes.has(key)) lanes.set(key, { partner, direction: record.direction, rows: [] });
     lanes.get(key).rows.push(record);
   }
-  const points = [];
+  const found = [];
   for (const lane of lanes.values()) {
     if (lane.rows.length < 2) continue;
     const total = lane.rows.reduce((sum, row) => sum + Number(row.skid_count || 0), 0);
     const biggest = Math.max(...lane.rows.map(row => Number(state.truckCapacity.get(row.truck_type_code) || 0)));
     const fits = biggest > 0 && total <= biggest;
-    points.push(`${lane.rows.length} ${lane.direction} loads ${lane.direction === 'outbound' ? 'to' : 'from'} ${lane.partner} today — ${lane.rows.map(row => row.booking_reference).filter(Boolean).join(', ')}${biggest > 0 ? `, ${total} of ${biggest} skids${fits ? ' — they fit one truck' : ''}` : ''}.`);
+    found.push({
+      ...lane,
+      text: `${lane.rows.length} ${lane.direction} loads ${lane.direction === 'outbound' ? 'to' : 'from'} ${lane.partner} today — ${lane.rows.map(row => row.booking_reference).filter(Boolean).join(', ')}${biggest > 0 ? `, ${total} of ${biggest} skids${fits ? ' — they fit one truck' : ''}` : ''}.`,
+    });
   }
-  return points.slice(0, 3);
+  return found.slice(0, 3);
 }
 
 function renderBriefCard() {
@@ -422,7 +437,7 @@ function renderBriefCard() {
     ? '<span class="brief__x">Generating today’s narrative…</span>'
     : `<div class="briefcols">${briefGroups().map(group => `<section class="briefcol">
         <h4 class="briefcol__t">${escapeHtml(group.title)}</h4>
-        <ul class="briefpoints">${group.points.map(point => `<li>${escapeHtml(point)}</li>`).join('')}</ul>
+        <ul class="briefpoints">${group.points.map((point, index) => `<li>${escapeHtml(point)}${group.action ? ` <button class="linkBtn" type="button" ${group.action.attribute}="${index}">${escapeHtml(group.action.label)}</button>` : ''}</li>`).join('')}</ul>
       </section>`).join('')}</div>`;
   host.innerHTML = `<div class="brief__head"><span class="brief__ico">AI</span><div class="brief__t">${escapeHtml(state.context.location.name)} · today at a glance</div><button class="linkBtn" type="button" data-share-brief>Share with team</button></div>
     <div class="brieffigs">${figures}</div>
@@ -613,6 +628,16 @@ function wireEvents(root) {
     if (event.target.closest('[data-print]')) globalThis.print();
     if (event.target.closest('[data-fullscreen]')) openBroadcastWindow();
     if (event.target.closest('[data-share-brief]')) shareBrief();
+    const lane = event.target.closest('[data-combine-lane]');
+    if (lane) {
+      const found = state.combineLanes[Number(lane.dataset.combineLane)];
+      if (found) {
+        state.combineDialog.open(found.rows,
+          `${found.rows.length} ${found.direction} loads ${found.direction === 'outbound' ? 'to' : 'from'} ${found.partner} today`,
+          lane);
+      }
+      return;
+    }
     if (event.target.closest('[data-customize]')) state.customizePanel.open(event.target.closest('[data-customize]'));
     const tab = event.target.closest('[data-tabs] button');
     if (tab) {
@@ -654,6 +679,11 @@ const page = {
     // One gear, both rows: the brief's figures at a glance and the metric cards
     // under it. They were two strips of numbers with only one of them adjustable.
     state.detailsModal = createAppointmentDetails({ location: context.location });
+    state.combineDialog = createCombineDialog({
+      location: context.location,
+      capacityFor: record => state.truckCapacity.get(record.truck_type_code) || 0,
+      onDone: () => refreshData(),
+    });
     state.customizePanel = await createCustomizePanel({
       // A new key rather than queue-cards: the saved list now carries the wall's
       // block fields too, and an old list read against the new options would
@@ -687,7 +717,7 @@ const page = {
     state.labour = data.labour ?? state.labour;
     renderAll();
   },
-  destroy() { state.customizePanel?.destroy(); state.detailsModal?.destroy(); },
+  destroy() { state.customizePanel?.destroy(); state.detailsModal?.destroy(); state.combineDialog?.destroy(); },
 };
 
 startPage(page);

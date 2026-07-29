@@ -1455,3 +1455,27 @@ less, still an existing token so it stays in step with everything else.
 The brief's columns were running straight into the metric cards above them, so the
 first bullet read as a caption on the card rather than the start of its own
 column. A gap and a hairline between them.
+
+## Combining loads that are already booked (2026-07-29)
+
+The other half of combining, and the one the owner asked for last: two or three
+trucks already on the board, going the same way to the same place on the same day,
+that nobody caught at the time.
+
+The operations brief already finds them. Now the line is the action: **Combine**
+beside it opens a dialog with the lane's loads ticked, says which one survives —
+the earliest, because growing it eats into time that is still free rather than
+into somebody else's slot — the combined skid count, how full that trailer ends
+up, and how many loads are about to be cancelled onto it.
+
+It calls the same `merge_appointments` the booking wizard calls. Same permission
+rules, same conflict check by the dock-overlap constraint, same rollback if the
+survivor cannot grow, same notice to whoever booked each absorbed load.
+`verify-stage3-booking.mjs` now fails the build if `js/ui/combine-loads.js` ever
+cancels or edits an appointment directly: two doors, one function, because a
+second implementation would be a second set of rules about who may cancel whose
+load — which is precisely what went wrong the first time.
+
+Walked in a browser: the brief found "2 outbound loads to Guelph today", the
+dialog offered both at 20 of 26 skids and 77% full, and Combine called
+`merge_appointments` with the earliest as the keeper and the other as absorbed.

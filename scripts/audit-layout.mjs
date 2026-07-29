@@ -69,6 +69,8 @@ const MODALS = {
   queue: [
     { name: 'customize', trigger: '[data-customize]' },
     { name: 'appointment-details', trigger: 'tr[data-open-record]' },
+    // Combining loads already on the board, offered from the lane the brief found.
+    { name: 'combine-loads', trigger: '[data-combine-lane]' },
   ],
   'my-appointments': [
     // Not the first one on the page — the first one belongs to a past appointment
