@@ -1048,3 +1048,35 @@ them anywhere itself.
 `scripts/verify-users-import.mjs` holds those rules: through the edge function,
 never straight to the database, nothing created before the sheet has been shown
 back, and the file is never sent anywhere to be parsed.
+
+## Who is allowed to have a load absorbed (2026-07-29)
+
+The first `merge_appointments` checked the caller against the *kept* appointment —
+location access and `appointment.create` — and then cancelled everything named in
+`p_absorb_ids` without asking who owned those. The screen only ever offered loads
+the caller was allowed to see, which is not the same thing as the function
+refusing the rest: anyone holding an appointment id could have named another
+company's load as something to combine and had MaxDock cancel it.
+
+It now applies the rule cancelling already follows. Staff holding
+`appointment.cancel` may absorb anybody's load; everybody else may absorb only
+what they booked themselves. The kept appointment gets the same treatment as any
+other change to it: `appointment.update`, or it is yours.
+
+Proved against the live project, all three rolled back: two of one user's own
+loads merged (5 + 8 + 3 = 16 skids, both absorbed rows cancelled and pointing at
+the survivor); a customer naming somebody else's appointment as the one to keep
+was refused; a customer naming somebody else's load to absorb was refused. Nothing
+persisted — `merged_rows: 0, combined_cancels: 0` afterwards.
+
+The absorb loop also used the `p_keep_id` parameter as its cursor variable. It
+worked, because the keeper is read into a record before the loop, and it was one
+edit away from not working.
+
+`list_my_appointments` gained `cancellation_reason` and `merged_into_reference` in
+the same pass, so a customer whose load was combined onto another truck is told
+so on their own card rather than finding a cancelled appointment with no
+explanation. Changing a function's return type means dropping it, which reset its
+grants to the database default of EXECUTE to PUBLIC — those were revoked back to
+`authenticated` and `service_role`, matching every sibling RPC. **A recreated
+function has to have its ACL checked, not assumed.**

@@ -704,7 +704,7 @@ function buildShell(root) {
         <div class="modal__head"><div><h2 class="modal__title" id="import-users-title">Import users</h2><p class="modal__sub">Send a location the template, upload what comes back, and every row becomes an account.</p></div><button class="modal__x" type="button" data-close-import aria-label="Close">×</button></div>
         <div class="modal__body">
           <div class="frow">
-            <label class="field field--lg"><span class="field__label">Filled-in sheet</span><input class="input" type="file" accept=".csv,.xlsx,text/csv" data-import-file></label>
+            <label class="field field--xl"><span class="field__label">Filled-in sheet</span><input class="input" type="file" accept=".csv,.xlsx,text/csv" data-import-file></label>
             <div class="field-action field--md"><button class="btn btn--quiet" type="button" data-import-template>Download template</button></div>
           </div>
           <p class="hint hint--wide">Excel or CSV. The sheet needs a Full name, Username and Role column; Email, Company, Locations and Temporary password are read if they are there. Leave a password blank and MaxDock makes one, then shows you every sign-in at the end.</p>
