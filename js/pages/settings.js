@@ -4,6 +4,7 @@ import { toast } from '../ui/toast.js';
 import { createModal } from '../ui/modal.js';
 import { pageHead } from '../ui/pagehead.js';
 import { format } from '../format.js';
+import { createShortcutCard } from '../ui/shortcut-card.js';
 
 const DAY_LABELS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const DAY_ORDER = [1, 2, 3, 4, 5, 6, 0];
@@ -22,6 +23,7 @@ const SECTIONS = [
   { id: 'combining', label: 'Combining loads' },
   { id: 'docks', label: 'Docks' },
   { id: 'trucks', label: 'Truck types' },
+  { id: 'quickqr', label: 'Quick QR' },
 ];
 
 const state = {
@@ -37,9 +39,16 @@ const state = {
   locationTruckTypes: [],
   dockTruckTypes: [],
   directionWindows: [],
+  appointmentTypes: [],
+  handlingTypes: [],
+  shortcuts: [],
+  locations: [],
   elements: {},
   dockModal: null,
   editingDockId: null,
+  shortcutModal: null,
+  shortcutCard: null,
+  editingShortcutId: null,
 };
 
 const escapeHtml = value => String(value ?? '').replace(/[&<>'"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[char]));
@@ -94,7 +103,8 @@ function durationValue(data, name, baseUnit, units) {
 
 async function fetchAll() {
   const locationId = state.locationId;
-  const [hours, settings, docks, truckTypes, locationTruckTypes, dockTruckTypes, capacity, directionWindows] = await Promise.all([
+  const [hours, settings, docks, truckTypes, locationTruckTypes, dockTruckTypes, capacity, directionWindows,
+    appointmentTypes, handlingTypes, shortcuts] = await Promise.all([
     db.select('location_operating_hours', q => q.select('location_id,day_of_week,is_open,open_time,close_time').eq('location_id', locationId), { key: `settings:hours:${locationId}`, cache: 0 }),
     db.select('location_settings', q => q.select('*').eq('location_id', locationId).maybeSingle(), { key: `settings:row:${locationId}`, cache: 0 }),
     db.select('docks', q => q.select('id,name,description,sort_order,direction_mode,is_active').eq('location_id', locationId).order('sort_order').order('name'), { key: `settings:docks:${locationId}`, cache: 0 }),
@@ -103,6 +113,11 @@ async function fetchAll() {
     db.select('dock_truck_types', q => q.select('dock_id,truck_type_code').eq('location_id', locationId), { key: `settings:dock-truck-types:${locationId}`, cache: 0 }),
     db.rpc('get_location_capacity_projection', { p_location_id: locationId, p_at: format.nowIso(), p_direction: 'inbound', p_skid_count: 0 }, { key: `settings:capacity:${locationId}`, cache: 0, retry: 1 }).catch(() => null),
     db.rpc('list_dock_direction_windows', { p_location_id: locationId }, { key: `settings:windows:${locationId}`, cache: 0, retry: 1 }).catch(() => []),
+    db.select('appointment_types', q => q.select('code,name').eq('is_active', true).order('sort_order'), { key: 'appointment-types:active', cache: 60000 }),
+    db.select('handling_types', q => q.select('code,name').eq('is_active', true).order('sort_order'), { key: 'handling-types:active', cache: 60000 }),
+    db.select('booking_templates', q => q
+      .select('id,owner_user_id,location_id,name,is_shared,direction,requester_type,company_name,appointment_type_code,truck_type_code,skid_count,handling_type_code,is_priority,carrier_name,updated_at')
+      .eq('location_id', locationId).eq('is_shared', true).order('name'), { key: `settings:shortcuts:${locationId}`, cache: 0 }),
   ]);
   state.hours = hours || [];
   state.capacity = Array.isArray(capacity) ? capacity[0] || null : capacity || null;
@@ -112,6 +127,9 @@ async function fetchAll() {
   state.locationTruckTypes = locationTruckTypes || [];
   state.dockTruckTypes = dockTruckTypes || [];
   state.directionWindows = directionWindows || [];
+  state.appointmentTypes = appointmentTypes || [];
+  state.handlingTypes = handlingTypes || [];
+  state.shortcuts = shortcuts || [];
 }
 
 function saveFoot(canEdit) {
@@ -406,10 +424,59 @@ function renderTruckTypes() {
     </form>`;
 }
 
+// Quick QR — a booking somebody does over and over, saved once and reachable
+// with a phone camera.
+//
+// Mississauga sends to Guelph on a 53 with 33 skids, always outbound. That is
+// not a setting, it is a shortcut: the code goes on the wall, the driver's
+// coordinator scans it, and the booking form opens with everything filled in
+// but the time. Changing what a code books is editing the shortcut behind it —
+// the printed code keeps working, because it points at the shortcut, not at a
+// copy of its contents.
+function shortcutRoute(shortcut) {
+  const here = state.context?.location?.name || 'This site';
+  const party = String(shortcut.company_name || shortcut.requester_type || '').trim() || 'Not named';
+  return String(shortcut.direction || '').toLowerCase() === 'outbound' ? `${here} → ${party}` : `${party} → ${here}`;
+}
+
+function labelFor(rows, code) {
+  return rows.find(row => row.code === code)?.name || code || '—';
+}
+
+function shortcutDetail(shortcut) {
+  return [
+    labelFor(state.appointmentTypes, shortcut.appointment_type_code),
+    labelFor(state.truckTypes, shortcut.truck_type_code),
+    `${Number(shortcut.skid_count || 0)} skids`,
+    labelFor(state.handlingTypes, shortcut.handling_type_code),
+  ].join(' · ');
+}
+
+function renderQuickQr() {
+  const canEdit = state.canManage;
+  const rows = state.shortcuts.map(shortcut => `<div class="setrow" data-shortcut-row="${shortcut.id}">
+      <div>
+        <div class="setrow__t">${escapeHtml(shortcut.name)}</div>
+        <div class="setrow__d">${escapeHtml(shortcutRoute(shortcut))} · ${escapeHtml(shortcutDetail(shortcut))}</div>
+      </div>
+      <div class="setrow__ctl">
+        <button class="btn btn--primary btn--sm" type="button" data-print-shortcut="${shortcut.id}">Print code</button>
+        ${canEdit ? `<button class="btn btn--quiet btn--sm" type="button" data-edit-shortcut="${shortcut.id}">Edit</button>` : ''}
+        ${canEdit ? `<button class="btn btn--quiet btn--sm" type="button" data-delete-shortcut="${shortcut.id}">Delete</button>` : ''}
+      </div>
+    </div>`).join('');
+  return `<form class="card" data-section-form="quickqr">
+    <h3 class="card__title">Quick QR${canEdit ? '<button class="btn btn--primary btn--sm at-end" type="button" data-add-shortcut>New code</button>' : ''}</h3>
+    ${rows || '<p class="hint">No quick codes yet. Make one for a run this site books over and over.</p>'}
+    <p class="hint hint--wide">A quick code is a booking saved with everything but the time. Print it, put it where the loads are made up, and scanning it opens MaxDock with the load already in — the person booking picks a time and confirms. Edit a code and every printed copy of it changes with it; the paper does not have to be replaced.</p>
+  </form>`;
+}
+
 function renderPanel() {
   const map = {
     hours: renderHours, timing: renderTiming, notice: renderNotice, capacity: renderCapacity,
     assignment: renderAssignment, combining: renderCombining, docks: renderDocks, trucks: renderTruckTypes,
+    quickqr: renderQuickQr,
   };
   state.elements.panel.innerHTML = (map[state.section] || renderHours)();
 }
@@ -584,8 +651,27 @@ async function saveTruckTypes(form) {
     : [];
   const after = toEnable.map(row => row.truck_type_code);
 
-  await db.remove('location_truck_types', q => q.eq('location_id', state.locationId), { select: false });
-  if (toEnable.length) await db.insert('location_truck_types', toEnable, { select: false, single: false });
+  // Updated in place, never deleted and re-inserted. Appointments carry a foreign
+  // key to (location, truck type), so wiping the location's rows to rewrite them
+  // is refused by the database the moment a single appointment has ever used one:
+  // "violates foreign key constraint appointments_location_truck_fk". Turning a
+  // type off means is_active = false, which is what the rest of the app reads —
+  // the row stays so the history that points at it stays valid.
+  const existing = new Set(state.locationTruckTypes.map(row => row.truck_type_code));
+  const enabling = new Map(toEnable.map(row => [row.truck_type_code, row]));
+  for (const row of toEnable) {
+    if (existing.has(row.truck_type_code)) {
+      await db.update('location_truck_types', { setup_minutes: row.setup_minutes, is_active: true },
+        q => q.eq('location_id', state.locationId).eq('truck_type_code', row.truck_type_code), { select: false });
+    } else {
+      await db.insert('location_truck_types', row, { select: false });
+    }
+  }
+  for (const code of existing) {
+    if (enabling.has(code)) continue;
+    await db.update('location_truck_types', { is_active: false },
+      q => q.eq('location_id', state.locationId).eq('truck_type_code', code), { select: false });
+  }
 
   // A type the location just turned off cannot stay bookable at a door, and a type
   // it just turned on has to reach every dock that was set to take all of them —
@@ -730,6 +816,76 @@ async function submitDock(event) {
   }
 }
 
+function optionList(rows, selected) {
+  return rows.map(row => `<option value="${escapeHtml(row.code)}" ${row.code === selected ? 'selected' : ''}>${escapeHtml(row.name)}</option>`).join('');
+}
+
+function openShortcutModal(shortcutId) {
+  state.editingShortcutId = shortcutId || null;
+  const shortcut = shortcutId ? state.shortcuts.find(item => item.id === shortcutId) : null;
+  const form = state.elements.shortcutForm;
+  form.reset();
+  state.elements.shortcutBackdrop.querySelector('[data-shortcut-modal-title]').textContent = shortcut ? 'Edit quick code' : 'New quick code';
+  form.querySelector('[data-shortcut-types]').innerHTML = optionList(state.appointmentTypes, shortcut?.appointment_type_code);
+  form.querySelector('[data-shortcut-trucks]').innerHTML = optionList(state.truckTypes, shortcut?.truck_type_code);
+  form.querySelector('[data-shortcut-handling]').innerHTML = optionList(state.handlingTypes, shortcut?.handling_type_code);
+  form.elements.name.value = shortcut?.name || '';
+  form.elements.direction.value = shortcut?.direction || 'outbound';
+  form.elements.company_name.value = shortcut?.company_name || '';
+  form.elements.skid_count.value = Number(shortcut?.skid_count || 0);
+  form.elements.carrier_name.value = shortcut?.carrier_name || '';
+  state.shortcutModal.open();
+}
+
+async function submitShortcut(event) {
+  event.preventDefault();
+  const form = state.elements.shortcutForm;
+  const data = new FormData(form);
+  const party = String(data.get('company_name') || '').trim();
+  const values = {
+    location_id: state.locationId,
+    name: String(data.get('name') || '').trim(),
+    direction: data.get('direction'),
+    // A quick code is always for an outside party or another site by name; the
+    // booking page works out which from the name when the code is scanned.
+    requester_type: party,
+    company_name: party,
+    appointment_type_code: data.get('appointment_type_code'),
+    truck_type_code: data.get('truck_type_code'),
+    skid_count: Number(data.get('skid_count') || 0),
+    handling_type_code: data.get('handling_type_code'),
+    carrier_name: String(data.get('carrier_name') || '').trim() || null,
+    is_priority: false,
+    is_shared: true,
+  };
+  try {
+    if (state.editingShortcutId) {
+      await db.update('booking_templates', values, q => q.eq('id', state.editingShortcutId), { select: false });
+    } else {
+      await db.insert('booking_templates', { ...values, owner_user_id: state.context.user.id }, { select: false });
+    }
+    db.invalidate(`settings:shortcuts:${state.locationId}`);
+    state.shortcutModal.close();
+    await fetchAll();
+    renderPanel();
+    toast('Quick code saved.', 'success');
+  } catch (error) {
+    toast(error.userMessage || 'The quick code could not be saved.', 'error');
+  }
+}
+
+async function deleteShortcut(shortcutId) {
+  try {
+    await db.remove('booking_templates', q => q.eq('id', shortcutId));
+    db.invalidate(`settings:shortcuts:${state.locationId}`);
+    await fetchAll();
+    renderPanel();
+    toast('Quick code deleted.', 'success');
+  } catch (error) {
+    toast(error.userMessage || 'The quick code could not be deleted.', 'error');
+  }
+}
+
 function buildShell(root) {
   root.innerHTML = `
     ${pageHead('Settings', { actions: ['print'] })}
@@ -758,6 +914,33 @@ function buildShell(root) {
           <div class="modal__foot"><button class="btn btn--quiet" type="button" data-close-dock>Cancel</button><button class="btn btn--primary" type="submit">Save dock</button></div>
         </form>
       </section>
+    </div>
+    <div class="scrim" data-shortcut-backdrop hidden aria-hidden="true">
+      <section class="modal" role="dialog" aria-modal="true" aria-labelledby="shortcut-modal-title">
+        <div class="modal__head"><div><h2 class="modal__title" id="shortcut-modal-title" data-shortcut-modal-title>New quick code</h2><p class="modal__sub">Everything but the time. Whoever scans the code picks that.</p></div><button class="modal__x" type="button" data-close-shortcut aria-label="Close">×</button></div>
+        <form data-shortcut-form>
+          <div class="modal__body">
+            <div class="frow">
+              <label class="field field--xl"><span class="field__label">Name<span class="field__req" aria-hidden="true">*</span></span><input class="input" name="name" maxlength="80" required placeholder="Guelph run"></label>
+              <label class="field field--md"><span class="field__label">Direction</span><select class="select" name="direction"><option value="outbound">Outbound</option><option value="inbound">Inbound</option></select></label>
+            </div>
+            <div class="frow">
+              <label class="field field--lg"><span class="field__label">Other party<span class="field__req" aria-hidden="true">*</span></span><input class="input" name="company_name" maxlength="120" required placeholder="Guelph"></label>
+              <label class="field field--lg"><span class="field__label">Appointment type</span><select class="select" name="appointment_type_code" data-shortcut-types></select></label>
+            </div>
+            <div class="frow">
+              <label class="field field--md"><span class="field__label">Truck type</span><select class="select" name="truck_type_code" data-shortcut-trucks></select></label>
+              <div class="field field--num"><span class="field__label">Skids</span><span class="inputwrap"><input class="input" type="number" name="skid_count" min="0" value="0"><span class="input__unit">skids</span></span></div>
+              <label class="field field--lg"><span class="field__label">Handling</span><select class="select" name="handling_type_code" data-shortcut-handling></select></label>
+            </div>
+            <div class="frow">
+              <label class="field field--full"><span class="field__label">Carrier <span class="field__opt">optional</span></span><input class="input" name="carrier_name" maxlength="120"></label>
+            </div>
+            <p class="hint hint--wide">Saved for everyone at this site, so any printed copy of the code works for whoever picks it up.</p>
+          </div>
+          <div class="modal__foot"><button class="btn btn--quiet" type="button" data-close-shortcut>Cancel</button><button class="btn btn--primary" type="submit">Save code</button></div>
+        </form>
+      </section>
     </div>`;
   state.elements = {
     root,
@@ -766,8 +949,12 @@ function buildShell(root) {
     panel: root.querySelector('[data-set-panel]'),
     dockBackdrop: root.querySelector('[data-dock-backdrop]'),
     dockForm: root.querySelector('[data-dock-form]'),
+    shortcutBackdrop: root.querySelector('[data-shortcut-backdrop]'),
+    shortcutForm: root.querySelector('[data-shortcut-form]'),
   };
   state.dockModal = createModal(state.elements.dockBackdrop, { onRequestClose: () => state.dockModal.close() });
+  state.shortcutModal = createModal(state.elements.shortcutBackdrop, { onRequestClose: () => state.shortcutModal.close() });
+  state.shortcutCard = createShortcutCard();
 }
 
 function readWindowRows() {
@@ -830,6 +1017,24 @@ function wireEvents(root) {
       renderPanel();
       return;
     }
+    if (event.target.closest('[data-add-shortcut]')) { openShortcutModal(null); return; }
+    const editShortcut = event.target.closest('[data-edit-shortcut]');
+    if (editShortcut) { openShortcutModal(editShortcut.dataset.editShortcut); return; }
+    const deleteTarget = event.target.closest('[data-delete-shortcut]');
+    if (deleteTarget) { deleteShortcut(deleteTarget.dataset.deleteShortcut); return; }
+    const printTarget = event.target.closest('[data-print-shortcut]');
+    if (printTarget) {
+      const shortcut = state.shortcuts.find(item => item.id === printTarget.dataset.printShortcut);
+      if (shortcut) {
+        state.shortcutCard.open(shortcut, {
+          route: shortcutRoute(shortcut),
+          detail: shortcutDetail(shortcut),
+          sub: `${state.context.location.name} · anyone at this site can use it`,
+        }, printTarget);
+      }
+      return;
+    }
+    if (event.target.closest('[data-close-shortcut]')) { state.shortcutModal.close(); return; }
     if (event.target.closest('[data-add-dock]')) { openDockModal(null); return; }
     const editDock = event.target.closest('[data-edit-dock]');
     if (editDock) { openDockModal(editDock.dataset.editDock); return; }
@@ -839,6 +1044,7 @@ function wireEvents(root) {
     if (event.target.matches('[data-section-form]')) submitSection(event);
   });
   state.elements.dockForm.addEventListener('submit', submitDock);
+  state.elements.shortcutForm.addEventListener('submit', submitShortcut);
 }
 
 const page = {
@@ -857,7 +1063,7 @@ const page = {
     switchSection(state.section);
   },
   refresh() {},
-  destroy() { state.dockModal?.destroy(); },
+  destroy() { state.dockModal?.destroy(); state.shortcutModal?.destroy(); state.shortcutCard?.destroy(); },
 };
 
 startPage(page);

@@ -63,7 +63,6 @@ const MODALS = {
     // The printable card behind a saved booking: a QR, the run in words, and the
     // link under it. Opened from inside the booking dialog, so the booking dialog
     // has to be opened first.
-    { name: 'quick-book-shortcut', prepare: '[data-open-booking]', trigger: '[data-action="shortcut-template"]' },
   ],
   // The queue is a status screen, not a booking screen — it deliberately has no
   // Book appointment action.
@@ -72,14 +71,21 @@ const MODALS = {
     { name: 'appointment-details', trigger: 'tr[data-open-record]' },
   ],
   'my-appointments': [
-    { name: 'cancel-appointment', trigger: '.btn--danger' },
-    { name: 'move-appointment', trigger: '[data-move-appointment]' },
+    // Not the first one on the page — the first one belongs to a past appointment
+    // and is deliberately disabled. The audit wants a row the action is live on.
+    { name: 'cancel-appointment', trigger: '.btn--danger:not([disabled])' },
+    { name: 'move-appointment', trigger: '[data-move-appointment]:not([disabled])' },
     { name: 'book-appointment', trigger: '[data-open-booking]', walkSteps: 5 },
     { name: 'customize', trigger: '[data-customize]' },
   ],
   // Add dock lives in the Docks & truck types section, so the section has to be
   // opened before the control exists.
-  settings: [{ name: 'add-dock', prepare: '[data-section="docks"]', trigger: '[data-add-dock]' }],
+  settings: [
+    { name: 'add-dock', prepare: '[data-section="docks"]', trigger: '[data-add-dock]' },
+    { name: 'new-quick-qr', prepare: '[data-section="quickqr"]', trigger: '[data-add-shortcut]' },
+    // The printable card: a code, the run in words and the link under it.
+    { name: 'quick-qr-card', prepare: '[data-section="quickqr"]', trigger: '[data-print-shortcut]' },
+  ],
   // The bell is on every page; the panel it opens carries a list, a sound switch
   // and two actions, and was never measured.
   reports: [{ name: 'notifications', trigger: '.notif__btn' }],
@@ -106,6 +112,7 @@ const FLOWS = {
     { name: 'assignment', query: '', act: async page => { await page.click('[data-section="assignment"]'); }, expect: '.card' },
     { name: 'combining', query: '', act: async page => { await page.click('[data-section="combining"]'); }, expect: '.card' },
     { name: 'trucks', query: '', act: async page => { await page.click('[data-section="trucks"]'); }, expect: '.card--table' },
+    { name: 'quickqr', query: '', act: async page => { await page.click('[data-section="quickqr"]'); }, expect: '[data-print-shortcut]' },
     { name: 'notice', query: '', act: async page => { await page.click('[data-section="notice"]'); }, expect: '.card' },
     { name: 'timing', query: '', act: async page => { await page.click('[data-section="timing"]'); }, expect: '.card' },
   ],

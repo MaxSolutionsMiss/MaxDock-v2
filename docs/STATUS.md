@@ -909,3 +909,63 @@ and prints that, rather than printing the dock board behind it.
 Verified end to end at phone width by loading the scanned URL directly: the form
 came up with the WIP appointment type, 22 skids, outbound, Max-to-Max to Guelph,
 and said which shortcut it had loaded.
+
+## Quick QR is its own screen (2026-07-29)
+
+The first attempt hung it off the booking wizard's Confirm step — a "share this"
+tick beside the notes and the template name. Wrong on two counts: the last step
+before confirming a booking was already carrying combining, repeating, notes and
+a template name, and a code for the wall is not something you make while booking
+a load. It is a thing you set up once.
+
+**Settings › Quick QR** owns it now. A code is a booking saved with everything but
+the time — direction, other party, appointment type, truck, skids, handling,
+carrier. New code, Edit, Delete, Print code. The card that prints carries the
+code, the run in words and the load, so somebody can tell one card from another
+without a phone.
+
+The important property: the code points at the shortcut, not at a copy of its
+contents. Edit a code — 33 skids becomes 26 — and every printed copy already
+taped to a wall books the new load. The paper never has to be replaced.
+
+The share tick is gone from the Confirm step and the card machinery moved to
+`js/ui/shortcut-card.js`, since Settings owns it now and the booking dialog only
+needs Use.
+
+## The MIS systems, named correctly (2026-07-29)
+
+**CERM** (cerm.net) in the US operation and **Globe-Tek** (globe-tekcorp.com) in
+Canada — both MIS systems for the folding-carton industry. Earlier notes in this
+file called the second one "Globetech", which is wrong. The integration plan is
+unchanged: a scheduled pull into a staging table, matched to proposed
+appointments by order or PO number, landing in a review queue a coordinator
+confirms — not a direct booking path from a backdoor SQL link. A read-only view
+or a nightly extract is enough, and is a far easier ask than live access.
+
+## Two bugs the owner hit in real use (2026-07-29)
+
+**A vendor could not get past step one.** The "Sending to" select came up showing
+a site, Continue refused with "Choose the Max Solutions location you are sending
+to", and changing the dropdown to anything else fixed it. The select was rendered
+with a value while the form field behind it stayed null — the page was asking for
+something already on screen. The form now agrees with what the select shows.
+
+**Saving truck types failed with a foreign key violation.** `saveTruckTypes`
+deleted every `location_truck_types` row for the site and re-inserted the ones
+still enabled, which the database refuses the moment one appointment has ever
+referenced one: `appointments_location_truck_fk`. Rows are updated in place now
+and turning a type off sets `is_active = false` — the row stays, so the history
+pointing at it stays valid. That is also why a type cannot simply be deleted, and
+why the section needs an explicit add rather than a free-text list.
+
+## Smaller things in the same pass
+
+The Max Solutions mark under the sign-in card is 15% larger. The password reveal
+shows a struck-through eye while the password is hidden and a plain one while it
+is showing — the icon says what the field is doing, not what the button would do,
+and hidden is where it starts. The notification list scrolls inside its panel
+instead of growing it past the bottom of the screen, each notice carries a dot in
+the colour that status already is on the board, and the chime is three notes
+rising with the last doubled an octave up: loud enough to carry across a shipping
+office, short enough not to be an alarm, and its own shape rather than the
+two-tone every application uses.

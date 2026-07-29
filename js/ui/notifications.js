@@ -47,18 +47,23 @@ export function createNotificationBell(context) {
       audio = audio || new (globalThis.AudioContext || globalThis.webkitAudioContext)();
       if (audio.state === 'suspended') audio.resume();
       const now = audio.currentTime;
-      for (const [index, hz] of [880, 1174.7].entries()) {
+      // Three notes rising, the last held and doubled an octave up: loud enough to
+      // carry across a shipping office, short enough not to be an alarm, and its
+      // own shape rather than the generic two-tone every application uses.
+      const motif = [[587.33, 0, 0.16], [880, 0.13, 0.18], [1174.7, 0.27, 0.42], [2349.3, 0.27, 0.34]];
+      for (const [hz, offset, hold] of motif) {
         const osc = audio.createOscillator();
         const gain = audio.createGain();
-        osc.type = 'sine';
+        osc.type = 'triangle';
         osc.frequency.value = hz;
-        const at = now + index * 0.11;
+        const at = now + offset;
+        const peak = hz > 2000 ? 0.06 : 0.2;
         gain.gain.setValueAtTime(0.0001, at);
-        gain.gain.exponentialRampToValueAtTime(0.12, at + 0.02);
-        gain.gain.exponentialRampToValueAtTime(0.0001, at + 0.22);
+        gain.gain.exponentialRampToValueAtTime(peak, at + 0.015);
+        gain.gain.exponentialRampToValueAtTime(0.0001, at + hold);
         osc.connect(gain).connect(audio.destination);
         osc.start(at);
-        osc.stop(at + 0.24);
+        osc.stop(at + hold + 0.02);
       }
     } catch {
       // No audio device, or the browser refused. The badge still moved.
@@ -86,7 +91,7 @@ export function createNotificationBell(context) {
         <div><h2 class="modal__title" id="notif-title">Notifications</h2><p class="modal__sub" data-notif-sub></p></div>
         <button class="modal__x" type="button" data-notif-close aria-label="Close">×</button>
       </div>
-      <div class="modal__body"><div data-notif-list></div></div>
+      <div class="modal__body"><div class="notif__list" data-notif-list></div></div>
       <div class="modal__foot">
         <label class="check-row check-row--inline"><input type="checkbox" data-notif-sound><span>Sound</span></label>
         <button class="btn btn--quiet" type="button" data-notif-mark-all>Mark all as read</button>
@@ -100,7 +105,20 @@ export function createNotificationBell(context) {
   const sub = backdrop.querySelector('[data-notif-sub]');
   const badge = button.querySelector('[data-notif-count]');
 
-  function unreadCount() {
+  // The dot beside a notice is the colour that status already is on the board, so
+// a glance at the bell reads the same way as a glance at the schedule. The
+// notification carries no status column, so it is read from what the notice is
+// about — which is what the words in it already say.
+function noticeTone(row) {
+  const text = `${row.title || ''} ${row.message || ''}`.toLowerCase();
+  if (text.includes('cancel')) return 'cancelled';
+  if (text.includes('complete')) return 'completed';
+  if (text.includes('book') || text.includes('scheduled')) return 'booked';
+  if (text.includes('moved') || text.includes('changed') || text.includes('updated')) return 'changed';
+  return 'other';
+}
+
+function unreadCount() {
     return rows.filter(row => !row.read_at).length;
   }
 
@@ -117,7 +135,7 @@ export function createNotificationBell(context) {
       ? `${unread} unread of ${rows.length} recent`
       : 'Nothing yet';
     list.innerHTML = rows.length
-      ? rows.map(row => `<div class="notif__item${row.read_at ? '' : ' notif__item--unread'}" data-notif-id="${row.id}">
+      ? rows.map(row => `<div class="notif__item notif__item--${noticeTone(row)}${row.read_at ? '' : ' notif__item--unread'}" data-notif-id="${row.id}">
           <div class="notif__itemhead">
             <b>${escapeHtml(row.title)}</b>
             <span class="sub">${escapeHtml(format.timestamp(row.created_at, context.location))}</span>

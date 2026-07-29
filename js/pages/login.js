@@ -43,10 +43,20 @@ function initialisePasswordReveal() {
   for (const button of document.querySelectorAll('[data-password-reveal]')) {
     const input = document.getElementById(button.dataset.passwordReveal);
     if (!input) continue;
+    // The icon says what the password is doing now, not what the button will do:
+    // a struck-through eye while it is hidden, a plain eye while it is showing.
+    // Hidden is the state the field starts in and the one it returns to.
+    const slash = button.querySelector('[data-reveal-slash]');
+    const sync = () => {
+      const hidden = input.type === 'password';
+      if (slash) slash.hidden = !hidden;
+      button.setAttribute('aria-label', hidden ? 'Show password' : 'Hide password');
+      button.setAttribute('aria-pressed', String(!hidden));
+    };
+    sync();
     button.addEventListener('click', () => {
-      const show = input.type === 'password';
-      input.type = show ? 'text' : 'password';
-      button.setAttribute('aria-label', show ? 'Hide password' : 'Show password');
+      input.type = input.type === 'password' ? 'text' : 'password';
+      sync();
     });
   }
 }

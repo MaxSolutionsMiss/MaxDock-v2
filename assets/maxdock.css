@@ -66,7 +66,19 @@ body{background:var(--ground);color:var(--ink);font-family:var(--font-ui);font-s
 .notif__btn:hover{color:var(--ink);background:var(--surface-sunk)}
 .notif__btn svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
 .notif__dot{position:absolute;top:-5px;right:-5px;min-width:16px;height:16px;padding:0 4px;border-radius:9px;background:var(--stop);color:#fff;font-size:var(--t-micro);font-weight:700;display:grid;place-items:center;line-height:1}
+/* The list scrolls inside the panel rather than growing the panel: twenty
+   notifications made a dialog taller than the screen with its buttons off the
+   bottom. Two thirds of the window is the ceiling. */
+.notif__list{max-height:min(52vh,520px);overflow-y:auto}
 .notif__item{padding:var(--s3) 0;border-bottom:1px solid var(--rule)}
+/* The dot beside a notice is the colour that status is everywhere else, so a
+   glance at the bell reads the same way as a glance at the board. */
+.notif__item{position:relative;padding-left:var(--s4)}
+.notif__item::before{content:"";position:absolute;left:0;top:calc(var(--s3) + 7px);width:8px;height:8px;border-radius:50%;background:var(--rule-strong)}
+.notif__item--booked::before{background:var(--dock)}
+.notif__item--completed::before{background:var(--ok)}
+.notif__item--cancelled::before{background:var(--stop)}
+.notif__item--changed::before{background:var(--signal)}
 .notif__item:last-child{border-bottom:none}
 .notif__item--unread{border-left:3px solid var(--dock);padding-left:var(--s3);margin-left:calc(var(--s3) * -1)}
 .notif__itemhead{display:flex;align-items:baseline;gap:var(--s2);margin-bottom:2px}
@@ -698,7 +710,7 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
    list of switches. */
 .setrow{display:grid;grid-template-columns:minmax(0,1fr) auto;justify-content:stretch;gap:var(--s3) var(--s4);align-items:center;padding:6px 0;border-bottom:1px solid var(--rule)}
 .setrow>div:first-child{display:flex;align-items:baseline;gap:var(--s3);min-width:0;flex-wrap:wrap}
-.setrow__d{min-width:0}
+.setrow__d{min-width:0;overflow-wrap:anywhere}
 /* A single on/off with a one-word label does not need the 220px name column the
    settings list uses — the switch sits beside the word. */
 .setrow--tight{grid-template-columns:auto auto;gap:var(--s3);border-bottom:none}
@@ -728,6 +740,7 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 
 /* Password reveal — approved production stylesheet */
 .passwordField{position:relative;display:flex;align-items:center}.passwordField .input{padding-right:calc(var(--tap) + 2px)}.passwordReveal{position:absolute;right:0;top:0;height:100%;width:var(--tap);display:flex;align-items:center;justify-content:center;border:none;background:none;color:var(--ink-muted);cursor:pointer;border-radius:var(--radius)}.passwordReveal:hover{color:var(--ink)}.passwordReveal svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.7}
+.passwordReveal[aria-pressed="true"]{color:var(--dock)}
 
 /* Shared shell primitives restored — dropped when the canonical stylesheet was replaced wholesale for Stage 4 */
 .skip-link{position:fixed;left:var(--s3);top:-100px;z-index:100;background:var(--surface);color:var(--ink);border:1px solid var(--rule-strong);border-radius:var(--radius);min-height:var(--tap);padding:var(--s2) var(--s3);display:inline-flex;align-items:center}
@@ -867,7 +880,9 @@ body.modal-open{overflow:hidden}
 .login-divider{display:flex;align-items:center;gap:var(--s3);margin:var(--s5) 0 var(--s3);color:var(--ink-faint);font-size:var(--t-micro);text-transform:uppercase;letter-spacing:.09em}
 .login-divider::before,.login-divider::after{content:"";height:1px;background:var(--rule);flex:1}
 .login-owner{text-align:center}
-.login-owner img{width:auto;max-width:100%;height:26px}
+/* The Max Solutions mark under the sign-in card, at the size the owner asked for
+   — it is the company's own logo, not a footnote. */
+.login-owner img{width:auto;max-width:100%;height:30px}
 .login-footer{text-align:center;margin-top:var(--s4);color:var(--ink-muted);font-size:var(--t-small)}
 @media (max-width:600px){.login-page{padding:var(--s3);align-items:start}.login-wrap{margin-top:var(--s4)}.login-card{padding:var(--s4)}}
 

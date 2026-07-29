@@ -58,10 +58,16 @@ if (!errors.length) {
   // A shortcut is a saved booking plus a way to reach it without a keyboard. The
   // link is the booking page with a location and a template on it — the pair the
   // page has understood since templates were built — and the QR is drawn here.
-  requireText(page, /function openShortcut/, 'The quick-book shortcut card is missing.');
-  requireText(page, /data-action="shortcut-template"/, 'Saved bookings offer no shortcut to print.');
-  requireText(page, /is_shared/, 'A shortcut for the wall has to be shareable beyond the person who saved it.');
-  if (/qrserver|chart\.googleapis/i.test(page)) errors.push('A shortcut QR must not be drawn by a third-party service.');
+  // Quick QR is its own screen under Settings, not another control on the last
+  // step of the booking wizard. The card is drawn from the shortcut it points at,
+  // so editing a code changes what every printed copy of it books.
+  const shortcutCard = read('js/ui/shortcut-card.js');
+  const settings = read('js/pages/settings.js');
+  requireText(shortcutCard, /renderQr\(/, 'The quick code must be drawn in the browser.');
+  requireText(settings, /function renderQuickQr/, 'Settings is missing the Quick QR section.');
+  requireText(settings, /data-print-shortcut/, 'Quick QR offers no printable code.');
+  requireText(settings, /is_shared: true/, 'A code on a wall has to work for whoever scans it.');
+  if (/qrserver|chart\.googleapis/i.test(shortcutCard)) errors.push('A quick code must not be drawn by a third-party service.');
   requireText(page, /poll\.suspend\(SLOT_SUSPENSION\)/, 'The five-second poll is not suspended while the slot picker is open.');
   requireText(page, /poll\.resume\(SLOT_SUSPENSION\)/, 'The slot-picker poll suspension is not released.');
   requireText(page, /p_after_hours_confirmed:\s*isStaff\(\)/, 'After-hours confirmation is not guarded as staff-only.');
