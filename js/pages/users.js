@@ -15,6 +15,9 @@ const state = {
   usage: new Map(),
   filters: { role: 'all', location: 'all', search: '' },
   selected: new Set(),
+  // Which rows are open. Kept on the page rather than in the row, so a five-second
+  // refresh redraws the table without collapsing what somebody was reading.
+  expanded: new Set(),
   elements: {},
   addModal: null,
   editModal: null,
@@ -139,18 +142,35 @@ function renderTable() {
     const box = isSelf
       ? '<span class="sub" title="You cannot change your own status">—</span>'
       : `<label class="cellcheck"><input type="checkbox" data-select-user="${user.user_id}" ${state.selected.has(user.user_id) ? 'checked' : ''} aria-label="Select ${escapeHtml(user.full_name)}"></label>`;
-    return `<tr>
+    // Four things closed, the rest a click away. Everything about an account on one
+    // line made the row as wide as the monitor and pushed Edit off the end of it;
+    // and most of the time the answer wanted is "who is this and are they active".
+    const open = state.expanded.has(user.user_id);
+    return `<tr class="userrow${open ? ' is-open' : ''}">
       <td>${box}</td>
       <td class="data--strong">${escapeHtml(user.full_name)}</td>
       <td class="data">${escapeHtml(user.username)}</td>
-      <td class="data">${escapeHtml(user.email)}</td>
       <td><span class="tag tag--quiet">${escapeHtml(roleLabel(user))}</span></td>
       <td>${statusTag}</td>
-      <td class="data cell-wrap2" title="${escapeHtml(sites)}">${escapeHtml(sites)}</td>
-      <td class="data cell-wrap2">${escapeHtml(lastSeen)}<span class="cell-fine">${escapeHtml(timeSignedIn(usage))}</span></td>
-      <td><button class="btn btn--quiet btn--sm" type="button" data-edit-user="${user.user_id}">Edit</button></td>
+      <td class="col-fill"></td>
+      <td class="userrow__end">
+        <button class="btn btn--quiet btn--icon userrow__toggle" type="button" data-expand-user="${user.user_id}" aria-expanded="${open}" aria-controls="user-more-${user.user_id}" title="${open ? 'Hide details' : 'Show details'}" aria-label="${open ? 'Hide details for' : 'Show details for'} ${escapeHtml(user.full_name)}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg></button>
+        <button class="btn btn--quiet btn--sm" type="button" data-edit-user="${user.user_id}">Edit</button>
+      </td>
+    </tr>
+    <tr class="usermore" id="user-more-${user.user_id}" ${open ? '' : 'hidden'}>
+      <td colspan="7">
+        <div class="userdetail">
+          <div class="userdetail__item"><span class="userdetail__label">Email</span><span class="userdetail__value data">${escapeHtml(user.email || '—')}</span></div>
+          <div class="userdetail__item"><span class="userdetail__label">Locations</span><span class="userdetail__value data">${escapeHtml(sites)}</span></div>
+          <div class="userdetail__item"><span class="userdetail__label">Last seen</span><span class="userdetail__value data">${escapeHtml(lastSeen)}</span></div>
+          <div class="userdetail__item"><span class="userdetail__label">Time in MaxDock</span><span class="userdetail__value data">${escapeHtml(timeSignedIn(usage))}</span></div>
+          ${user.organization_name ? `<div class="userdetail__item"><span class="userdetail__label">Company</span><span class="userdetail__value data">${escapeHtml(user.organization_name)}</span></div>` : ''}
+          <div class="userdetail__item"><span class="userdetail__label">Account created</span><span class="userdetail__value data">${escapeHtml(user.created_at ? format.dateShort(user.created_at, state.context.location) : '—')}</span></div>
+        </div>
+      </td>
     </tr>`;
-  }).join('') || '<tr><td colspan="9" class="data">No users match these filters.</td></tr>';
+  }).join('') || '<tr><td colspan="7" class="data">No users match these filters.</td></tr>';
   renderBulkBar();
 }
 
@@ -678,7 +698,7 @@ function buildShell(root) {
         <button class="btn btn--quiet btn--sm" type="button" data-bulk-deactivate>Deactivate</button>
         <button class="text-link at-end" type="button" data-bulk-clear>Clear selection</button>
       </div>
-      <div class="panel__scroll"><table class="table"><thead><tr><th><label class="cellcheck"><input type="checkbox" data-select-all aria-label="Select all users"></label></th><th>Name</th><th>Username</th><th>Email</th><th>Role</th><th>Status</th><th class="col-half">Locations</th><th class="col-half">Last seen</th><th></th></tr></thead><tbody data-rows></tbody></table></div>
+      <div class="panel__scroll"><table class="table"><thead><tr><th><label class="cellcheck"><input type="checkbox" data-select-all aria-label="Select all users"></label></th><th>Name</th><th>Username</th><th>Role</th><th>Status</th><th class="col-fill"></th><th></th></tr></thead><tbody data-rows></tbody></table></div>
     </div>
     <div class="scrim" data-add-backdrop hidden aria-hidden="true">
       <section class="modal" role="dialog" aria-modal="true" aria-labelledby="add-user-title">
@@ -824,6 +844,17 @@ function wireEvents(root) {
     if (event.target.closest('[data-import-download]')) { downloadImportResults(); return; }
     if (event.target.closest('[data-close-import]')) { if (!state.importRunning) state.importModal.close(); return; }
     if (event.target.closest('[data-close-add]')) { state.addModal.close(); return; }
+    // Open the strip under the row, or close it. Only the rows themselves are
+    // redrawn, not the whole table, so the page does not jump under the cursor.
+    const expandTrigger = event.target.closest('[data-expand-user]');
+    if (expandTrigger) {
+      const id = expandTrigger.dataset.expandUser;
+      if (state.expanded.has(id)) state.expanded.delete(id);
+      else state.expanded.add(id);
+      renderTable();
+      state.elements.rows.querySelector(`[data-expand-user="${id}"]`)?.focus();
+      return;
+    }
     const editTrigger = event.target.closest('[data-edit-user]');
     if (editTrigger) { openEditModal(editTrigger.dataset.editUser); return; }
     if (event.target.closest('[data-close-edit]')) { state.editModal.close(); return; }

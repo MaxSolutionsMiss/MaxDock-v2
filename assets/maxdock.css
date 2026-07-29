@@ -370,10 +370,6 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
    after it are flung to the far edge of the screen. Marking the actions column as
    the one that fills packs every data column against its neighbour instead. */
 .table th.col-fill{width:100%}
-/* Two columns that share the slack instead of one taking it all. On the user list
-   the sites and the last-seen figures are the two that can use the room, and the
-   row action stays beside them rather than at the far edge of the monitor. */
-.table th.col-half{width:50%}
 .table td{padding:7px var(--s2);border-bottom:1px solid var(--rule);vertical-align:middle;white-space:nowrap}
 /* Nothing in a row wraps. A long list elides at the end of its line rather than
    stacking, so every row is the same height and the table keeps its shape. The
@@ -387,6 +383,25 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 /* The figures under a date: quieter, tighter, and one line of their own. They
    qualify the line above rather than competing with it. */
 .cell-fine{display:block;font-size:var(--t-micro);color:var(--ink-faint);white-space:nowrap;line-height:1.3}
+/* A row that opens. Closed it carries the four things somebody scanning a list
+   wants — who, what they sign in as, what they are, whether they are on — and the
+   rest is a click away under it. Everything on one line made the row as wide as
+   the monitor and pushed the row action off the end of it. */
+.userrow__end{display:flex;align-items:center;justify-content:flex-end;gap:var(--s2);white-space:nowrap}
+.userrow__toggle svg{transition:transform var(--motion)}
+.userrow.is-open{background:var(--surface-sunk)}
+.userrow.is-open .userrow__toggle svg{transform:rotate(180deg)}
+.userrow.is-open>td{border-bottom-color:transparent}
+.usermore>td{padding:0 var(--s2) var(--s3);background:var(--surface-sunk)}
+/* Sized to the longest label rather than split into equal columns, so "Time in
+   MaxDock" and "Email" both read as one label and one value, and the strip wraps
+   instead of running off the side. */
+.userdetail{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:var(--s2) var(--s5);animation:slidein var(--motion) ease-out}
+.userdetail__item{display:flex;gap:var(--s2);align-items:baseline;min-width:0}
+.userdetail__label{font-size:var(--t-micro);text-transform:uppercase;letter-spacing:.03em;color:var(--ink-muted);font-weight:600;white-space:nowrap}
+.userdetail__value{min-width:0;overflow-wrap:anywhere;white-space:normal}
+@keyframes slidein{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){.userdetail{animation:none}.userrow__toggle svg{transition:none}}
 /* A table of five short columns has no business spanning a wide monitor: the row
    action ends up a hand's width from the last thing it acts on. Capped, the
    columns stay together and the eliding cell still shrinks below it. */

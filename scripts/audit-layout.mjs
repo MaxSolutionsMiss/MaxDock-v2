@@ -130,6 +130,16 @@ const FLOWS = {
     { name: 'fullness', query: '', act: async page => { await page.selectOption('[data-view]', 'fullness'); }, expect: '.fullness__bar' },
     { name: 'labour', query: '', act: async page => { await page.selectOption('[data-view]', 'labour'); }, expect: '.fullness__bar' },
   ],
+  // A user row closed is four columns; open it is a strip of labelled values
+  // underneath. The open state is a second layout and is measured as one.
+  users: [
+    {
+      name: 'row-expanded',
+      query: '',
+      act: async page => { await page.locator('[data-expand-user]').first().click(); await page.waitForTimeout(200); },
+      expect: '.userdetail',
+    },
+  ],
   receiving: [
     { name: 'idle', query: '' },
     {
