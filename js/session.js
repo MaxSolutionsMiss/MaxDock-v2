@@ -221,6 +221,21 @@ export const session = Object.freeze({
     return textSize;
   },
 
+  // The sidebar collapsed to its icons and back, the way every application with a
+  // rail this size works. It is remembered per account rather than per browser,
+  // so a supervisor who works narrow gets the narrow rail at whichever station
+  // they sign in at. Below 900px the rail is icons regardless — there the choice
+  // is not the user's to make, it is the screen's.
+  async setRail(value) {
+    const rail = value === 'mini' ? 'mini' : 'full';
+    document.documentElement.dataset.rail = rail;
+    // The board measures how many lines fit in a block, and the rail's width is
+    // the board's width — the same reason a text-size change has to be announced.
+    document.dispatchEvent(new CustomEvent('maxdock:text-size', { detail: { rail } }));
+    await this.saveShellPreference({ rail });
+    return rail;
+  },
+
   async signOut() {
     activeContext = null;
     db.invalidate();

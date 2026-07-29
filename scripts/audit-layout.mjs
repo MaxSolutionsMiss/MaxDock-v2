@@ -720,6 +720,40 @@ for (const textSize of ROLE_TEXT_SIZES) {
   }
 }
 
+// The sidebar closed. It is a second layout for every page — 132px of width comes
+// back and the rail's own contents change — so it is swept like any other, rather
+// than trusted because the width sweep passed with the rail open.
+const RAIL_PAGES = FAST ? ['board', 'queue'] : PAGES;
+for (const name of RAIL_PAGES) {
+  const context = await browser.newContext({ viewport: { width: 1280, height: 900 }, timezoneId: 'America/Toronto', locale: 'en-CA' });
+  await context.addInitScript(STUB);
+  await context.route('**/cdn.jsdelivr.net/**', route => route.abort());
+  const page = await context.newPage();
+  const errors = [];
+  page.on('pageerror', e => errors.push(e.message));
+  await page.goto(`http://127.0.0.1:${PORT}/app/${name}.html${PAGE_QUERY[name] || ''}`, { waitUntil: 'networkidle' });
+  await page.waitForTimeout(600);
+  // Through the control, not by setting the attribute: pressing it is what the
+  // reader does, and a sweep that wrote the attribute would not notice a button
+  // that had stopped being wired to anything.
+  const toggle = await page.$('[data-rail-toggle]');
+  const where = `${name} · rail closed`;
+  if (!toggle) { add(where, 1280, 'rail-toggle-missing', 'no [data-rail-toggle] in the top bar'); await context.close(); continue; }
+  await toggle.click();
+  await page.waitForTimeout(400);
+  const state = await page.evaluate(() => ({
+    rail: document.documentElement.dataset.rail,
+    width: document.querySelector('.rail')?.getBoundingClientRect().width || 0,
+    labelled: [...document.querySelectorAll('.rail__link')].some(el => el.getBoundingClientRect().width > 90),
+  }));
+  if (state.rail !== 'mini') add(where, 1280, 'rail-did-not-close', `data-rail is "${state.rail}"`);
+  if (state.width > 90) add(where, 1280, 'rail-still-wide', `rail is ${Math.round(state.width)}px closed`);
+  if (state.labelled) add(where, 1280, 'rail-labels-still-shown', 'a link is still full width with its label');
+  for (const e of errors) add(where, 1280, 'page-error', e.slice(0, 160));
+  report(where, 1280, await page.evaluate(collect, null));
+  await context.close();
+}
+
 await browser.close();
 server.close();
 

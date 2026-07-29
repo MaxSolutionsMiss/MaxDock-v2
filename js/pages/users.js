@@ -111,6 +111,19 @@ function renderBulkBar() {
   state.elements.bulkDeactivate.disabled = activeCount === 0;
 }
 
+// Under the date somebody was last here, how long they have actually been in
+// MaxDock: this week and this month, rolling. The date says whether an account is
+// still in use; these two say whether it is worth having. Counted from the
+// heartbeat the shell already sends, so an account that was left open on a screen
+// nobody watched does not read as a day's work — it is counted only while the tab
+// is visible.
+function timeSignedIn(usage) {
+  const week = Math.round(Number(usage?.active_seconds_7 || 0) / 60);
+  const month = Math.round(Number(usage?.active_seconds_30 || 0) / 60);
+  if (!week && !month) return 'No time recorded yet';
+  return `${format.duration(week)} this week · ${format.duration(month)} this month`;
+}
+
 function renderTable() {
   const users = filteredUsers();
   const selectable = selectableUsers();
@@ -121,6 +134,7 @@ function renderTable() {
     const usage = state.usage.get(user.user_id);
     const statusTag = !user.is_active ? '<span class="tag tag--quiet">Inactive</span>' : user.must_change_password ? '<span class="tag tag--pri">Invited</span>' : '<span class="tag tag--ok">Active</span>';
     const lastSeen = usage?.last_activity_at ? format.timestamp(usage.last_activity_at, state.context.location) : (user.last_sign_in_at ? format.timestamp(user.last_sign_in_at, state.context.location) : '—');
+    const sites = (user.location_names || []).join(', ') || (user.role_code === 'system_admin' ? 'All' : '—');
     const isSelf = user.user_id === state.context.user.id;
     const box = isSelf
       ? '<span class="sub" title="You cannot change your own status">—</span>'
@@ -132,8 +146,8 @@ function renderTable() {
       <td class="data">${escapeHtml(user.email)}</td>
       <td><span class="tag tag--quiet">${escapeHtml(roleLabel(user))}</span></td>
       <td>${statusTag}</td>
-      <td class="data">${escapeHtml(lastSeen)}</td>
-      <td class="data cell-elide" title="${escapeHtml((user.location_names || []).join(', '))}">${(user.location_names || []).join(', ') || (user.role_code === 'system_admin' ? 'All' : '—')}</td>
+      <td class="data cell-wrap2" title="${escapeHtml(sites)}">${escapeHtml(sites)}</td>
+      <td class="data cell-wrap2">${escapeHtml(lastSeen)}<span class="cell-fine">${escapeHtml(timeSignedIn(usage))}</span></td>
       <td><button class="btn btn--quiet btn--sm" type="button" data-edit-user="${user.user_id}">Edit</button></td>
     </tr>`;
   }).join('') || '<tr><td colspan="9" class="data">No users match these filters.</td></tr>';
@@ -664,7 +678,7 @@ function buildShell(root) {
         <button class="btn btn--quiet btn--sm" type="button" data-bulk-deactivate>Deactivate</button>
         <button class="text-link at-end" type="button" data-bulk-clear>Clear selection</button>
       </div>
-      <div class="panel__scroll"><table class="table"><thead><tr><th><label class="cellcheck"><input type="checkbox" data-select-all aria-label="Select all users"></label></th><th>Name</th><th>Username</th><th>Email</th><th>Role</th><th>Status</th><th>Last seen</th><th class="col-fill">Locations</th><th></th></tr></thead><tbody data-rows></tbody></table></div>
+      <div class="panel__scroll"><table class="table"><thead><tr><th><label class="cellcheck"><input type="checkbox" data-select-all aria-label="Select all users"></label></th><th>Name</th><th>Username</th><th>Email</th><th>Role</th><th>Status</th><th class="col-half">Locations</th><th class="col-half">Last seen</th><th></th></tr></thead><tbody data-rows></tbody></table></div>
     </div>
     <div class="scrim" data-add-backdrop hidden aria-hidden="true">
       <section class="modal" role="dialog" aria-modal="true" aria-labelledby="add-user-title">

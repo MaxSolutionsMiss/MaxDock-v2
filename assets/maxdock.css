@@ -32,7 +32,11 @@ body{background:var(--ground);color:var(--ink);font-family:var(--font-ui);font-s
 @media (prefers-reduced-motion:reduce){*{transition:none}}
 
 .shell{display:grid;grid-template-columns:var(--rail-w) 1fr;height:100vh;overflow:hidden}
-.rail{background:var(--rail);color:var(--rail-ink);display:flex;flex-direction:column;overflow-y:auto}
+/* The rail is its own query container, so one set of rules covers both ways it
+   ends up narrow: the reader closed it, or the screen is too small to hold it
+   open. Without that the collapsed treatment had to be written twice and the two
+   copies would drift. */
+.rail{background:var(--rail);color:var(--rail-ink);display:flex;flex-direction:column;overflow-y:auto;container:rail/inline-size}
 .rail__brand{display:flex;align-items:center;gap:10px;height:var(--topbar-h);padding:0 var(--s4);border-bottom:1px solid var(--rail-rule)}
 .rail__mark{width:32px;height:32px;border-radius:7px;background:var(--dock);display:grid;place-items:center;flex:none;padding:5px 4px}
 .rail__mark svg,.rail__mark img{width:100%;height:100%;object-fit:contain;display:block}
@@ -45,6 +49,25 @@ body{background:var(--ground);color:var(--ink);font-family:var(--font-ui);font-s
 .rail__icon{width:16px;height:16px;flex:none;stroke:currentColor;fill:none;stroke-width:1.7}
 .rail__foot{margin-top:auto;padding:var(--s3) var(--s4);border-top:1px solid var(--rail-rule);font-size:var(--t-small);color:var(--rail-label)}
 .rail__foot strong{color:#fff;font-weight:600;display:block}
+/* Closed: the marks only, a little larger because they are now the whole label,
+   in the same places at the same spacing so the muscle memory survives. The name
+   under the logo and the name in the footer are both said again in the top bar,
+   so neither is clipped to fit — they are simply not repeated. */
+html[data-rail="mini"]{--rail-w:64px}
+@container rail (max-width:120px){
+  .rail__brand{padding:0;justify-content:center}
+  .rail__name{display:none}
+  .rail__label{display:none}
+  .rail__link{justify-content:center;padding:0;gap:0}
+  .rail__link span{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+  .rail__icon{width:20px;height:20px}
+  .rail__foot{display:none}
+}
+/* The one control that must not move when it is used, so it lives at the head of
+   the top bar in both states rather than inside the panel it closes. */
+.top__rail{width:var(--ctl-h);height:var(--ctl-h);flex:none;display:grid;place-items:center;border:none;background:none;border-radius:var(--radius);color:var(--ink-muted);cursor:pointer}
+.top__rail svg{width:19px;height:19px;stroke:currentColor;fill:none;stroke-width:1.7}
+.top__rail:hover{background:var(--wash);color:var(--ink)}
 
 .main{display:flex;flex-direction:column;overflow:hidden;min-width:0}
 .top{height:var(--topbar-h);background:var(--surface);border-bottom:1px solid var(--rule);display:flex;align-items:center;gap:var(--s4);padding:0 var(--s5);flex:none}
@@ -331,11 +354,23 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
    after it are flung to the far edge of the screen. Marking the actions column as
    the one that fills packs every data column against its neighbour instead. */
 .table th.col-fill{width:100%}
+/* Two columns that share the slack instead of one taking it all. On the user list
+   the sites and the last-seen figures are the two that can use the room, and the
+   row action stays beside them rather than at the far edge of the monitor. */
+.table th.col-half{width:50%}
 .table td{padding:7px var(--s2);border-bottom:1px solid var(--rule);vertical-align:middle;white-space:nowrap}
 /* Nothing in a row wraps. A long list elides at the end of its line rather than
    stacking, so every row is the same height and the table keeps its shape. The
    full value is in the cell's title attribute and on the record itself. */
 .table td.cell-elide{max-width:0;width:100%;overflow:hidden;text-overflow:ellipsis}
+/* Two lines, and the third is elided. One line was a rule made for short values:
+   an account with ten sites pushed the row action off the screen, and the second
+   line of the same cell was free height that every other row in the table was
+   already paying for. Two is the whole allowance — the row cannot grow past it. */
+.table td.cell-wrap2{white-space:normal;overflow:hidden;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;line-clamp:2;line-height:1.3}
+/* The figures under a date: quieter, tighter, and one line of their own. They
+   qualify the line above rather than competing with it. */
+.cell-fine{display:block;font-size:var(--t-micro);color:var(--ink-faint);white-space:nowrap;line-height:1.3}
 /* A table of five short columns has no business spanning a wide monitor: the row
    action ends up a hand's width from the last thing it acts on. Capped, the
    columns stay together and the eliding cell still shrinks below it. */
@@ -1022,14 +1057,11 @@ body.modal-open{overflow:hidden}
    application. Below 900px it keeps its icons and drops its labels — the labels
    stay in the DOM for screen readers. */
 @media (max-width:900px){
+  /* Narrow enough that the rail is icons whatever the reader chose — the width
+     rules, and the collapsed treatment comes from the rail's own container
+     query. Nothing to toggle here, so the control is not offered. */
   :root{--rail-w:60px}
-  .rail__brand{padding:0;justify-content:center}
-  .rail__name{display:none}
-  .rail__label{display:none}
-  .rail__link{justify-content:center;padding:0;gap:0}
-  .rail__link span{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
-  .rail__foot{padding:var(--s2);text-align:center;font-size:var(--t-micro);overflow:hidden}
-  .rail__foot strong{display:none}
+  .top__rail{display:none}
   .page{padding:var(--s3) var(--s3) var(--s4)}
   .controls{grid-template-columns:1fr}
   .controls__lead,.controls__filters,.controls__end{grid-column:1}

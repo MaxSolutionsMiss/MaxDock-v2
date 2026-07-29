@@ -217,6 +217,16 @@ function createShell(context, page) {
     }
   }
 
+  // Collapse the rail to its icons and back. It sits at the head of the top bar
+  // rather than inside the rail, because it is the one control that has to be in
+  // the same place in both states — a button that moves when you press it is a
+  // button people stop trusting.
+  const railToggle = document.createElement('button');
+  railToggle.type = 'button';
+  railToggle.className = 'top__rail';
+  railToggle.dataset.railToggle = '';
+  railToggle.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4.5" width="18" height="15" rx="2.5"></rect><path d="M9.5 4.5v15"></path></svg>';
+
   const date = document.createElement('span');
   date.className = 'top__date';
   date.textContent = format.date(null, context.location);
@@ -253,8 +263,8 @@ function createShell(context, page) {
   // The bell returns null for roles without notifications.view, so it simply is not
   // rendered rather than appearing and failing on click.
   const notifications = createNotificationBell(context);
-  if (notifications) top.append(locationSelect, date, spacer, notifications.element, connected, profile);
-  else top.append(locationSelect, date, spacer, connected, profile);
+  if (notifications) top.append(railToggle, locationSelect, date, spacer, notifications.element, connected, profile);
+  else top.append(railToggle, locationSelect, date, spacer, connected, profile);
 
   const banner = document.createElement('div');
   banner.className = 'sub';
@@ -279,7 +289,7 @@ function createShell(context, page) {
     globalThis.dispatchEvent(new CustomEvent('maxdock:open-booking', { detail: { trigger } }));
   });
 
-  return { root, pageRoot, locationSelect, signOut, banner, pulse, connectedText, notifications };
+  return { root, pageRoot, locationSelect, signOut, banner, pulse, connectedText, notifications, railToggle };
 }
 
 function renderFatal(error) {
@@ -372,6 +382,27 @@ function wireShell(elements, context) {
 
 
 
+  const describeRail = () => {
+    const mini = document.documentElement.dataset.rail === 'mini';
+    elements.railToggle.title = mini ? 'Open sidebar' : 'Close sidebar';
+    elements.railToggle.setAttribute('aria-label', elements.railToggle.title);
+    elements.railToggle.setAttribute('aria-expanded', String(!mini));
+  };
+  describeRail();
+  const onRailToggle = async () => {
+    const next = document.documentElement.dataset.rail === 'mini' ? 'full' : 'mini';
+    // The rail changes the moment it is pressed; whether the choice was saved for
+    // next time is a separate question and not one worth blocking a click on.
+    try {
+      await session.setRail(next);
+    } catch {
+      toast('The sidebar was changed, but the setting could not be saved.', 'error');
+    }
+    describeRail();
+  };
+  elements.railToggle.addEventListener('click', onRailToggle);
+  cleanup.push(() => elements.railToggle.removeEventListener('click', onRailToggle));
+
   const onSignOut = () => session.signOut();
   elements.signOut.addEventListener('click', onSignOut);
   cleanup.push(() => elements.signOut.removeEventListener('click', onSignOut));
@@ -412,6 +443,7 @@ export async function startPage(page) {
     if (!context) return;
     activeContext = context;
     document.documentElement.dataset.text = context.preference?.text_size || 'normal';
+    document.documentElement.dataset.rail = context.preference?.rail === 'mini' ? 'mini' : 'full';
     const elements = createShell(context, page);
     wireShell(elements, context);
     context.pageRoot = elements.pageRoot;
