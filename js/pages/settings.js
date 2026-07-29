@@ -22,6 +22,7 @@ const SECTIONS = [
   { id: 'combining', label: 'Combining loads' },
   { id: 'docks', label: 'Docks' },
   { id: 'trucks', label: 'Truck types' },
+  { id: 'labour', label: 'Labour' },
   { id: 'quickqr', label: 'Quick QR (QQ)' },
 ];
 
@@ -348,14 +349,30 @@ function renderAssignment() {
         <option value="fill_first" ${s.dock_assignment_strategy === 'fill_first' ? 'selected' : ''}>Fill one dock first</option>
       </select></div>
       <div class="field field--num"><span class="field__label">Max concurrent</span><span class="inputwrap"><input class="input" type="number" min="1" name="max_concurrent_appointments" value="${s.max_concurrent_appointments ?? ''}" placeholder="∞" ${disabled}><span class="input__unit">at once</span></span></div>
-      <div class="field field--num"><span class="field__label">Crew per truck</span><span class="inputwrap"><input class="input" type="number" min="0" max="50" name="handlers_per_truck" value="${s.handlers_per_truck ?? 2}" ${disabled}><span class="input__unit">people</span></span></div>
     </div>
+    <p class="hint hint--wide">How MaxDock chooses a dock for a booking, and the most trucks it will put on the docks at one time.</p>
+    ${saveFoot(canEdit)}
+  </form>`;
+}
+
+// Labour is its own section rather than three fields at the bottom of Dock
+// assignment. It is not about docks — it is about people, it is the setting a
+// site revisits when the crew changes, and buried under a heading about dock
+// choice nobody would go looking for it.
+function renderLabour() {
+  const s = state.settings || {};
+  const canEdit = state.canManage;
+  const disabled = canEdit ? '' : 'disabled';
+  return `<form data-section-form="labour">
+    <h3 class="card__title">Labour</h3>
+    <p class="hint hint--wide hint--lead">What a truck costs in people, and what the site has to spend on a normal day. The operations brief reports the day's booked hours against that — the number to look at before agreeing to a day off.</p>
     <div class="frow">
+      <div class="field field--num"><span class="field__label">Crew per truck</span><span class="inputwrap"><input class="input" type="number" min="0" max="50" name="handlers_per_truck" value="${s.handlers_per_truck ?? 2}" ${disabled}><span class="input__unit">people</span></span></div>
       <div class="field field--num"><span class="field__label">Crew on shift</span><span class="inputwrap"><input class="input" type="number" min="0" max="500" name="crew_size" value="${s.crew_size ?? 0}" ${disabled}><span class="input__unit">people</span></span></div>
       <div class="field field--num"><span class="field__label">Shift length</span><span class="inputwrap"><input class="input" type="number" min="1" max="24" step="0.5" name="shift_hours" value="${s.shift_hours ?? 8}" ${disabled}><span class="input__unit">hours</span></span></div>
       <div class="field field--num"><span class="field__label">On the dock</span><span class="inputwrap"><input class="input" type="number" min="1" max="100" name="crew_availability_percent" value="${s.crew_availability_percent ?? 80}" ${disabled}><span class="input__unit">%</span></span></div>
     </div>
-    <p class="hint hint--wide">Crew per truck is what one truck costs. Crew on shift, Shift length and On the dock are what the day has to spend — nobody unloads trucks for eight hours out of eight, so the percentage is the share of a shift realistically spent on them. The operations brief reports the day's booked hours against that, which is the number to look at before agreeing to a day off. Leave Crew on shift at 0 and the brief says nothing about capacity rather than guessing at it.</p>
+    <p class="hint hint--wide">Nobody unloads trucks for eight hours out of eight, so <strong>On the dock</strong> is the share of a shift realistically spent on them — six people on an eight-hour shift at 80% is 38.4 dock hours to work with. Leave <strong>Crew on shift</strong> at 0 and the brief states what the day costs and says nothing about capacity, rather than guessing at a number this site never gave.</p>
     ${saveFoot(canEdit)}
   </form>`;
 }
@@ -556,7 +573,7 @@ function renderPanel() {
   const map = {
     hours: renderHours, timing: renderTiming, notice: renderNotice, capacity: renderCapacity,
     combining: renderCombining, docks: renderDocks, trucks: renderTruckTypes,
-    quickqr: renderQuickQr,
+    labour: renderLabour, quickqr: renderQuickQr,
   };
   state.elements.panel.innerHTML = (map[state.section] || renderHours)();
   applyLocks();
@@ -651,6 +668,12 @@ async function saveAssignment(form) {
     auto_assign_dock: autoAssign,
     dock_assignment_strategy: data.get('dock_assignment_strategy'),
     max_concurrent_appointments: maxConcurrent ? Number(maxConcurrent) : null,
+  });
+}
+
+async function saveLabour(form) {
+  const data = new FormData(form);
+  await saveSettingsFields({
     handlers_per_truck: Number(data.get('handlers_per_truck') || 0),
     crew_size: Number(data.get('crew_size') || 0),
     shift_hours: Number(data.get('shift_hours') || 8),
@@ -820,6 +843,7 @@ async function submitSection(event) {
     else if (kind === 'notice') await saveNotice(form);
     else if (kind === 'capacity') await saveCapacity(form);
     else if (kind === 'assignment') await saveAssignment(form);
+    else if (kind === 'labour') await saveLabour(form);
     else if (kind === 'combining') await saveCombining(form);
     else if (kind === 'truck-capacity') await saveTruckCapacity(form);
     else if (kind === 'direction-windows') await saveDirectionWindows(form);

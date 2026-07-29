@@ -95,11 +95,17 @@ function appendRouteGroup(fragment, context, pageCode, routeGroup) {
   if (!visibleItems.length) return;
   const group = document.createElement('div');
   group.className = ['rail__group', routeGroup.admin && 'rail__group--admin', routeGroup.ruled && 'rail__group--ruled'].filter(Boolean).join(' ');
+  // The label sits in a row of its own so the close control can share it. The row
+  // survives the rail closing even though the words do not — otherwise the way
+  // back out would disappear the moment it was used.
   if (routeGroup.group) {
+    const labelRow = document.createElement('div');
+    labelRow.className = 'rail__labelrow';
     const label = document.createElement('div');
     label.className = 'rail__label';
     label.textContent = routeGroup.group;
-    group.append(label);
+    labelRow.append(label);
+    group.append(labelRow);
   }
   for (const item of visibleItems) {
     const link = document.createElement('a');
@@ -172,20 +178,30 @@ function createShell(context, page) {
   brandName.textContent = 'MaxDock';
   brand.append(mark, brandName);
 
-  // Closing the sidebar belongs to the sidebar. It sits on the brand row beside
-  // the wordmark, at the same height as the top bar next to it, quiet enough not
-  // to compete with the logo. Closed, the brand row is only the mark and this,
-  // so the way back out is exactly where the way in was.
+  // Closing the sidebar belongs to the sidebar, and it sits a row below the logo
+  // rather than beside it — the mark is the company's and nothing shares its
+  // line. It rides at the end of the first section heading, so it is clear of
+  // the brand and still at the top of the panel it closes.
   const railToggle = document.createElement('button');
   railToggle.type = 'button';
   railToggle.className = 'rail__collapse';
   railToggle.dataset.railToggle = '';
   railToggle.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4.5" width="18" height="15" rx="2.5"></rect><path d="M9.5 4.5v15"></path></svg>';
 
-  const brandRow = document.createElement('div');
-  brandRow.className = 'rail__top';
-  brandRow.append(brand, railToggle);
-  rail.append(brandRow, createNav(context, page.code));
+  const nav = createNav(context, page.code);
+  // Every shell that has a rail opens with a titled section, so the heading is
+  // where this goes. A shell without one gets its own row directly under the
+  // brand rather than losing the control.
+  const firstHeading = nav.querySelector('.rail__labelrow');
+  if (firstHeading) {
+    firstHeading.append(railToggle);
+    rail.append(brand, nav);
+  } else {
+    const ownRow = document.createElement('div');
+    ownRow.className = 'rail__labelrow';
+    ownRow.append(railToggle);
+    rail.append(brand, ownRow, nav);
+  }
 
   const railFoot = document.createElement('div');
   railFoot.className = 'rail__foot';
