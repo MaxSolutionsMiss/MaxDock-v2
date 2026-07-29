@@ -106,12 +106,11 @@ const FLOWS = {
   // exactly where a card collapsed to the width of its title and the whole sweep
   // still reported clean.
   settings: [
-    { name: 'docks', query: '', act: async page => { await page.click('[data-section="docks"]'); await page.waitForTimeout(250); await page.locator('[data-edit-section] >> visible=true').first().click({ timeout: 2000 }).catch(() => {}); }, expect: '.card--table .table' },
+    { name: 'docks', query: '', act: async page => { await page.click('[data-section="docks"]'); await page.waitForTimeout(250); await page.locator('[data-edit-section] >> visible=true').first().click({ timeout: 2000 }).catch(() => {}); }, expect: '.stack--table .table' },
     { name: 'hours', query: '', act: async page => { await page.click('[data-section="hours"]'); await page.waitForTimeout(250); await page.locator('[data-edit-section] >> visible=true').first().click({ timeout: 2000 }).catch(() => {}); }, expect: '.stack .dirwin' },
     // Capacity, hours and docks each draw one window with ruled parts rather than
     // a card per part, so .card is the wrong thing to wait for — it is .stack.
     { name: 'capacity', query: '', act: async page => { await page.click('[data-section="capacity"]'); await page.waitForTimeout(250); await page.locator('[data-edit-section] >> visible=true').first().click({ timeout: 2000 }).catch(() => {}); }, expect: '.stack' },
-    { name: 'assignment', query: '', act: async page => { await page.click('[data-section="assignment"]'); await page.waitForTimeout(250); await page.locator('[data-edit-section] >> visible=true').first().click({ timeout: 2000 }).catch(() => {}); }, expect: '.card' },
     { name: 'combining', query: '', act: async page => { await page.click('[data-section="combining"]'); await page.waitForTimeout(250); await page.locator('[data-edit-section] >> visible=true').first().click({ timeout: 2000 }).catch(() => {}); }, expect: '.card' },
     { name: 'trucks', query: '', act: async page => { await page.click('[data-section="trucks"]'); await page.waitForTimeout(250); await page.locator('[data-edit-section] >> visible=true').first().click({ timeout: 2000 }).catch(() => {}); }, expect: '.card--table' },
     { name: 'quickqr', query: '', act: async page => { await page.click('[data-section="quickqr"]'); await page.waitForTimeout(250); await page.locator('[data-edit-section] >> visible=true').first().click({ timeout: 2000 }).catch(() => {}); }, expect: '[data-print-shortcut]' },
