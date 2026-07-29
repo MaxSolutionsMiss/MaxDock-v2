@@ -969,3 +969,18 @@ the colour that status already is on the board, and the chime is three notes
 rising with the last doubled an octave up: loud enough to carry across a shipping
 office, short enough not to be an alarm, and its own shape rather than the
 two-tone every application uses.
+
+## The CSS budget, and a push that should not have happened (2026-07-29)
+
+`verify` and `validate` went red on 73f6909: `assets/maxdock.css` had crossed the
+80KB ceiling. The verifier said so locally before the push and the output was
+read past. That is the whole failure — the gate worked, the person driving it did
+not.
+
+Brought back to 80,453 bytes by shortening the longest comments rather than
+deleting the reasoning in them, and by dropping `.wall .tlb{align-content:center}`,
+which has been redundant since `.tlb` started centring on its own.
+
+**Rule: the verifier's exit code decides whether a push happens, not a glance at
+its output.** Roughly 1.4KB of headroom is left, which is a few rules — the next
+CSS of any size has to come with a trim.

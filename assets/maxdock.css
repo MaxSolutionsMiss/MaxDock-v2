@@ -91,11 +91,9 @@ body{background:var(--ground);color:var(--ink);font-family:var(--font-ui);font-s
 .who__role{font-size:var(--t-micro);color:var(--ink-faint)}
 .linkBtn{font-family:inherit;font-size:var(--t-small);color:var(--dock);background:none;border:none;cursor:pointer;white-space:nowrap;min-height:var(--ctl-h);padding:0 var(--s1);display:inline-flex;align-items:center}
 
-/* The page scrolls when its content is taller than the window. It did not, and
-   nothing else did either, so on a short screen the Docks & truck types panel
-   simply ended below the fold with no way to reach it. Screens that manage their
-   own internal scrolling — the board's timeline, a table panel — opt out with
-   .page--fixed so they still compress to fit instead of growing a scrollbar. */
+/* The page scrolls when its content is taller than the window. It did not, so a
+   settings panel ended below the fold with no way to reach it. Screens that scroll
+   internally — the board's timeline — opt out with .page--fixed. */
 .page{display:flex;flex-direction:column;flex:1;min-height:0;overflow-y:auto;padding:var(--s4) var(--s5) var(--s5)}
 .page--fixed{overflow-y:hidden}
 /* Wraps rather than pushing its actions past the edge. Unwrapped, Book appointment
@@ -233,12 +231,9 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 .tl__ruler{display:grid;grid-template-columns:var(--tl-label) minmax(0,1fr);border-bottom:1px solid var(--rule-strong);background:var(--surface-sunk);flex:none}
 .tl__corner{padding:6px var(--s3);font-size:var(--t-micro);text-transform:uppercase;letter-spacing:.07em;color:var(--ink-muted);font-weight:600;border-right:1px solid var(--rule-strong);display:flex;align-items:center}
 .tl__scale{position:relative;height:26px}
-/* The hour sits clear of the line that marks it — and the space before it is not
-   painted in the line's own colour. The tick is a 1px box with a background, so
-   padding-left widened the painted box: the "gap" between the line and the digits
-   was drawn as more gridline, which is why moving the text right kept making the
-   line look thicker instead. The line is a hairline pseudo-element now and the
-   padding is ordinary background. */
+/* The tick is a 1px box with a background, so padding-left widened the painted
+   box: every pixel of "gap" was another pixel of gridline. The line is a hairline
+   pseudo-element now and the padding is ordinary background. */
 .tl__scale .tl__tick{top:0;height:100%;display:flex;align-items:center;background:none;padding-left:14px;font-size:calc(var(--tl-type) * .9);color:var(--ink-muted);font-variant-numeric:tabular-nums;white-space:nowrap}
 .tl__lanes{flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column}
 /* Lanes take the height they need, then share whatever is left over rather than
@@ -256,13 +251,9 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 .tl__scale .tl__tick::before{content:"";position:absolute;left:0;top:0;bottom:0;width:1px;background:var(--rule-strong)}
 .tl__idle{position:absolute;inset:0;display:flex;align-items:center;padding-left:var(--s3);font-size:var(--t-small);color:var(--ink-faint)}
 /* Blocks are absolutely placed, so their box is the appointment's real extent. */
-/* The block is a line grid, and the stack sits in the middle of it. A lane that
-   has grown taller than its text hands the surplus to both sides instead of
-   pooling it under the last line — and centring is what gives a fact room to
-   take a second line when the block is too narrow for it on one, which is the
-   rule here: run onto the next line, never trail off into an ellipsis. Rows are
-   min-content so a wrapped fact grows its own row instead of overlapping the
-   one below it. */
+/* A line grid with the stack centred, so a lane taller than its text gives the
+   surplus to both sides and a fact has room to take a second line. Rows are
+   min-content so a wrapped fact grows its own row, not the one below it. */
 .tlb{position:absolute;border-radius:4px;border-left:3px solid;padding:3px 6px;overflow:hidden;cursor:pointer;display:grid;grid-auto-rows:min-content;align-content:center;line-height:var(--tl-line);min-width:10px}
 .tlb>*{min-width:0;overflow-wrap:anywhere}
 /* A fact wraps onto as many lines as it needs and is never abbreviated. Half a
@@ -277,11 +268,9 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 .tlb--done{background:var(--surface-sunk);border-left-color:var(--rule-strong);color:var(--ink-muted)}
 .tlb--blk{background:repeating-linear-gradient(45deg,var(--surface-sunk),var(--surface-sunk) 5px,#E4E9EC 5px,#E4E9EC 10px);border-left-color:var(--rule-strong);color:var(--ink-muted);cursor:default}
 .tlb:focus-visible{outline:2px solid var(--dock);outline-offset:1px}
-/* Narrower boards ask for fewer lines, and the lane height drops with the line it
-   loses rather than reserving space nothing will use. Which lines a given block
-   actually keeps is decided by measuring it — see fitTimelineBlocks — because a
-   half-hour call is a narrow box on the widest monitor there is, and a rule
-   written against the window cannot know that. */
+/* Narrower boards ask for fewer lines. Which lines a block actually keeps is
+   measured — see fitTimelineBlocks — because a half-hour call is a narrow box on
+   the widest monitor there is. */
 @container board (max-width:900px){.tl{--tl-lines:3}}
 @container board (max-width:640px){.tl{--tl-lines:2}}
 
@@ -309,12 +298,10 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 /* A table of five short columns has no business spanning a wide monitor: the row
    action ends up a hand's width from the last thing it acts on. Capped, the
    columns stay together and the eliding cell still shrinks below it. */
-/* A card holding one short table. The table hugs its columns instead of being
-   stretched across the card, so the row action follows the last column rather
-   than sitting a hand's width from it. The card itself is capped rather than
-   sized to content: its table sits in an overflow-x wrapper, and a wrapper that
-   scrolls contributes nothing to a max-content parent — that is the trap that
-   collapsed this card to the width of its own title once already. */
+/* The table hugs its columns so the row action follows the last one. The card is
+   capped, not sized to content: its table sits in an overflow-x wrapper, and a
+   scrolling wrapper contributes nothing to a max-content parent — the trap that
+   collapsed this card to the width of its title twice. */
 .card--table{max-width:min(100%,720px)}
 .card--table .table{width:auto}
 /* Seven day boxes on one line, sized to the word inside them, wrapping only when
@@ -557,16 +544,13 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 /* A card sized to what is in it. A table of five short columns stretched to the
    full panel left a hand's width of empty card and threw the title's action out
    to an edge nothing else reached. */
-/* Capped, not shrink-wrapped. width:max-content collapsed the whole card to the
-   width of its title, because the table inside sits in an overflow-x:auto
-   wrapper and a scroll container contributes nothing to a max-content parent —
-   so every line of text wrapped one word at a time. A ceiling takes the empty
-   space off a wide monitor without asking the card to measure itself. */
-/* One window to a settings section, its parts divided by a hairline rather than
-   each floating in a box of its own. Two boxes stacked at different widths read
-   as two unrelated screens; a single window with ruled parts reads as one page
-   of settings, which is what every professional settings screen does. Each part
-   keeps its own form and its own Save, because they save independently. */
+/* Capped, not shrink-wrapped: width:max-content collapsed the card to the width
+   of its title, because a scroll container contributes nothing to a max-content
+   parent. A ceiling takes the empty space off a wide monitor without asking the
+   card to measure itself. */
+/* One window to a settings section, parts divided by a hairline rather than each
+   in a box of its own. Each part keeps its own form and Save — they save
+   independently, and nested forms are not legal HTML. */
 /* Settings is a column of rules, not a spreadsheet. Left to fill a wide monitor
    the window put a truck's name at one edge and its number at the other with
    half a metre of nothing between them. */
@@ -624,7 +608,7 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 /* The board caps lane growth so a small site does not get enormous bands; the
    wall has no such cap — filling the screen is the whole point of a wall display. */
 .wall .tl__lane{flex:var(--rows,1) 1 0;min-height:clamp(56px,7vh,150px);max-height:none}
-.wall .tlb{padding:clamp(4px,.5vw,10px) clamp(6px,.7vw,14px);align-content:center}
+.wall .tlb{padding:clamp(4px,.5vw,10px) clamp(6px,.7vw,14px)}
 .wall .tl__label strong{font-size:clamp(16px,1.3vw,28px)}
 .wall .tl__label small{font-size:clamp(11px,.75vw,16px)}
 .wall .tl__scale{height:clamp(28px,3vh,44px)}
@@ -905,11 +889,9 @@ body.modal-open{overflow:hidden}
 .controls>.appointment-toolbar__meta{align-self:stretch}
 .appointment-toolbar__count,.page-updated{white-space:nowrap;font-size:var(--t-small);color:var(--ink-muted)}
 .appointment-list{display:grid;grid-template-columns:minmax(0,1fr);gap:var(--s2);padding:var(--s2) var(--s3)}
-/* A card is a row of an operational list, not a page. Reference, site, time and
-   status share the head line and each detail puts its label and value on one
-   line, so a card is two lines rather than six and more of the list is on screen
-   at once. The border carries its own weight — a card that fades into the page
-   stops separating one booking from the next. */
+/* A card is a row of an operational list, not a page: two lines rather than six,
+   so more of the list is on screen. The border carries its own weight — a card
+   that fades into the page stops separating one booking from the next. */
 /* Fifty rows of the same shape are a wall. The alternating wash is the oldest
    trick in the book for reading across one of them without losing the line —
    it costs no height, no width and no extra rule. */
@@ -927,11 +909,9 @@ body.modal-open{overflow:hidden}
 .appointment-card__place{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
 .appointment-card__arrow{color:var(--ink-faint);font-weight:400;flex:none}
 .appointment-card__time{color:var(--ink-muted);font-size:var(--t-small);white-space:nowrap}
-/* Two lines to a row and no more: the movement on top, everything else on one
-   line underneath. The details used to wrap onto a second and third line, which
-   is what turned a list of fifty into a wall. Each fact elides rather than
-   wrapping, and the whole line scrolls sideways only if the card is narrower
-   than the facts can survive. */
+/* Two lines to a row: the movement on top, the facts on one line underneath.
+   Wrapping onto a third and fourth line is what turned a list of fifty into a
+   wall. */
 .appointment-card__details{display:flex;align-items:baseline;gap:0 var(--s4);padding:var(--s2) 0 0;margin-top:var(--s2);border-top:1px solid var(--rule);white-space:nowrap;overflow:hidden}
 /* Each fact keeps its natural width. Letting them all shrink together turned
    every one of them into an ellipsis; what does not fit is simply not drawn, and
@@ -969,11 +949,10 @@ body.modal-open{overflow:hidden}
   .appointment-card__identity{flex-wrap:wrap}
 }
 
-/* ---------------------------------------------------------------- narrow screens
-   The rail is a fixed 196px. On a 390px phone that left 194px for the entire
-   application and 146px for a card, which is why fields looked squeezed and
-   clipped there. Below 900px the rail keeps its icons and drops its labels; the
-   labels stay in the DOM for screen readers rather than being removed. */
+/* --- narrow screens
+   The rail is a fixed 196px, which on a 390px phone left 194px for the whole
+   application. Below 900px it keeps its icons and drops its labels — the labels
+   stay in the DOM for screen readers. */
 @media (max-width:900px){
   :root{--rail-w:60px}
   .rail__brand{padding:0;justify-content:center}
@@ -998,11 +977,9 @@ body.modal-open{overflow:hidden}
   .who__name{display:none}
   .split,.split--list{grid-template-columns:1fr}
   .setlayout{grid-template-columns:1fr}
-  /* The desktop layout fits everything into one viewport-height column and lets
-     the board absorb the slack. On a phone the header, filters and KPI strip use
-     the whole column, so the board — the only flexible band — collapsed to four
-     pixels and the appointments could not be seen or tapped at all. Below this
-     width the page scrolls instead, and each scrolling band keeps a real height. */
+  /* Desktop fits one viewport-height column and lets the board absorb the slack.
+     On a phone the header, filters and KPI strip use the whole column, so the
+     board collapsed to four pixels. Below this width the page scrolls. */
   .shell{height:auto;min-height:100dvh;overflow:visible}
   .main{overflow:visible}
   .page{min-height:0;flex:none}
