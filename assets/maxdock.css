@@ -215,7 +215,9 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 .board__head{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;gap:var(--s2) var(--s3);padding:var(--s2) var(--s4);border-bottom:1px solid var(--rule);flex:none;min-height:calc(var(--ctl-h) + var(--s4))}
 .board__title{font-weight:600;font-size:var(--t-lead);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .board__legend{display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:var(--s1) var(--s3);font-size:var(--t-small);color:var(--ink-muted)}
-.board__gran{justify-self:end}
+/* Both view controls sit together at the right of the band, so the head is one
+   title, one legend, one group of controls rather than three things wrapping. */
+.board__gran{justify-self:end;display:flex;align-items:center;gap:var(--s3);flex-wrap:wrap}
 /* Too narrow for three columns: the legend takes its own line rather than
    squeezing the date and the control off the band. */
 @media (max-width:860px){
@@ -234,7 +236,7 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 /* One line unit inside a block, and a row tall enough for the five it can ask for:
    the clock, two lines of company, two of detail. Derived from the type tokens, not
    a magic number, so it holds when the text size goes up. */
-.tl{display:flex;flex-direction:column;min-height:0;height:100%;--tl-label:clamp(110px,10vw,190px);--tl-type:clamp(var(--t-base), .95vw, calc(var(--t-base) * 1.7));--tl-line:calc(var(--tl-type) * 1.35);--tl-lines:4;--tl-row:calc(var(--tl-line) * var(--tl-lines) + 14px)}
+.tl{display:flex;flex-direction:column;min-height:0;height:100%;--tl-label:clamp(110px,10vw,190px);--tl-scale:1;--tl-type:calc(clamp(var(--t-base), .95vw, calc(var(--t-base) * 1.7)) * var(--tl-scale));--tl-line:calc(var(--tl-type) * 1.35);--tl-lines:4;--tl-row:calc(var(--tl-line) * var(--tl-lines) + 14px)}
 .tl__ruler{display:grid;grid-template-columns:var(--tl-label) minmax(0,1fr);border-bottom:1px solid var(--rule-strong);background:var(--surface-sunk);flex:none}
 .tl__corner{padding:6px var(--s3);font-size:var(--t-micro);text-transform:uppercase;letter-spacing:.07em;color:var(--ink-muted);font-weight:600;border-right:1px solid var(--rule-strong);display:flex;align-items:center}
 .tl__scale{position:relative;height:26px}
@@ -247,6 +249,12 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
    half the panel blank — a five-dock board drew a short strip above empty white.
    Capped at twice the row height so a two-dock site gets no giant bands. */
 .tl__lane{display:grid;grid-template-columns:var(--tl-label) minmax(0,1fr);border-bottom:1px solid var(--rule);flex:var(--rows,1) 1 auto;min-height:calc(var(--tl-row) * var(--rows,1));max-height:calc(var(--tl-row) * var(--rows,1) * 2)}
+/* Fit to the window: every dock on screen at once, whatever the screen is. The
+   lanes share the height going instead of claiming the height they want, and the
+   type inside them is stepped down by measurement until the facts fit. A board on
+   a wall cannot be scrolled by the person reading it from across the floor. */
+.tl[data-fit="window"] .tl__lanes{overflow-y:hidden}
+.tl[data-fit="window"] .tl__lane{flex:var(--rows,1) 1 0;min-height:0;max-height:none}
 .tl__lane:last-child{border-bottom:none}
 .tl__label{padding:6px var(--s3);border-right:1px solid var(--rule-strong);background:var(--surface-sunk);display:flex;flex-direction:column;justify-content:center;min-width:0}
 .tl__label strong{font-size:calc(var(--tl-type) * 1.05);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -767,6 +775,9 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
   font-size:var(--t-micro);text-transform:uppercase;letter-spacing:.07em;color:var(--ink-muted);font-weight:600}
 .dock-checks>div{display:contents}
 .dock-checks[disabled]{opacity:.55}
+/* A setting that does not apply yet stays where it is, dimmed, so choosing an
+   option never changes the height of the dialog under the pointer. */
+.is-off{opacity:.5}
 /* Select all / none sit on the legend line, where the group they act on names
    itself — a long tick list is otherwise cleared one box at a time. */
 .checkall{float:right;display:flex;gap:var(--s3);text-transform:none;letter-spacing:0}

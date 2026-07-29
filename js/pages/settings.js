@@ -76,6 +76,9 @@ const AHEAD_UNITS = ['days', 'weeks'];
 // Hours and days only: the column holds hours, so a minute would round away.
 const WINDOW_UNITS = ['hours', 'days'];
 const LEAD_UNITS = ['hours', 'days'];
+// A code that picks its own time always leaves a gap; four hours is the working
+// default, so the field is never a blank nobody knows to fill in.
+const LEAD_DEFAULT_MINUTES = 240;
 
 function unitParts(storedValue, baseUnit, units) {
   // An unset value stays unset, so a field with a placeholder does not read as a
@@ -767,16 +770,37 @@ async function saveTruckTypes(form) {
 // An administrator who works across sites can change the wrong one without ever
 // looking at the picker, so the save names the site and asks first. Single-site
 // accounts have nothing to get wrong and are not interrupted.
+// Which site is about to change, asked in MaxDock's own words rather than the
+// browser's. A settings change lands on one location and the person making it is
+// often responsible for several, so the site's name has to be the loudest thing
+// on the screen at the moment they commit — and a grey browser strip at the top
+// of the window is not that.
 function confirmLocation() {
-  if (state.context.locations.length <= 1) return true;
-  return globalThis.confirm(`Apply these changes to ${state.context.location.name}?`);
+  if (state.context.locations.length <= 1) return Promise.resolve(true);
+  const backdrop = state.elements.applyBackdrop;
+  backdrop.querySelector('[data-apply-location]').textContent = state.context.location.name;
+  return new Promise(resolve => {
+    applyDecision = resolve;
+    state.applyModal.open({ trigger: document.activeElement });
+  });
+}
+
+// Resolved by whichever button the person presses; closing the dialog any other
+// way is a no.
+let applyDecision = null;
+
+function settleApply(answer) {
+  const decide = applyDecision;
+  applyDecision = null;
+  state.applyModal.close();
+  decide?.(answer);
 }
 
 async function submitSection(event) {
   event.preventDefault();
   const form = event.target;
   const kind = form.dataset.sectionForm;
-  if (!confirmLocation()) return;
+  if (!await confirmLocation()) return;
   const submit = form.querySelector('[type="submit"]');
   submit.disabled = true;
   try {
@@ -845,7 +869,7 @@ function openDockModal(dockId) {
 
 async function submitDock(event) {
   event.preventDefault();
-  if (!confirmLocation()) return;
+  if (!await confirmLocation()) return;
   const form = event.target;
   const submit = form.querySelector('[type="submit"]');
   const name = form.elements.name.value.trim();
@@ -916,19 +940,25 @@ function openShortcutModal(shortcutId) {
   // not has no gap to show, so the field goes with the choice.
   const auto = Boolean(shortcut?.auto_time);
   form.elements.time_mode.value = auto ? 'auto' : 'manual';
-  const { value, unit } = unitParts(Number(shortcut?.lead_minutes || 0), 'minutes', LEAD_UNITS);
-  form.elements.lead_minutes.value = value;
-  form.elements.lead_minutes__unit.value = unit;
+  // Never zero and never a unit the list does not offer: unitParts falls back to
+  // the base unit, and minutes is not one of the choices here, so setting it left
+  // the select with nothing chosen at all — which is what read as "blank".
+  const stored = Number(shortcut?.lead_minutes || 0) || LEAD_DEFAULT_MINUTES;
+  const { value, unit } = unitParts(stored, 'minutes', LEAD_UNITS);
+  form.elements.lead_minutes.value = value || Math.round(stored / 60);
+  form.elements.lead_minutes__unit.value = LEAD_UNITS.includes(unit) ? unit : 'hours';
   applyShortcutTimeMode(form);
   state.shortcutModal.open();
 }
 
+// The gap stays on screen either way, greyed out when the person picks the time.
+// Hiding it changed the dialog's height the moment the choice was made, which
+// moved Save out from under the pointer that had just chosen.
 function applyShortcutTimeMode(form) {
   const auto = form.elements.time_mode.value === 'auto';
-  const row = form.querySelector('[data-lead-row]');
-  row.hidden = !auto;
   form.elements.lead_minutes.disabled = !auto;
   form.elements.lead_minutes__unit.disabled = !auto;
+  form.querySelector('[data-lead-row]').classList.toggle('is-off', !auto);
 }
 
 // A new truck type is two things: the company-wide code, and this site switched
@@ -1083,13 +1113,20 @@ function buildShell(root) {
               <label class="dock-check"><input type="radio" name="time_mode" value="auto"><span>MaxDock takes the first time it can</span></label>
             </fieldset>
             <div data-lead-row>
-              <div class="frow">${durationField('No earlier than', 'lead_minutes', 0, 'minutes', LEAD_UNITS, '')}</div>
+              <div class="frow">${durationField('No earlier than', 'lead_minutes', LEAD_DEFAULT_MINUTES, 'minutes', LEAD_UNITS, '')}</div>
               <p class="hint hint--wide">The gap before the earliest time MaxDock will take, so there is room to make the truck up — and room for the load to be combined with something else going the same way.</p>
             </div>
             <p class="hint hint--wide">Saved for everyone at this site, so any printed copy of the code works for whoever picks it up.</p>
           </div>
           <div class="modal__foot"><button class="btn btn--quiet" type="button" data-close-shortcut>Cancel</button><button class="btn btn--primary" type="submit">Save code</button></div>
         </form>
+      </section>
+    </div>
+    <div class="scrim" data-apply-backdrop hidden aria-hidden="true">
+      <section class="modal modal--xs" role="dialog" aria-modal="true" aria-labelledby="apply-title">
+        <div class="modal__head"><div><h2 class="modal__title" id="apply-title">Apply to <span data-apply-location></span>?</h2></div></div>
+        <div class="modal__body"><p class="modal__message">These settings belong to this location. Every other Max Solutions site keeps its own.</p></div>
+        <div class="modal__foot"><button class="btn btn--quiet" type="button" data-apply-no>Cancel</button><button class="btn btn--primary" type="button" data-apply-yes>Apply</button></div>
       </section>
     </div>
     <div class="scrim" data-truck-backdrop hidden aria-hidden="true">
@@ -1121,11 +1158,13 @@ function buildShell(root) {
     shortcutBackdrop: root.querySelector('[data-shortcut-backdrop]'),
     shortcutForm: root.querySelector('[data-shortcut-form]'),
     truckBackdrop: root.querySelector('[data-truck-backdrop]'),
+    applyBackdrop: root.querySelector('[data-apply-backdrop]'),
     truckForm: root.querySelector('[data-truck-form]'),
   };
   state.dockModal = createModal(state.elements.dockBackdrop, { onRequestClose: () => state.dockModal.close() });
   state.shortcutModal = createModal(state.elements.shortcutBackdrop, { onRequestClose: () => state.shortcutModal.close() });
   state.truckModal = createModal(state.elements.truckBackdrop, { onRequestClose: () => state.truckModal.close() });
+  state.applyModal = createModal(state.elements.applyBackdrop, { onRequestClose: () => settleApply(false) });
   state.shortcutCard = createShortcutCard();
 }
 
@@ -1288,6 +1327,8 @@ function wireEvents(root) {
     const addTruck = event.target.closest('[data-add-truck-type]');
     if (addTruck) { state.elements.truckForm.reset(); state.truckModal.open({ trigger: addTruck }); return; }
     if (event.target.closest('[data-close-truck]')) { state.truckModal.close(); return; }
+    if (event.target.closest('[data-apply-yes]')) { settleApply(true); return; }
+    if (event.target.closest('[data-apply-no]')) { settleApply(false); return; }
     if (event.target.closest('[data-add-dock]')) { openDockModal(null); return; }
     const editDock = event.target.closest('[data-edit-dock]');
     if (editDock) { openDockModal(editDock.dataset.editDock); return; }
@@ -1317,7 +1358,7 @@ const page = {
     switchSection(state.section);
   },
   refresh() {},
-  destroy() { state.dockModal?.destroy(); state.shortcutModal?.destroy(); state.truckModal?.destroy(); state.shortcutCard?.destroy(); },
+  destroy() { state.dockModal?.destroy(); state.shortcutModal?.destroy(); state.truckModal?.destroy(); state.applyModal?.destroy(); state.shortcutCard?.destroy(); },
 };
 
 startPage(page);

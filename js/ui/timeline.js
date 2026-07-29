@@ -86,12 +86,33 @@ function growLanes(root) {
   timeline.style.setProperty('--tl-lines', String(Math.min(12, Math.max(asked, needed))));
 }
 
+// Fit: every dock on the screen at once, whatever the screen is. The lanes divide
+// the height they are given rather than claiming the height they want, and if the
+// facts do not fit at that size the type comes down a step at a time until they
+// do. A board on a wall is read from across a room by somebody who cannot scroll
+// it, so a scrollbar is a worse answer than slightly smaller writing — and
+// smaller writing is a better answer than dropping a fact, which is what happens
+// only once the type has gone as small as it usefully goes.
+const FIT_SCALES = [1, 0.94, 0.88, 0.82, 0.76, 0.7];
+
+function shrinkToFit(root, timeline) {
+  const blocks = [...root.querySelectorAll('.tlb')];
+  if (!blocks.length) return;
+  const overflows = () => blocks.some(block => block.scrollHeight > block.clientHeight + 1);
+  for (const scale of FIT_SCALES) {
+    timeline.style.setProperty('--tl-scale', String(scale));
+    if (!overflows()) return;
+  }
+}
+
 export function fitTimelineBlocks(root) {
   if (!root) return;
   for (const block of root.querySelectorAll('.tlb')) {
     for (const line of block.querySelectorAll('.tlb__l')) line.hidden = false;
   }
-  growLanes(root);
+  const timeline = root.querySelector('.tl') || (root.classList?.contains('tl') ? root : null);
+  if (timeline?.dataset.fit === 'window') shrinkToFit(root, timeline);
+  else growLanes(root);
   for (const block of root.querySelectorAll('.tlb')) {
     const lines = [...block.querySelectorAll('.tlb__l')];
     for (let index = lines.length - 1; index >= 0 && block.scrollHeight > block.clientHeight + 1; index -= 1) {
@@ -120,7 +141,7 @@ export function watchTimelineFit(getRoot) {
 // `meta` and `note` are two separate lines on purpose. Run together they competed
 // for one narrow line and the tail — the skid count, the status — was the part
 // that got dropped, which is the part an operator is looking for.
-export function renderTimeline({ lanes, blocks, windowStart, windowEnd, granularity = 30, emptyLabel = 'Open' }) {
+export function renderTimeline({ lanes, blocks, windowStart, windowEnd, granularity = 30, emptyLabel = 'Open', fit = 'window' }) {
   const span = Math.max(60, windowEnd - windowStart);
   const step = labelEvery(span, granularity);
   const tickCount = Math.ceil(span / granularity);
@@ -183,7 +204,7 @@ export function renderTimeline({ lanes, blocks, windowStart, windowEnd, granular
   // The hour sits in the middle of the hour it names. Anchored at the gridline it
   // read as belonging to whatever was to its left.
   const slot = (granularity * step / span) * 100;
-  return `<div class="tl" data-lines="${lineCount}" style="--tl-lines:${lineCount};--tl-slot:${slot}%">
+  return `<div class="tl" data-lines="${lineCount}" data-fit="${fit}" style="--tl-lines:${lineCount};--tl-slot:${slot}%">
     <div class="tl__ruler"><div class="tl__corner">Dock</div><div class="tl__scale">${scaleTicks.join('')}</div></div>
     <div class="tl__lanes">${laneMarkup}</div>
   </div>`;

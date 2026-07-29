@@ -1326,3 +1326,63 @@ un-tells it. The row carries their email and `email_delivery_status` stays
 `not_configured`, which is what every notification in this database says until a
 sender domain exists; when one does, these go out with the rest and no code here
 changes.
+
+## The CSS budget, decided (2026-07-29)
+
+The owner's call: functionality first, keep the site fast, the technical choice is
+mine. So — the **rules budget stays at 60 KB** and the **file budget goes to
+96 KB**. The numbers behind it: 53.2 KB of declarations, 26.4 KB of comments,
+79.6 KB of file, and **21.4 KB over the wire gzipped** against roughly half a
+megabyte of JavaScript. The stylesheet is the smallest thing on the page, it is
+cached after the first visit, and the site is static files on GitHub Pages, so
+none of this costs money either.
+
+The rules budget is the one that guards against CSS sprawl — v1 shipped 36
+stylesheets per page — and it has not moved. The file budget was counting the
+reasoning in the file as if it were code, which meant every feature needing three
+rules cost a paragraph of "why this is the way it is". That was the wrong trade
+and it is gone.
+
+## Every dock on the screen (2026-07-29)
+
+The board grew lanes to fit their content, which meant a five-dock site scrolled.
+The owner's requirement is the opposite: **all the docks, always, on whatever
+screen** — because these boards are read from across a shop floor by somebody who
+cannot scroll them.
+
+The board and the queue's wall view now default to **All on screen**: the lanes
+divide the height they are given rather than claiming the height they want, and
+the type inside the blocks is stepped down by measurement — 100%, 94%, 88%, 82%,
+76%, 70% — until the facts fit. Only after 70% does the old behaviour take over
+and drop a fact from the bottom, because smaller writing is a better answer than
+missing writing, and a scrollbar is a worse answer than both.
+
+**Full size, scroll** is the other setting, beside the timeline granularity. A
+board on a wall wants the first; somebody working one dock at a desk may want the
+second. Two levers already existed and still matter here: a wider timeline
+granularity makes blocks wider so less wraps, and the block fields decide how much
+each block is trying to say.
+
+## The Quick QR dialog held still (2026-07-29)
+
+Two faults, one cause and one design mistake.
+
+**The gap read as blank.** `unitParts` falls back to the base unit when the value
+is not a whole number of anything, and the base here is minutes while the choices
+are hours and days — so the select was told to be a unit it did not offer and
+ended up with nothing selected at all. A new code now opens at **4 hours**, and
+the unit falls back to hours rather than to something the list has never heard of.
+
+**The dialog jumped.** The gap was hidden when the person picks the time and shown
+when MaxDock does, so choosing changed the dialog's height and moved Save out from
+under the pointer that had just chosen. It stays where it is now and greys out
+instead.
+
+## MaxDock asks which site, in its own words (2026-07-29)
+
+Saving a settings window asked "Apply these changes to Milton?" through the
+browser's own `confirm()` — a grey strip at the top of the window, in Chrome's
+voice, easy to dismiss without reading. It is a MaxDock dialog now, naming the
+location in its title, with Cancel and Apply. A settings change lands on one site
+and the person making it is usually responsible for several, so the site's name
+should be the loudest thing on screen at the moment they commit.

@@ -100,7 +100,13 @@ const stageOneJsFiles = [
 const jsBytes = stageOneJsFiles.reduce((sum, path) => sum + statSync(join(ROOT, path)).size, 0);
 const cssRuleBytes = Buffer.byteLength(readFileSync(join(ROOT, 'assets/maxdock.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, ''));
 if (cssRuleBytes > 60 * 1024) fail('assets/maxdock.css', `CSS rule budget exceeded: ${Math.round(cssRuleBytes / 1024)} KB of declarations.`);
-if (cssBytes > 80 * 1024) fail('assets/maxdock.css', `CSS file budget exceeded: ${Math.round(cssBytes / 1024)} KB including comments.`);
+// Two budgets, and only one of them is about the site being fast. The rules are
+// what a browser parses and what CSS sprawl shows up in, so 60 KB of declarations
+// stays exactly where it was. The file limit counts the comments too, and comments
+// are the reasoning this stylesheet is maintained by — over the wire the whole
+// thing is about 21 KB gzipped against half a megabyte of JavaScript, so trading a
+// paragraph of "why" for three rules was never a trade worth making.
+if (cssBytes > 96 * 1024) fail('assets/maxdock.css', `CSS file budget exceeded: ${Math.round(cssBytes / 1024)} KB including comments.`);
 if (jsBytes > 120 * 1024) fail('js/', `Stage 1 JavaScript budget exceeded: ${Math.round(jsBytes / 1024)} KB.`);
 
 // One stylesheet means one place a spacing decision is made. An inline style is a

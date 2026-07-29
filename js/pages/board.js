@@ -25,6 +25,7 @@ const state = {
   customizePanel: null,
   visibleCards: [],
   blockFields: [],
+  fit: 'window',
   wall: null,
   granularity: 30,
   truckTypeNames: new Map(),
@@ -463,11 +464,18 @@ function renderBoard() {
     windowStart: window.start,
     windowEnd: window.end,
     granularity: state.granularity,
+    fit: state.fit,
   });
   state.elements.host.innerHTML = `<div class="board__head">
       <span class="board__title">${format.longDateInput(state.date, state.context.location)}</span>
       <div class="board__legend"><span class="lg" style="--c:var(--dock)">Inbound</span><span class="lg" style="--c:var(--ok)">Outbound</span><span class="lg" style="--c:var(--signal)">Priority</span><span class="lg" style="--c:var(--rule-strong)">Blocked</span></div>
-      <label class="ctrl-field ctrl-field--inline board__gran"><span>Timeline</span><select class="select" data-granularity>${GRANULARITIES.map(option => `<option value="${option.minutes}" ${state.granularity === option.minutes ? 'selected' : ''}>${option.label}</option>`).join('')}</select></label>
+      <div class="board__gran">
+        <label class="ctrl-field ctrl-field--inline"><span>Timeline</span><select class="select" data-granularity>${GRANULARITIES.map(option => `<option value="${option.minutes}" ${state.granularity === option.minutes ? 'selected' : ''}>${option.label}</option>`).join('')}</select></label>
+        <label class="ctrl-field ctrl-field--inline"><span>Docks</span><select class="select" data-fit>
+          <option value="window" ${state.fit === 'window' ? 'selected' : ''}>All on screen</option>
+          <option value="scroll" ${state.fit === 'scroll' ? 'selected' : ''}>Full size, scroll</option>
+        </select></label>
+      </div>
     </div>
     <div class="board__scroll">${timeline}</div>`;
   fitTimelineBlocks(state.elements.host);
@@ -620,6 +628,10 @@ function wireEvents(root) {
   root.addEventListener('change', async event => {
     if (event.target.matches('[data-board-date]')) { state.date = event.target.value; patchData(await fetchBoardData()); }
     if (event.target.matches('[data-granularity]')) { state.granularity = Number(event.target.value); renderBoard(); }
+    // Every dock on screen, or every dock at full size with a scrollbar. A board
+    // on a wall wants the first; somebody working one dock at a desk may want the
+    // second.
+    if (event.target.matches('[data-fit]')) { state.fit = event.target.value; renderBoard(); }
     if (event.target.matches('[data-filter-direction]')) { state.filters.direction = event.target.value; renderBoard(); }
     if (event.target.matches('[data-filter-status]')) { state.filters.status = event.target.value; renderBoard(); }
     if (event.target.matches('[data-filter-search]')) { state.filters.search = event.target.value; renderBoard(); }
