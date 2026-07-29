@@ -92,6 +92,7 @@ const MODALS = {
   users: [
     { name: 'add-user', trigger: '[data-add-user]' },
     { name: 'edit-user', trigger: '[data-edit-user]' },
+    { name: 'import-users', trigger: '[data-import-users]' },
   ],
 };
 

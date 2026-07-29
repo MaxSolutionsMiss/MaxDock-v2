@@ -984,3 +984,67 @@ which has been redundant since `.tlb` started centring on its own.
 **Rule: the verifier's exit code decides whether a push happens, not a glance at
 its output.** Roughly 1.4KB of headroom is left, which is a few rules — the next
 CSS of any size has to come with a trim.
+
+## Combining now merges (2026-07-29)
+
+Ticking loads to combine used to write "Combined load — travelling with
+MXD-2026-000140." into the notes and leave every appointment standing. Two trucks
+still existed, both still had a dock and a time, and the whole point — one truck
+instead of several between the same two sites on the same day — never happened.
+
+`merge_appointments(p_keep_id uuid, p_absorb_ids uuid[])`, security definer, does
+the merge in one transaction: the absorbed appointments are cancelled first with
+`cancellation_reason = 'Combined onto <reference>'` and
+`merged_into_appointment_id` pointing at the survivor, then the skids are summed
+onto the survivor and its window recomputed through
+`calculate_appointment_duration_internal`. Cancelling first is what makes the
+growth possible — those windows have to be out of the way before the survivor can
+take the time. The `appointments_no_dock_overlap` EXCLUDE constraint then decides
+whether it fits; if it does not, the whole transaction rolls back and nothing was
+combined. No new conflict check was written for this.
+
+The page calls it after `book_appointment` succeeds, because a merge needs an
+appointment to merge onto. If the booking works and the merge does not, the
+booking stands and the message says so rather than pretending.
+
+The confirmation names what was absorbed and how full the truck ended up. So does
+the picker, live, as loads are ticked: a bar and a line — "69% full · 18 of 26
+skids · room for 8". Capacity comes from the truck type at that location, so a
+site that double-stacks says so and its trailers hold more. Over capacity warns
+rather than blocks: a blank capacity means unknown, and a site that knows better
+than the number should not be stopped by it.
+
+Rolled-back test against the live project: 10 skids + 10 = 20, end 12:15 → 12:30,
+absorbed appointment left cancelled and pointing at the survivor. Confirmed
+nothing persisted afterwards.
+
+## Fifty locations, one sheet (2026-07-29)
+
+Rolling out means forty or fifty sites' people, and typing them in one dialog at a
+time is not a plan. **Users › Import users** takes the sheet a location fills in.
+
+Download template hands out a CSV carrying the location's own name, the roles
+MaxDock actually has and the valid site names, with `#` lines for instructions
+that the reader ignores. What comes back can be that CSV or the .xlsx Excel saved
+it as — an xlsx is a zip of XML and the browser can already unzip
+(`DecompressionStream`), so `js/ui/sheet.js` reads both. Nothing is uploaded to
+be converted: a sheet of names, emails and passwords stays in the browser.
+
+Every row is checked before anything is created — username shape, username not
+already taken (in the file or in MaxDock), a role that exists, locations that
+exist, a password of at least eight characters if one was typed — and the sheet
+comes back on screen with Ready or Fix and the reason per row. Only Ready rows go.
+Role names are matched with spacing and punctuation ignored, so "Shipping
+manager", "Manager / Supervisor" and `shipping_manager` are one role rather than
+three chances to have the sheet sent back.
+
+Creation goes row by row through `maxdock-invite-user`, the same edge function the
+Add user dialog calls, so an imported account gets the same checks, the same audit
+trail and the same must-change-password rule as a hand-made one. Blank password
+cells get a generated one. At the end MaxDock shows every username and temporary
+password with a result beside it and a CSV to download, because it does not send
+them anywhere itself.
+
+`scripts/verify-users-import.mjs` holds those rules: through the edge function,
+never straight to the database, nothing created before the sheet has been shown
+back, and the file is never sent anywhere to be parsed.

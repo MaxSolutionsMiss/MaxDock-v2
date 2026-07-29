@@ -5,6 +5,7 @@ const ICONS = {
   fullscreen: '<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"></path>',
   block: '<rect x="3" y="5" width="18" height="16" rx="2"></rect><path d="M3 10h18M8 3v4M16 3v4"></path>',
   add: '<path d="M12 5v14M5 12h14"></path>',
+  import: '<path d="M12 15V3m0 12 4-4m-4 4-4-4M5 18v3h14v-3"></path>',
   copy: '<rect x="9" y="9" width="11" height="11" rx="2"></rect><path d="M5 15V5a2 2 0 0 1 2-2h8"></path>',
   move: '<circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 2"></path>',
   cancel: '<circle cx="12" cy="12" r="9"></circle><path d="M5.6 5.6 18.4 18.4"></path>',
@@ -23,6 +24,7 @@ export function icon(name) {
 // fixed order on every page, with the customize gear outermost.
 const ACTIONS = {
   block: { icon: 'block', attribute: 'data-block-time', label: 'Block dock time', primary: true },
+  importUsers: { icon: 'import', attribute: 'data-import-users', label: 'Import users', primary: true },
   addUser: { icon: 'add', attribute: 'data-add-user', label: 'Add user', primary: true, accent: true },
   book: { icon: 'add', attribute: 'data-open-booking', label: 'Book appointment', primary: true, accent: true },
   export: { icon: 'export', attribute: 'data-export', label: 'Export CSV', iconOnly: true },
@@ -31,7 +33,7 @@ const ACTIONS = {
   customize: { icon: 'customize', attribute: 'data-customize', label: 'Customize this page', iconOnly: true },
 };
 
-const LEAD_ORDER = ['block', 'addUser', 'book'];
+const LEAD_ORDER = ['block', 'importUsers', 'addUser', 'book'];
 const END_ORDER = ['export', 'print', 'fullscreen', 'customize'];
 
 const escapeHtml = value => String(value ?? '').replace(/[&<>'"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[char]));

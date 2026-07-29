@@ -4,6 +4,7 @@ import { toast } from '../ui/toast.js';
 import { createModal } from '../ui/modal.js';
 import { renderState } from '../ui/empty.js';
 import { pageHead, controlsBar } from '../ui/pagehead.js';
+import { readSheet, toCsv, downloadFile } from '../ui/sheet.js';
 import { format } from '../format.js';
 
 const state = {
@@ -18,6 +19,10 @@ const state = {
   addModal: null,
   editModal: null,
   editingUserId: null,
+  importModal: null,
+  importRows: [],
+  importResults: [],
+  importRunning: false,
 };
 
 const escapeHtml = value => String(value ?? '').replace(/[&<>'"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[char]));
@@ -393,12 +398,248 @@ function exportCsv() {
       lastSeen ? format.timestamp(lastSeen, state.context.location) : '',
     ]);
   }
-  const csv = rows.map(row => row.map(value => `"${String(value ?? '').replaceAll('"', '""')}"`).join(',')).join('\n');
-  const link = document.createElement('a');
-  link.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
-  link.download = 'maxdock-users.csv';
-  link.click();
-  URL.revokeObjectURL(link.href);
+  downloadFile('maxdock-users.csv', toCsv(rows));
+}
+
+// ---------------------------------------------------------------------------
+// Importing a location's people from one sheet
+//
+// Fifty locations cannot be typed in one account at a time. The template goes out,
+// a location fills it in, it comes back, and every row on it becomes an account
+// here — through the same edge function the Add user dialog calls, so a row gets
+// exactly the checks, the audit trail and the temporary-password rules a hand-made
+// account gets. Nothing is created until the sheet has been read back on screen
+// and every row says what it will do.
+// ---------------------------------------------------------------------------
+
+const IMPORT_FIELDS = {
+  'full name': 'fullName', name: 'fullName',
+  username: 'username', 'user name': 'username',
+  email: 'email', 'email address': 'email',
+  role: 'role', 'account type': 'role',
+  company: 'company', 'company name': 'company', organisation: 'company', organization: 'company',
+  locations: 'locations', location: 'locations', site: 'locations', sites: 'locations',
+  'temporary password': 'password', password: 'password',
+};
+
+const normalise = value => String(value ?? '').trim().toLowerCase();
+
+// A location's people are all at that location, so the column is filled in
+// already — the sheet that comes back needs a name, a username and a role.
+function templateCsv() {
+  const location = state.context.location?.name || '';
+  const roles = roleChoices().map(choice => choice.label).join(', ');
+  const sites = state.context.locations.map(item => item.name).join('; ');
+  return toCsv([
+    ['# MaxDock user import' + (location ? ` — ${location}` : '')],
+    ['# Fill one row per person under the headings. Lines starting with # are ignored.'],
+    [`# Role must be one of: ${roles}`],
+    [`# Locations: separate several with a semicolon. Valid: ${sites}`],
+    ['# Temporary password: leave it blank and MaxDock makes one, which it shows you after the import.'],
+    ['Full name', 'Username', 'Email', 'Role', 'Company', 'Locations', 'Temporary password'],
+    ['# EXAMPLE — delete this row', 'jsmith', 'jsmith@example.com', 'Coordinator', '', location, ''],
+  ]);
+}
+
+// Spacing and punctuation are not a decision anybody made: "Manager / Supervisor",
+// "manager/supervisor" and "shipping_manager" are one role written three ways, and
+// rejecting two of them would send the sheet back over a space.
+const roleKey = value => normalise(value).replace(/[^a-z0-9]/g, '');
+
+function roleFromSheet(value) {
+  const wanted = roleKey(value);
+  if (!wanted) return null;
+  const choice = roleChoices().find(item => roleKey(item.label) === wanted || roleKey(item.value) === wanted);
+  if (choice) return choice.value;
+  // "Customer" and "Vendor" are the two faces of one role, and a sheet may name
+  // the role rather than the party — accept both spellings of the same thing.
+  const role = state.roles.find(item => roleKey(item.name) === wanted || roleKey(item.code) === wanted);
+  return role ? (role.code === 'customer' ? 'customer:Customer' : role.code) : null;
+}
+
+// Semicolon, slash or pipe. Not a comma: in a CSV that is the column separator,
+// and a location typing "Pickering, Milton" would silently lose the second one.
+function locationsFromSheet(value) {
+  const wanted = String(value || '').split(/[;/|]/).map(part => part.trim()).filter(Boolean);
+  const found = [];
+  const missing = [];
+  for (const name of wanted) {
+    const match = state.context.locations.find(item => normalise(item.name) === normalise(name));
+    if (match) found.push(match.id);
+    else missing.push(name);
+  }
+  return { ids: [...new Set(found)], missing };
+}
+
+function readImportRows(rows) {
+  const body = rows.filter(row => !String(row[0] || '').startsWith('#'));
+  if (!body.length) return { records: [], error: 'That sheet has no rows on it.' };
+  const header = body[0].map(cell => IMPORT_FIELDS[normalise(cell)] || '');
+  for (const required of ['fullName', 'username', 'role']) {
+    if (!header.includes(required)) {
+      return { records: [], error: 'That sheet is missing the Full name, Username or Role column. Download the template and fill that in.' };
+    }
+  }
+  const taken = new Set(state.users.map(user => normalise(user.username)));
+  const records = [];
+  for (const [index, row] of body.slice(1).entries()) {
+    const values = {};
+    header.forEach((field, column) => { if (field) values[field] = String(row[column] ?? '').trim(); });
+    const { ids, missing } = locationsFromSheet(values.locations);
+    const roleValue = roleFromSheet(values.role);
+    const { roleCode, partyType } = splitRoleValue(roleValue || '');
+    const record = {
+      line: index + 2,
+      fullName: values.fullName || '',
+      username: values.username || '',
+      email: values.email || '',
+      company: values.company || '',
+      role: values.role || '',
+      roleValue, roleCode, partyType,
+      locationIds: ids,
+      locationNames: ids.map(id => state.context.locations.find(item => item.id === id)?.name).filter(Boolean),
+      password: values.password || '',
+      errors: [],
+    };
+    if (!record.fullName) record.errors.push('No name');
+    if (!/^[A-Za-z0-9._-]{3,50}$/.test(record.username)) record.errors.push('Username must be 3–50 letters, numbers, dots, dashes or underscores');
+    else if (taken.has(normalise(record.username))) record.errors.push('That username is already taken');
+    else taken.add(normalise(record.username));
+    if (!roleValue) record.errors.push(`Role "${record.role}" is not one MaxDock has`);
+    if (missing.length) record.errors.push(`No location called ${missing.join(', ')}`);
+    else if (roleCode !== 'system_admin' && !ids.length) record.errors.push('No location');
+    if (record.password && record.password.length < 8) record.errors.push('Temporary password is under 8 characters');
+    if (record.email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(record.email)) record.errors.push('That is not an email address');
+    records.push(record);
+  }
+  return { records, error: records.length ? '' : 'That sheet has no people on it.' };
+}
+
+function renderImportPreview() {
+  const host = state.elements.importPreview;
+  const records = state.importRows;
+  const good = records.filter(record => !record.errors.length);
+  state.elements.importRun.disabled = state.importRunning || !good.length;
+  state.elements.importRun.textContent = good.length > 1 ? `Create ${good.length} accounts` : 'Create account';
+  if (!records.length) { host.replaceChildren(); return; }
+  const badRole = records.some(record => !record.roleValue);
+  host.innerHTML = `
+    <p class="form-message ${good.length === records.length ? 'form-message--success' : ''}">${good.length} of ${records.length} row${records.length === 1 ? '' : 's'} ready${good.length === records.length ? '' : ` · ${records.length - good.length} to fix in the sheet`}</p>
+    ${badRole ? `<p class="hint hint--wide">A role has to be one of: ${escapeHtml(roleChoices().map(choice => choice.label).join(', '))}.</p>` : ''}
+    <div class="tablewrap"><table class="table">
+      <thead><tr><th>Row</th><th>Name</th><th>Username</th><th>Role</th><th>Locations</th><th class="col-fill">Check</th></tr></thead>
+      <tbody>${records.map(record => `<tr>
+        <td>${record.line}</td>
+        <td class="cell-cap">${escapeHtml(record.fullName)}</td>
+        <td>${escapeHtml(record.username)}</td>
+        <td>${escapeHtml(record.roleValue ? roleChoices().find(choice => choice.value === record.roleValue)?.label || record.role : record.role)}</td>
+        <td class="cell-cap">${escapeHtml(record.locationNames.join(', ') || (record.roleCode === 'system_admin' ? 'All' : ''))}</td>
+        <td class="cell-elide" title="${escapeHtml(record.errors.join(' · ') || 'Ready to create')}">${record.errors.length
+          ? `<span class="tag tag--stop">Fix</span> ${escapeHtml(record.errors.join(' · '))}`
+          : '<span class="tag tag--ok">Ready</span>'}</td>
+      </tr>`).join('')}</tbody>
+    </table></div>`;
+}
+
+async function loadImportFile(file) {
+  state.elements.importStatus.textContent = '';
+  if (!file) { state.importRows = []; renderImportPreview(); return; }
+  try {
+    const rows = await readSheet(file);
+    const { records, error } = readImportRows(rows);
+    state.importRows = records;
+    renderImportPreview();
+    if (error) state.elements.importStatus.textContent = error;
+  } catch (error) {
+    state.importRows = [];
+    renderImportPreview();
+    state.elements.importStatus.textContent = error.message || 'That file could not be read.';
+  }
+}
+
+// One at a time, on purpose: each row is an account creation with a password
+// behind it, and a failure halfway through has to leave a list of exactly which
+// people exist and which do not.
+async function runImport() {
+  const records = state.importRows.filter(record => !record.errors.length);
+  if (!records.length || state.importRunning) return;
+  state.importRunning = true;
+  state.elements.importRun.disabled = true;
+  const results = [];
+  for (const [index, record] of records.entries()) {
+    state.elements.importStatus.textContent = `Creating ${index + 1} of ${records.length}…`;
+    const password = record.password || generatePassword();
+    try {
+      await db.edge('maxdock-invite-user', {
+        action: 'create_temporary_password',
+        username: record.username,
+        fullName: record.fullName,
+        roleCode: record.roleCode,
+        externalPartyType: record.partyType || '',
+        organizationName: record.company,
+        locationIds: record.locationIds,
+        email: record.email,
+        password,
+      }, { key: `users:import:${crypto.randomUUID()}`, retry: 0 });
+      results.push({ record, password, ok: true, message: 'Created' });
+    } catch (error) {
+      results.push({ record, password: '', ok: false, message: error.userMessage || error.message || 'Could not be created' });
+    }
+  }
+  state.importRunning = false;
+  db.invalidate('users:list');
+  await fetchAll();
+  renderFilters();
+  renderTable();
+  state.elements.subtitle.textContent = `${state.users.length} people`;
+  renderImportResults(results);
+}
+
+function renderImportResults(results) {
+  const created = results.filter(result => result.ok);
+  state.elements.importStatus.textContent = '';
+  state.elements.importRun.hidden = true;
+  state.elements.importFile.disabled = true;
+  state.elements.importPreview.innerHTML = `
+    <p class="form-message ${created.length === results.length ? 'form-message--success' : ''}">${created.length} of ${results.length} account${results.length === 1 ? '' : 's'} created.</p>
+    <p class="hint hint--wide">MaxDock does not send these out. Download the list, hand each person their own line, and they are asked to set their own password the first time they sign in.</p>
+    <div class="tablewrap"><table class="table">
+      <thead><tr><th>Name</th><th>Username</th><th>Temporary password</th><th class="col-fill">Result</th></tr></thead>
+      <tbody>${results.map(result => `<tr>
+        <td class="cell-cap">${escapeHtml(result.record.fullName)}</td>
+        <td>${escapeHtml(result.record.username)}</td>
+        <td>${escapeHtml(result.password || '—')}</td>
+        <td class="cell-elide" title="${escapeHtml(result.message)}">${result.ok ? '<span class="tag tag--ok">Created</span>' : `<span class="tag tag--stop">Not created</span> ${escapeHtml(result.message)}`}</td>
+      </tr>`).join('')}</tbody>
+    </table></div>
+    <div class="form-actions"><button class="btn btn--quiet" type="button" data-import-download>Download the sign-in list</button></div>`;
+  state.importResults = results;
+}
+
+function downloadImportResults() {
+  const rows = [['Name', 'Username', 'Temporary password', 'Role', 'Locations', 'Result']];
+  for (const result of state.importResults || []) {
+    rows.push([
+      result.record.fullName, result.record.username, result.password,
+      roleChoices().find(choice => choice.value === result.record.roleValue)?.label || result.record.role,
+      result.record.locationNames.join(' / '),
+      result.ok ? 'Created' : result.message,
+    ]);
+  }
+  downloadFile('maxdock-new-accounts.csv', toCsv(rows));
+}
+
+function openImportModal() {
+  state.importRows = [];
+  state.importResults = [];
+  state.elements.importPreview.replaceChildren();
+  state.elements.importStatus.textContent = '';
+  state.elements.importFile.value = '';
+  state.elements.importFile.disabled = false;
+  state.elements.importRun.hidden = false;
+  state.elements.importRun.disabled = true;
+  state.elements.importRun.textContent = 'Create accounts';
+  state.importModal.open({ trigger: state.elements.importTrigger });
 }
 
 function buildShell(root) {
@@ -413,7 +654,7 @@ function buildShell(root) {
       filters: `<div class="ctrl-field"><label for="user-role">Role</label><select class="select" id="user-role" data-role-filter></select></div>
       <div class="ctrl-field"><label for="user-location">Location</label><select class="select" id="user-location" data-location-filter></select></div>
       <div class="ctrl-field ctrl-field--grow"><label for="user-search">Search</label><input class="input" type="search" id="user-search" placeholder="Name, username or email" data-search></div>`,
-      trailing: [['addUser', canAdd]],
+      trailing: [['importUsers', canAdd], ['addUser', canAdd]],
     })}
     <div class="panel panel--fill">
       <div class="panel__head"><h3 class="panel__title">People</h3><div class="panel__actions"><span class="sub" data-count></span></div></div>
@@ -456,6 +697,24 @@ function buildShell(root) {
         </form>
         <div class="modal__body" data-add-result hidden></div>
         <div class="modal__foot" data-add-result-foot hidden><button class="btn btn--primary" type="button" data-close-add>Done</button></div>
+      </section>
+    </div>
+    <div class="scrim" data-import-backdrop hidden aria-hidden="true">
+      <section class="modal modal--wide" role="dialog" aria-modal="true" aria-labelledby="import-users-title">
+        <div class="modal__head"><div><h2 class="modal__title" id="import-users-title">Import users</h2><p class="modal__sub">Send a location the template, upload what comes back, and every row becomes an account.</p></div><button class="modal__x" type="button" data-close-import aria-label="Close">×</button></div>
+        <div class="modal__body">
+          <div class="frow">
+            <label class="field field--lg"><span class="field__label">Filled-in sheet</span><input class="input" type="file" accept=".csv,.xlsx,text/csv" data-import-file></label>
+            <div class="field-action field--md"><button class="btn btn--quiet" type="button" data-import-template>Download template</button></div>
+          </div>
+          <p class="hint hint--wide">Excel or CSV. The sheet needs a Full name, Username and Role column; Email, Company, Locations and Temporary password are read if they are there. Leave a password blank and MaxDock makes one, then shows you every sign-in at the end.</p>
+          <div data-import-preview></div>
+        </div>
+        <div class="modal__foot">
+          <button class="btn btn--quiet" type="button" data-close-import>Close</button>
+          <span class="sub" data-import-status></span>
+          <button class="btn btn--primary" type="button" data-import-run disabled>Create accounts</button>
+        </div>
       </section>
     </div>
     <div class="scrim" data-edit-backdrop hidden aria-hidden="true">
@@ -505,6 +764,12 @@ function buildShell(root) {
     addFoot: root.querySelector('[data-add-foot]'),
     addResult: root.querySelector('[data-add-result]'),
     addResultFoot: root.querySelector('[data-add-result-foot]'),
+    importTrigger: root.querySelector('[data-import-users]'),
+    importBackdrop: root.querySelector('[data-import-backdrop]'),
+    importFile: root.querySelector('[data-import-file]'),
+    importPreview: root.querySelector('[data-import-preview]'),
+    importStatus: root.querySelector('[data-import-status]'),
+    importRun: root.querySelector('[data-import-run]'),
     editBackdrop: root.querySelector('[data-edit-backdrop]'),
     editForm: root.querySelector('[data-edit-form]'),
     editTitle: root.querySelector('[data-edit-title]'),
@@ -514,6 +779,10 @@ function buildShell(root) {
     editResetResult: root.querySelector('[data-edit-reset-result]'),
   };
   state.addModal = createModal(state.elements.addBackdrop, { onRequestClose: () => state.addModal.close() });
+  // Closing part way through would leave accounts created and their passwords
+  // never shown, which is worse than an unclosable dialog for the half minute the
+  // import takes.
+  state.importModal = createModal(state.elements.importBackdrop, { onRequestClose: () => { if (!state.importRunning) state.importModal.close(); } });
   state.editModal = createModal(state.elements.editBackdrop, { onRequestClose: () => state.editModal.close() });
 }
 
@@ -535,6 +804,11 @@ function wireEvents(root) {
       return;
     }
     if (event.target.closest('[data-add-user]')) { openAddModal(); return; }
+    if (event.target.closest('[data-import-users]')) { openImportModal(); return; }
+    if (event.target.closest('[data-import-template]')) { downloadFile('maxdock-user-import-template.csv', templateCsv()); return; }
+    if (event.target.closest('[data-import-run]')) { runImport(); return; }
+    if (event.target.closest('[data-import-download]')) { downloadImportResults(); return; }
+    if (event.target.closest('[data-close-import]')) { if (!state.importRunning) state.importModal.close(); return; }
     if (event.target.closest('[data-close-add]')) { state.addModal.close(); return; }
     const editTrigger = event.target.closest('[data-edit-user]');
     if (editTrigger) { openEditModal(editTrigger.dataset.editUser); return; }
@@ -552,6 +826,7 @@ function wireEvents(root) {
   });
 
   root.addEventListener('change', event => {
+    if (event.target.matches('[data-import-file]')) { loadImportFile(event.target.files?.[0]); return; }
     const box = event.target.closest('[data-select-user]');
     if (box) {
       if (box.checked) state.selected.add(box.dataset.selectUser);
@@ -604,6 +879,7 @@ const page = {
   destroy() {
     state.addModal?.destroy();
     state.editModal?.destroy();
+    state.importModal?.destroy();
   },
 };
 

@@ -295,6 +295,12 @@ function createAppointmentCard(record) {
     status.className = `status status--${nextStatus}`;
     status.textContent = statusLabel(nextStatus);
 
+    const reason = String(nextRecord.cancellation_reason || '').trim();
+    note.hidden = nextStatus !== 'cancelled' || !reason;
+    note.textContent = nextRecord.merged_into_reference
+      ? `Combined onto ${nextRecord.merged_into_reference}. Those skids travel on that truck.`
+      : reason;
+
     for (const detail of detailRefs) {
       const rawValue = detail.key === 'direction'
         ? format.role(nextRecord.direction || '')
@@ -318,7 +324,12 @@ function createAppointmentCard(record) {
     }
   }
 
-  element.append(head, details);
+  // Why an appointment was cancelled, on the appointment. MaxDock cancels loads
+  // itself now when they are combined onto one truck, so "Cancelled" with nothing
+  // beside it would be the first thing a customer sees and the first phone call.
+  const note = createElement('p', 'hint hint--wide hint--flush');
+  note.hidden = true;
+  element.append(head, details, note);
   update(record);
   return Object.freeze({ element, update, destroy: () => element.remove() });
 }

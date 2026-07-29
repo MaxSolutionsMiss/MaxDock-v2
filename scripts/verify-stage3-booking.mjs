@@ -43,6 +43,12 @@ if (!errors.length) {
   requireText(page, /function combinedSkids/, 'Slot search does not account for combined loads.');
   requireText(page, /p_skid_count: combinedSkids\(\)/, 'The slot search still asks for this load alone, not the combined load.');
   requireText(page, /function combinedNotes/, 'Combined loads are not recorded on the booking.');
+  // Ticking loads has to end with one truck, not a note about several. The merge
+  // moves the skids across, grows the window and cancels what it absorbed, and it
+  // is the whole point of combining — a picker that only annotates leaves exactly
+  // the duplicate trucks the owner is trying to stop.
+  requireText(page, /merge_appointments/, 'Ticked loads are never merged — combining only annotates the booking.');
+  requireText(page, /function fullnessBar/, 'A combined truck must say how full it ended up.');
   // A repeating booking is a pattern the server turns into ordinary appointments
   // through the ordinary booking function. If the page ever books the dates
   // itself, every rule a single booking obeys stops applying to a repeat.

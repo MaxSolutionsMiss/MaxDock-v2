@@ -321,6 +321,13 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 .shortcut__det{color:var(--ink-muted);font-size:var(--t-small);margin:var(--s1) 0 var(--s2)}
 .shortcut-print{padding:var(--s5);background:var(--surface)}
 .shortcut-print .shortcut{border-width:2px}
+/* How full the truck ended up. The count alone does not tell a planner whether one
+   more load would have fitted; the bar does, without being read. */
+.fullness{display:grid;gap:3px;margin-top:var(--s3)}
+.fullness__bar{height:9px;border-radius:99px;background:var(--surface-sunk);border:1px solid var(--rule-strong);overflow:hidden}
+.fullness__bar>span{display:block;height:100%;background:var(--ok)}
+.fullness__t{font-size:var(--t-small);color:var(--ink-muted);font-variant-numeric:tabular-nums}
+.fullness--over .fullness__bar>span{background:var(--stop)}
 .qrblock{display:flex;align-items:center;gap:var(--s4);flex-wrap:wrap;padding:var(--s3) 0;border-top:1px solid var(--rule);border-bottom:1px solid var(--rule)}
 .qrblock .qr-frame{flex:none;width:150px;margin:0}
 .qrblock>div{min-width:0;flex:1 1 220px}
@@ -351,9 +358,10 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
    can reach it. */
 .scrim{position:fixed;inset:0;background:rgba(22,32,42,.45);display:grid;justify-items:center;align-items:safe center;overflow-y:auto;padding:var(--s5);z-index:50}
 .modal{background:var(--surface);border-radius:var(--radius-lg);box-shadow:var(--shadow-overlay);width:min(760px,100%);max-height:calc(100dvh - 48px);display:flex;flex-direction:column;overflow:hidden}
-/* Three dialog widths, named. A dialog that holds one question should not be as
+/* Four dialog widths, named. A dialog that holds one question should not be as
    wide as one that holds a form, and picking the number inline meant four
-   dialogs had four different answers. */
+   dialogs had four different answers. Wide is for a dialog holding a table. */
+.modal--wide{width:min(1000px,100%)}
 .modal--md{width:min(560px,100%)}
 .modal--sm{width:min(460px,100%)}
 .modal--xs{width:min(420px,100%)}

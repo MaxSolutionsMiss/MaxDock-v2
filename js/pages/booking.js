@@ -761,6 +761,22 @@ function renderSeriesConfirmation() {
   }
 }
 
+// How full the truck ended up, as a bar. The number alone does not tell a planner
+// whether a second load would have fitted; the bar does, at a glance, and it is
+// the same figure a truck-fullness report will be built from.
+function fullnessBar(skidsWanted = null, capacityWanted = null) {
+  const merged = state.merged;
+  const capacity = Number(capacityWanted ?? merged?.truck_capacity ?? truckCapacity() ?? 0);
+  if (!capacity) return '';
+  const skids = Number(skidsWanted ?? merged?.skid_count ?? combinedSkids());
+  const percent = Math.round((skids / capacity) * 100);
+  const over = skids > capacity;
+  return `<div class="fullness${over ? ' fullness--over' : ''}">
+    <div class="fullness__bar"><span style="width:${Math.min(100, percent)}%"></span></div>
+    <div class="fullness__t">${percent}% full · ${skids} of ${capacity} skids${over ? ` · ${skids - capacity} over` : ` · room for ${capacity - skids}`}</div>
+  </div>`;
+}
+
 function renderConfirmation() {
   const result = state.confirmation;
   if (result?.series_id) { renderSeriesConfirmation(); return; }
@@ -770,6 +786,8 @@ function renderConfirmation() {
       <span class="tag tag--ok">✓ Appointment booked</span>
       <h3 class="booked__ref">${result.booking_reference}</h3>
       <p class="hint">${currentLocation().name} · ${format.timestamp(result.start_at, receivingLocation())}</p>
+      ${state.merged ? `<p class="hint hint--wide">${state.merged.absorbed_count} load${state.merged.absorbed_count === 1 ? '' : 's'} combined onto this one and cancelled: ${escapeHtml((state.merged.absorbed || []).map(row => row.booking_reference).join(', '))}. One truck now carries ${state.merged.skid_count} skids.</p>` : ''}
+      ${fullnessBar()}
     </div>
     <div class="frow">
       <div class="card field--xl" data-confirmation-details></div>
@@ -1100,13 +1118,13 @@ function combineSummary() {
   if (!chosen.length) return '';
   const capacity = truckCapacity();
   const total = combinedSkids();
-  const parts = [`Combined load ${total} skids across ${chosen.length + 1} appointments`];
-  if (capacity) {
-    const free = capacity - total;
-    parts.push(free >= 0
-      ? `${total} of ${capacity} skids on the trailer · ${free} skid${free === 1 ? '' : 's'} free`
-      : `${total - capacity} skid${total - capacity === 1 ? '' : 's'} over the ${capacity}-skid trailer`);
-  }
+  // The bar beside this says how full the trailer is, so this line says what
+  // combining does instead of repeating the count: one truck, and the loads that
+  // were ticked stop existing as separate appointments.
+  const parts = [`One truck, ${total} skids, ${chosen.length + 1} appointments`];
+  if (!capacity) parts.push('No trailer capacity is set for this truck type');
+  else if (total > capacity) parts.push(`${total - capacity} skid${total - capacity === 1 ? '' : 's'} over the ${capacity}-skid trailer`);
+  parts.push(`${chosen.length === 1 ? 'The ticked load is' : 'The ticked loads are'} cancelled onto this booking when you confirm`);
   return parts.join(' · ');
 }
 
@@ -1124,7 +1142,7 @@ function renderCombinePicker() {
   const overCapacity = truckCapacity() && combinedSkids() > truckCapacity();
   shelf.innerHTML = `
     <div class="grouplabel">Combine with</div>
-    <p class="hint hint--flush hint--wide">${state.combineMatches.length} other ${state.form.direction} load${state.combineMatches.length === 1 ? '' : 's'} already booked that day. Tick the ones travelling with this shipment and the times below are recalculated for the combined skid count.</p>
+    <p class="hint hint--flush hint--wide">${state.combineMatches.length} other ${state.form.direction} load${state.combineMatches.length === 1 ? '' : 's'} already booked that day. Tick the ones travelling with this shipment: their skids move onto this booking, they are cancelled, and the times below are recalculated for the combined load.</p>
     <div class="pickgroup">
       ${state.combineMatches.map(match => {
         const key = matchKey(match);
@@ -1132,7 +1150,7 @@ function renderCombinePicker() {
         return `<label class="check-row"><input type="checkbox" data-combine="${escapeHtml(key)}"${checked ? ' checked' : ''}><span><strong>${escapeHtml(match.booking_reference || 'Existing appointment')} · ${escapeHtml(format.time(match.start_at, currentLocation()))}</strong><small>${Number(match.skid_count || 0)} skids · ${escapeHtml(clean(match.carrier_name) || 'Carrier not listed')}${match.company_name ? ` · ${escapeHtml(match.company_name)}` : ''}</small></span></label>`;
       }).join('')}
     </div>
-    ${selectedMatches().length ? `<p class="inline-note${overCapacity ? ' inline-note--warning' : ''}">${escapeHtml(combineSummary())}</p>` : ''}`;
+    ${selectedMatches().length ? `${fullnessBar(combinedSkids(), truckCapacity())}<p class="inline-note${overCapacity ? ' inline-note--warning' : ''}">${escapeHtml(combineSummary())}</p>` : ''}`;
 }
 
 async function toggleCombine(key, checked) {
@@ -1278,6 +1296,22 @@ async function submitBooking() {
         retry: 0,
         userMessage: 'The appointment could not be booked.',
       });
+    // The loads that were ticked are merged onto the appointment just booked: the
+    // skids move across, the window grows to what the combined load needs, and the
+    // others are cancelled pointing at this one. Done after the booking rather
+    // than instead of it, because the merge needs an appointment to merge onto.
+    if (!result.series_id && selectedMatches().length) {
+      try {
+        const merged = await db.rpc('merge_appointments', {
+          p_keep_id: result.appointment_id,
+          p_absorb_ids: selectedMatches().map(match => matchKey(match)),
+        }, { key: `booking:merge:${crypto.randomUUID()}`, retry: 0, userMessage: 'The loads could not be combined.' });
+        state.merged = merged;
+        db.invalidate('appointments:mine');
+      } catch (mergeError) {
+        toast(mergeError.userMessage || 'The appointment was booked, but the loads could not be combined.', 'error');
+      }
+    }
     try {
       await saveTemplate();
     } catch (templateError) {
@@ -1512,6 +1546,7 @@ async function handleAction(button) {
       slotError: '',
       sameDayMatches: [],
       sameDayAccepted: false,
+      merged: null,
       combineMatches: [],
       combineSelected: [],
       combineReviewed: false,
@@ -1584,6 +1619,7 @@ const page = {
       slotError: '',
       sameDayMatches: [],
       sameDayAccepted: false,
+      merged: null,
       combineMatches: [],
       combineSelected: [],
       combineReviewed: false,

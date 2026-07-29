@@ -136,7 +136,14 @@
     // The check-in code every appointment carries. Without it the QR block never
     // renders and the audit measures a details dialog the app does not produce.
     get_appointment_check_in_token: () => '2b2f0c3a-9c31-4a7f-9d0e-5c9b0f1a2b3c',
-    list_my_appointments: () => APPTS.map(record => ({ ...record, ...RESOLVED })),
+    // One of a customer's own appointments has been combined onto another truck
+    // and cancelled by MaxDock. That card carries a line the others do not, so it
+    // is a state the audit has to see.
+    list_my_appointments: () => [...APPTS, {
+      ...APPTS[4], id: 'a6', appointment_id: 'a6', booking_reference: 'MXD-2026-000145',
+      status: 'cancelled', cancellation_reason: 'Combined onto MXD-2026-000144',
+      merged_into_reference: 'MXD-2026-000144',
+    }].map(record => ({ ...record, ...RESOLVED })),
     list_return_load_opportunities: () => [{ first_booking_reference: 'MXD-2026-000140', second_booking_reference: 'MXD-2026-000141', recommendation: 'Guelph outbound could pair with a Guelph to Pickering inbound.', turnaround_minutes: 90, combined_skids: 35 }],
     // A real trail: booked, edited, scanned in with a driver, then completed.
     // The scan is the event people come back for, so the fixture has to contain
@@ -216,6 +223,14 @@
     preview_routed_appointment_time: () => ({ slot_start: iso(9), slot_end: iso(10), recommended_dock_name: 'Dock 1', counterpart_dock_name: 'Dock 2' }),
     book_routed_appointment: () => ({ booking_reference: 'MXD-2026-000143', appointment_id: 'a4', start_at: iso(9), end_at: iso(10), dock_name: 'Dock 1' }),
     book_appointment: () => ({ booking_reference: 'MXD-2026-000143', appointment_id: 'a4', start_at: iso(9), end_at: iso(10), dock_name: 'Dock 1' }),
+    // Combining answers with the surviving appointment, grown by what it absorbed —
+    // the shape the confirmation draws its fullness bar from.
+    merge_appointments: (args = {}) => ({
+      appointment_id: args.p_keep_id || 'a4', booking_reference: 'MXD-2026-000143',
+      skid_count: 18, truck_capacity: 26, start_at: iso(9), end_at: iso(10, 30),
+      absorbed: (args.p_absorb_ids || ['a1']).map((id, i) => ({ id, booking_reference: `MXD-2026-00012${i + 1}`, skid_count: 8 })),
+      absorbed_count: (args.p_absorb_ids || ['a1']).length,
+    }),
   };
 
   const result = data => Promise.resolve({ data, error: null });
@@ -247,7 +262,14 @@
       },
       from: table => builder(table),
       rpc: (name, args) => result(RPC[name] ? RPC[name](args) : null),
-      functions: { invoke: () => result({ mode: 'rules', brief: { title: 'Pickering Operations Brief', summary: 'Three appointments today with 31 inbound and 10 outbound skids.', pressures: [], opportunities: [], actions: [] } }) },
+      // Answers per function: a bulk import calls the invite function once per
+      // row, and a brief-shaped answer to that would render an import that
+      // created nobody as if it had worked.
+      functions: {
+        invoke: (name, options = {}) => (name === 'maxdock-invite-user'
+          ? result({ user: { username: options.body?.username || 'newuser', email: options.body?.email || '' }, message: 'Temporary login created.' })
+          : result({ mode: 'rules', brief: { title: 'Pickering Operations Brief', summary: 'Three appointments today with 31 inbound and 10 outbound skids.', pressures: [], opportunities: [], actions: [] } })),
+      },
     }),
   } });
 })();

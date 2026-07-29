@@ -37,6 +37,8 @@ jobs:
         run: node scripts/verify-stage3-booking.mjs
       - name: Verify Stage 4 Dock Board
         run: node scripts/verify-stage4-board.mjs
+      - name: Verify bulk user import
+        run: node scripts/verify-users-import.mjs
 
   deploy-preview:
     runs-on: ubuntu-latest
