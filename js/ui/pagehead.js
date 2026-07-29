@@ -8,6 +8,7 @@ const ICONS = {
   import: '<path d="M12 15V3m0 12 4-4m-4 4-4-4M5 18v3h14v-3"></path>',
   copy: '<rect x="9" y="9" width="11" height="11" rx="2"></rect><path d="M5 15V5a2 2 0 0 1 2-2h8"></path>',
   move: '<circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 2"></path>',
+  edit: '<path d="M4 20h4L19 9a2.1 2.1 0 0 0-3-3L5 17v3z"></path><path d="M14.5 6.5 17.5 9.5"></path>',
   cancel: '<circle cx="12" cy="12" r="9"></circle><path d="M5.6 5.6 18.4 18.4"></path>',
 };
 

@@ -143,15 +143,93 @@ async function copyConfirmation(record) {
   }
 }
 
+// What this site actually offers, which is not the same list at every site — the
+// same per-location mapping the booking wizard reads, asked for once per location
+// and kept, because a customer editing three loads at one site should not ask
+// three times. The promise is what is cached, so two dialogs opened quickly share
+// one round trip; a failure is dropped so the next open tries again.
+const editOptions = new Map();
+
+async function loadEnabledOptions(mappingTable, codeColumn, masterTable, locationId) {
+  const mappings = await db.select(mappingTable, query => query
+    .select(codeColumn)
+    .eq('location_id', locationId)
+    .eq('is_active', true), {
+    key: `mine:${mappingTable}:${locationId}`,
+    cache: 300000,
+    retry: 1,
+    userMessage: 'The booking options for this site could not be loaded.',
+  });
+  const codes = (mappings || []).map(row => row[codeColumn]);
+  if (!codes.length) return [];
+  return db.select(masterTable, query => query
+    .select('code, name, sort_order')
+    .in('code', codes)
+    .eq('is_active', true)
+    .order('sort_order'), {
+    key: `mine:${masterTable}:${locationId}`,
+    cache: 300000,
+    retry: 1,
+    userMessage: 'The booking options for this site could not be loaded.',
+  });
+}
+
+function loadEditOptions(locationId) {
+  if (!locationId) return Promise.resolve({ types: [], trucks: [], handling: [] });
+  if (editOptions.has(locationId)) return editOptions.get(locationId);
+  const pending = Promise.all([
+    loadEnabledOptions('location_appointment_types', 'appointment_type_code', 'appointment_types', locationId),
+    loadEnabledOptions('location_truck_types', 'truck_type_code', 'truck_types', locationId),
+    loadEnabledOptions('location_handling_types', 'handling_type_code', 'handling_types', locationId),
+  ]).then(([types, trucks, handling]) => ({ types: types || [], trucks: trucks || [], handling: handling || [] }));
+  pending.catch(() => editOptions.delete(locationId));
+  editOptions.set(locationId, pending);
+  return pending;
+}
+
+// The option already on the booking stays selectable even when the site has since
+// stopped offering it, because dropping it would silently change the load the
+// moment anything else on the dialog was saved.
+function fillOptions(select, rows, chosenCode, chosenName) {
+  const options = [...(rows || [])];
+  if (chosenCode && !options.some(row => row.code === chosenCode)) {
+    options.unshift({ code: chosenCode, name: chosenName || chosenCode });
+  }
+  select.replaceChildren();
+  for (const row of options) {
+    const option = createElement('option', '', row.name || row.code);
+    option.value = row.code;
+    select.append(option);
+  }
+  select.value = chosenCode || options[0]?.code || '';
+}
+
 function openMoveModal(record, trigger) {
   moveTarget = record;
   const location = { timezone: record.location_timezone };
-  hosts.moveReference.textContent = `${record.booking_reference} · now ${format.timestamp(record.start_at, location)}`;
+  hosts.moveReference.textContent = `${record.booking_reference} · ${record.location_name} · now ${format.timestamp(record.start_at, location)}`;
   hosts.moveDate.value = format.inputDate(record.start_at, location);
   hosts.moveDate.min = format.todayInput(location);
   hosts.moveTime.value = format.inputTime(record.start_at, location);
+  hosts.editSkids.value = String(record.skid_count ?? 0);
+  hosts.editCarrier.value = record.carrier_name || '';
+  hosts.editReference.value = record.external_reference || '';
   hosts.moveMessage.textContent = '';
+  // What is on the booking now, drawn straight away so the dialog opens reading
+  // correctly rather than with three empty selects that fill in a moment later.
+  fillOptions(hosts.editType, [], record.appointment_type_code, record.appointment_type);
+  fillOptions(hosts.editTruck, [], record.truck_type_code, record.truck_type);
+  fillOptions(hosts.editHandling, [], record.handling_type_code, record.handling_type);
   moveModal.open({ trigger });
+  loadEditOptions(record.location_id).then(options => {
+    if (moveTarget !== record) return;
+    fillOptions(hosts.editType, options.types, hosts.editType.value, record.appointment_type);
+    fillOptions(hosts.editTruck, options.trucks, hosts.editTruck.value, record.truck_type);
+    fillOptions(hosts.editHandling, options.handling, hosts.editHandling.value, record.handling_type);
+  }).catch(() => {
+    // The dialog still works on the date and time alone; the selects keep what
+    // the booking already carries.
+  });
 }
 
 function closeMoveModal(options) {
@@ -159,23 +237,42 @@ function closeMoveModal(options) {
   moveModal?.close(options);
 }
 
+// One call for the whole change. The server re-inspects the window with the load
+// as it will be — more skids is a longer truck window — so a change that no longer
+// fits comes back as a refusal rather than as an overlapping booking.
 async function confirmMove() {
   if (!moveTarget) return;
   const appointmentId = moveTarget.appointment_id;
+  const timezone = moveTarget.location_timezone;
+  const skids = Number(hosts.editSkids.value);
+  if (!hosts.moveDate.value || !hosts.moveTime.value) {
+    hosts.moveMessage.textContent = 'A date and a start time are needed.';
+    return;
+  }
+  if (!Number.isInteger(skids) || skids < 0) {
+    hosts.moveMessage.textContent = 'Enter how many skids the truck carries.';
+    return;
+  }
   hosts.moveConfirm.disabled = true;
   hosts.moveMessage.textContent = '';
   try {
-    const result = await db.rpc('reschedule_my_appointment', {
+    const result = await db.rpc('update_my_appointment', {
       p_appointment_id: appointmentId,
       p_date: hosts.moveDate.value,
       p_start_time: hosts.moveTime.value,
-    }, { key: `appointment:move:${appointmentId}:${format.nowEpoch()}`, retry: 0, userMessage: 'The appointment could not be moved.' });
+      p_appointment_type_code: hosts.editType.value || null,
+      p_truck_type_code: hosts.editTruck.value || null,
+      p_skid_count: skids,
+      p_handling_type_code: hosts.editHandling.value || null,
+      p_carrier_name: hosts.editCarrier.value.trim() || null,
+      p_external_reference: hosts.editReference.value.trim() || null,
+    }, { key: `appointment:edit:${appointmentId}:${format.nowEpoch()}`, retry: 0, userMessage: 'The appointment could not be changed.' });
     db.invalidate('appointments:mine');
     closeMoveModal({ restoreFocus: false });
-    toast(`${result.booking_reference} moved to ${format.timestamp(result.start_at, { timezone: moveTarget?.location_timezone })}.`, 'success');
+    toast(`${result.booking_reference} is now ${format.timestamp(result.start_at, { timezone })} · ${result.skid_count} skids.`, 'success');
     await refreshData(true);
   } catch (error) {
-    hosts.moveMessage.textContent = error.userMessage || error.message || 'The appointment could not be moved.';
+    hosts.moveMessage.textContent = error.userMessage || error.message || 'The appointment could not be changed.';
   } finally {
     hosts.moveConfirm.disabled = false;
   }
@@ -260,7 +357,7 @@ function createAppointmentCard(record) {
   const status = createElement('span', 'status');
   const actions = createElement('div', 'appointment-card__actions');
   const copy = createCardAction('copy', 'Copy confirmation');
-  const move = createCardAction('move', 'Move to another time');
+  const move = createCardAction('edit', 'Edit appointment');
   move.dataset.moveAppointment = '';
   const cancel = createCardAction('cancel', 'Cancel appointment', 'btn btn--danger btn--icon');
   actions.append(copy, move, cancel);
@@ -664,21 +761,35 @@ function buildPage(root, context) {
   // so the answer comes back from the server rather than being guessed here.
   const moveBackdrop = createElement('div', 'scrim');
   moveBackdrop.hidden = true;
-  const moveDialog = createElement('section', 'modal modal--sm');
+  const moveDialog = createElement('section', 'modal modal--md');
   moveDialog.setAttribute('role', 'dialog');
   moveDialog.setAttribute('aria-modal', 'true');
   moveDialog.setAttribute('aria-labelledby', 'move-appointment-title');
+  // Edit, not only move. A load that turns out to be 22 skids rather than 15 was
+  // a cancellation and a rebooking; it is a change now. The skids are here
+  // because changing them changes how long the truck needs, which is exactly
+  // what decides whether the time asked for is still free.
   moveDialog.innerHTML = `
-    <div class="modal__head"><div><h2 class="modal__title" id="move-appointment-title">Move this appointment</h2><p class="modal__sub" data-move-reference></p></div><button class="modal__x" type="button" data-move-dismiss aria-label="Close">×</button></div>
+    <div class="modal__head"><div><h2 class="modal__title" id="move-appointment-title">Edit this appointment</h2><p class="modal__sub" data-move-reference></p></div><button class="modal__x" type="button" data-move-dismiss aria-label="Close">×</button></div>
     <div class="modal__body">
       <div class="frow">
-        <label class="field field--lg"><span class="field__label">New date</span><input class="input" type="date" data-move-date required></label>
-        <label class="field field--lg"><span class="field__label">New start time</span><input class="input" type="time" data-move-time required></label>
+        <label class="field field--md"><span class="field__label">Date</span><input class="input" type="date" data-move-date required></label>
+        <label class="field field--sm"><span class="field__label">Start time</span><input class="input" type="time" data-move-time required></label>
+        <div class="field field--num"><span class="field__label">Skids</span><span class="inputwrap"><input class="input" type="number" min="0" max="9999" data-edit-skids><span class="input__unit">skids</span></span></div>
       </div>
-      <p class="hint">The new time has to clear this location's notice period and have a compatible dock free.</p>
+      <div class="frow">
+        <label class="field field--md"><span class="field__label">Appointment type</span><select class="select" data-edit-type></select></label>
+        <label class="field field--md"><span class="field__label">Truck type</span><select class="select" data-edit-truck></select></label>
+        <label class="field field--md"><span class="field__label">Handling</span><select class="select" data-edit-handling></select></label>
+      </div>
+      <div class="frow">
+        <label class="field field--lg"><span class="field__label">Carrier <span class="field__opt">optional</span></span><input class="input" data-edit-carrier maxlength="120"></label>
+        <label class="field field--lg"><span class="field__label">PO / BOL / job</span><input class="input" data-edit-reference maxlength="20"></label>
+      </div>
+      <p class="hint">The time has to clear this location's notice period and have a compatible dock free. Changing the skids changes how long the truck needs, so the time is checked again against the new load.</p>
       <p class="form-message" data-move-message aria-live="polite"></p>
     </div>
-    <div class="modal__foot"><button class="btn btn--quiet" type="button" data-move-dismiss>Keep the current time</button><button class="btn btn--primary" type="button" data-move-confirm>Move appointment</button></div>`;
+    <div class="modal__foot"><button class="btn btn--quiet" type="button" data-move-dismiss>Cancel</button><button class="btn btn--primary" type="button" data-move-confirm>Save changes</button></div>`;
   moveBackdrop.append(moveDialog);
 
   root.append(head, controlsHost, metrics, split, cancelBackdrop, moveBackdrop);
@@ -698,6 +809,12 @@ function buildPage(root, context) {
     moveReference: moveDialog.querySelector('[data-move-reference]'),
     moveDate: moveDialog.querySelector('[data-move-date]'),
     moveTime: moveDialog.querySelector('[data-move-time]'),
+    editSkids: moveDialog.querySelector('[data-edit-skids]'),
+    editType: moveDialog.querySelector('[data-edit-type]'),
+    editTruck: moveDialog.querySelector('[data-edit-truck]'),
+    editHandling: moveDialog.querySelector('[data-edit-handling]'),
+    editCarrier: moveDialog.querySelector('[data-edit-carrier]'),
+    editReference: moveDialog.querySelector('[data-edit-reference]'),
     moveMessage: moveDialog.querySelector('[data-move-message]'),
     moveConfirm: moveDialog.querySelector('[data-move-confirm]'),
   });

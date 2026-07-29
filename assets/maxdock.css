@@ -211,9 +211,16 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 /* The colour bar is the card's whole identity from across a room — the number is
    read second and the label third. Six pixels, not three: at three it read as a
    border, at six it reads as a marker, which is what it is for. */
-.kpi{background:var(--surface);border:1px solid var(--rule);border-left:6px solid var(--rule-strong);border-radius:var(--radius-lg);padding:var(--s3) var(--s2) var(--s3) var(--s4);min-width:0;display:flex;flex-direction:column;justify-content:center;gap:var(--s1);min-height:82px}
-.kpi__label{font-size:var(--t-micro);text-transform:uppercase;letter-spacing:.03em;color:var(--ink-muted);font-weight:600;min-width:0}
-.kpi__value{font-family:var(--font-data);font-size:var(--t-metric);font-weight:600;line-height:1.05;letter-spacing:-.02em}
+.kpi{background:var(--surface);border:1px solid var(--rule);border-left:6px solid var(--rule-strong);border-radius:var(--radius-lg);padding:var(--s2) var(--s3) var(--s2) var(--s4);min-width:0;display:flex;align-items:center;gap:var(--s3);min-height:0}
+/* The number leads and its name sits beside it, both centred on the card's own
+   height rather than sitting on a shared baseline — a baseline pins a two-line
+   label to the top of the card and leaves the space under it empty. Stacked, the
+   label cost a line of card height to say what the number says anyway, so the
+   card was tall and the figure was small. Side by side and centred, the card is
+   half the height and the figure is 40% bigger, which is what carries across a
+   room. Every metric card in the application is this rule. */
+.kpi__label{font-size:var(--t-micro);text-transform:uppercase;letter-spacing:.03em;color:var(--ink-muted);font-weight:600;min-width:0;white-space:normal}
+.kpi__value{font-family:var(--font-data);font-size:calc(var(--t-metric) * 1.4);font-weight:600;line-height:1.05;letter-spacing:-.02em;font-variant-numeric:tabular-nums;order:-1}
 .kpi__value span{font-size:var(--t-small);font-weight:500;color:var(--ink-muted);margin-left:2px}
 .kpi--ok{border-left-color:var(--ok)} .kpi--ok .kpi__value{color:var(--ok)}
 .kpi--signal{border-left-color:var(--signal)} .kpi--signal .kpi__value{color:var(--signal)}
@@ -703,12 +710,10 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 .brief{background:linear-gradient(180deg,var(--dock-wash),var(--surface));border:1px solid var(--dock);border-radius:var(--radius-lg);padding:var(--s3) var(--s4);margin-bottom:var(--s3);display:flex;flex-direction:column;gap:var(--s2);min-height:0}
 .brief__head{display:flex;align-items:center;gap:var(--s2)}
 .brief__head .linkBtn{margin-left:auto}
-.brieffigs{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:var(--s2)}
-.brieffig{display:flex;flex-direction:column;gap:1px;padding:var(--s2) var(--s3);background:var(--surface);border:1px solid var(--rule);border-left:3px solid var(--dock);border-radius:var(--radius)}
-.brieffig--signal{border-left-color:var(--signal)} .brieffig--signal .brieffig__v{color:var(--signal)}
-.brieffig--stop{border-left-color:var(--stop)} .brieffig--stop .brieffig__v{color:var(--stop)}
-.brieffig__v{font-size:var(--t-lead);font-weight:700;line-height:1.1;font-variant-numeric:tabular-nums}
-.brieffig__l{font-size:var(--t-micro);text-transform:uppercase;letter-spacing:.07em;color:var(--ink-muted);font-weight:600}
+/* Nothing but the grid the cards sit on: the cards themselves are .kpi, the same
+   element the strip above uses. They had their own type scale and their own bar
+   width, so two rows of numbers on one screen looked like two applications. */
+.brieffigs{display:grid;grid-template-columns:repeat(auto-fit,minmax(168px,1fr));gap:var(--s2)}
 /* Separate points, not one running line — the owner has to be able to pick a fact
    out of this at a glance in a morning meeting. */
 /* The brief reads across the card, not down one edge of it: four named columns,

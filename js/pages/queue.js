@@ -274,16 +274,20 @@ function briefFigures() {
     map.set(key, (map.get(key) || 0) + 1);
     return map;
   }, new Map())].sort((a, b) => b[1] - a[1])[0];
+  // The same accents the metric cards above carry, so "Completed" is the same
+  // green in the brief as it is on the card strip and on the board.
   return [
     { id: 'trucks', label: 'Trucks today', value: appointments.length },
-    { id: 'inbound', label: 'Inbound', value: `${inbound.length} · ${skids(inbound)} skids` },
-    { id: 'outbound', label: 'Outbound', value: `${outbound.length} · ${skids(outbound)} skids` },
-    { id: 'expected', label: 'Still to come', value: expected.length },
-    { id: 'onsite', label: 'On site now', value: onSite.length },
-    { id: 'completed', label: 'Completed', value: done.length },
-    ...(priority.length ? [{ id: 'priority', label: 'Priority', value: priority.length, tone: 'signal' }] : []),
-    ...(late.length ? [{ id: 'late', label: 'Running late', value: late.length, tone: 'stop' }] : []),
-    ...(busiest ? [{ id: 'busiest', label: 'Busiest hour', value: `${String(busiest[0]).padStart(2, '0')}:00 · ${busiest[1]}` }] : []),
+    { id: 'inbound', label: 'Inbound skids', value: skids(inbound), className: 'kpi--out' },
+    { id: 'outbound', label: 'Outbound skids', value: skids(outbound), className: 'kpi--ok' },
+    { id: 'expected', label: 'Still to come', value: expected.length, className: 'kpi--signal' },
+    { id: 'onsite', label: 'On site now', value: onSite.length, className: 'kpi--out' },
+    { id: 'completed', label: 'Completed', value: done.length, className: 'kpi--ok' },
+    ...(priority.length ? [{ id: 'priority', label: 'Priority', value: priority.length, className: 'kpi--signal' }] : []),
+    ...(late.length ? [{ id: 'late', label: 'Running late', value: late.length, className: 'kpi--stop' }] : []),
+    // The hour is the figure. How many trucks were in it is a second number and
+    // would make this the one card carrying two, so it is left to the timeline.
+    ...(busiest ? [{ id: 'busiest', label: 'Busiest hour', value: `${String(busiest[0]).padStart(2, '0')}:00` }] : []),
   ].filter(item => state.visibleBriefFigures.includes(item.id));
 }
 
@@ -291,8 +295,8 @@ function briefFigures() {
 // picker offers all of them even on a quiet day.
 const BRIEF_FIGURES = [
   { id: 'trucks', label: 'Trucks today' },
-  { id: 'inbound', label: 'Inbound' },
-  { id: 'outbound', label: 'Outbound' },
+  { id: 'inbound', label: 'Inbound skids' },
+  { id: 'outbound', label: 'Outbound skids' },
   { id: 'expected', label: 'Still to come' },
   { id: 'onsite', label: 'On site now' },
   { id: 'completed', label: 'Completed' },
@@ -427,7 +431,10 @@ function combinePoints(appointments) {
 function renderBriefCard() {
   const host = state.elements.brief;
   const figures = briefFigures()
-    .map(item => `<div class="brieffig${item.tone ? ` brieffig--${item.tone}` : ''}"><span class="brieffig__v">${escapeHtml(String(item.value))}</span><span class="brieffig__l">${escapeHtml(item.label)}</span></div>`)
+    // A metric card, not a lookalike. Same element, same classes and therefore the
+    // same size, weight and alignment as the strip above it and as every other
+    // page — there is one metric card in this application and this is it.
+    .map(item => `<article class="kpi${item.className ? ` ${item.className}` : ''}"><span class="kpi__label">${escapeHtml(item.label)}</span><span class="kpi__value">${escapeHtml(String(item.value))}</span></article>`)
     .join('');
   // Named columns across the width instead of one stack of bullets down the left.
   // The card is as wide as the screen and the reader is looking for one kind of

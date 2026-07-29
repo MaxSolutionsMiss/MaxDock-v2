@@ -36,6 +36,12 @@ if (!failures.length) {
   check(!/\bDate\s*\.|new\s+Date\s*\(/.test(page), 'js/pages/my-appointments.js', 'Page code must not perform date work outside format.js.');
   check(!/\b(?:dock_id|dock_name|counterpart_dock_id|block_reason|after_hours_confirmed_by)\b/.test(page), 'js/pages/my-appointments.js', 'An internal scheduling field appears in the customer-facing page module.');
   check(!/db\.select\s*\(\s*['"]appointments['"]/.test(page), 'js/pages/my-appointments.js', 'The page must not query the appointments table directly.');
+  // Changing a booking is one server call that re-checks the window with the load
+  // as it will be. A page that edited the fields and moved the time separately
+  // could leave a truck booked for longer than the slot it holds.
+  check(/update_my_appointment/.test(page), 'js/pages/my-appointments.js', 'Editing an appointment must go through the single update RPC.');
+  check(/data-edit-skids/.test(page) && /data-edit-truck/.test(page) && /data-edit-type/.test(page), 'js/pages/my-appointments.js', 'The edit dialog must cover the load, not only the time.');
+  check(!/reschedule_my_appointment/.test(page), 'js/pages/my-appointments.js', 'Two ways to move an appointment is one too many — use the update RPC.');
   check(/poll\.suspend/.test(modal) && /poll\.resume/.test(modal), 'js/ui/modal.js', 'Opening a modal must suspend polling and closing it must resume polling.');
   check(/event\.key\s*!==\s*['"]Tab['"]/.test(modal) && /event\.key\s*===\s*['"]Escape['"]/.test(modal), 'js/ui/modal.js', 'The modal must trap Tab and support Escape.');
   check(/returnFocus/.test(modal), 'js/ui/modal.js', 'The modal must restore focus after closing.');

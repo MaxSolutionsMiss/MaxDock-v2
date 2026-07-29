@@ -20,7 +20,14 @@
   // Display fields the appointment cards read straight through, rather than
   // resolving from the code tables.
   const SHOWN = { location_name: 'Pickering', location_timezone: 'America/Toronto' };
-  const RESOLVED = { appointment_type: 'Raw Material', truck_type: '53 ft Trailer', handling_type: 'Live unload' };
+  // The names a card prints, and beside each the code an edit dialog needs to know
+  // which option of the site's list is the one on the booking.
+  const RESOLVED = {
+    appointment_type: 'Raw Material', appointment_type_code: 'raw_material',
+    truck_type: '53 ft Trailer', truck_type_code: 'trailer_53',
+    handling_type: 'Live unload', handling_type_code: 'live_unload',
+    location_id: 'loc-1',
+  };
   // A month of report rows shaped exactly like get_ai_operations_context returns.
   const reportContext = () => {
     const today = new Date();
@@ -241,6 +248,7 @@
     save_dock_direction_windows: () => 2,
     settle_due_appointments: () => 0,
     reschedule_my_appointment: () => ({ appointment_id: 'a4', booking_reference: 'MXD-2026-000143', start_at: iso(11, 0, 3), end_at: iso(12, 0, 3), dock_name: 'Dock 2' }),
+    update_my_appointment: () => ({ appointment_id: 'a4', booking_reference: 'MXD-2026-000143', start_at: iso(11, 0, 3), end_at: iso(12, 30, 3), skid_count: 22, dock_name: 'Dock 2', counterpart_dock_name: null }),
     // The booking wizard is only reachable past step 3 if slots come back, so the
     // audit cannot render the time, contact or confirm steps without these.
     list_routed_appointment_slots: () => SLOTS,

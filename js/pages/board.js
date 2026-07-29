@@ -71,6 +71,18 @@ const GRANULARITIES = [
 const BLOCK_REASONS = ['Maintenance', 'Cleaning', 'Staff break', 'Shift change', 'Event', 'Inventory count', 'Equipment down', 'Weather', 'Other'];
 
 const TERMINAL_STATUSES = new Set(['completed', 'cancelled', 'no_show']);
+// What each choice in the Status filter actually matches. It used to compare the
+// option's value against the status directly, and the option said "complete"
+// while every finished appointment says "completed" — so picking it emptied a
+// board that was full of them. A filter is a group, not a spelling: a truck on
+// the dock being loaded is still Arrived to the person looking for it, and a
+// no-show belongs with the cancellations rather than nowhere.
+const STATUS_FILTERS = {
+  scheduled: new Set(['scheduled', 'confirmed']),
+  arrived: new Set(['arrived', 'in_progress']),
+  complete: new Set(['completed']),
+  cancelled: new Set(['cancelled', 'no_show']),
+};
 
 // update_appointment_details is restricted to System Admin / Site Admin server-side.
 // A linked movement is the mirrored view of another site's appointment, so it must be
@@ -345,7 +357,7 @@ function visibleRecords() {
     // there cancelled next to the truck that is actually carrying it.
     if (record.merged_into_appointment_id) return false;
     if (state.filters.direction !== 'all' && record.direction !== state.filters.direction) return false;
-    if (state.filters.status !== 'all' && record.status !== state.filters.status) return false;
+    if (state.filters.status !== 'all' && !(STATUS_FILTERS[state.filters.status] || new Set()).has(record.status)) return false;
     return matchesSearch(record, term);
   });
 }
