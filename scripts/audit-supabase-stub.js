@@ -102,7 +102,7 @@
   // The live permission catalogue. This list was short of appointment.cancel_own,
   // ai.insights and the location permissions, so the audit rendered an app that
   // could never cancel an appointment and never load a report.
-  const ALL_PERMISSIONS = ['ai.insights', 'appointment.assign', 'appointment.cancel', 'appointment.cancel_own', 'appointment.complete', 'appointment.create', 'appointment.delete', 'appointment.update', 'appointment.view', 'appointment.view_own', 'audit.view', 'block.manage', 'dock.manage', 'dock.view', 'location.manage', 'location.view', 'notifications.view', 'operations.queue.view', 'reports.view', 'settings.manage', 'settings.view', 'system.manage', 'user.manage', 'user.view', 'appointment.check_in'];
+  const ALL_PERMISSIONS = ['ai.insights', 'appointment.assign', 'appointment.cancel', 'appointment.cancel_own', 'appointment.complete', 'appointment.create', 'appointment.delete', 'appointment.update', 'appointment.view', 'appointment.view_own', 'audit.view', 'block.manage', 'dock.manage', 'dock.view', 'location.manage', 'location.view', 'notifications.view', 'operations.queue.view', 'reports.view', 'reports.view_labour', 'settings.manage', 'settings.manage_labour', 'settings.view', 'system.manage', 'user.manage', 'user.view', 'appointment.check_in'];
   const PERMISSIONS = ROLE?.permissions || ALL_PERMISSIONS;
   const TABLE = {
     profiles: [{ id: UID, username: 'jresa', full_name: 'Javad Resa', contact_email: 'javadresa@maxpkgsolutions.com', role_code: ROLE_CODE, is_active: true, must_change_password: false, organization_name: ROLE_CODE === 'customer' ? 'Haleon' : null, external_party_type: ROLE_CODE === 'customer' ? 'Customer' : null }],
