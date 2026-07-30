@@ -487,14 +487,17 @@ function renderBriefCard() {
   // is going wrong.
   const narrative = state.briefLoading
     ? '<span class="brief__x">Generating today’s narrative…</span>'
-    // A mark on the heading itself, in MaxDock blue, with the points directly under it.
-    // Four columns of near-identical grey text are told apart by shape before a word of
-    // them is read, which is the whole job of the card, and the shape is the subject: a
-    // truck, a person, a load, a warning. It sits on the title line rather than in a
-    // gutter of its own, which is width the points get to keep.
+    // A large mark in a gutter of its own, with the heading and the points sharing one
+    // left edge beside it. Four columns of near-identical grey text are told apart by
+    // shape before a word of them is read, which is the whole job of the card, and the
+    // shape is the subject: a truck, a person, a load, a warning. On the title line it
+    // was too small to do that job from across a desk.
     : `<div class="briefcols">${briefGroups().map(group => `<section class="briefcol">
-        <h4 class="briefcol__t"><span class="briefcol__m" aria-hidden="true">${icon(group.mark || 'chart')}</span>${escapeHtml(group.title)}</h4>
-        <ul class="briefpoints">${group.points.map((point, index) => `<li>${escapeHtml(point)}${group.action ? ` <button class="linkBtn" type="button" ${group.action.attribute}="${index}">${escapeHtml(group.action.label)}</button>` : ''}</li>`).join('')}</ul>
+        <span class="briefcol__m" aria-hidden="true">${icon(group.mark || 'chart')}</span>
+        <div class="briefcol__c">
+          <h4 class="briefcol__t">${escapeHtml(group.title)}</h4>
+          <ul class="briefpoints">${group.points.map((point, index) => `<li>${escapeHtml(point)}${group.action ? ` <button class="linkBtn" type="button" ${group.action.attribute}="${index}">${escapeHtml(group.action.label)}</button>` : ''}</li>`).join('')}</ul>
+        </div>
       </section>`).join('')}</div>`;
   host.innerHTML = `<div class="brief__head"><span class="brief__ico">AI</span><div class="brief__t">${escapeHtml(state.context.location.name)} · today at a glance</div><button class="linkBtn" type="button" data-share-brief>Share with team</button></div>
     <div class="brieffigs">${figures}</div>

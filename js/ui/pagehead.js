@@ -24,14 +24,17 @@ const ICONS = {
   company: '<rect x="4" y="3" width="16" height="18" rx="2"></rect><path d="M8 7h3M13 7h3M8 11h3M13 11h3M10 21v-5h4v5"></path>',
   door: '<rect x="3" y="4" width="18" height="14" rx="1"></rect><path d="M3 18h18M7 8v6M12 8v6M17 8v6"></path>',
   crew: '<circle cx="9" cy="8" r="3"></circle><path d="M3 20v-1a6 6 0 0 1 12 0v1"></path><path d="M17 8.5a2.5 2.5 0 1 0 0-.01M16 20v-1a5 5 0 0 1 5-5"></path>',
-  skid: '<path d="M3 16h18M5 16v3M12 16v3M19 16v3"></path><rect x="6" y="5" width="12" height="8" rx="1"></rect>',
+  // A pallet with two courses of cartons on it rather than one plain box: skid movement is
+  // the count of these going past a door, and the stringers underneath are what make it a
+  // skid rather than a parcel.
+  skid: '<rect x="6" y="3" width="12" height="6" rx=".5"></rect><rect x="6" y="9" width="12" height="6" rx=".5"></rect><path d="M12 3v12"></path><path d="M3 18h18M3 21h18M5 18v3M12 18v3M19 18v3"></path>',
   truck: '<path d="M2 7h10v9H2zM12 10h5l3 3v3h-8z"></path><circle cx="6" cy="18.5" r="1.8"></circle><circle cx="16" cy="18.5" r="1.8"></circle>',
   clock: '<circle cx="12" cy="12" r="9"></circle><path d="M12 7.5V12l3.2 2"></path>',
   chart: '<path d="M4 20V4M4 20h16"></path><path d="M8 20v-6M13 20v-10M18 20v-4"></path>',
   // Truck fullness is about the space inside the trailer, not the trailer, so its mark is a
-  // box part filled rather than a second lorry — Truck flow already has the lorry, and two
-  // views sharing a glyph defeats the point of having them.
-  load: '<rect x="3" y="5" width="18" height="14" rx="1"></rect><path d="M3 12h11v7H3z" fill="currentColor" stroke="none"></path><path d="M14 5v14"></path>',
+  // trailer seen side-on with skids part way down it and room left at the doors. Truck flow
+  // already has the lorry, and two views sharing a glyph defeats the point of having them.
+  load: '<rect x="2" y="6" width="20" height="11" rx="1"></rect><path d="M2 13h11v4H2z" fill="currentColor" stroke="none"></path><path d="M6.5 13v4M11 6v11"></path><path d="M6 17v2M18 17v2"></path>',
 };
 
 // The same glyphs, for the row-level actions a page draws itself. Rendered into a

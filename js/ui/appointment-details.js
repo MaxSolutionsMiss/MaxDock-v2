@@ -64,8 +64,14 @@ export function createAppointmentDetails({ location, onEdit, laneFor, onCombine 
   backdrop.setAttribute('aria-hidden', 'true');
   backdrop.innerHTML = `
     <section class="modal modal--wide" role="dialog" aria-modal="true" aria-labelledby="appt-details-title">
-      <div class="modal__head">
-        <div><h2 class="modal__title" id="appt-details-title" data-title>Appointment</h2><p class="modal__sub" data-sub></p></div>
+      <!-- The number is what somebody came here holding, so it is the biggest thing on the
+           window, with an arrow saying which way the load is going in front of it. The route
+           reads on the same line rather than under it: two short lines stacked wasted the
+           width a landscape window has plenty of. -->
+      <div class="modal__head modal__head--load">
+        <span class="panel__mark" data-dir aria-hidden="true"></span>
+        <h2 class="modal__title" id="appt-details-title" data-title>Appointment</h2>
+        <p class="modal__sub" data-sub></p>
         <button class="modal__x" type="button" data-close aria-label="Close">×</button>
       </div>
       <div class="modal__body">
@@ -112,6 +118,7 @@ export function createAppointmentDetails({ location, onEdit, laneFor, onCombine 
   const els = {
     title: backdrop.querySelector('[data-title]'),
     sub: backdrop.querySelector('[data-sub]'),
+    dir: backdrop.querySelector('[data-dir]'),
     grid: backdrop.querySelector('[data-grid]'),
     log: backdrop.querySelector('[data-log]'),
     edit: backdrop.querySelector('[data-edit]'),
@@ -160,6 +167,14 @@ export function createAppointmentDetails({ location, onEdit, laneFor, onCombine 
     current = record;
     const site = { timezone: record.location_timezone || location?.timezone };
     els.title.textContent = record.booking_reference || 'Appointment';
+    // An arrow into the building or out of it, which is the first thing anybody wants to
+    // know about a load and is faster to see than to read.
+    const inbound = (record.direction || 'inbound') === 'inbound';
+    els.dir.innerHTML = inbound
+      ? '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12h14M12 6l6 6-6 6M20 4v16"/></svg>'
+      : '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12H6M14 6l-6 6 6 6M4 4v16"/></svg>';
+    els.dir.className = inbound ? 'panel__mark' : 'panel__mark apptdir--out';
+    els.dir.setAttribute('title', inbound ? 'Inbound' : 'Outbound');
     els.sub.textContent = [format.role(record.direction || ''), record.company_name || record.display_counterpart_location_name || record.requester_name].filter(Boolean).join(' · ');
     els.edit.hidden = !canEdit;
     // The other trucks going the same way to the same place today. This is where an

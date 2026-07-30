@@ -85,15 +85,19 @@ if (!errors.length) {
     need(queue, new RegExp(`title: '${group}',\\s*\\n?\\s*mark: '${mark}'`),
       `The brief's ${group} column has no ${mark} mark, so the four columns are told apart by their headings alone.`);
   }
-  // The mark sits on the title line. A gutter of its own cost the points width and left
-  // the column looking half empty, so the heading carries it and the points run full width
-  // directly underneath, with no gap and no rule between them.
-  need(queue, /<h4 class="briefcol__t"><span class="briefcol__m"/,
-    'The brief\'s mark is not on the title line, so it is taking a gutter the points need.');
-  need(css, /\.briefcol__t\{[^}]*color:var\(--dock-deep\)/,
-    'The brief\'s category headings are not in MaxDock blue.');
-  need(css, /\.briefcol__t\{[^}]*margin:0[;}]/,
-    'There is a gap under each category heading, pushing its points away from it.');
+  // The mark stands in a gutter of its own, big enough to tell four grey columns apart
+  // from across a desk, with the heading and the points sharing one left edge beside it.
+  // On the title line it could only ever be text-sized.
+  need(queue, /<span class="briefcol__m"[\s\S]{0,120}<div class="briefcol__c">/,
+    'The brief\'s mark is not in a gutter beside the column, so it cannot be more than text-sized.');
+  need(css, /\.briefcol\{display:grid;grid-template-columns:auto/,
+    'The brief column is not laid out with a gutter for its mark.');
+  need(css, /\.briefcol__m svg\{width:[23]\.\d+em/,
+    'The brief\'s mark is sized in px or is text-sized; it should be several em so it grows with the type and reads from a distance.');
+  need(css, /\.briefcol__m\{[^}]*color:var\(--dock-deep\)/,
+    'The brief\'s marks are not in MaxDock blue.');
+  forbid(css, /\.brief__body\{[^}]*max-height/,
+    'The brief\'s body is bounded rather than the card. That is what crushed it to zero height and made the Combine action unclickable.');
   forbid(css, /\.brief__body\{[^}]*border-top/,
     'A rule still sits above the brief\'s columns. The figures are already in cards; a second boundary costs a whole row.');
 }
