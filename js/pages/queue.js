@@ -5,7 +5,8 @@ import { renderState } from '../ui/empty.js';
 import { format } from '../format.js';
 import { createCustomizePanel } from '../ui/customize.js';
 import { openWall, paintWall } from '../ui/wall.js';
-import { pageHead, icon } from '../ui/pagehead.js';
+import { pageHead } from '../ui/pagehead.js';
+import { mark } from '../ui/marks.js';
 import { createCombineDialog, combinableLanes, laneFullness, laneDescription, laneForRecord } from '../ui/combine-loads.js';
 import { createAppointmentDetails } from '../ui/appointment-details.js';
 
@@ -397,7 +398,7 @@ function briefGroups() {
   if (combining.length) {
     groups.push({
       title: 'Combining',
-      mark: 'load',
+      mark: 'combine',
       points: combining.map(lane => lane.text),
       action: can('appointment.create') ? { label: 'Combine', attribute: 'data-combine-lane' } : null,
     });
@@ -502,7 +503,7 @@ function renderBriefCard() {
     // shape is the subject: a truck, a person, a load, a warning. On the title line it
     // was too small to do that job from across a desk.
     : `<div class="briefcols">${briefGroups().map(group => `<section class="briefcol">
-        <span class="briefcol__m" aria-hidden="true">${icon(group.mark || 'chart')}</span>
+        <span class="briefcol__m" aria-hidden="true">${mark(group.mark || 'chart')}</span>
         <div class="briefcol__c">
           <h4 class="briefcol__t">${escapeHtml(group.title)}</h4>
           <ul class="briefpoints">${group.points.map((point, index) => `<li>${escapeHtml(point)}${group.action ? ` <button class="linkBtn" type="button" ${group.action.attribute}="${index}">${escapeHtml(group.action.label)}</button>` : ''}</li>`).join('')}</ul>

@@ -81,7 +81,7 @@ if (!errors.length) {
   need(queue, /const each = rows => \(rows\.length \?/,
     'The skids-per-truck average is not guarded against a direction with no trucks in it.');
   need(queue, /briefcol__m/, 'The brief\'s categories carry no mark.');
-  for (const [group, mark] of [['Trucks', 'truck'], ['Labour', 'crew'], ['Combining', 'load'], ['Attention', 'warn']]) {
+  for (const [group, mark] of [['Trucks', 'truck'], ['Labour', 'crew'], ['Combining', 'combine'], ['Attention', 'warn']]) {
     need(queue, new RegExp(`title: '${group}',\\s*\\n?\\s*mark: '${mark}'`),
       `The brief's ${group} column has no ${mark} mark, so the four columns are told apart by their headings alone.`);
   }
@@ -96,18 +96,23 @@ if (!errors.length) {
     'The brief\'s mark is sized in px or is text-sized; it should be several em so it grows with the type and reads from a distance.');
   need(css, /\.briefcol__m\{[^}]*color:var\(--dock/,
     'The brief\'s marks are not in MaxDock blue.');
-  // Each group is a card in the same family as the metric strip above it, not a slab of
-  // text on a tinted panel: same surface, same border, same accent down the left edge.
-  need(css, /\.briefcol\{background:var\(--surface\);border:1px solid var\(--rule\);border-left:6px/,
-    'The brief\'s groups are not the same card as the metric strip above them.');
+  // One outline around the whole glance, with the groups as columns inside it. Giving each
+  // group its own card made a page of nothing but metric cards, which is a lot of border
+  // for what is really one summary; a tinted panel behind cards was a box around boxes.
+  need(css, /\.brief\{background:var\(--surface\);border:1px solid var\(--rule\)/,
+    'The glance has no outline of its own, so its title, figures and groups do not read as one thing.');
   forbid(css, /\.brief\{[^}]*linear-gradient/,
-    'The brief still sits on a tinted panel, which puts a box around a row of boxes.');
+    'The brief sits on a tinted panel, which puts a box around a row of boxes.');
+  forbid(css, /\.briefcol\{background:var\(--surface\);border:1px solid/,
+    'Every group carries its own card border inside a card, which is a page of nothing but metric cards.');
+  need(css, /\.briefcol\{[^}]*border-left:1px solid var\(--rule\)/,
+    'Nothing separates one group from the next inside the outline.');
   need(css, /@container \(min-width:\d+em\)\{\.briefcols/,
     'The brief\'s column count is chosen by window width rather than by whether the card has room for the text, so Larger text keeps three columns on a window that has not grown.');
   forbid(css, /\.brief__body\{[^}]*max-height/,
     'The brief\'s body is bounded rather than the card. That is what crushed it to zero height and made the Combine action unclickable.');
-  forbid(css, /\.brief__body\{[^}]*border-top/,
-    'A rule still sits above the brief\'s columns. The figures are already in cards; a second boundary costs a whole row.');
+  need(css, /\.brief__body\{[^}]*border-top/,
+    'The figures and the groups run together. Inside one outline they are two bands and need a rule between them.');
 }
 
 if (errors.length) {

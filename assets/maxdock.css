@@ -987,7 +987,11 @@ html[data-text="larger"] .frow>.field--md:not(.field-action){grid-column:span 5}
 /* The day at a glance is a strip of cards, not a tinted panel with cards inside it. The
    gradient and the blue border made a box around a box: everything on this page already
    sits on the page background, and the card is the unit. */
-.brief{margin-bottom:var(--s3);display:flex;flex-direction:column;gap:var(--s3);flex:0 1 auto;min-height:8em;max-height:24em;overflow-y:auto;container-type:inline-size}
+/* One outline around the whole glance: the title, the figures, and the three groups
+   under them. Giving each group its own card made a page of nothing but metric cards,
+   which is a lot of border for what is really one summary. The card is the outer box; the
+   groups inside it are columns with a rule between them. */
+.brief{background:var(--surface);border:1px solid var(--rule);border-radius:var(--radius-lg);padding:var(--s3) var(--s4);margin-bottom:var(--s3);display:flex;flex-direction:column;gap:var(--s3);flex:0 1 auto;min-height:8em;max-height:24em;overflow-y:auto;container-type:inline-size}
 .brief__head{display:flex;align-items:center;gap:var(--s2)}
 .brief__head .linkBtn{margin-left:auto}
 /* Nothing but the grid the cards sit on: the cards themselves are .kpi, the same
@@ -1021,9 +1025,10 @@ html[data-text="larger"] .frow>.field--md:not(.field-action){grid-column:span 5}
 /* A big mark in a gutter, with the heading and the points sharing one left edge beside
    it. On the title line the mark had to be text-sized, which is too small to tell four
    grey columns apart from across a desk. Sized in em so it grows with the type. */
-.briefcol{background:var(--surface);border:1px solid var(--rule);border-left:6px solid var(--dock);border-radius:var(--radius-lg);padding:var(--s3);display:grid;grid-template-columns:auto minmax(0,1fr);column-gap:var(--s3);align-items:start;min-width:0}
+.briefcol{padding-left:var(--s4);border-left:1px solid var(--rule);display:grid;grid-template-columns:auto minmax(0,1fr);column-gap:var(--s3);align-items:start;min-width:0}
+.briefcol:first-child{border-left:none;padding-left:0}
 .briefcol__m{color:var(--dock);display:grid;padding-top:2px}
-.briefcol__m svg{width:2.8em;height:2.8em;fill:none;stroke:currentColor;stroke-width:1.5}
+.briefcol__m svg{width:2.6em;height:2.6em}
 .briefcol__t{font-size:var(--t-micro);text-transform:uppercase;letter-spacing:.03em;color:var(--ink-muted);font-weight:600;margin:0 0 var(--s1)}
 .briefpoints{margin:0;padding-left:1.1em;display:grid;gap:2px}
 .briefpoints li{font-size:var(--t-small);color:var(--ink-muted)}
@@ -1033,7 +1038,7 @@ html[data-text="larger"] .frow>.field--md:not(.field-action){grid-column:span 5}
    left to scroll — the band gives way, not the page. */
 /* The reading sits clear of the figures: run together, the first bullet read as
    a caption on the card above it. */
-.brief__body{flex:none}.brief__t{font-weight:600;margin-bottom:2px}.brief__x{color:var(--ink);font-size:var(--t-base)}.brief__x b{color:var(--dock-deep)}
+.brief__body{flex:none;border-top:1px solid var(--rule);padding-top:var(--s3)}.brief__t{font-weight:600;margin-bottom:2px}.brief__x{color:var(--ink);font-size:var(--t-base)}.brief__x b{color:var(--dock-deep)}
 /* The queue below the strips: the day on the left, the heat map and the watch list on
    the right. The side column was sized as one share of --kpi-cols, which tied how wide the
    heat map is to how many metric cards happen to be switched on: turning two on took it
@@ -1239,6 +1244,12 @@ body.modal-open{overflow:hidden}
 .state__icon,.panel__mark{width:44px;height:44px;border-radius:50%;display:grid;place-items:center;background:var(--dock-wash);color:var(--dock-deep)}
 .state__icon{margin:0 auto var(--s3)}
 .state__icon svg,.panel__mark svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.7}
+/* A mark is a filled silhouette, not an outline. At 22px in a badge with nothing else in
+   it an outline is faint and characterless, which is what the owner kept seeing. Two tones
+   from one colour: the second is the same currentColor at lower opacity, so a mark works
+   in the report head's wash and in the brief's plain blue without a second variable. */
+.mk{fill:currentColor;stroke:none}
+.mk .mk__b{opacity:.42}
 .state--error .state__icon{background:var(--stop-wash);color:var(--stop)}
 .state--warning .state__icon{background:var(--signal-wash);color:var(--signal)}
 .state__title{margin:0;font-size:var(--t-lead);font-weight:600}

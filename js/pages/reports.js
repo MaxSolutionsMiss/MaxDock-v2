@@ -8,6 +8,7 @@ import { format } from '../format.js';
 import { mergeContext, mergeScorecard, mergeFullness, mergeLabour } from '../reports-merge.js';
 import { truckFill } from '../ui/truckfill.js';
 import { fillFigure } from '../ui/fillfigure.js';
+import { mark } from '../ui/marks.js';
 
 // Each view carries a mark as well as a name. A report that opens with a heading and a
 // number is correct and hard to tell apart from the last one you looked at; a mark makes the
@@ -289,7 +290,7 @@ function withViewMark(html) {
   const at = html.indexOf(head);
   if (at < 0) return html;
   const lead = `<div class="panel__head panel__head--lead">
-    <span class="panel__mark">${icon(viewIcon())}</span>
+    <span class="panel__mark">${mark(viewIcon())}</span>
     <span class="panel__eyebrow">${escapeHtml(view?.label || 'Report')}</span>`;
   return html.slice(0, at) + lead + html.slice(at + head.length);
 }
@@ -378,7 +379,10 @@ function renderTruckFlow() {
       skids: Math.round(perTruck),
       capacity,
       label: row.name,
-      note: `across ${compact(num(row.appointments))} truck${num(row.appointments) === 1 ? '' : 's'}`,
+      // The bold line above says "13 of 20 skids", which reads as one truck until this
+      // line says it is an average. Without the word, "13 of 20 skids across 39 trucks" is
+      // two readings that appear to contradict each other.
+      note: `average load, across ${compact(num(row.appointments))} truck${num(row.appointments) === 1 ? '' : 's'}`,
     });
   }).join('');
   const bars = ranked(byVehicle.map(row => ({ label: row.name, value: row.appointments, shown: `${compact(num(row.appointments))} trucks, carrying ${compact(num(row.skids))} skids` })));
@@ -605,8 +609,8 @@ function renderFullness() {
         : `<div class="trucks">${truckFill({
           skids: asOne,
           capacity: 26,
-          label: 'every trailer, as one',
-          note: `all ${compact(measured)} trucks as one`,
+          label: '53 ft Trailer',
+          note: `average load, across ${compact(measured)} trucks`,
           wide: true,
         })}</div>`}
         <p class="hint">Every measured truck in the range averaged into one 53 ft trailer. The room at the doors is the room that was paid for and not used, and it is what combining is for.</p></div>
