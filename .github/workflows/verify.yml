@@ -86,3 +86,11 @@ jobs:
           npm i --no-save playwright@1.56.1
           npx playwright install --with-deps chromium
           node scripts/audit-layout.mjs
+
+      - name: Walk combining from a board block to the load leaving both boards
+        # Combining existed on both sides and had never once been carried through:
+        # no appointment in the database had ever been merged, because the only way
+        # in was a line in the operations brief. This drives the whole path.
+        env:
+          PLAYWRIGHT_BROWSERS_PATH: /home/runner/.cache/ms-playwright
+        run: node scripts/verify-combine-end-to-end.mjs

@@ -13,7 +13,9 @@ import { renderQr } from './qr.js';
 // it in order, for anyone who can see the appointment.
 //
 // Editing stays where it was. If the caller can edit the record it passes an
-// `onEdit`, and this hands off rather than duplicating the form.
+// `onEdit`, and this hands off rather than duplicating the form. Combining works
+// the same way: the caller says which lane this load is on and what to do about
+// it, and this offers the action without knowing how a merge is performed.
 
 const escapeHtml = value => String(value ?? '').replace(/[&<>'"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[char]));
 
@@ -30,7 +32,7 @@ function eventTone(entry) {
   return 'var(--rule-strong)';
 }
 
-export function createAppointmentDetails({ location, onEdit } = {}) {
+export function createAppointmentDetails({ location, onEdit, laneFor, onCombine } = {}) {
   const backdrop = document.createElement('div');
   backdrop.className = 'scrim';
   backdrop.hidden = true;
@@ -50,7 +52,7 @@ export function createAppointmentDetails({ location, onEdit } = {}) {
         <h3 class="watch__t section-gap">Activity</h3>
         <div data-log></div>
       </div>
-      <div class="modal__foot"><button class="btn btn--quiet" type="button" data-close>Close</button><button class="btn btn--primary" type="button" data-edit hidden>Edit appointment</button></div>
+      <div class="modal__foot"><button class="btn btn--quiet" type="button" data-close>Close</button><button class="btn btn--quiet" type="button" data-combine hidden></button><button class="btn btn--primary" type="button" data-edit hidden>Edit appointment</button></div>
     </section>`;
   document.body.append(backdrop);
   const modal = createModal(backdrop, { onRequestClose: () => modal.close() });
@@ -60,15 +62,18 @@ export function createAppointmentDetails({ location, onEdit } = {}) {
     grid: backdrop.querySelector('[data-grid]'),
     log: backdrop.querySelector('[data-log]'),
     edit: backdrop.querySelector('[data-edit]'),
+    combine: backdrop.querySelector('[data-combine]'),
     checkin: backdrop.querySelector('[data-checkin]'),
     qr: backdrop.querySelector('[data-qr]'),
     qrNote: backdrop.querySelector('[data-qr-note]'),
   };
   let current = null;
+  let currentLane = null;
 
   backdrop.addEventListener('click', event => {
     if (event.target.closest('[data-close]')) { modal.close(); return; }
-    if (event.target.closest('[data-edit]') && current) { modal.close(); onEdit?.(current); }
+    if (event.target.closest('[data-edit]') && current) { modal.close(); onEdit?.(current); return; }
+    if (event.target.closest('[data-combine]') && currentLane) { modal.close(); onCombine?.(currentLane, current); }
   });
 
   function renderLog(entries) {
@@ -95,6 +100,21 @@ export function createAppointmentDetails({ location, onEdit } = {}) {
     els.title.textContent = record.booking_reference || 'Appointment';
     els.sub.textContent = [format.role(record.direction || ''), record.company_name || record.display_counterpart_location_name || record.requester_name].filter(Boolean).join(' · ');
     els.edit.hidden = !canEdit;
+    // The other trucks going the same way to the same place today. This is where an
+    // operator is standing when the question occurs to them: they have clicked the
+    // load they were wondering about, so the offer belongs on it rather than only in
+    // a brief they may never have scrolled to. The button names the run instead of
+    // saying "Combine", because pressing it is agreeing to cancel real bookings.
+    currentLane = laneFor?.(record) || null;
+    els.combine.hidden = !currentLane;
+    // The lane in the brief's own words — "2 outbound loads to Guelph" — so the two
+    // places this is offered read the same. Counting the whole lane rather than "1
+    // other load" is both shorter and truer to what happens: two loads become one
+    // truck. On a phone the footer has three actions and this is the longest of
+    // them; anything wordier wrapped it onto a third row.
+    if (currentLane) {
+      els.combine.textContent = `Combine ${currentLane.rows.length} loads ${currentLane.direction === 'outbound' ? 'to' : 'from'} ${currentLane.partner}`;
+    }
     els.grid.innerHTML = [
       cell('Status', format.role(record.status)),
       cell('Booked', `${format.shortDateInput(format.inputDate(record.start_at, site), site)} · ${format.time(record.start_at, site)}–${format.time(record.end_at, site)}`),

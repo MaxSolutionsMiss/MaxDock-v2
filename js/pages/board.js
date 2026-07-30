@@ -8,6 +8,7 @@ import { createCustomizePanel } from '../ui/customize.js';
 import { openWall, paintWall } from '../ui/wall.js';
 import { renderTimeline, fitTimelineBlocks, watchTimelineFit, clockLabel } from '../ui/timeline.js';
 import { createAppointmentDetails } from '../ui/appointment-details.js';
+import { createCombineDialog, laneForRecord, laneDescription } from '../ui/combine-loads.js';
 import { format } from '../format.js';
 
 const state = {
@@ -29,7 +30,9 @@ const state = {
   wall: null,
   granularity: 30,
   truckTypeNames: new Map(),
+  truckCapacity: new Map(),
   detailsModal: null,
+  combineDialog: null,
   signature: '',
 };
 
@@ -97,6 +100,9 @@ function canEditRecord(record) {
 
 const escapeHtml = value => String(value ?? '').replace(/[&<>'"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[char]));
 const can = permission => state.context?.can?.(permission);
+// What one truck of that type holds at this site. Zero means the site has not
+// entered it, which the combine dialog says out loud rather than treating as empty.
+const capacityFor = code => Number(state.truckCapacity.get(code) || 0);
 
 function normalizeRecord(row) {
   const record = row?.schedule_record || row || {};
@@ -113,18 +119,23 @@ function normalizeRecord(row) {
 async function fetchBoardData() {
   const locationId = state.context.location.id;
   const day = format.dayOfWeek(state.date);
-  const [, scheduleRows, docks, hours, truckTypes] = await Promise.all([
+  const [, scheduleRows, docks, hours, truckTypes, truckCapacities] = await Promise.all([
     db.rpc('settle_due_appointments', { p_location_id: locationId }, { key: `board:settle:${locationId}`, cache: 0, retry: 0 }).catch(() => 0),
     db.rpc('list_location_schedule', { p_location_id: locationId }, { key: `board:schedule:${locationId}`, cache: 0, retry: 1 }),
     db.select('docks', query => query.select('id,name,description,sort_order,direction_mode,is_active').eq('location_id', locationId).eq('is_active', true).order('sort_order').order('name'), { key: `board:docks:${locationId}`, cache: 30000 }),
     db.select('location_operating_hours', query => query.select('day_of_week,is_open,open_time,close_time').eq('location_id', locationId).eq('day_of_week', day).maybeSingle(), { key: `board:hours:${locationId}:${day}`, cache: 30000 }),
     db.select('truck_types', query => query.select('code,name').eq('is_active', true), { key: 'board:truck-type-names', cache: 300000 }),
+    // What each truck type holds at this site, so combining from a block can say how
+    // full the surviving truck ends up rather than merging blind. Advisory: a site
+    // that has not entered its capacities still gets the board.
+    db.select('location_truck_types', query => query.select('truck_type_code,skid_capacity').eq('location_id', locationId), { key: `board:truck-capacity:${locationId}`, cache: 60000 }).catch(() => []),
   ]);
   const selectedDate = state.date;
   return {
     docks: docks || [],
     hours: hours || null,
     truckTypeNames: new Map((truckTypes || []).map(type => [type.code, type.name])),
+    truckCapacity: new Map((truckCapacities || []).map(row => [row.truck_type_code, Number(row.skid_capacity || 0)])),
     records: (scheduleRows || []).map(normalizeRecord).filter(record => {
       if (!record.start_at) return false;
       return format.sameLocalDate(record.start_at, selectedDate, state.context.location);
@@ -331,10 +342,24 @@ function buildShell(root) {
     editHistory: root.querySelector('[data-edit-history]'),
   };
   state.blockModal = createModal(state.elements.blockBackdrop, { onRequestClose: () => state.blockModal.close() });
+  // Combining from the board. The same dialog the operations brief opens and the
+  // same `merge_appointments` the booking wizard calls — there is one way to merge
+  // in this application, and this is a second door to it rather than a second set
+  // of rules about who may cancel whose load.
+  state.combineDialog = createCombineDialog({
+    location: state.context.location,
+    capacityFor: record => capacityFor(record.truck_type_code),
+    onDone: async () => { patchData(await fetchBoardData()); },
+  });
   // Editing is handed back to the form that already exists rather than rebuilt.
   state.detailsModal = createAppointmentDetails({
     location: state.context.location,
     onEdit: record => openEditModal(record, state.elements.host),
+    // Only offered to somebody who could actually carry it out: merge_appointments
+    // wants appointment.create at this site, and a button certain to be refused is
+    // worse than no button.
+    laneFor: record => (can('appointment.create') ? laneForRecord(record, state.records) : null),
+    onCombine: lane => state.combineDialog.open(lane.rows, laneDescription(lane), state.elements.host),
   });
   state.editModal = createModal(state.elements.editBackdrop, { onRequestClose: () => state.editModal.close() });
 }
@@ -517,6 +542,7 @@ function patchData(data) {
   state.docks = data.docks;
   state.hours = data.hours;
   state.truckTypeNames = data.truckTypeNames || state.truckTypeNames;
+  state.truckCapacity = data.truckCapacity || state.truckCapacity;
   state.records = data.records;
   if (changed) renderBoard();
   else renderKpis();
@@ -684,7 +710,8 @@ const page = {
   async refresh(data) { patchData(data); },
   destroy() {
     state.unwatchFit?.();
-    state.blockModal?.destroy(); state.editModal?.destroy(); state.detailsModal?.destroy(); state.customizePanel?.destroy();
+    state.blockModal?.destroy(); state.editModal?.destroy(); state.detailsModal?.destroy();
+    state.combineDialog?.destroy(); state.customizePanel?.destroy();
   },
 };
 

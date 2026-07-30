@@ -6,15 +6,13 @@ import { format } from '../format.js';
 import { createCustomizePanel } from '../ui/customize.js';
 import { openWall, paintWall } from '../ui/wall.js';
 import { pageHead } from '../ui/pagehead.js';
-import { createCombineDialog } from '../ui/combine-loads.js';
+import { createCombineDialog, combinableLanes, laneFullness, laneDescription, laneForRecord } from '../ui/combine-loads.js';
 import { createAppointmentDetails } from '../ui/appointment-details.js';
 
 const LATE_GRACE_MINUTES = 15;
 const BACK_TO_BACK_MINUTES = 20;
 const ACTIVE_STATUSES = new Set(['arrived', 'in_progress']);
 const EXPECTED_STATUSES = new Set(['scheduled', 'confirmed']);
-// A load already finished, gone or never coming cannot be combined with anything.
-const TERMINAL_QUEUE_STATUSES = new Set(['completed', 'cancelled', 'no_show']);
 
 const KPI_CARDS = [
   { id: 'expected', label: 'Expected', className: 'kpi--signal', suffix: '', compute: recs => recs.filter(r => EXPECTED_STATUSES.has(r.status)).length },
@@ -58,6 +56,10 @@ const state = {
 
 const escapeHtml = value => String(value ?? '').replace(/[&<>'"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[char]));
 const can = permission => state.context?.can?.(permission);
+// What one truck of that type holds at this site, from Settings › Capacity. Zero
+// means nobody has entered it, which is a different thing from an empty trailer
+// and is why the fullness figures say so rather than guessing.
+const capacityFor = code => Number(state.truckCapacity.get(code) || 0);
 
 function isLate(record) {
   if (!EXPECTED_STATUSES.has(record.status)) return false;
@@ -421,34 +423,20 @@ function labourPoints(appointments) {
 // The duplication nobody has spotted: two or more trucks going the same way to the
 // same place on the same day, with room on one of them for the rest. Named, so it
 // can be acted on rather than wondered about.
+//
+// Which loads share a lane is decided in `combine-loads.js`, beside the dialog that
+// merges them and beside the board that offers the same thing on a block. The
+// sentence is this screen's own — a brief is prose — but the arithmetic behind it
+// is not, so the board and the brief cannot disagree about whether a run fits.
 function combinePoints(appointments) {
-  const lanes = new Map();
-  for (const record of appointments) {
-    if (TERMINAL_QUEUE_STATUSES.has(record.status)) continue;
-    // Only loads physically at this site. On a Max-to-Max movement both ends see
-    // the run, but combining is the sending site's decision — they are the ones
-    // stacking the trailer — and merge_appointments refuses anyone without access
-    // to the site the load actually sits at. Offering the receiving site a button
-    // that is certain to be refused is worse than not offering it.
-    if (record.is_linked_movement) continue;
-    const partner = String(record.company_name || record.display_counterpart_location_name || '').trim();
-    if (!partner) continue;
-    const key = `${record.direction}|${partner.toLowerCase()}`;
-    if (!lanes.has(key)) lanes.set(key, { partner, direction: record.direction, rows: [] });
-    lanes.get(key).rows.push(record);
-  }
-  const found = [];
-  for (const lane of lanes.values()) {
-    if (lane.rows.length < 2) continue;
-    const total = lane.rows.reduce((sum, row) => sum + Number(row.skid_count || 0), 0);
-    const biggest = Math.max(...lane.rows.map(row => Number(state.truckCapacity.get(row.truck_type_code) || 0)));
-    const fits = biggest > 0 && total <= biggest;
-    found.push({
+  return combinableLanes(appointments).slice(0, 3).map(lane => {
+    const { total, biggest, fits } = laneFullness(lane, capacityFor);
+    const references = lane.rows.map(row => row.booking_reference).filter(Boolean).join(', ');
+    return {
       ...lane,
-      text: `${lane.rows.length} ${lane.direction} loads ${lane.direction === 'outbound' ? 'to' : 'from'} ${lane.partner} today — ${lane.rows.map(row => row.booking_reference).filter(Boolean).join(', ')}${biggest > 0 ? `, ${total} of ${biggest} skids${fits ? ' — they fit one truck' : ''}` : ''}.`,
-    });
-  }
-  return found.slice(0, 3);
+      text: `${laneDescription(lane)} — ${references}${biggest > 0 ? `, ${total} of ${biggest} skids${fits ? ' — they fit one truck' : ''}` : ''}.`,
+    };
+  });
 }
 
 function renderBriefCard() {
@@ -474,16 +462,19 @@ function renderBriefCard() {
     <div class="brief__body">${narrative}</div>`;
 }
 
+// The card, in an email, reading the same way. It shared a narrative that had been
+// renamed to `briefGroups` some time ago, so every press of this button threw
+// before it reached the mail client and the brief could not be sent at all. It
+// builds from the same four groups the card draws, so the two cannot drift again.
 function shareBrief() {
-  const brief = state.brief?.brief || { summary: '' };
+  const brief = state.brief?.brief || {};
   const lines = [
     ...briefFigures().map(item => `${item.label}: ${item.value}`),
-    '',
-    ...localNarrative(),
-    brief.summary,
-    '',
-    ...(brief.pressures || []).map(item => `• ${item}`),
-    ...(brief.actions || []).map(item => `• ${item.action}`),
+    ...briefGroups().flatMap(group => ['', `${group.title}`, ...group.points.map(point => `• ${point}`)]),
+    // Whatever the AI service adds beyond the summary the Attention column already
+    // carries. Absent when that call failed, which is not a reason to send nothing.
+    ...(brief.pressures?.length ? ['', 'Pressures', ...brief.pressures.map(item => `• ${item}`)] : []),
+    ...(brief.actions?.length ? ['', 'Suggested actions', ...brief.actions.map(item => `• ${item.action || item}`)] : []),
   ];
   const href = `mailto:?subject=${encodeURIComponent(`${state.context.location.name} operations brief · ${state.date}`)}&body=${encodeURIComponent(lines.join('\n'))}`;
   globalThis.open(href, '_self');
@@ -709,11 +700,19 @@ const page = {
     state.elements.subtitle.textContent = `${context.location.name} · today · live`;
     // One gear, both rows: the brief's figures at a glance and the metric cards
     // under it. They were two strips of numbers with only one of them adjustable.
-    state.detailsModal = createAppointmentDetails({ location: context.location });
     state.combineDialog = createCombineDialog({
       location: context.location,
-      capacityFor: record => state.truckCapacity.get(record.truck_type_code) || 0,
+      capacityFor: record => capacityFor(record.truck_type_code),
       onDone: () => refreshData(),
+    });
+    // The same offer the brief makes, on the row somebody has just opened. One
+    // dialog behaving one way wherever it is opened from: a movement that can be
+    // combined says so on the board and on the queue, not on whichever screen the
+    // feature happened to be built for.
+    state.detailsModal = createAppointmentDetails({
+      location: context.location,
+      laneFor: record => (can('appointment.create') ? laneForRecord(record, state.records) : null),
+      onCombine: lane => state.combineDialog.open(lane.rows, laneDescription(lane), state.elements.rows),
     });
     state.customizePanel = await createCustomizePanel({
       // A new key rather than queue-cards: the saved list now carries the wall's

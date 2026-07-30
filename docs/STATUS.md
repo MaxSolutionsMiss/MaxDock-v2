@@ -1479,3 +1479,81 @@ load — which is precisely what went wrong the first time.
 Walked in a browser: the brief found "2 outbound loads to Guelph today", the
 dialog offered both at 20 of 26 skids and 77% full, and Combine called
 `merge_appointments` with the earliest as the keeper and the other as absorbed.
+
+## Combining, carried all the way through (2026-07-30)
+
+Ninety-five appointments in the database and not one of them had ever been
+combined. Both halves of the feature were built and neither had ever been used,
+for one reason: **reach**. The only way in was a line in the operations brief, on
+a card a coordinator may never scroll to, on a screen that is not the one they
+work from. The dock board — where somebody actually notices two trucks going the
+same way — offered nothing at all.
+
+**The way in is on the movement.** Click a block on the board and the appointment
+opens, as it already did; it now carries **Combine 2 loads to Guelph** in its
+footer when there is another truck on that lane today. It names the run rather
+than saying "Combine", because pressing it cancels real bookings. A load
+travelling alone is not offered it, and neither is anybody without
+`appointment.create` at that site — a button certain to be refused is worse than
+no button.
+
+The same dialog opens, calling the same `merge_appointments` the booking wizard
+calls. Two doors, one function.
+
+**Which loads share a lane is now decided in one place.** `combine-loads.js`
+exports `combinableLanes`, `laneForRecord`, `laneFullness` and `laneDescription`;
+the operations brief and the board both ask it. The brief had that logic inline,
+so a second copy on the board would have been two sets of rules about what a lane
+is, and the two screens could have disagreed about whether a run existed. The
+queue's own row-click details modal offers it too — one dialog behaving one way
+wherever it is opened from.
+
+**Verified against the live database.** `MXD-2026-000098` was combined onto
+`MXD-2026-000097` at Mississauga as the account that booked both. The survivor
+carries 20 skids and `combined_from_count` 1; the absorbed row is cancelled,
+reasoned "Combined onto MXD-2026-000097", and points at the survivor.
+`list_location_schedule` reports it merged at **both** ends of the Max-to-Max run
+— Mississauga's board and Milton's — so both drop it, and the dock-overlap
+constraint excludes cancelled rows, which releases the door it was holding.
+
+**And verified in a browser.** `scripts/verify-combine-end-to-end.mjs` drives the
+whole path: block → movement → the offer named after the run → the dialog with
+both loads ticked, the earliest surviving, 77% full at 20 of 26 skids →
+`merge_appointments` with the right keeper and the right absorbed ids → the
+absorbed load gone from the dock board → gone from the operations queue, with the
+survivor marked ⧉ on both. The audit stub gained a stateful mode for it, so the
+schedule the pages read afterwards has genuinely changed rather than being a
+fixed answer that would pass whatever the pages did. It also measures the
+appointment footer at 1440 and 390, because combining put a third action in a
+footer that had two.
+
+## Mississauga's trailers, entered (2026-07-30)
+
+Every `skid_capacity` at Mississauga was null, so the truck-fullness bar had
+nothing to draw and the Truck fullness report said "Trailer capacity not set" on
+every lane. Set to the same figures Milton runs: 53 ft 26, 48 ft 20, 26 ft 10,
+cube van 2, courier van 1. The first combined truck reported `truck_capacity` 26
+and 77% full, which is the bar appearing for the first time.
+
+**Still outstanding:** six of the eight sites with truck types configured have no
+capacities either — Bristol, Concord, Guelph, Markham, Owen Sound and Pickering.
+Fullness is dead at all of them for the same reason. They are set alongside the
+demo data for every location.
+
+## Sharing the brief threw (2026-07-30)
+
+"Share with team" called `localNarrative()`, which had been renamed to
+`briefGroups` at some point, so every press raised a `ReferenceError` before it
+reached the mail client and the brief could not be sent at all. It builds from the
+same four groups the card draws, so the email and the card cannot drift again.
+
+## The layout audit cannot complete in the review container (2026-07-30)
+
+`scripts/audit-layout.mjs` dies partway through the role sweep with "Target page,
+context or browser has been closed" — on the pristine commit as well as on this
+work, so it is the container and not a regression. The Pages preview, the jsdelivr
+CDN and the Supabase REST endpoint are all refused by this session's network
+policy, so the deployed preview could not be opened either. What was verified
+instead: the live database through the Supabase management connection, and the
+real page modules in headless Chromium against the local stub. CI still runs the
+full sweep.

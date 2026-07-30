@@ -58,6 +58,13 @@ const MODALS = {
   board: [
     { name: 'block-dock-time', trigger: '[data-block-time]' },
     { name: 'appointment-details', trigger: '[data-open-record]' },
+    // Combining a load already on the board, offered on the movement itself — so the
+    // movement has to be opened before the action exists. Same dialog the operations
+    // brief opens; measured from here too because this is where it is reached from.
+    // Named rather than "the first block": the first one on the board is travelling
+    // alone and is deliberately not offered the action, so opening it would measure
+    // an absence. MXD-2026-000146 is one of the two Guelph loads in the fixture.
+    { name: 'combine-loads', prepare: '[data-open-record]:has-text("MXD-2026-000146")', trigger: '[data-combine]' },
     { name: 'book-appointment', trigger: '[data-open-booking]', walkSteps: 5 },
     { name: 'notifications', trigger: '.notif__btn' },
     // The printable card behind a saved booking: a QR, the run in words, and the

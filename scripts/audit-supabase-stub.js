@@ -143,11 +143,55 @@
       { id: 2, notification_type: 'appointment_status', title: 'Appointment completed', message: 'MXD-2026-000142 was marked complete.', appointment_id: 'a3', read_at: iso(11), created_at: iso(11) },
     ],
   };
+  // Combining is the one thing here that has to be watched *changing* the schedule:
+  // the whole point of a merge is that the absorbed load leaves the board, and an
+  // answer hard-coded to the shape of a merge would pass whatever the pages did with
+  // it. So when `__auditStatefulMerge` is set, merges are remembered and the schedule
+  // is answered through them. sessionStorage rather than a variable, because the load
+  // has to still be gone after a navigation from the board to the queue — which is
+  // exactly what the table does and exactly what was never checked.
+  //
+  // Off by default, so every other sweep sees the fixture holding still.
+  const mergesRecorded = () => {
+    if (!globalThis.__auditStatefulMerge) return [];
+    try { return JSON.parse(sessionStorage.getItem('__auditMerges') || '[]'); } catch { return []; }
+  };
+  const recordMerge = entry => {
+    if (!globalThis.__auditStatefulMerge) return;
+    try { sessionStorage.setItem('__auditMerges', JSON.stringify([...mergesRecorded(), entry])); } catch { /* private mode */ }
+  };
+  // The fixture with every recorded merge applied: the same three columns the real
+  // merge_appointments writes, plus the survivor grown by what it took on.
+  function scheduleNow() {
+    const rows = APPTS.map(record => ({ ...record }));
+    const byId = new Map(rows.map(row => [row.id, row]));
+    for (const merge of mergesRecorded()) {
+      const keep = byId.get(merge.keep);
+      if (!keep) continue;
+      for (const id of merge.absorb || []) {
+        const other = byId.get(id);
+        if (!other || other.merged_into_appointment_id) continue;
+        other.status = 'cancelled';
+        other.cancelled_at = new Date().toISOString();
+        other.cancellation_reason = `Combined onto ${keep.booking_reference}`;
+        other.merged_into_appointment_id = keep.id;
+        other.merged_into_reference = keep.booking_reference;
+        keep.skid_count = Number(keep.skid_count || 0) + Number(other.skid_count || 0);
+      }
+    }
+    // a1 carries a combined count with no absorbed rows behind it so the layout
+    // sweep always has a ⧉ block to measure, whether or not anything was merged.
+    return rows.map(row => ({
+      ...row,
+      combined_from_count: rows.filter(other => other.merged_into_appointment_id === row.id).length || (row.id === 'a1' ? 2 : 0),
+    }));
+  }
+
   const RPC = {
     get_user_preference: () => ({ text_size: 'normal', location_id: 'loc-1' }),
     save_user_preference: () => ({}),
     record_user_usage: () => ({}),
-    list_location_schedule: () => APPTS.map(record => ({ schedule_record: { ...record, combined_from_count: record.id === 'a1' ? 2 : 0 } })),
+    list_location_schedule: () => scheduleNow().map(schedule_record => ({ schedule_record })),
     // Two dates booked and one skipped, so the confirmation is measured with both
     // halves of its list on screen rather than only the happy one.
     create_appointment_series: () => ({
@@ -284,13 +328,27 @@
     book_routed_appointment: () => ({ booking_reference: 'MXD-2026-000143', appointment_id: 'a4', start_at: iso(9), end_at: iso(10), dock_name: 'Dock 1' }),
     book_appointment: () => ({ booking_reference: 'MXD-2026-000143', appointment_id: 'a4', start_at: iso(9), end_at: iso(10), dock_name: 'Dock 1' }),
     // Combining answers with the surviving appointment, grown by what it absorbed —
-    // the shape the confirmation draws its fullness bar from.
-    merge_appointments: (args = {}) => ({
-      appointment_id: args.p_keep_id || 'a4', booking_reference: 'MXD-2026-000143',
-      skid_count: 18, truck_capacity: 26, start_at: iso(9), end_at: iso(10, 30),
-      absorbed: (args.p_absorb_ids || ['a1']).map((id, i) => ({ id, booking_reference: `MXD-2026-00012${i + 1}`, skid_count: 8 })),
-      absorbed_count: (args.p_absorb_ids || ['a1']).length,
-    }),
+    // the shape the confirmation draws its fullness bar from. The merge is recorded
+    // first, so the numbers reported back are read off the changed schedule rather
+    // than asserted separately from it.
+    merge_appointments: (args = {}) => {
+      const absorb = args.p_absorb_ids || ['a1'];
+      const keepId = args.p_keep_id || 'a4';
+      recordMerge({ keep: keepId, absorb });
+      const rows = scheduleNow();
+      const keep = rows.find(row => row.id === keepId);
+      return {
+        appointment_id: keepId, booking_reference: keep?.booking_reference || 'MXD-2026-000143',
+        skid_count: Number(keep?.skid_count ?? 18), truck_capacity: 26,
+        start_at: keep?.start_at || iso(9), end_at: keep?.end_at || iso(10, 30),
+        absorbed: absorb.map((id, index) => ({
+          appointment_id: id,
+          booking_reference: rows.find(row => row.id === id)?.booking_reference || `MXD-2026-00012${index + 1}`,
+          skid_count: Number(rows.find(row => row.id === id)?.skid_count ?? 8),
+        })),
+        absorbed_count: absorb.length,
+      };
+    },
   };
 
   const result = data => Promise.resolve({ data, error: null });

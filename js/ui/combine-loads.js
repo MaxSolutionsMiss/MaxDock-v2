@@ -19,6 +19,64 @@ const escapeHtml = value => String(value ?? '').replace(/[&<>'"]/g, char => ({ '
 
 const skidsOf = record => Number(record.skid_count || 0);
 
+// What may combine with what. One definition, because two would be two sets of
+// rules about which loads share a truck — and the screens would disagree about
+// whether a run existed depending on which one you were standing at.
+//
+// A lane is the direction plus the place at the other end of it. A load qualifies
+// when it is still going: not finished, not cancelled, not a no-show, and not
+// already part of another truck. A linked movement is excluded because it is the
+// mirrored view of a load that physically sits at the other site — combining is
+// the sending site's decision, they are the ones stacking the trailer, and
+// `merge_appointments` refuses anybody without access to where the load is.
+const TERMINAL_STATUSES = new Set(['completed', 'cancelled', 'no_show']);
+
+function laneOf(record) {
+  if (!record || record.entry_kind === 'block') return null;
+  if (record.merged_into_appointment_id) return null;
+  if (TERMINAL_STATUSES.has(record.status)) return null;
+  if (record.is_linked_movement) return null;
+  const partner = String(record.company_name || record.display_counterpart_location_name || '').trim();
+  if (!partner) return null;
+  return { key: `${record.direction}|${partner.toLowerCase()}`, partner, direction: record.direction };
+}
+
+// Every lane on this day carrying more than one truck. The caller has already
+// narrowed the records to one site and one date, which is what makes two loads on
+// a lane a duplication rather than a coincidence.
+export function combinableLanes(records) {
+  const lanes = new Map();
+  for (const record of records || []) {
+    const lane = laneOf(record);
+    if (!lane) continue;
+    if (!lanes.has(lane.key)) lanes.set(lane.key, { partner: lane.partner, direction: lane.direction, rows: [] });
+    lanes.get(lane.key).rows.push(record);
+  }
+  return [...lanes.values()].filter(lane => lane.rows.length > 1);
+}
+
+// The lane one particular load belongs to, or nothing if it is travelling alone.
+// This is what turns a block on the board into an offer to combine: the operator
+// clicked a truck, not a lane, and the question they are asking is "is there
+// another one of these today".
+export function laneForRecord(record, records) {
+  if (!laneOf(record)) return null;
+  return combinableLanes(records).find(lane => lane.rows.some(row => String(row.id) === String(record.id))) || null;
+}
+
+// How full one truck would be if the lane travelled as one. `biggest` is the
+// largest trailer on the lane as stacked at *this* site — the same trailer holds
+// a different number of skids in a different building.
+export function laneFullness(lane, capacityFor) {
+  const total = lane.rows.reduce((sum, row) => sum + skidsOf(row), 0);
+  const biggest = Math.max(0, ...lane.rows.map(row => Number(capacityFor?.(row.truck_type_code) || 0)));
+  return { total, biggest, fits: biggest > 0 && total <= biggest };
+}
+
+export function laneDescription(lane) {
+  return `${lane.rows.length} ${lane.direction} loads ${lane.direction === 'outbound' ? 'to' : 'from'} ${lane.partner} today`;
+}
+
 export function createCombineDialog({ location, capacityFor, onDone } = {}) {
   const backdrop = document.createElement('div');
   backdrop.className = 'scrim';
