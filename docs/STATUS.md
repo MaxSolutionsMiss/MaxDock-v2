@@ -1918,3 +1918,40 @@ The local sweep now covers what CI covers: five widths, three text sizes, every
 settings window, every report view, seven pages, the booking wizard walked five steps
 and the role dialog — and it watches for the trade, because a floor that stops a label
 wrapping by pushing the page sideways is a worse fault than the one it fixed. Clean.
+
+## Not built, deliberately: creating a role (2026-07-30)
+
+The ask was "create roles, change the levels of access to them". The second half is
+built — Users › Role access changes what any role may do and what it sees. **Creating a
+new role is not**, and it is worth saying why rather than leaving it looking like an
+oversight.
+
+Three places in the system know a role by its *code* rather than by its permissions:
+
+- `list_location_schedule` refuses `role_code = 'customer'` outright, so a customer can
+  never see a linked internal movement. A new role would not be caught by that.
+- the customer shell — the whole cut-down navigation an outside company gets — is
+  inferred from a permission *shape*, not from the role. A new role with an unusual
+  combination could land somewhere between the two shells.
+- `is_system_admin()` is role-coded, as it has to be.
+
+So a role created today would behave as a staff role, and whether that is right depends
+on what it was created for. That is a decision about the model, not a form to build. It
+wants either: a `roles.is_external` flag those three places read instead of a code, or a
+deliberate answer that new roles are always staff roles. Either is an hour's work once
+the answer is chosen; guessing it would put a hole in customer isolation, which is the
+one thing in this application that must not have one.
+
+## Naming, for the organisation and the domain (2026-07-30)
+
+`docs/NAMING-AND-DOMAIN.md`: rename the organisation to `maxsolutions` and drop the
+`Miss` — twelve sites in three countries, and it reads as a typo to anybody who does not
+know it meant Mississauga. One repository per product; do not rename `MaxDock-v2` until
+cutover, because the preview workflows key off it and v1 still exists. One company
+domain with a subdomain per product — `dock.maxsolutions.ca`, `metrics.maxsolutions.ca`
+— because Pages allows one custom domain per repository, so subdomain-per-product maps
+onto repository-per-product exactly and a path split would need a proxy for no gain.
+
+The rename is an owner's action in GitHub settings. What it breaks on this side is
+twelve URL references and the smoke test's `BASE`, all listed in that document, all one
+commit.
