@@ -2282,3 +2282,32 @@ is four over capacity and 10 + 16 is exactly full.
 The combine walk now measures the drawing rather than the caption — that the loaded part is
 112.3 units of a 146-unit trailer for 20 of 26, and that it is drawn in the part-loaded
 band. A picture that is merely present proves nothing.
+
+## Block dock time was unclickable at 1024, and had nearly been for a while (2026-07-30)
+
+CI reported one finding: `modal-trigger-unreachable · board › block-dock-time @1024 ·
+[data-block-time] could not be clicked`. True, and three steps removed from the cause.
+
+The controls band is three tracks — the page's own control, its filters, the actions — and
+the outer two are `auto`, so they take their content and the filters get whatever is left.
+On the dock board at 1024px with the rail still expanded, that left the filters **66px**
+for a direction select, a status select and a search box. All three overflowed to the right,
+across the actions column, and Block dock time was underneath the search box.
+
+**It had been overflowing before this session and missing the button's centre by eleven
+pixels.** The search box was 151px starting at x=547, so it ended at 698 and the button's
+centre was at 709. That is not a layout working; it is one that has not been caught yet.
+Widening the box by the ten per cent the owner asked for closed those eleven pixels.
+
+A floor tuned to just miss the button would have passed CI and waited for the next change
+to the band. So the band stacks while there is still room to stack into: **below 1100px each
+group takes the full width**, which is what it already did below 900. At 1024 the filters
+now get 754px, all three sit on one row, and the search box is its full 223px at every
+width instead of being squeezed to 131.
+
+**And the audit now names the cause.** A new rule measures each band group against the
+column it was given and reports `controls-band-overflows-its-column · .controls__filters
+needs 93px more than the 67px column it was given`. Proved both ways before shipping: silent
+at 1440, 1280, 1024 and 900 as the stylesheet now stands, and firing at exactly 1024 with
+the old grid put back. A group that does not fit its column is a fault whether or not it
+currently lands on something clickable.

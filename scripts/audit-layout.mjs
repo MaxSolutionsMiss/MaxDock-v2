@@ -199,7 +199,7 @@ const add = (where, width, rule, detail) => findings.push({ where, width, rule, 
 // belong to the page, not to a 560px panel floating above it.
 function collect(scope) {
   const root = scope ? document.querySelector(scope) : document;
-  const out = { clipped: [], smallTargets: [], ctlHeights: [], rawTimestamps: [], blockTextCut: [], hiddenButShown: [], unreachable: [], rowFill: [], kpi: [], gaps: [], overflowX: 0, labelStyles: [], cutOff: [], rowUneven: [], modal: [], collapsed: [], narrow: [], selectCut: [], labelRagged: [] };
+  const out = { clipped: [], smallTargets: [], ctlHeights: [], rawTimestamps: [], blockTextCut: [], hiddenButShown: [], unreachable: [], rowFill: [], kpi: [], gaps: [], overflowX: 0, labelStyles: [], cutOff: [], rowUneven: [], modal: [], collapsed: [], narrow: [], selectCut: [], labelRagged: [], bandSpill: [] };
   if (!root) return out;
   const vis = el => el.offsetParent !== null || getComputedStyle(el).position === 'fixed';
 
@@ -244,6 +244,25 @@ function collect(scope) {
       break;
     }
   });
+
+  // A group in the controls band wider than the column it was given.
+  //
+  // The band is three tracks: the page's own control, its filters, the actions. The outer
+  // two are `auto`, so they take their content and the filters get what is left — which on
+  // the dock board at 1024px was 66px for two selects and a search box. All three
+  // overflowed to the right, across the actions, and the button underneath stopped being
+  // clickable.
+  //
+  // That fault reached CI as "modal-trigger-unreachable: [data-block-time] could not be
+  // clicked", which is true and three steps removed from the cause. It had also been
+  // overflowing for some time while missing the button's centre by eleven pixels, so
+  // nothing had reported it. This measures the overflow itself: a group that does not fit
+  // its column is a fault whether or not it currently lands on something.
+  for (const group of root.querySelectorAll('.controls__lead,.controls__filters,.controls__end')) {
+    if (!vis(group)) continue;
+    const spill = group.scrollWidth - Math.round(group.getBoundingClientRect().width);
+    if (spill > 2) out.bandSpill.push({ sel: group.className, spill, width: Math.round(group.getBoundingClientRect().width) });
+  }
 
   // Interactive controls below a comfortable hit size. A small checkbox inside a
   // padded <label> is fine — the label is what the pointer actually hits — so
@@ -851,6 +870,7 @@ server.close();
 
 function report(where, width, result) {
   if (result.overflowX > 1) add(where, width, 'page-scrolls-sideways', `${result.overflowX}px`);
+  for (const b of result.bandSpill) add(where, width, 'controls-band-overflows-its-column', `.${String(b.sel).split(' ')[0]} needs ${b.spill}px more than the ${b.width}px column it was given`);
   for (const m of result.modal) add(where, width, 'dialog-does-not-fit', m);
   for (const c of [...new Map(result.collapsed.map(c => [c.sel, c])).values()].slice(0, 4)) add(where, width, 'band-collapsed', `.${c.sel} is ${c.h}px tall but holds ${c.needs}px of content`);
   for (const n of [...new Map((result.narrow || []).map(x => [x.sel, x])).values()].slice(0, 4)) add(where, width, 'text-column-too-narrow', `.${n.sel} is ${n.w}px wide — ${n.lines} lines at about ${n.perLine} characters each`);

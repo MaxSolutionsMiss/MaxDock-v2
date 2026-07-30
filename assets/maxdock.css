@@ -174,8 +174,14 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
    size works out to. 15.4em is the previous 203px plus the ten per cent asked for,
    and stating it means the dock board band lays out the same at every text size
    instead of drifting with the font metrics. */
-.ctrl-field--find{flex:0 0 auto;min-width:0}
-.searchbox{position:relative;display:flex;width:15.4em;max-width:100%}
+/* 15.4em is the width it *wants* — the previous 203px plus the ten per cent asked for —
+   but it has to be allowed to give some of it back. Pinned with flex:0 0 auto it could not
+   shrink, so at 1024px it overflowed the filters column of the controls grid and sat on
+   top of Block dock time, which stopped being clickable. A stated preferred width with a
+   floor is the whole fix: full width where there is room, narrower where there is not, and
+   never wider than its own column. */
+.ctrl-field--find{flex:0 1 15.4em;min-width:11em}
+.searchbox{position:relative;display:flex;width:100%;min-width:0}
 .searchbox .input{flex:1 1 auto;min-width:0;padding-right:calc(var(--ctl-h) + 4px)}
 /* Two glyphs in one corner otherwise: the browser draws its own clear × for a
    type=search field, and it lands exactly where the magnifier is. */
@@ -1221,6 +1227,24 @@ body.modal-open{overflow:hidden}
   .appointment-card__identity{flex-wrap:wrap}
 }
 
+/* The controls band stops being three groups abreast before the rail collapses.
+   Three tracks — the page's own control, its filters, the actions — and the outer two are
+   `auto`, so they take their content and the filters get whatever is left. On the dock
+   board at 1024px with the rail still expanded, that left the filters **66px** for a date
+   filter, a status filter and a search box, and all three overflowed to the right, across
+   the actions. Block dock time was under the search box and stopped being clickable.
+
+   It had been overflowing for a while and missing the button's centre by eleven pixels,
+   which is not a layout working — it is one that has not been caught yet. Widening the
+   search box by the ten per cent asked for closed those eleven pixels, and a floor tuned
+   to just miss the button would only wait for the next change to the band. So the band
+   stacks while there is still room to stack into: below 1100px each group gets the full
+   width, which is what it already did below 900. */
+@media (max-width:1100px){
+  .controls{grid-template-columns:1fr}
+  .controls__lead,.controls__filters,.controls__end{grid-column:1}
+  .controls__end{justify-self:start}
+}
 /* --- narrow screens
    The rail is a fixed 196px, which on a 390px phone left 194px for the whole
    application. Below 900px it keeps its icons and drops its labels — the labels
