@@ -1735,3 +1735,59 @@ hold `settings.view`, Reports unticked and saved as the Coordinator's hidden lis
 with every other role sent alongside it, the link gone from a Coordinator's rail
 while that role still holds `reports.view`, and a System Admin keeping Reports and
 Settings however the table is written.
+
+## Two weeks of demo data, at every location (2026-07-30)
+
+Four of the twelve sites — Burbank, Langley, Sturgis and Wilmington — had **nothing
+configured at all**: no docks, no operating hours, no settings row, no enabled types.
+Switching to one of them showed "No active docks" and there was no way to book into
+it. They are configured on Bristol's pattern now, with the dock counts a site that
+size would have.
+
+**Skid capacities everywhere.** Six more sites had none, so the truck-fullness bar was
+dead at eight of twelve, not one. All twelve carry the same figures Milton runs.
+
+**A shift roster at every site** — Day 07:00–15:30 and Afternoon 15:30–23:30, sized to
+the site's docks. Without one the Labour hours report leaves its percentage blank and
+the brief's Labour column can only say what a day costs, never what the day had. These
+are placeholders and the brief says so: they are what the report divides by.
+
+**The movements themselves: today−7 to today+7 at every site.** Generated inside each
+site's own rules rather than dropped in — only on days that site is open, only on doors
+that accept that truck, inside its opening hours, with the duration its own timing
+settings give the load, and skids in proportion to the trailer so a cube van is never
+carrying twenty-two. Statuses follow the clock: past days completed with the odd
+cancellation, today by where the hour has got to, ahead of today scheduled. A door
+already taken by the data that was here before is skipped, because the existing
+schedule is the real one. 34 to 87 movements a site, across 11 to 20 days.
+
+**A run worth combining at every site**, not only the seven where the random mix
+happened to make one: two outbound loads to the same place on the same day, nine and
+eleven skids, twenty of a 53 ft trailer's twenty-six. That is what the brief spots and
+what Combine on the dock board fixes, so every site can show it.
+
+**Max-to-Max at every site**, booked through `book_routed_appointment` rather than
+inserted, so each one reserves a door at *both* ends. A direct insert would have left
+the receiving site's board holding a movement with no dock to draw it on.
+
+### Three things the audit of the new data found, and fixed
+
+**Forty-eight loads left `scheduled` with their day long past** — from the earlier
+seeding. The operations queue calls every one of those Late, forever, and they count
+against every figure on the page, so the demo would have opened on a fortnight of
+trucks that never arrived. Closed off the way the day would have closed them: most
+completed, a few genuine no-shows.
+
+**Four loads carrying more skids than the trailer holds**, one of them 53 on a 53 ft —
+a trailer length typed into the skid box. Capped at what that trailer takes at that
+site, so the fullness report is not reporting 204%.
+
+**A bell with fifty-four unread notices.** Anything about a load that has already been
+and gone is marked read, which is what a real account looks like after two weeks.
+
+Checked afterwards against the site's own rules: nothing on a day a site is shut,
+nothing starting before opening, nothing still on a dock after closing, no zero-length
+windows, no truck on a door that does not accept it, nothing completed in the future.
+`list_location_schedule`, `get_labour_utilization`, `get_truck_fullness_scorecard` and
+`get_partner_scorecard` all answer with sensible numbers at every site, including the
+four that had never held an appointment.

@@ -219,14 +219,14 @@ Frame as **fit, not feature count**:
 |---|---|
 | Booking, scheduling, board, queue, check-in, statuses, reports, roles | Working |
 | Duration engine, Max-to-Max routing, capacity, direction windows | Working, verified |
-| Labour roster + utilisation report, holidays, per-day caps | Built this week; set your real numbers before demoing |
+| Labour roster + **Labour hours** report, holidays, per-day caps | Working. Every site now has a two-shift roster seeded (Day 07:00–15:30, Afternoon 15:30–23:30, sized to its docks). **Replace those with the real rosters before demoing** — the report divides by them. |
 | **Combining** | Working, proven. `MXD-2026-000098` is combined onto `MXD-2026-000097` at Mississauga: one truck, 20 skids, 77% full, and it left both ends of the Max-to-Max run. Demo it from the **dock board** — open the block, then "Combine 2 loads to Milton". |
-| **Truck fullness bar** | Working at Milton and Mississauga. **Still empty at Bristol, Concord, Guelph, Markham, Owen Sound and Pickering** — do not demo fullness at those sites until the capacities are in. |
+| **Truck fullness bar** | Working everywhere. All twelve sites carry skids-per-truck (53 ft 26, 48 ft 20, 26 ft 10, cube 2, courier 1). Confirm those match how each building actually stacks. |
 | Notification **emails** | Not sending. Needs an email provider and a verified `maxpkgsolutions.com` sender. Notices are already being recorded with recipients, ready to flow. |
-| Bulk **appointment** import | Not built (user import is) |
-| Per-role rail visibility | Not built |
-| Demo data across all sites | Not populated |
+| Bulk **appointment** import | Built. Reads a CSV or .xlsx, gives every row a verdict, books each one through the ordinary booking. Lives under **Data integration** — system admins only for the trial. |
+| **Role access** | Built. Under **Users › Roles**: what each role may do and what each role sees. |
+| Demo data across all sites | Populated. Two weeks per site — a week behind and a week ahead — inside each site's own hours and dock rules, with a combinable run and a Max-to-Max movement at every one of the twelve. |
 
-**Before the demo, in order:** ~~prove one combine end-to-end~~ (done) → ~~set
-Mississauga's truck capacities~~ (done) → enter real shift rosters → set the
-remaining six sites' truck capacities → populate demo data per site.
+**Before the demo, one thing is left:** replace the seeded shift rosters with each
+site's real ones, and check the skids-per-truck figures against how each building
+actually stacks. Everything else on this table is working and populated.
