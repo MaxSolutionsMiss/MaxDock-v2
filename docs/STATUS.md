@@ -2044,3 +2044,71 @@ its band, a ranked row carries its own category.
 The `.spark` rules and the `barChart()` these replaced are deleted rather than left
 behind. The stylesheet was five hundred bytes under its declaration budget, and that is
 where the room for the new forms came from.
+
+## Fifteen layout findings, and the class of fault behind them (2026-07-30)
+
+CI reported fifteen on the last push, in three groups. All three were mine, and two of
+them were the *same* mistake in different clothes.
+
+**A 19px radio.** The keeper choice in the combine dialog put a radio in a bare label.
+The tick beside it has `min-height:32px` and the radio did not, and a pointer hits the
+label rather than the control. One declaration.
+
+**Six dialog bodies scrolling sideways by 37px on a 390px phone.** `.field--xl`'s floor
+is 25em, which is 362px, and a dialog body on a 390px phone is 342px wide. Below a 380px
+container every field already takes the whole row — and a field that owns the row has
+nothing to be pushed by, so its floor has no job left and does nothing but overflow. The
+floors come off there.
+
+**The Holidays row stopping 254px short for a Manager.** The row is Calendar, Year and
+*Block these dates* — and a Manager holds no permission to apply a calendar, so the third
+control is not rendered and eight of twelve columns are left holding the row. Making the
+Calendar `--lg` last week is what turned an honestly compact row into one the audit reads
+as "meant to fill". It is `--md` again; the width that stops "United States (federal)"
+being clipped is the 13.5em floor, not the wider span.
+
+### What the class of fault actually is
+
+A floor in `em` scales with the text-size setting. The twelve columns it sits in do not.
+So a floor tuned at normal text is *wider than its own track* at large — and a grid item
+wider than its track pushes the whole grid out. Two `--num` fields did exactly that, and
+the booking dialog scrolled sideways by 41px at large. Which is the mirror image of the
+fault the `em` conversion fixed last week: pixel floors clipped a country name when the
+type grew, em floors overflow the row when the type grows. Both are one wrong assumption
+— that a field's minimum and the space it has are measured in the same units.
+
+Three things came out of chasing it, and the order matters because the first two were
+wrong:
+
+1. **`min-width:min(25em,100%)` does not work.** It reads as exactly right — take the
+   floor, but never more than the track. A percentage `min-width` on a grid item is
+   cyclic, so the browser drops the whole declaration and the floor is lost at *every*
+   width. Measured: a `--num` field went from 125px to 84px and its label wrapped. The
+   idea is in the stylesheet as a comment so nobody spends an afternoon on it again.
+2. **Widening spans at large text cascades.** Give `--md` a fifth column and every row
+   hand-tuned to twelve columns comes to thirteen, wraps a field onto a line of its own,
+   and leaves the row above looking unfinished — which is a worse fault than the 4px it
+   fixed. Two rows had to be re-sized in their own markup to absorb it: the quick-QR
+   Direction select is `--sm` (it only ever holds "Outbound"), and Handling moved down to
+   share a row with Carrier rather than crowding in behind the truck type and the skids.
+3. **A `.field-action` never needed a floor at all.** A button sizes itself. `--md` on
+   one was only ever a claim on four columns, and its 13.5em was pushing rows out at
+   larger for no reason. `min-width:0`, one declaration, and three findings went with it.
+
+So: floors stay in `em`, they come off when a field owns its row, and exactly two field
+sizes take another column at large — the ones whose own floor is genuinely wider than
+their track, `--num` (a number plus its unit chip) and `--dur`.
+
+### The local sweep was narrower than the gate
+
+Every one of these fifteen was found by a rule the sweep in this container did not run.
+It ran two rules; the gate runs a dozen. So it now runs the three that caught this —
+small hit targets, dialog bodies scrolling sideways, rows stopping short — measured the
+same way the gate measures them, over five widths, three text sizes, two roles, and the
+dialogs rather than only the pages behind them. It found four more faults on its own
+after the first three were fixed, at text sizes CI does not open dialogs at, and those
+are fixed too.
+
+Aligning the rule to the gate's implementation mattered more than adding it: a rowFill
+rule that grouped children by line reported two dialogs the gate is perfectly happy with,
+and would have had me "fixing" layouts that were already correct.

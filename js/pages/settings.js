@@ -251,7 +251,12 @@ function renderHolidays(canEdit) {
   return `<form data-section-form="holidays">
     <h3 class="card__title">Holidays</h3>
     <div class="frow">
-      <label class="field field--lg"><span class="field__label">Calendar</span><select class="select" name="holiday_calendar" ${canEdit ? '' : 'disabled'}>
+      <!-- --md, not --lg. The width that stops "United States (federal)" being clipped
+           is the 13.5em floor, which scales with the text-size setting; widening the
+           field to --lg on top of that made the row "meant to fill", and a viewer
+           without permission to apply a calendar has no third control in the row, so
+           it then stopped 254px short of its own right edge. -->
+      <label class="field field--md"><span class="field__label">Calendar</span><select class="select" name="holiday_calendar" ${canEdit ? '' : 'disabled'}>
         <option value="none" ${chosen === 'none' ? 'selected' : ''}>None — set closures by hand</option>
         <option value="ca" ${chosen === 'ca' ? 'selected' : ''}>Canada (Ontario)</option>
         <option value="us" ${chosen === 'us' ? 'selected' : ''}>United States (federal)</option>
@@ -1333,7 +1338,10 @@ function buildShell(root) {
           <div class="modal__body">
             <div class="frow">
               <label class="field field--xl"><span class="field__label">Name<span class="field__req" aria-hidden="true">*</span></span><input class="input" name="name" maxlength="80" required placeholder="Guelph run"></label>
-              <label class="field field--md"><span class="field__label">Direction</span><select class="select" name="direction"><option value="outbound">Outbound</option><option value="inbound">Inbound</option></select></label>
+              <!-- --sm: "Outbound" and "Inbound" are the two widest things this can
+                   ever hold, and a --md beside the --xl name came to thirteen columns
+                   once the text-size setting gave --md the fifth column it needs. -->
+              <label class="field field--sm"><span class="field__label">Direction</span><select class="select" name="direction"><option value="outbound">Outbound</option><option value="inbound">Inbound</option></select></label>
             </div>
             <div class="frow">
               <label class="field field--lg"><span class="field__label">Company or site<span class="field__req" aria-hidden="true">*</span></span><input class="input" name="company_name" maxlength="120" required placeholder="Guelph"></label>
@@ -1342,10 +1350,15 @@ function buildShell(root) {
             <div class="frow">
               <label class="field field--md"><span class="field__label">Truck type</span><select class="select" name="truck_type_code" data-shortcut-trucks></select></label>
               <div class="field field--num"><span class="field__label">Skids</span><span class="inputwrap"><input class="input" type="number" name="skid_count" min="0" value="0"><span class="input__unit">skids</span></span></div>
-              <label class="field field--lg"><span class="field__label">Handling</span><select class="select" name="handling_type_code" data-shortcut-handling></select></label>
             </div>
+            <!-- Handling shares its row with Carrier rather than crowding in behind the
+                 truck type and the skid count: three selects and a number in one row
+                 came to twelve columns exactly, so the moment the text-size setting gave
+                 the number the third column it needs, Handling wrapped onto a line of
+                 its own and left the row above it looking unfinished. -->
             <div class="frow">
-              <label class="field field--full"><span class="field__label">Carrier <span class="field__opt">optional</span></span><input class="input" name="carrier_name" maxlength="120"></label>
+              <label class="field field--lg"><span class="field__label">Handling</span><select class="select" name="handling_type_code" data-shortcut-handling></select></label>
+              <label class="field field--lg"><span class="field__label">Carrier <span class="field__opt">optional</span></span><input class="input" name="carrier_name" maxlength="120"></label>
             </div>
             <fieldset class="dock-checks dock-checks--roomy">
               <legend>When it is scanned</legend>

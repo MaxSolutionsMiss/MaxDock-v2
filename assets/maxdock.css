@@ -252,13 +252,11 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
    read second and the label third. Six pixels, not three: at three it read as a
    border, at six it reads as a marker, which is what it is for. */
 .kpi{background:var(--surface);border:1px solid var(--rule);border-left:6px solid var(--rule-strong);border-radius:var(--radius-lg);padding:var(--s2) var(--s3) var(--s2) var(--s4);min-width:0;display:flex;align-items:center;flex-wrap:wrap;gap:0 var(--s3);min-height:0;container-type:inline-size}
-/* The number leads and its name sits beside it, both centred on the card's own
-   height rather than sitting on a shared baseline — a baseline pins a two-line
-   label to the top of the card and leaves the space under it empty. Stacked, the
-   label cost a line of card height to say what the number says anyway, so the
-   card was tall and the figure was small. Side by side and centred, the card is
-   half the height and the figure is 40% bigger, which is what carries across a
-   room. Every metric card in the application is this rule. */
+/* The number leads and its name sits beside it, both centred on the card's own height
+   rather than on a shared baseline — a baseline pins a two-line label to the top and
+   leaves the space under it empty. Stacked, the label cost a line of height to say what
+   the number says anyway. Side by side and centred, the card is half as tall and the
+   figure 40% bigger, which is what carries across a room. Every metric card is this. */
 .kpi__label{font-size:var(--t-micro);text-transform:uppercase;letter-spacing:.03em;color:var(--ink-muted);font-weight:600;min-width:0;white-space:normal;overflow-wrap:anywhere}
 .kpi__value{font-family:var(--font-data);font-size:calc(var(--t-metric) * 1.4);font-weight:600;line-height:1.05;letter-spacing:-.02em;font-variant-numeric:tabular-nums;order:-1}
 /* A narrow card gives the figure back what the label needs, rather than pushing
@@ -397,12 +395,11 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 /* Sized to the longest label rather than split into equal columns, so "Time in
    MaxDock" and "Email" both read as one label and one value, and the strip wraps
    instead of running off the side. */
-/* An account's details are the same kind of thing as an appointment's, so they are
-   the same .confirmgrid: label above value, even columns, one rhythm. Laid out beside
-   each other in columns sized to their longest value, five site names wrapped to
-   three lines next to a two-word value and left a lone row at the bottom with half a
-   screen of space beside it. This only adds the reveal and a little more air between
-   columns than a dialog needs, because a table row is wider than a dialog. */
+/* An account's details are the same kind of thing as an appointment's, so they are the
+   same .confirmgrid: label above value, even columns, one rhythm. Sized to their longest
+   value instead, five site names wrapped to three lines beside a two-word value and left
+   a lone row with half a screen of space next to it. This only adds the reveal and more
+   air between columns than a dialog needs, a table row being the wider of the two. */
 .userdetail{grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:var(--s3) var(--s5);animation:slidein var(--motion) ease-out}
 /* A table cell does not wrap, which is right for a row of a schedule and wrong for a
    grid of prose inside one — the values ran straight over each other. */
@@ -525,7 +522,7 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 .frow>*{grid-column:span 4;min-width:0}
 .frow>.field{max-width:none}
 .frow>.field--xs{grid-column:span 2;min-width:6em}
-.frow>.field--sm{grid-column:span 3;min-width:9.5em}
+.frow>.field--sm{grid-column:span 3;min-width:9em}
 .frow>.field--md{grid-column:span 4;min-width:13.5em}
 .frow>.field--lg{grid-column:span 6;min-width:19em}
 .frow>.field--xl{grid-column:span 8;min-width:25em}
@@ -547,6 +544,15 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 /* A number with its unit as a choice needs room for the widest unit word. */
 .frow>.field--dur{grid-column:span 3;min-width:10.4em}
 .frow>.field--num .input{text-align:left;min-width:4em}
+/* An em floor scales with the type setting; the twelve columns do not, so at large a
+   two-column field is narrower than its own floor and pushes the grid out. It takes
+   another column — but only these, and never a .field-action: a button has no text to
+   fit, and widening one took [xl][action] past twelve and wrapped it onto a line of its
+   own. A row that then came to more than twelve was re-sized in its own markup, rather
+   than by trimming a floor the select in it needs. */
+html[data-text="large"] .frow>.field--num,html[data-text="larger"] .frow>.field--num{grid-column:span 3}
+html[data-text="larger"] .frow>.field--dur{grid-column:span 4}
+html[data-text="larger"] .frow>.field--md:not(.field-action){grid-column:span 5}
 /* A date and time reads as one value or it reads as nothing. Below this the
    browser clips the minutes off the end rather than shrinking the text. */
 .input[type="datetime-local"]{min-width:14.2em}
@@ -555,7 +561,9 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
    row's top, or it floats above its label. Alignment only: the width comes from a
    field-- class, since a span baked in here overrode the element's own and left
    the row half empty. */
-.frow>.field-action{align-self:end}
+/* No floor: a button sizes itself, so a --md worn only to claim columns has no text to
+   protect and its 13.5em pushed the row out at larger. */
+.frow>.field-action{align-self:end;min-width:0}
 /* One name for "this control sits at the end of its band" — the same declaration
    was inline on six pages, which is how one control drifts to a different offset
    on each. Dialog feet place their own primary button. */
@@ -604,10 +612,13 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 /* Below this a two-up row cannot hold a label and its control without clipping.
    The span classes are listed explicitly: .frow>* alone loses to .frow>.field--xs
    on specificity, so the single-column rule would never have applied. */
+/* Their floors come off with them: a field owning the row cannot be pushed by anything,
+   so the floor only overflows — --xl's 25em against a 390px phone's 342px dialog is the
+   37px six of them scrolled by. Not min(Xem,100%): a cyclic percentage is dropped. */
 @container (max-width:380px){
   .frow>*,
   .frow>.field--xs,.frow>.field--sm,.frow>.field--md,
-  .frow>.field--lg,.frow>.field--xl,.frow>.field--full{grid-column:1/-1}
+  .frow>.field--lg,.frow>.field--xl,.frow>.field--full{grid-column:1/-1;min-width:0}
   .frow>.field--num{grid-column:span 3}
 }
 .choice{display:grid;grid-template-columns:1fr 1fr;gap:var(--s2)}
@@ -627,9 +638,6 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 .hint--flush{margin:0}
 
 /* settings + reports specifics */
-/* The panel sizes to its content and the page stops stretching it. A short section
-   in a full-height panel left a large empty area under the Save button, which is
-   the wasted vertical space the owner objected to. */
 /* Three short trends side by side rather than one tall block of bars: truckloads,
    skid movement and booked dock time, each with its own total and unit. The table
    below is where the exact numbers are read; this is only the shape. */
@@ -937,7 +945,9 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 .combinerow{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px var(--s4);align-items:center;padding:var(--s2) var(--s3);border-radius:var(--radius);border:1px solid transparent}
 .combinerow+.combinerow{margin-top:2px}
 .combinerow--keeps{background:var(--dock-wash);border-color:var(--rule-strong)}
-.combinerow__keep{display:flex;align-items:center;gap:6px;font-size:var(--t-small);color:var(--ink-muted);white-space:nowrap;cursor:pointer}
+/* Same 32px as the tick beside it: the radio is 19px, and the label is what a pointer
+   actually hits, so the label is what has to be worth hitting. */
+.combinerow__keep{display:flex;align-items:center;gap:6px;min-height:32px;font-size:var(--t-small);color:var(--ink-muted);white-space:nowrap;cursor:pointer}
 .combinerow--keeps .combinerow__keep{color:var(--ink);font-weight:600}
 .combinerow__keep:has(input:disabled){opacity:.5;cursor:default}
 .combinerow__note{grid-column:1/-1;font-size:var(--t-micro);color:var(--ink-muted)}
@@ -1182,10 +1192,9 @@ body.modal-open{overflow:hidden}
 
 /* ── Charts ───────────────────────────────────────────────────────────────────
    A dial for one bounded percentage, a ring for a two-part whole, ranked bars for a
-   magnitude across named categories. Drawn with conic-gradient rather than SVG so
-   there is no third language on the page and no library to load. Colour never carries
-   identity alone: the dial names its band, the ring names both slices in its legend,
-   and a ranked row is labelled with the category itself. */
+   magnitude across named categories. conic-gradient rather than SVG: no third language
+   on the page and no library. Colour never carries identity alone — the dial names its
+   band, the ring names both slices, a ranked row carries its own category. */
 .dials{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:var(--s4);padding:var(--s4)}
 .dial{margin:0;display:grid;justify-items:center;gap:var(--s2)}
 .dial__face{position:relative;width:104px;aspect-ratio:1;display:grid;place-items:center}
