@@ -78,6 +78,24 @@ async function loadLocations() {
   });
 }
 
+// Which rail links an administrator has turned off for this role. A tidiness
+// layer and never a security boundary: an item is offered when the role's
+// permissions allow it *and* nobody has hidden it. What an account may actually do
+// is still decided by permissions and RLS, so a hidden page whose permission the
+// role holds still answers if somebody types its address — which is correct. Only
+// a permission may refuse.
+//
+// Advisory, so a failure here leaves the rail as it has always been rather than
+// taking the application down with it.
+async function loadHiddenPages() {
+  const rows = await db.rpc('list_role_page_visibility', {}, {
+    key: 'navigation:visibility',
+    cache: REFERENCE_CACHE_MS,
+    retry: 1,
+  }).catch(() => []);
+  return new Set((rows || []).filter(row => row.is_visible === false).map(row => row.page_code));
+}
+
 async function loadPreference() {
   return db.rpc('get_user_preference', { p_preference_key: SHELL_PREFERENCE_KEY }, {
     key: 'preference:shell',
@@ -96,7 +114,7 @@ function resolveLocation(locations, preference) {
     || locations[0];
 }
 
-function buildContext(authSession, profile, role, permissions, locations, preference) {
+function buildContext(authSession, profile, role, permissions, locations, preference, hiddenPages = new Set()) {
   const location = resolveLocation(locations, preference);
   const context = {
     authSession,
@@ -107,8 +125,13 @@ function buildContext(authSession, profile, role, permissions, locations, prefer
     locations,
     location,
     preference: preference || {},
+    hiddenPages,
   };
   context.can = permission => permissions.has(permission);
+  // A System Admin's rail is never configurable — hiding Settings from the only
+  // role that can put it back would lock a company out of its own administration.
+  // The database refuses to store such a row; this refuses to act on one.
+  context.showsPage = pageCode => profile.role_code === 'system_admin' || !hiddenPages.has(pageCode);
   context.hasLocation = locationId => locations.some(item => item.id === locationId);
   context.customerShell = context.can('appointment.view_own')
     && !context.can('dock.view')
@@ -147,13 +170,14 @@ export const session = Object.freeze({
       return null;
     }
 
-    const [role, permissions, locations] = await Promise.all([
+    const [role, permissions, locations, hiddenPages] = await Promise.all([
       loadRole(profile.role_code),
       loadPermissions(profile.role_code),
       loadLocations(),
+      loadHiddenPages(),
     ]);
 
-    activeContext = buildContext(authSession, profile, role, permissions, locations || [], preference);
+    activeContext = buildContext(authSession, profile, role, permissions, locations || [], preference, hiddenPages);
     return activeContext;
   },
 
@@ -169,8 +193,13 @@ export const session = Object.freeze({
     return Boolean(activeContext?.locations?.some(location => location.id === locationId));
   },
 
+  // Where signing in lands. A role whose rail no longer carries the dock board
+  // must not be dropped onto it: the screen would work — the permission is what
+  // decides that — but landing somewhere that is not on your own rail reads as a
+  // fault every time.
   defaultPath(context = activeContext) {
-    if (context?.can('dock.view')) return appUrl('app/board.html');
+    const shows = code => (context?.showsPage ? context.showsPage(code) : true);
+    if (context?.can('dock.view') && shows('board')) return appUrl('app/board.html');
     return appUrl('app/my-appointments.html');
   },
 

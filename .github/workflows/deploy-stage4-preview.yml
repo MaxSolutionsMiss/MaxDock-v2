@@ -43,6 +43,9 @@ jobs:
       - name: Verify bulk appointment import
         run: node scripts/verify-appointments-import.mjs
 
+      - name: Verify per-role rail visibility
+        run: node scripts/verify-role-visibility.mjs
+
   deploy-preview:
     runs-on: ubuntu-latest
     needs: verify

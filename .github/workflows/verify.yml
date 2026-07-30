@@ -75,6 +75,9 @@ jobs:
       - name: Verify bulk appointment import
         run: node scripts/verify-appointments-import.mjs
 
+      - name: Verify per-role rail visibility
+        run: node scripts/verify-role-visibility.mjs
+
   layout:
     runs-on: ubuntu-latest
     steps:
@@ -104,3 +107,10 @@ jobs:
         env:
           PLAYWRIGHT_BROWSERS_PATH: /home/runner/.cache/ms-playwright
         run: node scripts/verify-import-end-to-end.mjs
+
+      - name: Arrange a role's rail and read it back off the rail
+        # Taking a link off a rail must never be able to become a lock, and a System
+        # Admin must never be able to lose Settings.
+        env:
+          PLAYWRIGHT_BROWSERS_PATH: /home/runner/.cache/ms-playwright
+        run: node scripts/verify-rail-end-to-end.mjs

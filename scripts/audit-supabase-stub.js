@@ -104,10 +104,25 @@
   // could never cancel an appointment and never load a report.
   const ALL_PERMISSIONS = ['ai.insights', 'appointment.assign', 'appointment.cancel', 'appointment.cancel_own', 'appointment.complete', 'appointment.create', 'appointment.delete', 'appointment.update', 'appointment.view', 'appointment.view_own', 'audit.view', 'block.manage', 'dock.manage', 'dock.view', 'location.manage', 'location.view', 'notifications.view', 'operations.queue.view', 'reports.view', 'reports.view_labour', 'settings.manage', 'settings.manage_labour', 'settings.view', 'system.manage', 'user.manage', 'user.view', 'appointment.check_in'];
   const PERMISSIONS = ROLE?.permissions || ALL_PERMISSIONS;
+  // Copied from the live role_permissions table, the same source audit-layout's role
+  // sweep uses. Only the roles a System Admin can arrange a rail for.
+  const OTHER_ROLE_PERMISSIONS = {
+    site_admin: ['ai.insights', 'appointment.assign', 'appointment.cancel', 'appointment.cancel_own', 'appointment.complete', 'appointment.create', 'appointment.update', 'appointment.view', 'appointment.view_own', 'audit.view', 'block.manage', 'dock.manage', 'dock.view', 'location.view', 'notifications.view', 'operations.queue.view', 'reports.view', 'reports.view_labour', 'settings.manage', 'settings.manage_labour', 'settings.view', 'user.manage', 'user.view', 'appointment.check_in'],
+    shipping_manager: ['ai.insights', 'appointment.assign', 'appointment.cancel', 'appointment.cancel_own', 'appointment.complete', 'appointment.create', 'appointment.update', 'appointment.view', 'appointment.view_own', 'audit.view', 'block.manage', 'dock.view', 'location.view', 'notifications.view', 'operations.queue.view', 'reports.view', 'reports.view_labour', 'settings.manage_labour', 'settings.view', 'appointment.check_in'],
+    coordinator: ['ai.insights', 'appointment.assign', 'appointment.cancel_own', 'appointment.complete', 'appointment.create', 'appointment.update', 'appointment.view', 'appointment.view_own', 'audit.view', 'dock.view', 'location.view', 'notifications.view', 'operations.queue.view', 'reports.view', 'appointment.check_in'],
+  };
   const TABLE = {
     profiles: [{ id: UID, username: 'jresa', full_name: 'Javad Resa', contact_email: 'javadresa@maxpkgsolutions.com', role_code: ROLE_CODE, is_active: true, must_change_password: false, organization_name: ROLE_CODE === 'customer' ? 'Haleon' : null, external_party_type: ROLE_CODE === 'customer' ? 'Customer' : null }],
     roles: [{ code: 'system_admin', name: 'System Admin', rank: 100 }, { code: 'site_admin', name: 'Site Admin', rank: 80 }, { code: 'shipping_manager', name: 'Manager / Supervisor', rank: 60 }, { code: 'coordinator', name: 'Coordinator', rank: 40 }, { code: 'customer', name: 'Customer', rank: 20 }],
-    role_permissions: PERMISSIONS.map(permission_code => ({ permission_code, role_code: ROLE_CODE })),
+    // The signed-in role, plus the live matrix for the roles whose rails a System
+    // Admin arranges — the settings screen reads every role's permissions to know
+    // which pages it may even offer, and one role's rows made three empty columns.
+    role_permissions: [
+      ...PERMISSIONS.map(permission_code => ({ permission_code, role_code: ROLE_CODE })),
+      ...Object.entries(OTHER_ROLE_PERMISSIONS)
+        .filter(([role_code]) => role_code !== ROLE_CODE)
+        .flatMap(([role_code, codes]) => codes.map(permission_code => ({ permission_code, role_code }))),
+    ],
     locations: LOC,
     docks: DOCKS,
     location_operating_hours: [{ location_id: 'loc-1', day_of_week: new Date().getDay(), is_open: true, open_time: '07:00:00', close_time: '17:00:00' }],
@@ -201,6 +216,13 @@
 
   const RPC = {
     get_user_preference: () => ({ text_size: 'normal', location_id: 'loc-1' }),
+    // What each role sees. Empty unless a test sets __auditHiddenPages, so every
+    // other sweep draws the rail it has always drawn.
+    list_role_page_visibility: () => (globalThis.__auditHiddenPages || []).map(([role_code, page_code]) => ({ role_code, page_code, is_visible: false })),
+    save_role_page_visibility: (args = {}) => {
+      globalThis.__savedVisibility = [...(globalThis.__savedVisibility || []), args];
+      return (args.p_hidden_page_codes || []).length;
+    },
     save_user_preference: () => ({}),
     record_user_usage: () => ({}),
     list_location_schedule: () => scheduleNow().map(schedule_record => ({ schedule_record })),

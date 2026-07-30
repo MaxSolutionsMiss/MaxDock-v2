@@ -1679,3 +1679,59 @@ good rows and three refusals for three different reasons, checked down to the
 arguments each RPC was called with — the codes behind the names, the routed row
 carrying the other site's id, the priority flag, and after-hours false on all of
 them.
+
+## What each role sees (2026-07-30)
+
+A **What each role sees** window in Settings, offered to a System Admin alone. One
+tick per role per rail page: ticked means the link is on that role's rail.
+
+**It is a tidiness layer and never a lock, and the code is arranged so nobody can
+mistake it for one.** The permission is asked first and the visibility only ever
+subtracts — a box cannot *give* a role a page it has no permission for. A page whose
+permission the role holds still opens if its address is typed, which is correct and
+is said out loud in the window: anything that must be refused has to be refused by a
+permission. `pageAllowed` — the gate that decides whether a screen may load — is
+untouched, and `verify-role-visibility.mjs` fails the build if visibility ever
+reaches it.
+
+**A System Admin's rail is not configurable**, in two places independently. The
+table carries a check constraint refusing the row, and the client refuses to act on
+one if it somehow exists. Hiding Settings from the only role that can put it back is
+how a company locks itself out of its own administration, and an interface warning is
+not a substitute for it being impossible.
+
+**A page the role cannot open shows a dash, not an empty box.** "Not permitted" and
+"permitted but taken off the rail" are different facts and an empty box would state
+the wrong one.
+
+**One catalogue.** `router.js` exports `RAIL_PAGES` and the settings window reads it.
+Two lists would drift the first time a page was added and the window would quietly
+stop offering it.
+
+`role_visible_pages` holds a row only for a page somebody has deliberately turned
+off, so an empty table behaves exactly as the application did before it existed —
+which is how it stands now, deliberately. `list_role_page_visibility` returns every
+role to an account with `settings.view` and only its own role to everybody else.
+`save_role_page_visibility` replaces a whole role at once, so a page added to the rail
+later cannot end up half configured, and is refused to anybody who is not a System
+Admin. Roles are company wide, so saving does not ask "apply to Milton?" the way
+every other window here does — that question would say something untrue.
+
+Signing in respects it too: a role whose rail no longer carries the dock board is
+not dropped onto it.
+
+### Two rail items had no permission at all
+
+`Operations queue` and `Reports` carried none, so the rail offered them to every
+staff role while the pages behind them declare `operations.queue.view` and
+`reports.view` and would refuse. Users and Data integration were corrected for
+exactly this and these two were missed. No live role loses anything — all three staff
+roles hold both — but the rail no longer offers a link whose page would turn the
+person away.
+
+Walked in a browser by `verify-rail-end-to-end.mjs`: the whole rail by default, the
+grid showing Settings as a dash for a Coordinator and a box for the two roles that
+hold `settings.view`, Reports unticked and saved as the Coordinator's hidden list
+with every other role sent alongside it, the link gone from a Coordinator's rail
+while that role still holds `reports.view`, and a System Admin keeping Reports and
+Settings however the table is written.

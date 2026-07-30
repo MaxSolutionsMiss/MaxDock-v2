@@ -12,9 +12,13 @@ const STAFF_ROUTES = [
     group: 'Operations',
     items: [
       { code: 'board', label: 'Dock board', path: 'app/board.html', permission: 'dock.view', icon: '<rect x="3" y="4" width="18" height="16" rx="2"></rect><path d="M3 9h18M9 4v16"></path>' },
-      { code: 'queue', label: 'Operations queue', path: 'app/queue.html', icon: '<path d="M4 6h16M4 12h16M4 18h10"></path>' },
+      // These two carried no permission, so the rail offered them to any staff role
+      // while the pages behind them declare operations.queue.view and reports.view
+      // and would refuse. Users and Data integration were corrected for exactly this
+      // and these two were missed.
+      { code: 'queue', label: 'Operations queue', path: 'app/queue.html', permission: 'operations.queue.view', icon: '<path d="M4 6h16M4 12h16M4 18h10"></path>' },
       { code: 'my-appointments', label: 'My appointments', path: 'app/my-appointments.html', permissions: ['appointment.view_own', 'appointment.view'], icon: '<circle cx="12" cy="12" r="9"></circle><path d="M12 8v4l3 2"></path>' },
-      { code: 'reports', label: 'Reports', path: 'app/reports.html', icon: '<path d="M4 19V9m5 10V5m5 14v-7m5 7V8"></path>' },
+      { code: 'reports', label: 'Reports', path: 'app/reports.html', permission: 'reports.view', icon: '<path d="M4 19V9m5 10V5m5 14v-7m5 7V8"></path>' },
     ],
   },
   {
@@ -62,6 +66,26 @@ const CUSTOMER_ROUTES = [
   },
 ];
 
+// The rail's own catalogue, flattened, so the screen that decides what each role
+// sees is reading the same list the rail is drawn from. Two lists would drift the
+// first time a page was added, and the settings screen would quietly stop offering
+// it — which is worse than not offering the setting at all.
+export const RAIL_PAGES = STAFF_ROUTES.flatMap(group => group.items).map(item => ({
+  code: item.code,
+  label: item.label,
+  permission: item.permission || null,
+  permissions: item.permissions || null,
+}));
+
+// Whether a role's permissions allow a page at all, separately from whether an
+// administrator has hidden it. The settings screen needs the difference: a page a
+// role can never open is not the same thing as one somebody turned off.
+export function railPageAllowedByPermissions(permissionCodes, page) {
+  if (!page.permission && !page.permissions) return true;
+  if (page.permission) return permissionCodes.has(page.permission);
+  return (page.permissions || []).some(code => permissionCodes.has(code));
+}
+
 let cleanup = [];
 let heartbeat = null;
 let activePage = null;
@@ -78,7 +102,18 @@ function appUrl(path) {
   return `${basePath()}${String(path).replace(/^\//, '')}`;
 }
 
+// Two gates, in this order, and they are not the same kind of thing. The
+// permission decides whether this account may use the screen at all; the
+// visibility decides whether an administrator wants the link on this role's rail.
+// A permission it does not hold can never be overridden by the second gate —
+// which is why the permission is asked first and the visibility only ever
+// subtracts.
 function routeAllowed(context, item) {
+  if (!hasRoutePermission(context, item)) return false;
+  return context.showsPage ? context.showsPage(item.code) : true;
+}
+
+function hasRoutePermission(context, item) {
   if (!item.permission && !item.permissions) return true;
   if (item.permission) return context.can(item.permission);
   return (item.permissions || []).some(permission => context.can(permission));
