@@ -164,12 +164,23 @@ async function fetchAll() {
 // somebody leaned on a dropdown while reading it. Edit unlocks the window it
 // belongs to; Save puts it back to locked; Reset throws the edit away and does
 // the same.
+// Two modes, two sets of buttons, and only the set that applies is on screen.
+//
+// It used to show all three at once and grey out the two that did not apply, which put a
+// blue Save and a blue Edit side by side with one of them dead. A disabled primary button
+// reads as broken rather than as "not yet", and with two of them nobody could tell which
+// one the screen wanted. Reading a section offers one thing: Edit. Editing one offers two:
+// throw it away, or keep it.
+//
+// "Cancel", not "Reset": reset means back to defaults, which is a different and more
+// frightening promise than discarding the change just made.
 function saveFoot(canEdit) {
   if (!canEdit) return '';
   return `<div class="form-actions form-actions--edit">
-    <button class="btn btn--quiet btn--sm" type="button" data-reset>Reset</button>
-    <button class="btn btn--primary btn--sm" type="submit">Save</button>
-    <button class="btn btn--primary btn--sm" type="button" data-edit-section>Edit</button>
+    <span class="editflag" data-edit-flag hidden>Editing</span>
+    <button class="btn btn--quiet btn--sm" type="button" data-edit-section>Edit</button>
+    <button class="btn btn--quiet btn--sm" type="button" data-reset hidden>Cancel</button>
+    <button class="btn btn--primary btn--sm" type="submit" hidden>Save changes</button>
   </div><p class="form-message" data-save-message aria-live="polite"></p>`;
 }
 
@@ -195,9 +206,14 @@ function applyLocks() {
         control.disabled = true;
       }
     }
-    foot.querySelector('[data-edit-section]').disabled = editing;
-    foot.querySelector('[data-reset]').disabled = !editing;
-    foot.querySelector('[type="submit"]').disabled = !editing;
+    // Swapped, not disabled. A greyed-out Save beside a live Edit is two controls where
+    // there is one decision.
+    foot.querySelector('[data-edit-section]').hidden = editing;
+    foot.querySelector('[data-reset]').hidden = !editing;
+    foot.querySelector('[type="submit"]').hidden = !editing;
+    foot.querySelector('[data-edit-flag]').hidden = !editing;
+    // The whole section says it is open, not just the buttons at the bottom of it.
+    form.classList.toggle('secform--on', editing);
   }
 }
 

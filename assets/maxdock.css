@@ -1200,6 +1200,10 @@ body.modal-open{overflow:hidden}
    they are told otherwise, and a row of mismatched buttons is the first thing the
    eye finds. */
 .form-actions--edit>.btn{min-width:82px;justify-content:center}
+/* An open section says so along its whole edge, not only by the state of a button at the
+   bottom of it. The owner could see "that little border" and wanted to be surer than that. */
+.secform--on{box-shadow:inset 4px 0 0 var(--dock);padding-left:var(--s3);border-radius:var(--radius)}
+.editflag{margin-right:auto;font-size:var(--t-micro);text-transform:uppercase;letter-spacing:.07em;font-weight:600;color:var(--dock-deep);background:var(--dock-wash);border-radius:var(--radius);padding:2px var(--s2)}
 .form-actions--stack{display:grid}
 .form-actions--stack>.btn--primary{margin-left:0}
 .form-message{min-height:1.5em;margin:var(--s3) 0 0;color:var(--stop);font-size:var(--t-small)}

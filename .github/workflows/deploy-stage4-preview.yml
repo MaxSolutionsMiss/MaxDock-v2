@@ -64,6 +64,9 @@ jobs:
       - name: Where a combined load came from
         run: node scripts/verify-combine-trail.mjs
 
+      - name: Reading a settings section against editing one
+        run: node scripts/verify-edit-mode.mjs
+
   deploy-preview:
     runs-on: ubuntu-latest
     needs: verify
