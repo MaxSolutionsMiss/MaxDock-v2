@@ -308,7 +308,7 @@ function buildShell(root) {
             <div class="frow">
               <label class="field field--md"><span class="field__label">Company</span><input class="input" name="company_name" maxlength="120"></label>
               <label class="field field--md"><span class="field__label">Carrier</span><input class="input" name="carrier_name" maxlength="120"></label>
-              <label class="field field--md"><span class="field__label">PO / BOL / Job</span><input class="input" name="external_reference" maxlength="80" required></label>
+              <label class="field field--md"><span class="field__label">PO / BOL / job</span><input class="input" name="external_reference" maxlength="80" required></label>
             </div>
             <div class="frow">
               <label class="field field--lg"><span class="field__label">Requester name</span><input class="input" name="requester_name" maxlength="120" required></label>

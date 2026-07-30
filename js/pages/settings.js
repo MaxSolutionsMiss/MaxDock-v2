@@ -23,7 +23,7 @@ const SECTIONS = [
   { id: 'docks', label: 'Docks' },
   { id: 'trucks', label: 'Truck types' },
   { id: 'labour', label: 'Labour' },
-  { id: 'quickqr', label: 'Quick QR (QQ)' },
+  { id: 'quickqr', label: 'Quick QR codes' },
 ];
 
 const state = {
@@ -318,10 +318,10 @@ function renderTiming() {
     </div>
     <div class="frow">
       <div class="field field--num"><span class="field__label">Full truck at</span><span class="inputwrap"><input class="input" type="number" min="0" name="full_truck_skid_threshold" value="${s.full_truck_skid_threshold ?? 0}" ${disabled}><span class="input__unit">skids</span></span></div>
-      <div class="field field--num"><span class="field__label">Full truck min</span><span class="inputwrap"><input class="input" type="number" min="0" name="full_truck_minimum_minutes" value="${s.full_truck_minimum_minutes ?? 0}" ${disabled}><span class="input__unit">min</span></span></div>
-      <div class="field field--num"><span class="field__label">Priority min</span><span class="inputwrap"><input class="input" type="number" min="0" name="priority_minimum_minutes" value="${s.priority_minimum_minutes ?? 0}" ${disabled}><span class="input__unit">min</span></span></div>
+      <div class="field field--num"><span class="field__label">Full truck</span><span class="inputwrap"><input class="input" type="number" min="0" name="full_truck_minimum_minutes" value="${s.full_truck_minimum_minutes ?? 0}" ${disabled}><span class="input__unit">min</span></span></div>
+      <div class="field field--num"><span class="field__label">Priority</span><span class="inputwrap"><input class="input" type="number" min="0" name="priority_minimum_minutes" value="${s.priority_minimum_minutes ?? 0}" ${disabled}><span class="input__unit">min</span></span></div>
     </div>
-    <p class="hint">These values drive the appointment-duration calculation for every booking at this location.</p>
+    <p class="hint hint--wide">How long a booking runs for: the base, plus the per-skid rate, plus the buffer. A load at or over the full-truck skid count never gets less than the full-truck time, and a priority load never gets less than the priority time. Slot interval is the spacing of the times offered.</p>
     ${saveFoot(canEdit)}
   </form>`;
 }
@@ -365,7 +365,7 @@ function renderCapacity() {
       <div class="field field--num"><span class="field__label">Floor capacity</span><span class="inputwrap"><input class="input" type="number" min="1" name="skid_capacity" value="${s.skid_capacity ?? ''}" ${disabled}><span class="input__unit">skids</span></span></div>
       <div class="field field--num"><span class="field__label">Reserve</span><span class="inputwrap"><input class="input" type="number" min="0" name="capacity_reserve_skids" value="${s.capacity_reserve_skids ?? 0}" ${disabled}><span class="input__unit">skids</span></span></div>
       <div class="field field--num"><span class="field__label">Working limit</span><span class="inputwrap"><input class="input" value="${workingLimit(s)}" readonly tabindex="-1" aria-label="Working limit, calculated"><span class="input__unit">skids</span></span></div>
-      <div class="field field--lg"><span class="field__label">When over capacity</span><select class="select" name="capacity_enforcement_mode" ${disabled}>
+      <div class="field field--md"><span class="field__label">When over capacity</span><select class="select" name="capacity_enforcement_mode" ${disabled}>
         <option value="warn" ${s.capacity_enforcement_mode === 'warn' ? 'selected' : ''}>Warn only</option>
         <option value="enforce" ${s.capacity_enforcement_mode === 'enforce' ? 'selected' : ''}>Block booking</option>
       </select></div>
@@ -398,11 +398,11 @@ function renderAssignment() {
       <button type="button" class="switch ${autoAssign ? '' : 'switch--off'}" data-assign-switch aria-pressed="${autoAssign}" aria-label="Auto-assign docks" ${disabled}></button>
     </div>
     <div class="frow">
-      <div class="field field--md"><span class="field__label">Assignment strategy</span><select class="select" name="dock_assignment_strategy" ${disabled}>
+      <div class="field field--lg"><span class="field__label">Dock order</span><select class="select" name="dock_assignment_strategy" ${disabled}>
         <option value="balanced" ${s.dock_assignment_strategy === 'balanced' ? 'selected' : ''}>Balanced across docks</option>
         <option value="fill_first" ${s.dock_assignment_strategy === 'fill_first' ? 'selected' : ''}>Fill one dock first</option>
       </select></div>
-      <div class="field field--num"><span class="field__label">Max concurrent</span><span class="inputwrap"><input class="input" type="number" min="1" name="max_concurrent_appointments" value="${s.max_concurrent_appointments ?? ''}" placeholder="∞" ${disabled}><span class="input__unit">at once</span></span></div>
+      <div class="field field--num"><span class="field__label">Most at once</span><span class="inputwrap"><input class="input" type="number" min="1" name="max_concurrent_appointments" value="${s.max_concurrent_appointments ?? ''}" placeholder="∞" ${disabled}><span class="input__unit">trucks</span></span></div>
     </div>
     <p class="hint hint--wide">How MaxDock chooses a dock for a booking, and the most trucks it will put on the docks at one time.</p>
     ${saveFoot(canEdit)}
@@ -435,7 +435,7 @@ function shiftRows(canEdit) {
       ${canEdit ? '<button class="btn btn--quiet btn--sm" type="button" data-remove-shift>Remove</button>' : ''}
     </div>`;
   }).join('');
-  return rows || '<p class="hint">No shifts set. Until there are, the utilisation report shows what the day costs and leaves the percentage blank rather than dividing by a number this site never gave.</p>';
+  return rows || '<p class="hint">No shifts set. Until there are, the Labour hours report shows what the day costs and leaves the percentage blank rather than dividing by a number this site never gave.</p>';
 }
 
 function renderLabour() {
@@ -447,22 +447,20 @@ function renderLabour() {
   return `<div class="stack stack--narrow">
     <form data-section-form="labour">
       <h3 class="card__title">Labour</h3>
-      <p class="hint hint--wide hint--lead">What a truck costs in people, and what the site has on a normal day. The operations brief and the labour utilisation report both count from these.</p>
       <div class="frow">
-        <div class="field field--num"><span class="field__label">Crew per truck</span><span class="inputwrap"><input class="input" type="number" min="0" max="50" name="handlers_per_truck" value="${s.handlers_per_truck ?? 2}" ${disabled}><span class="input__unit">people</span></span></div>
+        <div class="field field--sm"><span class="field__label">Crew per truck</span><span class="inputwrap"><input class="input" type="number" min="0" max="50" name="handlers_per_truck" value="${s.handlers_per_truck ?? 2}" ${disabled}><span class="input__unit">people</span></span></div>
       </div>
-      <p class="hint hint--wide">The hours a truck costs are not typed in anywhere: they come from the window MaxDock already worked out for it under Timing &amp; duration, multiplied by this. A 75-minute truck at two people is 2.5 hours of dock labour.</p>
+      <p class="hint hint--wide">What a truck costs in people. The hours are not typed in anywhere: they come from the window MaxDock already worked out for the load under Timing &amp; duration, multiplied by this — a 75-minute truck at two people is 2.5 hours of dock labour. The operations brief and the Labour hours report both count from here.</p>
       ${saveFoot(canEdit)}
     </form>
     <form data-section-form="shifts">
       <h3 class="card__title">Shifts${canEdit ? '<button class="btn btn--primary btn--sm at-end" type="button" data-unlocked data-add-shift>Add shift</button>' : ''}</h3>
-      <p class="hint hint--wide hint--lead">The shifts this site runs and how many people are on each. Summed for a weekday, this is the hours available for dock work — which is what the utilisation report divides by, so it is worth being right.</p>
       ${shiftRows(canEdit)}
+      <p class="hint hint--wide">The shifts this site runs and how many people are on each. Summed for a weekday, this is the hours available for dock work — which is what the Labour hours report divides by, so it is worth being right.</p>
       ${saveFoot(canEdit)}
     </form>
     <form data-section-form="day-cap">
       <h3 class="card__title">Cap a day</h3>
-      <p class="hint hint--wide hint--lead">Fewer trucks on one date, so a day that would otherwise fill up does not put the crew under pressure. Standing limits live under Dock assignment; this tightens them for a single date and nothing else.</p>
       <div class="frow">
         <label class="field field--md"><span class="field__label">Date</span><input class="input" type="date" name="limit_date" value="${escapeHtml(cap.limit_date || format.todayInput(state.context?.location))}" ${disabled}></label>
         <div class="field field--num"><span class="field__label">At once</span><span class="inputwrap"><input class="input" type="number" min="0" max="100" name="max_concurrent" value="${cap.max_concurrent_appointments ?? ''}" placeholder="—" ${disabled}><span class="input__unit">trucks</span></span></div>
@@ -471,12 +469,11 @@ function renderLabour() {
       <div class="frow">
         <label class="field field--full"><span class="field__label">Note <span class="field__opt">optional</span></span><input class="input" name="cap_note" maxlength="120" value="${escapeHtml(cap.note || '')}" placeholder="Line rebuild — keep the docks quiet" ${disabled}></label>
       </div>
-      <p class="hint hint--wide">Leave both blank to lift the cap on that date. Zero is a real answer: it stops anything new being booked while what is already on the board still runs. ${state.dayCaps?.length ? `Capped now: ${escapeHtml(state.dayCaps.map(row => row.limit_date).join(', '))}.` : 'No dates are capped.'}</p>
+      <p class="hint hint--wide">Fewer trucks on one date, so a day that would otherwise fill up does not put the crew under pressure. Standing limits live under Dock assignment; this tightens them for a single date and nothing else. Leave both blank to lift the cap on that date. Zero is a real answer: it stops anything new being booked while what is already on the board still runs. ${state.dayCaps?.length ? `Capped now: ${escapeHtml(state.dayCaps.map(row => row.limit_date).join(', '))}.` : 'No dates are capped.'}</p>
       ${saveFoot(canEdit)}
     </form>
     <form data-section-form="labour-day">
       <h3 class="card__title">Hours actually worked</h3>
-      <p class="hint hint--wide hint--lead">The shifts above cover a normal week. Record a date here when it was not one — a holiday, somebody off, a Saturday with two people — and the utilisation report uses what you recorded for that date instead of the shift roster.</p>
       <div class="frow">
         <label class="field field--md"><span class="field__label">Date</span><input class="input" type="date" name="work_date" value="${escapeHtml(day.work_date || format.todayInput(state.context?.location))}" ${disabled}></label>
         <div class="field field--num"><span class="field__label">People on</span><span class="inputwrap"><input class="input" type="number" min="0" max="500" name="people" value="${day.people ?? 0}" ${disabled}><span class="input__unit">people</span></span></div>
@@ -485,6 +482,7 @@ function renderLabour() {
       <div class="frow">
         <label class="field field--full"><span class="field__label">Note <span class="field__opt">optional</span></span><input class="input" name="note" maxlength="120" value="${escapeHtml(day.note || '')}" placeholder="Civic holiday — skeleton crew" ${disabled}></label>
       </div>
+      <p class="hint hint--wide">The shifts above cover a normal week. Record a date here when it was not one — a holiday, somebody off, a Saturday with two people — and the Labour hours report uses what you recorded for that date instead of the shift roster.</p>
       ${saveFoot(canEdit)}
     </form>
   </div>`;
@@ -1334,7 +1332,7 @@ function buildShell(root) {
               <label class="field field--md"><span class="field__label">Direction</span><select class="select" name="direction"><option value="outbound">Outbound</option><option value="inbound">Inbound</option></select></label>
             </div>
             <div class="frow">
-              <label class="field field--lg"><span class="field__label">Other party<span class="field__req" aria-hidden="true">*</span></span><input class="input" name="company_name" maxlength="120" required placeholder="Guelph"></label>
+              <label class="field field--lg"><span class="field__label">Company or site<span class="field__req" aria-hidden="true">*</span></span><input class="input" name="company_name" maxlength="120" required placeholder="Guelph"></label>
               <label class="field field--lg"><span class="field__label">Appointment type</span><select class="select" name="appointment_type_code" data-shortcut-types></select></label>
             </div>
             <div class="frow">

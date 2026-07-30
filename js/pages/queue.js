@@ -98,7 +98,7 @@ async function fetchQueueData() {
     db.select('location_truck_types', q => q.select('truck_type_code,skid_capacity').eq('location_id', locationId), { key: `queue:truck-capacity:${locationId}`, cache: 60000 }).catch(() => []),
     db.select('location_settings', q => q.select('handlers_per_truck,max_concurrent_appointments').eq('location_id', locationId).maybeSingle(), { key: `queue:labour:${locationId}`, cache: 60000 }).catch(() => null),
     // The shifts this site runs. The brief divides by the same roster the
-    // utilisation report divides by, so the two cannot disagree about what today
+    // Labour hours report divides by, so the two cannot disagree about what today
     // had to spend.
     db.select('location_shifts', q => q.select('name,start_time,end_time,people,days_of_week,is_active').eq('location_id', locationId).eq('is_active', true), { key: `queue:shifts:${locationId}`, cache: 60000 }).catch(() => []),
   ]);

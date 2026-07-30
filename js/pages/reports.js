@@ -10,11 +10,11 @@ const VIEWS = [
   { id: 'overview', label: 'Overview' },
   { id: 'truck-flow', label: 'Truck flow' },
   { id: 'skid-movement', label: 'Skid movement' },
-  { id: 'dock-utilisation', label: 'Dock utilisation' },
+  { id: 'dock-utilisation', label: 'Dock hours' },
   { id: 'scorecard-company', label: 'Vendor scorecard' },
   { id: 'scorecard-location', label: 'Site scorecard' },
   { id: 'fullness', label: 'Truck fullness' },
-  { id: 'labour', label: 'Labour utilisation', permission: 'reports.view_labour' },
+  { id: 'labour', label: 'Labour hours', permission: 'reports.view_labour' },
 ];
 
 const PRESETS = [
@@ -162,7 +162,7 @@ function renderTruckFlow() {
   const byVehicle = state.data.by_vehicle || [];
   return `${kpiRow()}
     <div class="panel panel--fill">
-      <div class="panel__head"><h3 class="panel__title">Vehicle mix</h3><div class="panel__actions"><span class="sub">${escapeHtml(rangeLabel())}</span></div></div>
+      <div class="panel__head"><h3 class="panel__title">Truck mix</h3><div class="panel__actions"><span class="sub">${escapeHtml(rangeLabel())}</span></div></div>
       <div class="panel__body">${barChart(byVehicle, 'appointments')}<p class="hint">Appointments by truck type across the selected range.</p></div>
       <div class="panel__scroll">${table(['Truck type', 'Appointments', 'Skids'], byVehicle.map(row => [row.name, num(row.appointments), num(row.skids)]))}</div>
     </div>`;
@@ -187,7 +187,7 @@ function renderDockUtilisation() {
   if (num(compatibility.docks_without_vehicle_types) > 0) warnings.push(`${compatibility.docks_without_vehicle_types} active dock(s) accept no configured truck type.`);
   if (num(compatibility.vehicle_types_without_docks) > 0) warnings.push(`${compatibility.vehicle_types_without_docks} enabled truck type(s) have no compatible dock.`);
   return `<div class="kpis" style="--kpi-cols:4">
-      <article class="kpi kpi--signal"><span class="kpi__label">Occupied utilisation</span><span class="kpi__value">${num(s.occupied_utilization_percent).toFixed(1)}<span>%</span></span></article>
+      <article class="kpi kpi--signal"><span class="kpi__label">Dock time used</span><span class="kpi__value">${num(s.occupied_utilization_percent).toFixed(1)}<span>%</span></span></article>
       <article class="kpi"><span class="kpi__label">Booked hours</span><span class="kpi__value">${compact(num(s.booked_minutes) / 60)}</span></article>
       <article class="kpi kpi--stop"><span class="kpi__label">Blocked hours</span><span class="kpi__value">${compact(num(s.blocked_minutes) / 60)}</span></article>
       <article class="kpi kpi--out"><span class="kpi__label">Active docks</span><span class="kpi__value">${num(s.active_docks)}</span></article>
@@ -227,7 +227,7 @@ function renderScorecard(kind) {
     <div class="panel panel--fill">
       <div class="panel__head"><h3 class="panel__title">${kind === 'location' ? 'Max site scorecard' : 'Vendor &amp; carrier scorecard'}</h3><div class="panel__actions"><span class="sub">${escapeHtml(rangeLabel())}</span></div></div>
       <div class="panel__scroll"><table class="table"><thead><tr>
-        <th>Partner</th><th>On time</th><th>Trucks</th><th>Skids</th><th>Late</th><th>Avg late</th><th>No show</th><th>Cancelled</th><th>Avg at dock</th><th class="col-fill">Truck types</th>
+        <th>Partner</th><th>On time</th><th>Trucks</th><th>Skids</th><th>Late</th><th>Average late</th><th>No show</th><th>Cancelled</th><th>Average at dock</th><th class="col-fill">Truck types</th>
       </tr></thead><tbody>${
         rows.length ? rows.map(row => {
           const pct = row.on_time_pct === null || row.on_time_pct === undefined ? null : Number(row.on_time_pct);
@@ -319,7 +319,7 @@ function renderLabour() {
       <article class="kpi"><span class="kpi__label">Trucks handled</span><span class="kpi__value">${compact(trucks)}</span></article>
     </div>
     <div class="panel panel--fill">
-      <div class="panel__head"><h3 class="panel__title">Labour utilisation</h3><div class="panel__actions"><span class="sub">${escapeHtml(rangeLabel())}</span></div></div>
+      <div class="panel__head"><h3 class="panel__title">Labour hours by day</h3><div class="panel__actions"><span class="sub">${escapeHtml(rangeLabel())}</span></div></div>
       <div class="panel__scroll"><table class="table"><thead><tr>
         <th>Date</th><th>People</th><th>Hours each</th><th>Available</th><th>Trucks</th><th>Hours on trucks</th><th>Crew used</th><th>Crew figures</th><th class="col-fill">Note</th>
       </tr></thead><tbody>${

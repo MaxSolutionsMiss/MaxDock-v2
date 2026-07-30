@@ -1557,3 +1557,81 @@ policy, so the deployed preview could not be opened either. What was verified
 instead: the live database through the Supabase management connection, and the
 real page modules in headless Chromium against the local stub. CI still runs the
 full sweep.
+
+## The names, for a first release (2026-07-30)
+
+Jargon out, and the words the app already uses in its own tables kept.
+
+**"Labour utilisation" is "Labour hours".** The report's own figures were already
+plain — Crew used, Hours available, Hours on trucks, Trucks handled — and only its
+name was written in HR English. Same for **"Dock utilisation" → "Dock hours"** and
+its headline figure **"Occupied utilisation" → "Dock time used"**, which now says
+what it is a percentage of.
+
+**"Vehicle mix" is "Truck mix".** Its own caption said "by truck type" and every
+other screen says truck. One word for one thing.
+
+**"Quick QR (QQ)" is "Quick QR codes".** "(QQ)" is shorthand from a conversation,
+not a name a user has been let in on. **"Party type" is "Company type"**, beside
+the Company field it belongs to. **"Other party" is "Company or site"**, which is
+what goes in it. **"Avg late" and "Avg at dock"** are spelled out. **"PO / BOL /
+Job"** matches the three other places that write it "job".
+
+**"Assignment strategy" is "Dock order"** — and the select it labels was too
+narrow to show "Balanced across docks", so it read "Balanced across d". Widened.
+**"Max concurrent" is "Most at once"**, with the chip beside it saying "trucks"
+rather than repeating "at once".
+
+**"Full truck min" and "Priority min" are "Full truck" and "Priority".** The old
+labels used "min" for minimum next to a chip using "min" for minutes. The spelled-
+out versions wrapped onto a second line — a `--num` field is two of twelve columns
+by design and cannot hold three words — so the words move to the sentence under
+the fields, which now says a load never gets *less* than those times.
+
+**Three placeholders that repeated their own labels** — "Choose an appointment
+type" under a label saying Appointment type — are all "Choose one". The longest of
+them was 81px wider than its box on a tablet.
+
+Left alone deliberately: **MIS** is the customer's own system's name. **Lane**,
+**Movement**, **Scorecard** and **Data integration** are the words these users
+use. Spelling is mixed across the app — Labour and organisation against Customize
+— and that is a house-style call for the owner rather than a defect.
+
+## Two new layout rules, and what they found (2026-07-30)
+
+The sweep could not see either of these faults, which is why they survived.
+
+**A select too narrow for the option it is showing.** A `<select>` does not report
+overflow: the browser cuts the text and still draws the arrow, so the clipping rule
+had nothing to measure. Now measured by laying the selected option out in a span
+with the control's own font. Reported only when the shortfall is more than a
+character wide, because the arrow reserve is an estimate and five controls that
+read perfectly were three to seven pixels "short".
+
+**A label that wraps while the labels beside it do not.** The row still lines its
+boxes up, so nothing overflows — but one field starts a line lower than its
+neighbours, which is the ragged form row the owner keeps finding by eye.
+
+Swept across all nine settings windows, all eight report views and six pages at
+1440, 1024, 768 and 390. Everything above came out of that; it is clean now.
+
+**And one the rules found on every page at once.** On a phone the location switcher
+had **70 pixels** to say "Mississauga" in, because the spacer beside it was also
+`flex:1` and the two split the slack evenly. Which site you are looking at is the
+most important thing in that bar. The spacer has nothing to show on a phone and is
+gone below 600px; the switcher is 125px and holds the name.
+
+## The Labour window, like every other window (2026-07-30)
+
+Every settings window puts its one explanation under the fields it explains. The
+Labour section was the only one leading with it — four forms, four lead
+paragraphs — and its first form carried a lead paragraph *and* a trailing one, two
+explanations of one field. One paragraph per form, under the fields, everywhere.
+
+"Crew per truck" wrapped onto two lines in a two-column field. It is alone in its
+row, so the field widened rather than the words shrinking.
+
+**"When over capacity" was half the row wide** to hold the word "Warn only" — the
+long-fields-for-two-numbers complaint, in a select. Sized to its content. The
+row-fill rule exempts rows with no wide field, which is why it now passes rather
+than being asked to stretch.

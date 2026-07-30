@@ -390,7 +390,7 @@ function renderLoadStep() {
       </select></div>
       ${maxToMax
         ? `<div class="field field--md"><span class="field__label">${state.form.direction === 'outbound' ? 'Sending to' : 'Receiving from'}<span class="field__req" aria-hidden="true">*</span></span><select class="select" data-field="requester_location_id"></select></div>`
-        : `<div class="field field--sm"><span class="field__label">Party type<span class="field__req" aria-hidden="true">*</span></span><select class="select" data-field="requester_type"></select></div>
+        : `<div class="field field--sm"><span class="field__label">Company type<span class="field__req" aria-hidden="true">*</span></span><select class="select" data-field="requester_type"></select></div>
            <div class="field field--sm"><span class="field__label">Company</span><input class="input" data-field="company_name" list="company-directory" maxlength="120" autocomplete="organization"><datalist id="company-directory"></datalist></div>`}
     </div>`}
     <div class="frow">
@@ -438,7 +438,7 @@ function renderLoadStep() {
       state.form.location_id = destination.value;
     }
   }
-  addOptions(hosts.step.querySelector('[data-field="appointment_type_code"]'), state.reference.appointmentTypes, state.form.appointment_type_code, 'Choose an appointment type');
+  addOptions(hosts.step.querySelector('[data-field="appointment_type_code"]'), state.reference.appointmentTypes, state.form.appointment_type_code, 'Choose one');
   const skids = hosts.step.querySelector('[data-field="skid_count"]');
   skids.value = String(state.form.skid_count ?? 0);
   const reference = hosts.step.querySelector('[data-field="external_reference"]');
@@ -479,8 +479,8 @@ function renderVehicleStep() {
     </div>
     <p class="hint hint--flush hint--wide" data-fullness hidden></p>
 `;
-  addOptions(hosts.step.querySelector('[data-field="truck_type_code"]'), state.reference.truckTypes, state.form.truck_type_code, 'Choose a truck type');
-  addOptions(hosts.step.querySelector('[data-field="handling_type_code"]'), state.reference.handlingTypes, state.form.handling_type_code, 'Choose a handling type');
+  addOptions(hosts.step.querySelector('[data-field="truck_type_code"]'), state.reference.truckTypes, state.form.truck_type_code, 'Choose one');
+  addOptions(hosts.step.querySelector('[data-field="handling_type_code"]'), state.reference.handlingTypes, state.form.handling_type_code, 'Choose one');
   hosts.step.querySelector('[data-field="carrier_name"]').value = state.form.carrier_name;
   renderFullness();
 }
@@ -877,7 +877,7 @@ function validateStep(step = state.step) {
     if (Number(form.skid_count) < 0 || !Number.isFinite(Number(form.skid_count))) return 'Enter a valid skid count.';
     if (!clean(form.external_reference)) return 'Enter the PO, BOL or job number.';
     if (form.movement_kind === 'max' && !form.requester_location_id) return 'Choose the other Max Solutions location.';
-    if (form.movement_kind === 'external' && !clean(form.requester_type)) return 'Choose the external party type.';
+    if (form.movement_kind === 'external' && !clean(form.requester_type)) return 'Choose the company type.';
   }
   if (step === 1) {
     if (!form.truck_type_code) return 'Choose a truck type.';

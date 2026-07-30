@@ -195,7 +195,7 @@ const add = (where, width, rule, detail) => findings.push({ where, width, rule, 
 // belong to the page, not to a 560px panel floating above it.
 function collect(scope) {
   const root = scope ? document.querySelector(scope) : document;
-  const out = { clipped: [], smallTargets: [], ctlHeights: [], rawTimestamps: [], blockTextCut: [], hiddenButShown: [], unreachable: [], rowFill: [], kpi: [], gaps: [], overflowX: 0, labelStyles: [], cutOff: [], rowUneven: [], modal: [], collapsed: [], narrow: [] };
+  const out = { clipped: [], smallTargets: [], ctlHeights: [], rawTimestamps: [], blockTextCut: [], hiddenButShown: [], unreachable: [], rowFill: [], kpi: [], gaps: [], overflowX: 0, labelStyles: [], cutOff: [], rowUneven: [], modal: [], collapsed: [], narrow: [], selectCut: [], labelRagged: [] };
   if (!root) return out;
   const vis = el => el.offsetParent !== null || getComputedStyle(el).position === 'fixed';
 
@@ -381,6 +381,47 @@ function collect(scope) {
     const perLine = text.length / lines;
     if (perLine >= 14) return;
     out.narrow.push({ sel: el.className || el.tagName, w: Math.round(rect.width), lines, perLine: Math.round(perLine) });
+  });
+
+  // A select too narrow for the option it is showing. This is invisible to the
+  // clipping rule: a <select> does not report overflow, the browser just cuts the
+  // text off with the arrow still drawn, so "Balanced across docks" reads as
+  // "Balanced across d" and audits clean. Measured by laying the text out in a
+  // span with the control's own font and comparing against the box less its
+  // padding and the arrow.
+  out.selectCut = [];
+  root.querySelectorAll('select').forEach(el => {
+    if (!vis(el)) return;
+    const style = getComputedStyle(el);
+    const ruler = document.createElement('span');
+    ruler.style.cssText = `position:absolute;visibility:hidden;white-space:pre;font:${style.font}`;
+    ruler.textContent = el.options[el.selectedIndex]?.text || '';
+    document.body.append(ruler);
+    const needed = ruler.getBoundingClientRect().width;
+    ruler.remove();
+    // The arrow and the padding are not available to the text. 28px covers the
+    // glyph and its gap in this stylesheet.
+    const room = el.getBoundingClientRect().width - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight) - 28;
+    if (needed > room + 8) out.selectCut.push({ text: ruler.textContent.slice(0, 40), over: Math.round(needed - room), sel: el.className });
+  });
+
+  // A label that wraps while the labels beside it do not. The row still lines its
+  // boxes up, so nothing overflows and nothing is clipped — but one field's box
+  // starts a line lower than its neighbours', which is exactly the ragged form row
+  // the owner keeps finding. Compared within a row, because a label wrapping on a
+  // phone where they all wrap is the page working, not failing.
+  out.labelRagged = [];
+  root.querySelectorAll('.frow').forEach(row => {
+    if (!vis(row)) return;
+    const labels = [...row.querySelectorAll('.field__label')].filter(vis);
+    if (labels.length < 2) return;
+    const heights = labels.map(el => Math.round(el.getBoundingClientRect().height));
+    const shortest = Math.min(...heights);
+    labels.forEach((el, index) => {
+      if (heights[index] > shortest * 1.5) {
+        out.labelRagged.push({ text: (el.textContent || '').trim().slice(0, 36), h: heights[index], others: shortest });
+      }
+    });
   });
 
   // A form row should use its width, not stop short and leave the rest empty.
@@ -799,6 +840,8 @@ function report(where, width, result) {
   for (const m of result.modal) add(where, width, 'dialog-does-not-fit', m);
   for (const c of [...new Map(result.collapsed.map(c => [c.sel, c])).values()].slice(0, 4)) add(where, width, 'band-collapsed', `.${c.sel} is ${c.h}px tall but holds ${c.needs}px of content`);
   for (const n of [...new Map((result.narrow || []).map(x => [x.sel, x])).values()].slice(0, 4)) add(where, width, 'text-column-too-narrow', `.${n.sel} is ${n.w}px wide — ${n.lines} lines at about ${n.perLine} characters each`);
+  for (const s of [...new Map((result.selectCut || []).map(x => [x.text, x])).values()].slice(0, 6)) add(where, width, 'select-too-narrow', `"${s.text}" needs ${s.over}px more than its select shows`);
+  for (const l of [...new Map((result.labelRagged || []).map(x => [x.text, x])).values()].slice(0, 6)) add(where, width, 'label-wraps-alone', `"${l.text}" is ${l.h}px tall beside labels of ${l.others}px — its field starts a line lower`);
   for (const c of [...new Map(result.cutOff.map(c => [c.text + c.over, c])).values()].slice(0, 5)) add(where, width, 'cut-off-by-hidden-overflow', `"${c.text}" is ${c.over}px outside .${c.by}`);
   for (const c of result.clipped.slice(0, 6)) add(where, width, 'content-clipped', `"${c.text}" overflows by ${c.over}px (${c.sel})`);
   for (const t of [...new Map(result.smallTargets.map(t => [t.sel + t.h, t])).values()].slice(0, 6)) add(where, width, 'hit-target-too-small', `"${t.text}" is ${t.h}px tall (${t.sel})`);

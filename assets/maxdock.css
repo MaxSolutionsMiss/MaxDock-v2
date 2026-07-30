@@ -1131,6 +1131,12 @@ body.modal-open{overflow:hidden}
 /* On a phone the secondary top-bar controls cost more room than they return. */
 @media (max-width:600px){
   .seg{display:none}
+  /* Which site you are looking at is the most important thing in this bar, and it
+     had 70px to say "Mississauga" in — the spacer beside it was flex:1 as well, so
+     the two split the slack evenly and the name was cut to four characters. The
+     spacer has nothing to show on a phone; the name does. */
+  .top__spacer{display:none}
+  .top__loc{min-width:104px}
   .top__conn span:not(.dot){display:none}
   .who__name{display:none}
   .split,.split--list{grid-template-columns:1fr}
