@@ -76,6 +76,31 @@ const VARIANT = {
   late: { of: 'clock', mark: '<path d="M32 32v16l17 5"/><path d="M45 50l6 3-3 6"/>' },
 };
 
+// A punctuality reading is a clock with a status badge on it, which is how the owner asked
+// for it and how everybody else draws it: a tick when the arrivals are where they should be,
+// an exclamation when they are not. The badge is not a second opinion; its glyph and its
+// colour both come from the verdict readingBand already reached, so it cannot contradict the
+// words printed under it. Only the clock family carries one; a
+// trailer or a crew is a quantity, and a tick on a quantity would be asserting a target that
+// does not exist.
+//
+// It sits low and to the right, overlapping the face, with a ring of the page's own surface
+// punched out behind it so it separates from the clock instead of merging into the ring at
+// small sizes.
+const BADGE_GLYPH = {
+  ok: '<path class="truck__bg" d="M47.5 66.2 50.8 69.4 56.6 62.4"/>',
+  no: '<path class="truck__bg" d="M52 60.4V67"/><circle class="truck__bd" cx="52" cy="70.6" r="1.5"/>',
+};
+
+const badgeOf = (shape, load, ok) => {
+  // Not a clock, or a reading with no good end to be measured against, so no verdict to show.
+  if ((VARIANT[shape]?.of || shape) !== 'clock' || (ok !== true && ok !== false)) return '';
+  return `<g class="truck__badge truck__load--${ok ? 'full' : load}">
+    <circle class="truck__bc" cx="52" cy="66" r="11.6"/><circle cx="52" cy="66" r="9.5"/>
+    ${ok ? BADGE_GLYPH.ok : BADGE_GLYPH.no}
+  </g>`;
+};
+
 const bodyOf = shape => BODY_PARTS[VARIANT[shape]?.of || shape];
 const outlineOf = shape => {
   const variant = VARIANT[shape];
@@ -88,7 +113,7 @@ const outlineOf = shape => {
 };
 const known = shape => Boolean(BODY_PARTS[shape] || VARIANT[shape]);
 
-export function fillFigure({ percent, shape = 'crew', label = '', note = '', band = 'mid', words = '', value = '' } = {}) {
+export function fillFigure({ percent, shape = 'crew', label = '', note = '', band = 'mid', words = '', value = '', ok } = {}) {
   const outline = known(shape) ? shape : 'crew';
   // Not measured is not zero, and must not draw as an empty shape — that would read as a
   // finding when it is a missing figure. The dashed outline is the trailer's own answer
@@ -105,7 +130,7 @@ export function fillFigure({ percent, shape = 'crew', label = '', note = '', ban
   const shown = Math.min(100, reading);
   return `<figure class="truck truck--fig" role="img"
     aria-label="${escapeHtml(`${label ? `${label}: ` : ''}${reading.toFixed(0)} per cent${words ? `, ${words}` : ''}`)}">
-    ${drawing(shown, outline, LOAD[band] || 'part')}
+    ${drawing(shown, outline, LOAD[band] || 'part', ok)}
     <figcaption class="truck__cap"><b>${escapeHtml(value || `${reading.toFixed(0)}%`)}</b><span>${escapeHtml(note || words)}</span>${label ? `<em>${escapeHtml(label)}</em>` : ''}</figcaption>
   </figure>`;
 }
@@ -116,7 +141,7 @@ export function fillFigure({ percent, shape = 'crew', label = '', note = '', ban
 // would be a fifth of the way down the drawing before it reached the trailer at all.
 const ALONG = { truck: { x: 11, w: 49 } };
 
-function drawing(percent, shape, load) {
+function drawing(percent, shape, load, ok) {
   const id = `ff${++seq}`;
   const along = ALONG[VARIANT[shape]?.of || shape];
   const level = along
@@ -130,5 +155,6 @@ function drawing(percent, shape, load) {
     <g class="truck__well" clip-path="url(#${id})"><rect x="0" y="0" width="64" height="78"/></g>
     <g class="truck__load truck__load--${load}" clip-path="url(#${id})">${level}</g>
     <g class="truck__box">${outlineOf(shape)}</g>
+    ${badgeOf(shape, load, ok)}
   </svg>`;
 }

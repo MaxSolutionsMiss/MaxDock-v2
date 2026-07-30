@@ -199,17 +199,33 @@ const siteRange = () => `${siteName()} · ${rangeLabel()}`;
 // crew would be worse than either. Whichever way it is drawn, this decides.
 //
 // Over 100 is a finding, not an error: the day asked for more than there was.
+// `ok` is the verdict as a yes or no rather than as a colour, for the drawings that carry a
+// status badge. It is decided here and nowhere else for the same reason the band is: a green
+// tick beside a figure the band calls "near capacity" is worse than no badge at all. Note
+// that it is not simply "the green band" — a capacity reading at 60% is healthy and gets a
+// tick, and only near capacity and over do not. `none` readings have no verdict, so `ok` is
+// undefined and nothing draws a badge for them.
+// Four scales, because a percentage on its own does not say which way is up:
+//   low   a capacity. 60% of the doors used is comfortable, over 100 is a finding.
+//   high  a target to reach. 95% on time is the answer you want, 40% is the problem.
+//   zero  a target of none at all. Lateness and cancellations are not capacities: they
+//         have no comfortable middle, so 10% is already slipping and 30% is a problem.
+//         Running these on the capacity scale called 62% of arrivals late "healthy".
+//   none  no good end at all: one neutral colour, no verdict word, no badge.
 function readingBand(percent, good = 'low') {
   const value = Math.max(0, Number(percent));
   const band = good === 'none' ? 'mid'
-    : good === 'high'
-      ? (value >= 90 ? 'low' : value >= 75 ? 'mid' : 'high')
-      : (value > 100 ? 'over' : value >= 85 ? 'high' : value >= 55 ? 'mid' : 'low');
+    : good === 'high' ? (value >= 90 ? 'low' : value >= 75 ? 'mid' : 'high')
+      : good === 'zero' ? (value <= 10 ? 'low' : value <= 25 ? 'mid' : 'high')
+        : (value > 100 ? 'over' : value >= 85 ? 'high' : value >= 55 ? 'mid' : 'low');
   const words = good === 'none' ? ''
-    : good === 'high'
+    : good === 'high' || good === 'zero'
       ? { low: 'on target', mid: 'slipping', high: 'not acceptable' }[band]
       : { over: 'over capacity', high: 'near capacity', mid: 'healthy', low: 'light' }[band];
-  return { value, band, words };
+  const ok = good === 'none' ? undefined
+    : good === 'high' || good === 'zero' ? band === 'low'
+      : band === 'low' || band === 'mid';
+  return { value, band, words, ok };
 }
 
 function dial(percent, label, note, { good = 'low' } = {}) {
@@ -228,8 +244,8 @@ function dial(percent, label, note, { good = 'low' } = {}) {
 // chooses only the outline, because that is the only thing that differs.
 function shapeOf(percent, label, note, { good = 'low', shape = 'crew' } = {}) {
   if (percent === null || percent === undefined) return fillFigure({ percent: null, shape, label });
-  const { value, band, words } = readingBand(percent, good);
-  return fillFigure({ percent: value, shape, label, note, band, words });
+  const { value, band, words, ok } = readingBand(percent, good);
+  return fillFigure({ percent: value, shape, label, note, band, words, ok });
 }
 
 // Three readings, drawn whichever way the reader picked. The switch is per panel and
@@ -343,7 +359,7 @@ function renderOverview() {
       ${readings('overview-read', [
         { percent: num(s.occupied_utilization_percent), label: 'Dock time used', note: 'of the hours the doors were open', shape: 'door' },
         { percent: used, label: 'Trailer used', note: 'skids against what the trailers hold', good: 'high', shape: 'truck' },
-        { percent: num(s.appointments) ? (num(s.cancelled) / num(s.appointments)) * 100 : null, label: 'Cancelled', note: 'of every booking made', shape: 'cancelled' },
+        { percent: num(s.appointments) ? (num(s.cancelled) / num(s.appointments)) * 100 : null, label: 'Cancelled', note: 'of every booking made', good: 'zero', shape: 'cancelled' },
       ])}
       <div class="panel__body"><p class="hint hint--flush">Doors, trailers and reliability. Each of the three has its own view with the detail behind it; this is whether any of them needs one.</p></div>
     </div>
@@ -515,7 +531,7 @@ function renderScorecard(kind) {
       ${readings(`read-${kind}`, [
         { percent: overall, label: 'Turned up on time', note: 'within 15 minutes of the booking', good: 'high', shape: 'clock' },
         { percent: trucks ? ((trucks - noShows - cancelled) / trucks) * 100 : null, label: 'Trucks that came', note: 'of every booking made', good: 'high', shape: 'truck' },
-        { percent: arrived ? (late / arrived) * 100 : null, label: 'Arrived late', note: 'of the trucks that came', shape: 'late' },
+        { percent: arrived ? (late / arrived) * 100 : null, label: 'Arrived late', note: 'of the trucks that came', good: 'zero', shape: 'late' },
       ])}
     </div>
     <div class="panel">

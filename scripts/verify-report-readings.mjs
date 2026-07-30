@@ -68,6 +68,37 @@ if (!errors.length) {
   need(fig, /let seq = 0/, 'Clip path ids are not unique per figure; the second figure would be clipped by the first\'s shape.');
   need(fig, /`ff\$\{\+\+seq\}`/, 'Clip path ids do not advance, so every figure on the page shares one.');
 
+  // ── The punctuality badge says what the verdict says ────────────────────────
+  // A tick beside a figure whose caption reads "not acceptable" is worse than no badge, so
+  // the badge takes its glyph and its colour from the verdict rather than from the number.
+  need(reports, /const ok = good === 'none' \? undefined/,
+    'readingBand reaches no yes-or-no verdict, so a badge would have to decide for itself whether a reading is fine.');
+  need(reports, /fillFigure\(\{ percent: value, shape, label, note, band, words, ok \}\)/,
+    'The verdict is decided but never reaches the drawing, so the badge cannot follow it.');
+  need(fig, /const badgeOf = /, 'Nothing draws the punctuality badge.');
+  need(fig, /\$\{badgeOf\(shape, load, ok\)\}/, 'The badge is defined but never drawn.');
+  forbid(fig, /badgeOf[\s\S]{0,400}percent/, 'The badge reads the percentage. It must follow the verdict, or the two can disagree.');
+  // Drawn after the outline, or the outline's stroke would run through it.
+  const drawTail = fig.slice(fig.indexOf('function drawing('));
+  if (!(drawTail.indexOf('badgeOf(') > drawTail.indexOf('truck__box'))) {
+    errors.push('The badge is painted before the outline, so the clock\'s own strokes cross it.');
+  }
+  need(fig, /\(VARIANT\[shape\]\?\.of \|\| shape\) !== 'clock'/, 'Every shape carries a badge. A trailer or a crew is a quantity with no target, so a tick on one asserts something that was never measured.');
+  need(fig, /ok !== true && ok !== false/,
+    'A reading with no verdict, or one that was never measured, still draws a badge and so invents a finding.');
+  need(fig, /truck__load--\$\{ok \? 'full' : load\}/,
+    'The badge picks its own colour rather than the band\'s, so it can be red beside a green reading.');
+  need(css, /\.truck__badge \.truck__bc\{fill:var\(--surface\)/,
+    'The badge has no cut-out behind it, so at 76px it merges into the clock ring it sits on.');
+  // A target of none is not a capacity. On the capacity scale, 62% of arrivals late read
+  // "healthy" — and with a badge on it, that verdict became a green tick.
+  need(reports, /good === 'zero' \? \(value <= 10 \? 'low' : value <= 25 \? 'mid' : 'high'\)/,
+    'There is no scale for a reading whose target is none at all, so lateness is judged as though it were a capacity with a comfortable middle.');
+  for (const label of ['Arrived late', 'Cancelled']) {
+    need(reports, new RegExp(`label: '${label}'[^}]*good: 'zero'`),
+      `${label} is judged on the capacity scale, where a third of the trucks going wrong still reads as light.`);
+  }
+
   // ── The view mark belongs to its section ────────────────────────────────────
   forbid(reports, /viewhead/, 'The standalone view band is still built. It repeated the dates its first section already carried.');
   forbid(css, /\.viewhead/, 'The standalone view band still has styles.');
