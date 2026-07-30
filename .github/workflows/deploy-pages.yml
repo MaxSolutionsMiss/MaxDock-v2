@@ -46,6 +46,22 @@ jobs:
           mkdir -p _site
           cp index.html _site/
           cp -R app assets js _site/
+          # The same cache stamp the preview build uses. Without it a deploy changes
+          # no URL, so a browser keeps serving the stylesheet and the page modules it
+          # already has and a plain reload shows the previous release. Applied to the
+          # copied tree only — the source keeps clean paths — and the import
+          # specifiers are stamped too, because versioning only the <script> tag
+          # would leave every module it imports cached.
+          v="$(git rev-parse --short=12 HEAD)"
+          find _site -name '*.html' -print0 \
+            | xargs -0 sed -i -E "s#(href=\"[^\"]*assets/maxdock\.css)\"#\1?v=$v\"#g; s#(src=\"[^\"]*\.js)\"#\1?v=$v\"#g"
+          find _site/js -name '*.js' -print0 \
+            | xargs -0 sed -i -E "s#(from '\.\.?/[^']+\.js)'#\1?v=$v'#g; s#(import\('\.\.?/[^']+\.js)'#\1?v=$v'#g"
+          if grep -rqE "from '\.\.?/[^']+\.js'" _site/js; then
+            echo "Cache-busting missed an import specifier:" >&2
+            grep -rnE "from '\.\.?/[^']+\.js'" _site/js >&2
+            exit 1
+          fi
       - uses: actions/configure-pages@v5
         if: github.event_name != 'pull_request'
       - uses: actions/upload-pages-artifact@v3

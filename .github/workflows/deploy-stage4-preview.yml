@@ -74,6 +74,29 @@ jobs:
           stage4_sha="$(git -C stage4 rev-parse HEAD)"
           printf '{"branch":"feat/stage4-dock-board","commit":"%s"}\n' "$stage4_sha" > site/stage4-preview/build.json
 
+          # Stamp the commit onto every asset URL so a deploy invalidates the
+          # browser's cache by itself. Nothing in the URLs changed between builds
+          # before this, so Chrome kept serving the stylesheet and the page modules
+          # it already had and a plain reload showed yesterday's application —
+          # which cost the owner several rounds of "I cannot see the changes".
+          #
+          # The page modules import each other by relative path, so versioning only
+          # the <script> tag would leave every imported module cached. The import
+          # specifiers carry the same stamp, which is why this rewrites the copied
+          # tree rather than just the HTML. Done here and never in the repository:
+          # the source keeps clean paths.
+          v="${stage4_sha:0:12}"
+          find site/stage4-preview -name '*.html' -print0 \
+            | xargs -0 sed -i -E "s#(href=\"[^\"]*assets/maxdock\.css)\"#\1?v=$v\"#g; s#(src=\"[^\"]*\.js)\"#\1?v=$v\"#g"
+          find site/stage4-preview/js -name '*.js' -print0 \
+            | xargs -0 sed -i -E "s#(from '\.\.?/[^']+\.js)'#\1?v=$v'#g; s#(import\('\.\.?/[^']+\.js)'#\1?v=$v'#g"
+          # Proof rather than hope: every relative import must carry the stamp.
+          if grep -rqE "from '\.\.?/[^']+\.js'" site/stage4-preview/js; then
+            echo "Cache-busting missed an import specifier:" >&2
+            grep -rnE "from '\.\.?/[^']+\.js'" site/stage4-preview/js >&2
+            exit 1
+          fi
+
       - name: Configure Pages
         uses: actions/configure-pages@v5
 
