@@ -949,7 +949,12 @@ html[data-text="larger"] .frow>.field--md:not(.field-action){grid-column:span 5}
 /* Operations queue components — approved page-3-queue.html */
 /* The morning rundown: the figures a supervisor would otherwise read off the board
    one at a time, in one band above the queue. */
-.brief{background:linear-gradient(180deg,var(--dock-wash),var(--surface));border:1px solid var(--dock);border-radius:var(--radius-lg);padding:var(--s3) var(--s4);margin-bottom:var(--s3);display:flex;flex-direction:column;gap:var(--s2);min-height:0}
+/* The queue is a fixed-height page, so nothing here can scroll off the bottom: the card
+   has to give way itself. It shrinks between a floor and a ceiling and scrolls as one
+   piece. Letting its body be the flexible part instead crushed that body to zero height at
+   every width below 1440, which left the Combine action laid out but clipped and
+   unclickable — the only way into combining from this page. */
+.brief{background:linear-gradient(180deg,var(--dock-wash),var(--surface));border:1px solid var(--dock);border-radius:var(--radius-lg);padding:var(--s3) var(--s4);margin-bottom:var(--s3);display:flex;flex-direction:column;gap:var(--s2);flex:0 1 auto;min-height:8em;max-height:22em;overflow-y:auto}
 .brief__head{display:flex;align-items:center;gap:var(--s2)}
 .brief__head .linkBtn{margin-left:auto}
 /* Nothing but the grid the cards sit on: the cards themselves are .kpi, the same
@@ -960,7 +965,10 @@ html[data-text="larger"] .frow>.field--md:not(.field-action){grid-column:span 5}
    out of this at a glance in a morning meeting. */
 /* The brief reads across the card, not down one edge of it: four named columns,
    each answering one kind of question, on a card that is as wide as the screen. */
-.briefcols{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:var(--s3) var(--s5)}
+/* The column minimum is in em, not px: at Larger text a 260px column still holds 260px
+   of much bigger letters, which is how a bullet ended up six lines of nineteen characters.
+   In em the column grows with the type and the characters per line stay put. */
+.briefcols{display:grid;grid-template-columns:repeat(auto-fit,minmax(19em,1fr));gap:var(--s3) var(--s5)}
 /* The mark sits on the heading, in MaxDock blue, with the points directly under it. A
    gutter of its own cost the points width and left the column looking half empty; the
    column is just as recognisable by shape with the mark on its title line. */
@@ -975,7 +983,7 @@ html[data-text="larger"] .frow>.field--md:not(.field-action){grid-column:span 5}
    left to scroll — the band gives way, not the page. */
 /* The reading sits clear of the figures: run together, the first bullet read as
    a caption on the card above it. */
-.brief__body{flex:1;min-height:0;max-height:9em;overflow-y:auto;margin-top:var(--s2)}.brief__t{font-weight:600;margin-bottom:2px}.brief__x{color:var(--ink);font-size:var(--t-base)}.brief__x b{color:var(--dock-deep)}
+.brief__body{flex:none;margin-top:var(--s2)}.brief__t{font-weight:600;margin-bottom:2px}.brief__x{color:var(--ink);font-size:var(--t-base)}.brief__x b{color:var(--dock-deep)}
 /* The queue below the strips: the day on the left, the heat map and the watch list on
    the right. The side column was sized as one share of --kpi-cols, which tied how wide the
    heat map is to how many metric cards happen to be switched on: turning two on took it
