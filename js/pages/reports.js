@@ -378,10 +378,10 @@ function renderTruckFlow() {
       skids: Math.round(perTruck),
       capacity,
       label: row.name,
-      note: `average of ${compact(num(row.appointments))} truck${num(row.appointments) === 1 ? '' : 's'}`,
+      note: `how a typical one ran, across ${compact(num(row.appointments))} truck${num(row.appointments) === 1 ? '' : 's'}`,
     });
   }).join('');
-  const bars = ranked(byVehicle.map(row => ({ label: row.name, value: row.appointments, shown: `${compact(num(row.appointments))} trucks · ${compact(num(row.skids))} skids` })));
+  const bars = ranked(byVehicle.map(row => ({ label: row.name, value: row.appointments, shown: `${compact(num(row.appointments))} trucks, carrying ${compact(num(row.skids))} skids` })));
   const drawn = formOf('flow', 'trucks') === 'bars' ? bars : `<div class="trucks">${trailers}</div>`;
   return `${kpiRow()}
     <div class="panel">
@@ -606,7 +606,7 @@ function renderFullness() {
           skids: asOne,
           capacity: 26,
           label: 'every trailer, as one',
-          note: `${overall.toFixed(1)}% of what the trailers hold, over ${compact(measured)} trucks`,
+          note: `every truck in the range, averaged into one trailer`,
           wide: true,
         })}</div>`}
         <p class="hint">Every measured truck in the range averaged into one 53 ft trailer. The room at the doors is the room that was paid for and not used, and it is what combining is for.</p></div>

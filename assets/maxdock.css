@@ -378,9 +378,27 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 .apptcols{display:grid;grid-template-columns:minmax(0,20em) minmax(0,1fr);gap:var(--s4)}
 .apptcols__side,.apptcols__main,.apptdocs{min-width:0}
 .apptcols__side{display:grid;align-content:start;padding-right:var(--s4);border-right:1px solid var(--rule)}
+/* The direction sits between the number and the route: small, because the two words
+   beside it say the same thing and this is the glance version. */
+.apptdir{width:1.9em;height:1.9em;flex:none;border-radius:50%;display:grid;place-items:center;background:var(--dock-wash);color:var(--dock-deep)}
+.apptdir svg{width:1.1em;height:1.1em;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
 .apptdir--out{background:var(--ok-wash);color:var(--ok)}
+/* One row per event, reading across: when, what, who. Three stacked lines each meant four
+   events filled the column; across, the times line up in a column of their own to be
+   scanned and four take a quarter of the room. */
+.logrow{display:grid;grid-template-columns:auto auto minmax(0,1fr) auto;align-items:baseline;gap:var(--s2) var(--s3);padding:var(--s2) 0;border-bottom:1px solid var(--rule);font-size:var(--t-small)}
+.logrow:last-child{border-bottom:none}
+.logrow .wdot{align-self:center}
+.logrow__t{color:var(--ink-muted);font-family:var(--font-data);white-space:nowrap}
+.logrow__w{min-width:0;font-weight:600}
+.logrow__b{color:var(--ink-muted);white-space:nowrap}
+/* The picker and its button on one row, the limit under them, then what is attached. The
+   button wrapped to a line of its own and floated there, which is what made this corner
+   look unfinished. */
+.docadd{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:var(--s2)}
+.docadd .input{min-width:0}
 .modal__head--load .modal__title{font-size:var(--t-metric)}
-.modal__head--load .modal__sub{font-size:var(--t-base)}
+.modal__head--load .modal__sub{font-size:var(--t-title);color:var(--ink)}
 /* Big enough to read off a phone held at arm's length, which is the whole job of it. */
 .qrbox,.apptdocs{display:grid;gap:var(--s2)}
 .qrbox{justify-items:center}
@@ -389,9 +407,6 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 .qrbox__c{font-size:var(--t-micro);color:var(--ink-muted);text-align:center}
 /* The file box takes the room and the button keeps its own width, so the pair sits on one
    line at this column's width instead of wrapping under itself. */
-.docadd{display:flex;gap:var(--s2);align-items:center;min-width:0;flex-wrap:wrap}
-.docadd .input{flex:1 1 auto;min-width:0}
-.docadd .btn{flex:none}
 @media (max-width:760px){
   .apptcols{grid-template-columns:minmax(0,1fr)}
 }
@@ -979,7 +994,13 @@ html[data-text="larger"] .frow>.field--md:not(.field-action){grid-column:span 5}
 /* The column minimum is in em, not px: at Larger text a 260px column still holds 260px
    of much bigger letters, which is how a bullet ended up six lines of nineteen characters.
    In em the column grows with the type and the characters per line stay put. */
-.briefcols{display:grid;grid-template-columns:repeat(auto-fit,minmax(19em,1fr));gap:var(--s3) var(--s5)}
+/* A rule between the columns, so four groups of grey text read as four groups rather
+   than as one paragraph that happens to have gaps in it. The first column in each row has
+   nothing to its left, which is what the :first-child and the wrap-aware nth rule are for
+   — a plain +* would draw a line down the left of a wrapped row. */
+.briefcols{display:grid;grid-template-columns:repeat(auto-fit,minmax(23em,1fr));gap:var(--s4) 0}
+.briefcol{padding:0 var(--s3);border-left:1px solid var(--dock-wash)}
+.briefcol:first-child{border-left:none;padding-left:0}
 /* The mark sits on the heading, in MaxDock blue, with the points directly under it. A
    gutter of its own cost the points width and left the column looking half empty; the
    column is just as recognisable by shape with the mark on its title line. */
@@ -1429,7 +1450,6 @@ body.modal-open{overflow:hidden}
 .truck__glass{fill:var(--chart-track);stroke:var(--ink-muted);stroke-width:1}
 .truck__wheel{fill:var(--ink-muted);stroke:none}
 .truck__ground,.truck__hitch{stroke:var(--rule-strong);stroke-width:1.4}
-.truck__div{stroke:var(--surface);stroke-width:.8;opacity:.6}
 .truck__well{fill:var(--chart-track)}
 .truck__load--light{fill:var(--signal)} .truck__load--part{fill:var(--chart-a)}
 .truck__load--full{fill:var(--ok)} .truck__load--over{fill:var(--stop)}

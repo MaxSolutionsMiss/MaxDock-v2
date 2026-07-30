@@ -105,14 +105,29 @@ const cssRuleBytes = Buffer.byteLength(readFileSync(join(ROOT, 'assets/maxdock.c
 // the whole thing is about 22 KB gzipped against half a megabyte of JavaScript, so
 // trading a paragraph of "why" for three rules was never a trade worth making.
 //
-// The rules figure is the gate. It was raised from 60 to 66 KB on 2026-07-30, once and
-// deliberately: 60 KB was set when the product was a shell, a board and a settings screen,
-// and it now carries eight report views with their own chart system, role access, two
-// importers, a combine dialog, a multi-site picker and a truck. Features, not sprawl —
-// and every genuinely dead rule was reclaimed first (the .spark chart, .ctrl-field--grow,
-// .cell-fine, .pickgroup--wide). It still binds, with about a kilobyte spare, which is the
-// point: growth in what the browser parses stays a decision somebody has to write down.
-if (cssRuleBytes > 66 * 1024) fail('assets/maxdock.css', `CSS rule budget exceeded: ${Math.round(cssRuleBytes / 1024)} KB of declarations.`);
+// The rules figure is the gate, and it has been raised twice, both times on 2026-07-30 and
+// both times written down here rather than nudged.
+//
+//   60 → 66 KB. Sixty was set when the product was a shell, a board and a settings screen,
+//   and it had come to carry eight report views with their own chart system, role access,
+//   two importers, a combine dialog, a multi-site picker and a truck.
+//
+//   66 → 70 KB. The owner's release pass added the paperwork panel, the four-quarter
+//   appointment window with its rules and its metric-sized reference, readings drawn as
+//   filling shapes as well as dials, and marks down the side of the day brief. Every one of
+//   those is a thing on screen he asked for by name.
+//
+// Both raises were made only after reclaiming everything genuinely dead: the .spark chart,
+// .ctrl-field--grow, .cell-fine, .pickgroup--wide, .qrblock, .status--changed, a parallel
+// .fillfig namespace that the trailer's own classes already covered, the duplicate
+// -webkit-mask copies, -webkit-overflow-scrolling (default on iOS since 13) and
+// -webkit-font-smoothing. A scan for rules whose every class is absent from js/ and app/
+// now returns only dynamically composed names, so there is nothing left to take.
+//
+// The point of the number is not the number. It is that growth in what a browser parses
+// stays a decision somebody has to make on purpose and justify in writing, instead of
+// arriving one convenience rule at a time.
+if (cssRuleBytes > 70 * 1024) fail('assets/maxdock.css', `CSS rule budget exceeded: ${Math.round(cssRuleBytes / 1024)} KB of declarations.`);
 // The file figure is a sanity bound, not a second gate, and it took two raises in one day to
 // see that it had been the wrong shape all along. Sitting 2 KB above the rules content, it
 // bound on *comments* — so the thing it actually rationed was the reasoning three paragraphs

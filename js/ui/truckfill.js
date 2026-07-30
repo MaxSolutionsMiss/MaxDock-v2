@@ -10,8 +10,7 @@
 // report, where it is the reading for the whole range.
 //
 // Drawn as inline SVG rather than divs. The shape is a shape — a cab, a box, wheels, and
-// the skid divisions inside the box — and every one of those is a line, not a rectangle
-// with a border. It carries no text of its own: the caption underneath says the numbers,
+// and the load inside the box, and every one of those is a shape rather than a div with a border. It carries no text of its own: the caption underneath says the numbers,
 // so the same drawing works at 96px wide in a dialog row and 260px wide on a report.
 
 const escapeHtml = value => String(value ?? '').replace(/[&<>'"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[char]));
@@ -50,7 +49,7 @@ export function truckFill({ skids, capacity, label = '', note = '', wide = false
     : spare === 0 ? 'exactly full' : `room for ${spare} more`);
   return `<figure class="truck truck--${state.key}${wide ? ' truck--wide' : ''}" role="img"
     aria-label="${escapeHtml(`${label ? `${label}: ` : ''}${carried} of ${holds} skids, ${percent.toFixed(0)} per cent, ${state.words}`)}">
-    ${outline(shown, state.key, holds)}
+    ${outline(shown, state.key)}
     <figcaption class="truck__cap"><b>${carried} of ${holds} skids</b><span>${escapeHtml(words)}</span>${label ? `<em>${escapeHtml(label)}</em>` : ''}</figcaption>
   </figure>`;
 }
@@ -58,24 +57,20 @@ export function truckFill({ skids, capacity, label = '', note = '', wide = false
 // The drawing. Loads from the front of the trailer backwards, which is how a trailer is
 // actually loaded and which puts the empty space at the doors where a person looking for
 // it would look.
-function outline(percent, key, holds = 0) {
+function outline(percent, key) {
   const fill = (IN.w * percent) / 100;
-  // One division per skid position while they are still far enough apart to read. Past
-  // about thirty they become texture rather than information, so they are dropped.
-  const divisions = holds > 1 && holds <= 30
-    ? Array.from({ length: holds - 1 }, (unused, index) => {
-      const x = IN.x + (IN.w * (index + 1)) / holds;
-      return `<line class="truck__div" x1="${x.toFixed(1)}" y1="${IN.y}" x2="${x.toFixed(1)}" y2="${IN.y + IN.h}"></line>`;
-    }).join('')
-    : '';
-  // Painting order is the whole trick. The empty trailer goes down first, then the load
-  // on top of it, then the divisions, and the outline last with no fill of its own — an
-  // outline with a fill drawn after the load simply paints the load out, which is exactly
-  // what the first version of this did.
+  // The load is one solid block. It used to be ruled into skid positions, which was an
+  // honest idea and the wrong one to look at: the eye reads the white lines as structure
+  // in the drawing rather than as a count, and the caption already says how many skids of
+  // how many. What the picture is for is how much room is left, and a solid block says
+  // that faster than a striped one.
+  //
+  // Painting order is the whole trick. The empty trailer goes down first, then the load on
+  // top of it, and the outline last with no fill of its own: an outline carrying a fill and
+  // drawn after the load simply paints the load out, which is what the first version did.
   return `<svg class="truck__svg" viewBox="0 0 200 58" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
     <rect class="truck__well" x="${IN.x}" y="${IN.y}" width="${IN.w}" height="${IN.h}" rx="1"></rect>
     <rect class="truck__load truck__load--${key}" x="${IN.x}" y="${IN.y}" width="${fill.toFixed(1)}" height="${IN.h}" rx="1"></rect>
-    ${divisions}
     <rect class="truck__box" x="${BOX.x}" y="${BOX.y}" width="${BOX.w}" height="${BOX.h}" rx="2"></rect>
     <line class="truck__hitch" x1="37" y1="42" x2="${BOX.x}" y2="42"></line>
     <path class="truck__cabin" d="M10 44V28l9-10h18v26z"></path>

@@ -42,8 +42,10 @@ const BODY_PARTS = {
   crew: '<circle cx="32" cy="20" r="13"/><path d="M8 74V50a12 12 0 0 1 12-12h24a12 12 0 0 1 12 12v24z"/>',
   // A page off the calendar, with a grid on it. One day against the rest.
   day: '<rect x="6" y="14" width="52" height="60" rx="3"/>',
-  // A trailer seen from behind: the two doors are the body, so a load fills the trailer.
-  truck: '<rect x="9" y="8" width="46" height="56"/>',
+  // A trailer seen from the side, which is the view the owner keeps asking for and the
+  // one truckfill.js already draws. It is the one shape that fills along its length rather
+  // than up its height, because that is how a trailer actually loads.
+  truck: '<rect x="12" y="22" width="46" height="30"/>',
   // The doorway itself, as an opening in a wall rather than an arch. What fills is the
   // door's own time, and it reaches almost to the platform so a light day still shows.
   door: '<rect x="12" y="16" width="40" height="52"/>',
@@ -57,9 +59,9 @@ const BODY_PARTS = {
 const DETAIL = {
   crew: '',
   day: '<path d="M20 6v12M44 6v12"/><path d="M6 30h52"/><path d="M6 46h52M6 60h52M23 30v44M41 30v44"/>',
-  // Doors meeting down the middle, three hinges a side, the two handles, and the bumper
-  // the trailer backs onto the platform with.
-  truck: '<path d="M32 8v56"/><path d="M9 18h5M9 36h5M9 54h5M50 18h5M50 36h5M50 54h5"/><path d="M28 32v10M36 32v10"/><path d="M5 64h54v6H5z"/><path d="M14 70v4M50 70v4"/>',
+  // Cab, hitch, wheels and the ground it stands on. Same anatomy as the big trailer in
+  // the combine dialog, drawn small.
+  truck: '<path d="M12 52V38H4l-3 6v8z"/><path d="M0 52h64"/><circle cx="7" cy="57" r="5"/><circle cx="40" cy="57" r="5"/><circle cx="53" cy="57" r="5"/>',
   // The roller housing above, the slats it rolls down, and the platform in front.
   door: '<path d="M7 6h50v10H7z"/><path d="M12 26h40M12 36h40M12 46h40"/><path d="M2 68h60v6H2z"/><path d="M10 74v2M54 74v2"/>',
   clock: '<path d="M32 26v5M58 48h-5M32 70v-5M6 48h5"/><path d="M32 32v16l11 7"/>',
@@ -108,16 +110,25 @@ export function fillFigure({ percent, shape = 'crew', label = '', note = '', ban
   </figure>`;
 }
 
+// A trailer loads front to back, so its fill runs along the trailer rather than up it,
+// starting behind the cab, exactly as the big trailer in the combine dialog does. It is
+// measured against the trailer body rather than the whole box: a fill starting at x=0
+// would be a fifth of the way down the drawing before it reached the trailer at all.
+const ALONG = { truck: { x: 12, w: 46 } };
+
 function drawing(percent, shape, load) {
   const id = `ff${++seq}`;
-  const height = (H * percent) / 100;
+  const along = ALONG[VARIANT[shape]?.of || shape];
+  const level = along
+    ? `<rect x="${along.x}" y="0" width="${((along.w * percent) / 100).toFixed(1)}" height="78"/>`
+    : `<rect x="0" y="${(H - (H * percent) / 100 + 2).toFixed(1)}" width="64" height="${((H * percent) / 100).toFixed(1)}"/>`;
   // Painting order, as with the trailer: the empty body first, the level clipped to that
   // body on top of it, then the outline last with no fill of its own. An outline that
   // carries a fill and is drawn after the level simply paints the level out.
   return `<svg class="truck__svg" viewBox="0 0 64 78" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
     <defs><clipPath id="${id}">${bodyOf(shape)}</clipPath></defs>
     <g class="truck__well" clip-path="url(#${id})"><rect x="0" y="0" width="64" height="78"/></g>
-    <g class="truck__load truck__load--${load}" clip-path="url(#${id})"><rect x="0" y="${(H - height + 2).toFixed(1)}" width="64" height="${height.toFixed(1)}"/></g>
+    <g class="truck__load truck__load--${load}" clip-path="url(#${id})">${level}</g>
     <g class="truck__box">${outlineOf(shape)}</g>
   </svg>`;
 }

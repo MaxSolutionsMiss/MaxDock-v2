@@ -65,12 +65,13 @@ export function createAppointmentDetails({ location, onEdit, laneFor, onCombine 
   backdrop.innerHTML = `
     <section class="modal modal--wide" role="dialog" aria-modal="true" aria-labelledby="appt-details-title">
       <!-- The number is what somebody came here holding, so it is the biggest thing on the
-           window, with an arrow saying which way the load is going in front of it. The route
-           reads on the same line rather than under it: two short lines stacked wasted the
-           width a landscape window has plenty of. -->
+           window; then a small arrow for the direction; then where the load is going, set
+           nearly as large, because "outbound to Guelph" is the second thing anybody wants
+           and it was previously a grey line half the size. All on one line: two short lines
+           stacked wasted the width a landscape window has plenty of. -->
       <div class="modal__head modal__head--load">
-        <span class="panel__mark" data-dir aria-hidden="true"></span>
         <h2 class="modal__title" id="appt-details-title" data-title>Appointment</h2>
+        <span class="apptdir" data-dir aria-hidden="true"></span>
         <p class="modal__sub" data-sub></p>
         <button class="modal__x" type="button" data-close aria-label="Close">×</button>
       </div>
@@ -98,7 +99,7 @@ export function createAppointmentDetails({ location, onEdit, laneFor, onCombine 
                 <input class="input" type="file" data-doc-file accept=".pdf,.jpg,.jpeg,.png,.heic,.webp,.doc,.docx,.xlsx,.csv">
                 <button class="btn btn--quiet" type="button" data-doc-upload>Upload</button>
               </div>
-              <p class="hint hint--flush">PDF, image or Word · up to ${MAX_MB} MB each</p>
+              <p class="hint hint--flush">PDF, PNG, JPEG or Word, up to ${MAX_MB} MB each</p>
               <p class="form-message" data-doc-message aria-live="polite"></p>
               <div data-docs></div>
             </div>
@@ -153,12 +154,14 @@ export function createAppointmentDetails({ location, onEdit, laneFor, onCombine 
     els.log.innerHTML = entries.map(entry => {
       const fields = entry.details?.changed_fields || [];
       const detail = fields.length ? `${fields.join(', ')} changed. ` : '';
-      return `<div class="watchitem">
+      // One row per event, reading across: when, what, and who. Stacked over three lines
+      // each, four events filled the column and everything older was a scroll away; across,
+      // the same four take a quarter of the room and the times line up to be scanned.
+      return `<div class="logrow">
         <span class="wdot" style="--c:${eventTone(entry)}"></span>
-        <div>
-          <b>${escapeHtml(entry.summary || format.role(entry.action))}</b>
-          ${escapeHtml(detail)}<span class="sub">${escapeHtml(format.timestamp(entry.changed_at, location))} · ${escapeHtml(entry.changed_by_name || 'MaxDock')}</span>
-        </div>
+        <span class="logrow__t">${escapeHtml(format.timestamp(entry.changed_at, location))}</span>
+        <span class="logrow__w">${escapeHtml(entry.summary || format.role(entry.action))}${detail ? ` · ${escapeHtml(detail.trim())}` : ''}</span>
+        <span class="logrow__b">${escapeHtml(entry.changed_by_name || 'MaxDock')}</span>
       </div>`;
     }).join('');
   }
@@ -173,9 +176,13 @@ export function createAppointmentDetails({ location, onEdit, laneFor, onCombine 
     els.dir.innerHTML = inbound
       ? '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12h14M12 6l6 6-6 6M20 4v16"/></svg>'
       : '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12H6M14 6l-6 6 6 6M4 4v16"/></svg>';
-    els.dir.className = inbound ? 'panel__mark' : 'panel__mark apptdir--out';
+    els.dir.className = inbound ? 'apptdir' : 'apptdir apptdir--out';
     els.dir.setAttribute('title', inbound ? 'Inbound' : 'Outbound');
-    els.sub.textContent = [format.role(record.direction || ''), record.company_name || record.display_counterpart_location_name || record.requester_name].filter(Boolean).join(' · ');
+    // "Inbound from Weston Foods", not "Inbound · Weston Foods": the preposition is the
+    // difference between a label and a sentence, and it costs nothing to say which end of
+    // the journey the other party is.
+    const other = record.company_name || record.display_counterpart_location_name || record.requester_name;
+    els.sub.textContent = other ? `${inbound ? 'Inbound from' : 'Outbound to'} ${other}` : (inbound ? 'Inbound' : 'Outbound');
     els.edit.hidden = !canEdit;
     // The other trucks going the same way to the same place today. This is where an
     // operator is standing when the question occurs to them: they have clicked the
