@@ -139,19 +139,24 @@ html[data-rail="mini"]{--rail-w:64px}
 .btn--sm{padding:0 10px;font-size:var(--t-small)}
 .btn--block{width:100%}
 
-/* A grid, not a wrapping flex row: as flex the right-hand utilities lost the line
-   first and dropped under a band of white. Three columns pin them top-right at
-   every width while the filters wrap in their own cell. */
-.controls{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:end;gap:var(--s2) var(--s3);padding:var(--s2) var(--s3);background:var(--surface);border:1px solid var(--rule);border-radius:var(--radius-lg);margin-bottom:var(--s3);flex:none}
+/* A wrapping flex row, not three grid columns. `auto minmax(0,1fr) auto` let the outer
+   tracks take their content and handed the filters the remainder — 66px on the dock board
+   at 1024px, which overflowed across the actions and left the button under them
+   unclickable. A pixel breakpoint is the wrong shape of answer: the tracks grow with the
+   type ramp, so the same starvation came back at 1280 with Larger text. Flex wrap needs no
+   threshold. It was rejected first time because the utilities lost the line and left white
+   beside the filters — that was the filters not taking the slack, and `flex:1 1 0` here
+   with `margin-left:auto` there is the missing half. */
+.controls{display:flex;flex-wrap:wrap;align-items:end;gap:var(--s2) var(--s3);padding:var(--s2) var(--s3);background:var(--surface);border:1px solid var(--rule);border-radius:var(--radius-lg);margin-bottom:var(--s3)}
 /* The band's two fixed anchors: the page's context control and its operational
    actions at the start, output and view controls at the far right. Everything
    between is that page's own filters. */
-.controls__lead{grid-column:1;display:flex;align-items:end;gap:var(--s2) var(--s3);flex-wrap:wrap}
+.controls__lead{display:flex;align-items:end;gap:var(--s2) var(--s3);flex-wrap:wrap;flex:0 0 auto}
 .controls__lead .btn{white-space:nowrap}
 /* The filters take the slack and wrap inside themselves. Left as loose children
    they competed with the right-hand group for the same line, so the utilities
    dropped to a row of their own and left a band of empty white above them. */
-.controls__filters{grid-column:2;display:flex;align-items:end;gap:var(--s2) var(--s3);flex-wrap:wrap;min-width:0}
+.controls__filters{display:flex;align-items:end;gap:var(--s2) var(--s3);flex-wrap:wrap;flex:1 1 0;min-width:0}
 .datenav{display:flex;align-items:center;gap:var(--s1)}
 .iconbtn{width:var(--ctl-h);min-height:var(--ctl-h);height:var(--ctl-h);border:1px solid var(--rule-strong);background:var(--surface);border-radius:var(--radius);cursor:pointer;color:var(--ink-muted);font-size:16px;display:grid;place-items:center}
 .input,.select,textarea{font-family:inherit;font-size:var(--t-base);color:var(--ink);background:var(--surface);border:1px solid var(--rule-strong);border-radius:var(--radius);padding:0 10px;min-height:var(--ctl-h)}
@@ -313,7 +318,9 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
    than stopping at a reading measure — a short column of prose under a wide row
    leaves a ragged hole to its right. */
 .hint--wide{max-width:none}
-.controls__end{grid-column:3;justify-self:end;display:flex;flex-wrap:wrap;align-items:end;gap:var(--s2)}
+/* margin-left:auto rather than a third column: it holds the utilities against the right
+   edge of whichever line they end up on, so the band keeps its shape when it wraps. */
+.controls__end{margin-left:auto;display:flex;flex-wrap:wrap;align-items:end;gap:var(--s2)}
 
 /* Cards wrap to fit rather than being forced into a fixed column count. At 768px the
    old repeat(5,1fr) squeezed them to 55-104px wide; on a wide screen the same rule
@@ -1240,11 +1247,6 @@ body.modal-open{overflow:hidden}
    to just miss the button would only wait for the next change to the band. So the band
    stacks while there is still room to stack into: below 1100px each group gets the full
    width, which is what it already did below 900. */
-@media (max-width:1100px){
-  .controls{grid-template-columns:1fr}
-  .controls__lead,.controls__filters,.controls__end{grid-column:1}
-  .controls__end{justify-self:start}
-}
 /* --- narrow screens
    The rail is a fixed 196px, which on a 390px phone left 194px for the whole
    application. Below 900px it keeps its icons and drops its labels — the labels
@@ -1256,9 +1258,10 @@ body.modal-open{overflow:hidden}
   :root{--rail-w:60px}
   .rail__collapse{display:none}
   .page{padding:var(--s3) var(--s3) var(--s4)}
-  .controls{grid-template-columns:1fr}
-  .controls__lead,.controls__filters,.controls__end{grid-column:1}
-  .controls__end{justify-self:start}
+  /* One group a line, and the utilities left-aligned with everything else rather than
+     stranded against the right edge of a phone. */
+  .controls__lead,.controls__filters,.controls__end{flex:1 1 100%}
+  .controls__end{margin-left:0;justify-content:flex-start}
   .top{padding:0 var(--s3);gap:var(--s2)}
   .top__date{display:none}
   .top__loc{min-width:0;flex:1}

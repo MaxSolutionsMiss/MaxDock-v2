@@ -2300,10 +2300,27 @@ centre was at 709. That is not a layout working; it is one that has not been cau
 Widening the box by the ten per cent the owner asked for closed those eleven pixels.
 
 A floor tuned to just miss the button would have passed CI and waited for the next change
-to the band. So the band stacks while there is still room to stack into: **below 1100px each
-group takes the full width**, which is what it already did below 900. At 1024 the filters
-now get 754px, all three sit on one row, and the search box is its full 223px at every
-width instead of being squeezed to 131.
+to the band. The first attempt was a breakpoint — below 1100px each group takes the full
+width — and **the new rule immediately proved that wrong too**: at Larger text the same
+starvation reappeared at 1280, on the board and on My appointments. The outer tracks grow
+with the type ramp and a pixel breakpoint does not, so any threshold in pixels is the wrong
+shape of answer to "the content no longer fits".
+
+So the band is **a wrapping flex row** and there is no threshold at all: three groups
+abreast while they fit, one drops to its own line when they do not, at every width and
+every text size. The 1100px block went with it, and the one at 900 now says what it means —
+one group a line, utilities left-aligned with everything else.
+
+Flex was tried once before and rejected, and the stylesheet said why: the utilities lost
+the line first and left a band of white beside the filters. That was the filters not being
+told to take the slack. `flex:1 1 0` on the filters and `margin-left:auto` on the utilities
+is the missing half, and together they hold the utilities against the right edge of
+whichever line they land on. The regression it was rejected for is now something the local
+band sweep measures directly, over every page with a band at seven widths and three text
+sizes.
+
+At 1024 the filters get the full width, and the search box is its full 223px at every width
+instead of being squeezed to 131.
 
 **And the audit now names the cause.** A new rule measures each band group against the
 column it was given and reports `controls-band-overflows-its-column · .controls__filters
