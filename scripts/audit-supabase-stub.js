@@ -288,6 +288,9 @@
     get_appointment_history: () => [
       { event_id: 4, action: 'status_changed', changed_at: iso(11), changed_by_name: 'Maria Chen', summary: 'Status changed from Arrived to Completed', details: { from_status: 'arrived', to_status: 'completed' } },
       { event_id: 3, action: 'status_changed', changed_at: iso(9, 40), changed_by_name: 'Dock 3 receiver', summary: 'Scanned in at the dock · driver A. Driver', details: { is_check_in: true, driver_name: 'A. Driver', checked_in_at: iso(9, 40), changed_fields: ['Check-in', 'Driver'] } },
+      // A combine, so the window is exercised on the case it exists for: the numbers that
+      // came onto this truck have to reach both the activity and the load's own details.
+      { event_id: 25, action: 'updated', changed_at: iso(8, 30), changed_by_name: 'Javad Resa', summary: 'Combined MXD-2026-000147 onto this load · one truck, 20 skids · 1 document(s) came with them', details: { is_merge: true, combined_from: ['MXD-2026-000147'], skid_count: 20, documents_moved: 1 } },
       { event_id: 2, action: 'updated', changed_at: iso(8), changed_by_name: 'Javad Resa', summary: 'Appointment details updated', details: { changed_fields: ['Schedule', 'Dock'] } },
       { event_id: 1, action: 'created', changed_at: iso(6), changed_by_name: 'Javad Resa', summary: 'Appointment created', details: {} },
     ],

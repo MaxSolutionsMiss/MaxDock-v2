@@ -93,6 +93,9 @@ jobs:
       - name: No em dashes in anything the site renders
         run: node scripts/verify-no-em-dashes.mjs
 
+      - name: Where a combined load came from
+        run: node scripts/verify-combine-trail.mjs
+
   layout:
     runs-on: ubuntu-latest
     steps:

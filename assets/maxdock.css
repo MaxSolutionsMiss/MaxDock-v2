@@ -380,6 +380,10 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 .apptcols__side{display:grid;align-content:start;padding-right:var(--s4);border-right:1px solid var(--rule)}
 /* The direction sits between the number and the route: small, because the two words
    beside it say the same thing and this is the glance version. */
+/* The number is one thing to read and the direction is another, so they are two groups
+   with air between them rather than three items in a row at even spacing. */
+.modal__head--load{gap:var(--s5)}
+.apptway{display:flex;align-items:center;gap:var(--s2);min-width:0}
 .apptdir{width:1.9em;height:1.9em;flex:none;border-radius:50%;display:grid;place-items:center;background:var(--dock-wash);color:var(--dock-deep)}
 .apptdir svg{width:1.1em;height:1.1em;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
 .apptdir--out{background:var(--ok-wash);color:var(--ok)}

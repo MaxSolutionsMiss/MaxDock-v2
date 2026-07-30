@@ -71,8 +71,10 @@ export function createAppointmentDetails({ location, onEdit, laneFor, onCombine 
            stacked wasted the width a landscape window has plenty of. -->
       <div class="modal__head modal__head--load">
         <h2 class="modal__title" id="appt-details-title" data-title>Appointment</h2>
-        <span class="apptdir" data-dir aria-hidden="true"></span>
-        <p class="modal__sub" data-sub></p>
+        <span class="apptway">
+          <span class="apptdir" data-dir aria-hidden="true"></span>
+          <p class="modal__sub" data-sub></p>
+        </span>
         <button class="modal__x" type="button" data-close aria-label="Close">×</button>
       </div>
       <div class="modal__body">
@@ -170,12 +172,14 @@ export function createAppointmentDetails({ location, onEdit, laneFor, onCombine 
     current = record;
     const site = { timezone: record.location_timezone || location?.timezone };
     els.title.textContent = record.booking_reference || 'Appointment';
-    // An arrow into the building or out of it, which is the first thing anybody wants to
-    // know about a load and is faster to see than to read.
+    // An arrow into a tray or up out of one. The pair everybody already knows from every
+    // inbox and every download button, rather than an arrow at a wall that has to be
+    // worked out: goods coming in drop into the building, goods going out leave it.
     const inbound = (record.direction || 'inbound') === 'inbound';
+    const TRAY = '<path d="M3 14v4a3 3 0 0 0 3 3h12a3 3 0 0 0 3-3v-4"/>';
     els.dir.innerHTML = inbound
-      ? '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12h14M12 6l6 6-6 6M20 4v16"/></svg>'
-      : '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12H6M14 6l-6 6 6 6M4 4v16"/></svg>';
+      ? `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5"/>${TRAY}</svg>`
+      : `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V3M7 8l5-5 5 5"/>${TRAY}</svg>`;
     els.dir.className = inbound ? 'apptdir' : 'apptdir apptdir--out';
     els.dir.setAttribute('title', inbound ? 'Inbound' : 'Outbound');
     // "Inbound from Weston Foods", not "Inbound · Weston Foods": the preposition is the
@@ -224,7 +228,18 @@ export function createAppointmentDetails({ location, onEdit, laneFor, onCombine 
       const rows = await db.rpc('get_appointment_history', { p_appointment_id: record.id || record.appointment_id }, {
         key: `appointment:history:${record.id || record.appointment_id}`, cache: 10000, retry: 1,
       });
-      renderLog(Array.isArray(rows) ? rows : []);
+      const log = Array.isArray(rows) ? rows : [];
+      renderLog(log);
+      // The numbers that came onto this truck belong with the load, not only in the list of
+      // events underneath it. Somebody holding a cancelled reference and somebody asking
+      // "what is on this truck" are the same person, and they should not have to read a
+      // history to find out. Taken from the history because that is where the merge is
+      // recorded; added after it arrives, so the rest of the panel is never held up by it.
+      const from = log.flatMap(entry => entry.details?.combined_from || []);
+      if (from.length) {
+        els.grid.insertAdjacentHTML('beforeend',
+          cell(from.length === 1 ? 'Combined from' : `Combined from ${from.length} loads`, from.join(', ')));
+      }
     } catch (error) {
       // Reading history needs audit.view, which not every role holds. That is a
       // permission, not a fault, and the details above are still worth showing.
