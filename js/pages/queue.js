@@ -425,6 +425,12 @@ function combinePoints(appointments) {
   const lanes = new Map();
   for (const record of appointments) {
     if (TERMINAL_QUEUE_STATUSES.has(record.status)) continue;
+    // Only loads physically at this site. On a Max-to-Max movement both ends see
+    // the run, but combining is the sending site's decision — they are the ones
+    // stacking the trailer — and merge_appointments refuses anyone without access
+    // to the site the load actually sits at. Offering the receiving site a button
+    // that is certain to be refused is worse than not offering it.
+    if (record.is_linked_movement) continue;
     const partner = String(record.company_name || record.display_counterpart_location_name || '').trim();
     if (!partner) continue;
     const key = `${record.direction}|${partner.toLowerCase()}`;
