@@ -87,6 +87,9 @@ jobs:
       - name: What the board and the queue show
         run: node scripts/verify-schedule-metrics.mjs
 
+      - name: How a report reading is drawn
+        run: node scripts/verify-report-readings.mjs
+
   layout:
     runs-on: ubuntu-latest
     steps:

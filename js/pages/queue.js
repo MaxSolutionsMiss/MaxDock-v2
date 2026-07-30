@@ -5,7 +5,7 @@ import { renderState } from '../ui/empty.js';
 import { format } from '../format.js';
 import { createCustomizePanel } from '../ui/customize.js';
 import { openWall, paintWall } from '../ui/wall.js';
-import { pageHead } from '../ui/pagehead.js';
+import { pageHead, icon } from '../ui/pagehead.js';
 import { createCombineDialog, combinableLanes, laneFullness, laneDescription, laneForRecord } from '../ui/combine-loads.js';
 import { createAppointmentDetails } from '../ui/appointment-details.js';
 
@@ -374,16 +374,22 @@ function briefGroups() {
   const priority = appointments.filter(record => record.is_priority);
   const remaining = appointments.filter(record => EXPECTED_STATUSES.has(record.status));
 
+  // How much is on each of them, not only how many there are. Twelve trucks at four skids
+  // apiece and twelve at twenty are the same line otherwise, and only one of them is a
+  // problem worth walking over to look at.
+  const each = rows => (rows.length ? Math.round(skids(rows) / rows.length) : 0);
   const groups = [{
     title: 'Trucks',
+    mark: 'truck',
     points: [
       `${appointments.length} truck${appointments.length === 1 ? '' : 's'} today — ${inbound.length} in with ${skids(inbound)} skids, ${outbound.length} out with ${skids(outbound)}.`,
+      `${each(appointments)} skids a truck on average — ${inbound.length ? `${each(inbound)} in` : 'nothing in'}, ${outbound.length ? `${each(outbound)} out` : 'nothing out'}.`,
       remaining.length ? `${remaining.length} still to arrive.` : 'Everything booked has arrived or finished.',
     ],
   }];
 
   const labour = labourPoints(appointments);
-  if (labour.length) groups.push({ title: 'Labour', points: labour });
+  if (labour.length) groups.push({ title: 'Labour', mark: 'crew', points: labour });
   const combining = combinePoints(appointments);
   state.combineLanes = combining;
   // The only group whose bullets are worth acting on: everything else on this card
@@ -391,6 +397,7 @@ function briefGroups() {
   if (combining.length) {
     groups.push({
       title: 'Combining',
+      mark: 'load',
       points: combining.map(lane => lane.text),
       action: can('appointment.create') ? { label: 'Combine', attribute: 'data-combine-lane' } : null,
     });
@@ -400,7 +407,7 @@ function briefGroups() {
   if (late.length) attention.push(`${late.length} running late — ${late.slice(0, 2).map(record => record.booking_reference || 'an unreferenced booking').join(', ')}.`);
   if (priority.length) attention.push(`${priority.length} marked priority.`);
   if (state.brief?.brief?.summary) attention.push(state.brief.brief.summary);
-  if (attention.length) groups.push({ title: 'Attention', points: attention });
+  if (attention.length) groups.push({ title: 'Attention', mark: 'warn', points: attention });
   return groups;
 }
 
@@ -480,7 +487,12 @@ function renderBriefCard() {
   // is going wrong.
   const narrative = state.briefLoading
     ? '<span class="brief__x">Generating today’s narrative…</span>'
+    // A mark down the side of each column, running the depth of its points rather than
+    // sitting on the heading like a bullet. Four columns of near-identical grey text are
+    // told apart by shape before a word of them is read, which is the whole job of the
+    // card — and the shape is the subject: a truck, a person, a load, a warning.
     : `<div class="briefcols">${briefGroups().map(group => `<section class="briefcol">
+        <span class="briefcol__m" aria-hidden="true">${icon(group.mark || 'chart')}</span>
         <h4 class="briefcol__t">${escapeHtml(group.title)}</h4>
         <ul class="briefpoints">${group.points.map((point, index) => `<li>${escapeHtml(point)}${group.action ? ` <button class="linkBtn" type="button" ${group.action.attribute}="${index}">${escapeHtml(group.action.label)}</button>` : ''}</li>`).join('')}</ul>
       </section>`).join('')}</div>`;

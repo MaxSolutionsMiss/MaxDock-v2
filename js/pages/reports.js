@@ -7,6 +7,7 @@ import { createCustomizePanel } from '../ui/customize.js';
 import { format } from '../format.js';
 import { mergeContext, mergeScorecard, mergeFullness, mergeLabour } from '../reports-merge.js';
 import { truckFill } from '../ui/truckfill.js';
+import { fillFigure } from '../ui/fillfigure.js';
 
 // Each view carries a mark as well as a name. A report that opens with a heading and a
 // number is correct and hard to tell apart from the last one you looked at; a mark makes the
@@ -190,14 +191,15 @@ const siteRange = () => `${siteName()} · ${rangeLabel()}`;
 // answer you want and 40% is the problem — and colouring those two the same way was
 // painting a 91% on-time vendor amber for being nearly punctual. `none` is for readings
 // with no good end at all, which get one neutral colour and no verdict word.
-function dial(percent, label, note, { good = 'low' } = {}) {
-  if (percent === null || percent === undefined) {
-    return `<figure class="dial dial--empty"><div class="dial__face"><span class="dial__v">—</span></div><figcaption class="dial__l">${escapeHtml(label)}<span>not measured</span></figcaption></figure>`;
-  }
+// Which band a percentage falls in and what that band means, decided in one place.
+//
+// It is one place because the same reading is now drawn two ways — as a dial and as a
+// shape filling up — and a figure that is "healthy" as a ring and "near capacity" as a
+// crew would be worse than either. Whichever way it is drawn, this decides.
+//
+// Over 100 is a finding, not an error: the day asked for more than there was.
+function readingBand(percent, good = 'low') {
   const value = Math.max(0, Number(percent));
-  const shown = Math.min(100, value);
-  // Bands, and what each one means here. Over 100 is a finding, not an error: the day
-  // asked for more than there was.
   const band = good === 'none' ? 'mid'
     : good === 'high'
       ? (value >= 90 ? 'low' : value >= 75 ? 'mid' : 'high')
@@ -206,10 +208,37 @@ function dial(percent, label, note, { good = 'low' } = {}) {
     : good === 'high'
       ? { low: 'on target', mid: 'slipping', high: 'not acceptable' }[band]
       : { over: 'over capacity', high: 'near capacity', mid: 'healthy', low: 'light' }[band];
+  return { value, band, words };
+}
+
+function dial(percent, label, note, { good = 'low' } = {}) {
+  if (percent === null || percent === undefined) {
+    return `<figure class="dial dial--empty"><div class="dial__face"><span class="dial__v">—</span></div><figcaption class="dial__l">${escapeHtml(label)}<span>not measured</span></figcaption></figure>`;
+  }
+  const { value, band, words } = readingBand(percent, good);
+  const shown = Math.min(100, value);
   return `<figure class="dial dial--${band}" role="img" aria-label="${escapeHtml(`${label}: ${value.toFixed(1)} per cent${words ? `, ${words}` : ''}`)}">
     <div class="dial__face" style="--pct:${shown.toFixed(1)}"><span class="dial__v">${value.toFixed(0)}<i>%</i></span></div>
     <figcaption class="dial__l">${escapeHtml(label)}<span>${escapeHtml(note || words)}</span></figcaption>
   </figure>`;
+}
+
+// The same reading as the shape it is about, filling up. Same band, same words — this
+// chooses only the outline, because that is the only thing that differs.
+function shapeOf(percent, label, note, { good = 'low', shape = 'crew' } = {}) {
+  if (percent === null || percent === undefined) return fillFigure({ percent: null, shape, label });
+  const { value, band, words } = readingBand(percent, good);
+  return fillFigure({ percent: value, shape, label, note, band, words });
+}
+
+// Three readings, drawn whichever way the reader picked. The switch is per panel and
+// remembered, so a page that opens on dials stays on dials.
+function readings(key, cards) {
+  const form = formOf(key, 'dial');
+  const drawn = cards.map(card => (form === 'shape'
+    ? shapeOf(card.percent, card.label, card.note, { good: card.good, shape: card.shape })
+    : dial(card.percent, card.label, card.note, { good: card.good })));
+  return `<div class="dials">${drawn.join('')}</div>`;
 }
 
 // A ring for a part-to-whole with two parts — in and out. Two slices, both named and
@@ -248,15 +277,21 @@ function ranked(rows, { unit = '', max = 8, outOf = 0 } = {}) {
 // A reading and its verdict, drawn as well as coloured and worded. The bands are the
 // ones the scorecard table already uses, so a tag in the table and a badge on a card
 // never disagree about whether 87% is acceptable.
-// The band at the top of every view: the mark, what the view is, and which sites and dates
-// it covers. One function rather than a heading in each of the eight render functions, so
-// they cannot describe themselves in eight different ways.
-function viewHead(note = '') {
+// The view's mark and name, folded into the head of the section they introduce.
+//
+// They used to sit in a band of their own above it, which put two headings and the same
+// "Milton · Jul 1 – Jul 30" line twice on a page carrying one report. A mark belongs to
+// the thing it marks. So the first section of whichever view is showing gets it, and the
+// eight render functions stay as they are — none of them has to remember.
+function withViewMark(html) {
   const view = VIEWS.find(item => item.id === state.view);
-  return `<header class="viewhead">
-    <span class="viewhead__mark">${icon(viewIcon())}</span>
-    <div class="viewhead__t"><h2>${escapeHtml(view?.label || 'Report')}</h2><p>${escapeHtml(note || siteRange())}</p></div>
-  </header>`;
+  const head = '<div class="panel__head">';
+  const at = html.indexOf(head);
+  if (at < 0) return html;
+  const lead = `<div class="panel__head panel__head--lead">
+    <span class="panel__mark">${icon(viewIcon())}</span>
+    <span class="panel__eyebrow">${escapeHtml(view?.label || 'Report')}</span>`;
+  return html.slice(0, at) + lead + html.slice(at + head.length);
 }
 
 function verdict(percent) {
@@ -303,12 +338,12 @@ function renderOverview() {
     .map(row => ({ label: dayLabel(row.date), value: row.appointments, shown: `${num(row.appointments)} trucks · ${num(row.inbound_skids) + num(row.outbound_skids)} skids` }));
   return `${kpiRow()}
     <div class="panel">
-      <div class="panel__head"><h3 class="panel__title">The three readings</h3><div class="panel__actions"><span class="sub">${escapeHtml(siteRange())}</span></div></div>
-      <div class="dials">
-        ${dial(num(s.occupied_utilization_percent), 'Dock time used', 'of the hours the doors were open')}
-        ${dial(used, 'Trailer used', 'skids against what the trailers hold', { good: 'high' })}
-        ${dial(num(s.appointments) ? (num(s.cancelled) / num(s.appointments)) * 100 : null, 'Cancelled', 'of every booking made')}
-      </div>
+      <div class="panel__head"><h3 class="panel__title">The three readings</h3><div class="panel__actions">${formSwitch('overview-read', [{ id: 'dial', label: 'Dials' }, { id: 'shape', label: 'Fill' }])}<span class="sub">${escapeHtml(siteRange())}</span></div></div>
+      ${readings('overview-read', [
+        { percent: num(s.occupied_utilization_percent), label: 'Dock time used', note: 'of the hours the doors were open', shape: 'door' },
+        { percent: used, label: 'Trailer used', note: 'skids against what the trailers hold', good: 'high', shape: 'truck' },
+        { percent: num(s.appointments) ? (num(s.cancelled) / num(s.appointments)) * 100 : null, label: 'Cancelled', note: 'of every booking made', shape: 'day' },
+      ])}
       <div class="panel__body"><p class="hint hint--flush">Doors, trailers and reliability. Each of the three has its own view with the detail behind it; this is whether any of them needs one.</p></div>
     </div>
     <div class="panel panel--fill">
@@ -401,12 +436,12 @@ function renderDockUtilisation() {
   const warnings = [];
   if (num(compatibility.docks_without_vehicle_types) > 0) warnings.push(`${compatibility.docks_without_vehicle_types} active dock(s) accept no configured truck type.`);
   if (num(compatibility.vehicle_types_without_docks) > 0) warnings.push(`${compatibility.vehicle_types_without_docks} enabled truck type(s) have no compatible dock.`);
-  return `<div class="panel"><div class="panel__head"><h3 class="panel__title">How hard the doors worked</h3><div class="panel__actions"><span class="sub">${escapeHtml(siteRange())}</span></div></div>
-      <div class="dials">
-        ${dial(num(s.occupied_utilization_percent), 'Dock time used', 'of the hours the doors were open')}
-        ${dial(s.available_dock_minutes ? (num(s.blocked_minutes) / num(s.available_dock_minutes)) * 100 : null, 'Time blocked off', 'maintenance, breaks, events')}
-        ${dial(num(s.active_docks) ? (num(s.booked_minutes) / 60) / num(s.active_docks) / Math.max(1, (state.data.by_day || []).length) / 9.5 * 100 : null, 'Busiest door share', 'booked hours per door per day', { good: 'none' })}
-      </div></div>
+  return `<div class="panel"><div class="panel__head"><h3 class="panel__title">How hard the doors worked</h3><div class="panel__actions">${formSwitch('dock-read', [{ id: 'dial', label: 'Dials' }, { id: 'shape', label: 'Fill' }])}<span class="sub">${escapeHtml(siteRange())}</span></div></div>
+      ${readings('dock-read', [
+        { percent: num(s.occupied_utilization_percent), label: 'Dock time used', note: 'of the hours the doors were open', shape: 'door' },
+        { percent: s.available_dock_minutes ? (num(s.blocked_minutes) / num(s.available_dock_minutes)) * 100 : null, label: 'Time blocked off', note: 'maintenance, breaks, events', shape: 'clock' },
+        { percent: num(s.active_docks) ? (num(s.booked_minutes) / 60) / num(s.active_docks) / Math.max(1, (state.data.by_day || []).length) / 9.5 * 100 : null, label: 'Busiest door share', note: 'booked hours per door per day', good: 'none', shape: 'day' },
+      ])}</div>
     <div class="kpis" style="--kpi-cols:4">
       <article class="kpi kpi--signal"><span class="kpi__label">Dock time used</span><span class="kpi__value">${num(s.occupied_utilization_percent).toFixed(1)}<span>%</span></span></article>
       <article class="kpi"><span class="kpi__label">Booked hours</span><span class="kpi__value">${compact(num(s.booked_minutes) / 60)}</span></article>
@@ -472,12 +507,12 @@ function renderScorecard(kind) {
       <article class="kpi kpi--stop"><span class="kpi__label">No shows</span><span class="kpi__value">${noShows}</span></article>
     </div>
     <div class="panel">
-      <div class="panel__head"><h3 class="panel__title">How the ${who}s are doing</h3><div class="panel__actions"><span class="sub">${escapeHtml(siteRange())}</span></div></div>
-      <div class="dials">
-        ${dial(overall, 'Turned up on time', 'within 15 minutes of the booking', { good: 'high' })}
-        ${dial(trucks ? ((trucks - noShows - cancelled) / trucks) * 100 : null, 'Trucks that came', 'of every booking made', { good: 'high' })}
-        ${dial(arrived ? (late / arrived) * 100 : null, 'Arrived late', 'of the trucks that came')}
-      </div>
+      <div class="panel__head"><h3 class="panel__title">How the ${who}s are doing</h3><div class="panel__actions">${formSwitch(`read-${kind}`, [{ id: 'dial', label: 'Dials' }, { id: 'shape', label: 'Fill' }])}<span class="sub">${escapeHtml(siteRange())}</span></div></div>
+      ${readings(`read-${kind}`, [
+        { percent: overall, label: 'Turned up on time', note: 'within 15 minutes of the booking', good: 'high', shape: 'clock' },
+        { percent: trucks ? ((trucks - noShows - cancelled) / trucks) * 100 : null, label: 'Trucks that came', note: 'of every booking made', good: 'high', shape: 'truck' },
+        { percent: arrived ? (late / arrived) * 100 : null, label: 'Arrived late', note: 'of the trucks that came', shape: 'door' },
+      ])}
     </div>
     <div class="panel">
       <div class="panel__head"><h3 class="panel__title">Punctual against busy</h3>
@@ -564,7 +599,7 @@ function renderFullness() {
   const combining = rows
     .filter(row => num(row.loads_absorbed) > 0)
     .map(row => ({ label: row.partner_name, value: row.loads_absorbed, shown: `${num(row.loads_absorbed)} onto ${num(row.combined_trucks)} truck${num(row.combined_trucks) === 1 ? '' : 's'}` }));
-  return `<div class="panel"><div class="panel__head"><h3 class="panel__title">How full the trucks ran</h3><div class="panel__actions"><span class="sub">${escapeHtml(siteRange())}</span></div></div>
+  return `<div class="panel"><div class="panel__head"><h3 class="panel__title">How full the trucks ran</h3><div class="panel__actions">${formSwitch('fullness-read', [{ id: 'dial', label: 'Dials' }, { id: 'shape', label: 'Fill' }])}<span class="sub">${escapeHtml(siteRange())}</span></div></div>
       <div class="panel__body">${asOne === null
         ? '<p class="hint">No truck type in this range has a skid capacity entered, so how full the trucks ran is not known. It is set per site under Settings › Capacity.</p>'
         : `<div class="trucks">${truckFill({
@@ -575,11 +610,11 @@ function renderFullness() {
           wide: true,
         })}</div>`}
         <p class="hint">Every measured truck in the range averaged into one 53 ft trailer. The room at the doors is the room that was paid for and not used — and it is what combining is for.</p></div>
-      <div class="dials">
-        ${dial(overall, 'Trailer used', 'skids against what the trailers hold', { good: 'high' })}
-        ${dial(measured ? (fullTrucks / measured) * 100 : null, 'Trucks that ran full', '90% or more', { good: 'high' })}
-        ${dial(savedPct, 'Trucks saved by combining', 'of what would have run', { good: 'none' })}
-      </div>
+      ${readings('fullness-read', [
+        { percent: overall, label: 'Trailer used', note: 'skids against what the trailers hold', good: 'high', shape: 'truck' },
+        { percent: measured ? (fullTrucks / measured) * 100 : null, label: 'Trucks that ran full', note: '90% or more', good: 'high', shape: 'truck' },
+        { percent: savedPct, label: 'Trucks saved by combining', note: 'of what would have run', good: 'none', shape: 'day' },
+      ])}
     </div>
     <div class="panel">
       <div class="panel__head"><h3 class="panel__title">Which lanes are wasting space</h3><div class="panel__actions"><span class="sub">${compact(trucks)} trucks on ${rows.length} lane${rows.length === 1 ? '' : 's'}</span></div></div>
@@ -631,12 +666,13 @@ function renderLabour() {
   const overall = available ? Math.round((truckHours / available) * 1000) / 10 : null;
   const recorded = rows.filter(row => row.source === 'recorded').length;
   const busiest = [...worked].sort((a, b) => num(b.utilization_percent) - num(a.utilization_percent))[0];
-  return `<div class="panel"><div class="panel__head"><h3 class="panel__title">What the day asked of the crew</h3><div class="panel__actions"><span class="sub">${escapeHtml(siteRange())}</span></div></div>
-      <div class="dials">
-        ${dial(overall, 'Crew used', 'hours on trucks against hours available')}
-        ${dial(busiest && busiest.utilization_percent !== null && busiest.utilization_percent !== undefined ? Number(busiest.utilization_percent) : null, 'Busiest day', busiest ? dayLabel(busiest.work_date) : 'no day measured')}
-        ${dial(rows.length ? (recorded / rows.length) * 100 : null, 'Days with a real count', 'the rest come off the shift roster', { good: 'high' })}
-      </div>
+  const busiestPct = busiest && busiest.utilization_percent !== null && busiest.utilization_percent !== undefined ? Number(busiest.utilization_percent) : null;
+  return `<div class="panel"><div class="panel__head"><h3 class="panel__title">What the day asked of the crew</h3><div class="panel__actions">${formSwitch('labour-read', [{ id: 'dial', label: 'Dials' }, { id: 'shape', label: 'Fill' }])}<span class="sub">${escapeHtml(siteRange())}</span></div></div>
+      ${readings('labour-read', [
+        { percent: overall, label: 'Crew used', note: 'hours on trucks against hours available', shape: 'crew' },
+        { percent: busiestPct, label: 'Busiest day', note: busiest ? dayLabel(busiest.work_date) : 'no day measured', shape: 'day' },
+        { percent: rows.length ? (recorded / rows.length) * 100 : null, label: 'Days with a real count', note: 'the rest come off the shift roster', good: 'high', shape: 'clock' },
+      ])}
       <div class="panel__body"><div class="chart2">
         <section><h4 class="chart2__t">Hardest days on the crew</h4>${ranked(worked
           .filter(row => row.utilization_percent !== null && row.utilization_percent !== undefined)
@@ -694,9 +730,9 @@ function renderView() {
     'scorecard-location': () => renderScorecard('location'),
     fullness: renderFullness, labour: renderLabour,
   };
-  // The header is prepended here rather than by each renderer, so every view has one and
+  // The mark is folded in here rather than by each renderer, so every view carries one and
   // none of them has to remember.
-  state.elements.host.innerHTML = viewHead() + (renderers[state.view] || renderOverview)();
+  state.elements.host.innerHTML = withViewMark((renderers[state.view] || renderOverview)());
 }
 
 function csvRowsForView() {
