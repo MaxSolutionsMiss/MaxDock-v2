@@ -35,6 +35,7 @@ const state = {
   labourDay: null,
   shifts: [],
   holidays: [],
+  dayCaps: [],
   section: 'hours',
   hours: [],
   settings: null,
@@ -114,7 +115,7 @@ function durationValue(data, name, baseUnit, units) {
 async function fetchAll() {
   const locationId = state.locationId;
   const [hours, settings, docks, truckTypes, locationTruckTypes, dockTruckTypes, capacity, directionWindows,
-    appointmentTypes, handlingTypes, shortcuts, labourDay, shifts, holidays] = await Promise.all([
+    appointmentTypes, handlingTypes, shortcuts, labourDay, shifts, holidays, dayCaps] = await Promise.all([
     db.select('location_operating_hours', q => q.select('location_id,day_of_week,is_open,open_time,close_time').eq('location_id', locationId), { key: `settings:hours:${locationId}`, cache: 0 }),
     db.select('location_settings', q => q.select('*').eq('location_id', locationId).maybeSingle(), { key: `settings:row:${locationId}`, cache: 0 }),
     db.select('docks', q => q.select('id,name,description,sort_order,direction_mode,is_active').eq('location_id', locationId).order('sort_order').order('name'), { key: `settings:docks:${locationId}`, cache: 0 }),
@@ -135,6 +136,7 @@ async function fetchAll() {
     // Only what is still ahead: a list of dates that have already passed is not a
     // setting anybody reviews.
     db.select('location_holidays', q => q.select('holiday_date,name,source').eq('location_id', locationId).gte('holiday_date', format.todayInput()).order('holiday_date'), { key: `settings:holidays:${locationId}`, cache: 0 }).catch(() => []),
+    db.select('location_day_limits', q => q.select('limit_date,max_concurrent_appointments,max_appointments,note').eq('location_id', locationId).gte('limit_date', format.todayInput()).order('limit_date'), { key: `settings:day-caps:${locationId}`, cache: 0 }).catch(() => []),
   ]);
   state.hours = hours || [];
   state.capacity = Array.isArray(capacity) ? capacity[0] || null : capacity || null;
@@ -142,6 +144,7 @@ async function fetchAll() {
   state.labourDay = (labourDay || [])[0] || null;
   state.shifts = shifts || [];
   state.holidays = holidays || [];
+  state.dayCaps = dayCaps || [];
   state.docks = docks || [];
   state.truckTypes = truckTypes || [];
   state.locationTruckTypes = locationTruckTypes || [];
@@ -440,6 +443,7 @@ function renderLabour() {
   const canEdit = state.canManageLabour;
   const disabled = canEdit ? '' : 'disabled';
   const day = state.labourDay || {};
+  const cap = (state.dayCaps || [])[0] || {};
   return `<div class="stack stack--narrow">
     <form data-section-form="labour">
       <h3 class="card__title">Labour</h3>
@@ -454,6 +458,20 @@ function renderLabour() {
       <h3 class="card__title">Shifts${canEdit ? '<button class="btn btn--primary btn--sm at-end" type="button" data-unlocked data-add-shift>Add shift</button>' : ''}</h3>
       <p class="hint hint--wide hint--lead">The shifts this site runs and how many people are on each. Summed for a weekday, this is the hours available for dock work — which is what the utilisation report divides by, so it is worth being right.</p>
       ${shiftRows(canEdit)}
+      ${saveFoot(canEdit)}
+    </form>
+    <form data-section-form="day-cap">
+      <h3 class="card__title">Cap a day</h3>
+      <p class="hint hint--wide hint--lead">Fewer trucks on one date, so a day that would otherwise fill up does not put the crew under pressure. Standing limits live under Dock assignment; this tightens them for a single date and nothing else.</p>
+      <div class="frow">
+        <label class="field field--md"><span class="field__label">Date</span><input class="input" type="date" name="limit_date" value="${escapeHtml(cap.limit_date || format.todayInput(state.context?.location))}" ${disabled}></label>
+        <div class="field field--num"><span class="field__label">At once</span><span class="inputwrap"><input class="input" type="number" min="0" max="100" name="max_concurrent" value="${cap.max_concurrent_appointments ?? ''}" placeholder="—" ${disabled}><span class="input__unit">trucks</span></span></div>
+        <div class="field field--num"><span class="field__label">All day</span><span class="inputwrap"><input class="input" type="number" min="0" max="500" name="max_total" value="${cap.max_appointments ?? ''}" placeholder="—" ${disabled}><span class="input__unit">trucks</span></span></div>
+      </div>
+      <div class="frow">
+        <label class="field field--full"><span class="field__label">Note <span class="field__opt">optional</span></span><input class="input" name="cap_note" maxlength="120" value="${escapeHtml(cap.note || '')}" placeholder="Line rebuild — keep the docks quiet" ${disabled}></label>
+      </div>
+      <p class="hint hint--wide">Leave both blank to lift the cap on that date. Zero is a real answer: it stops anything new being booked while what is already on the board still runs. ${state.dayCaps?.length ? `Capped now: ${escapeHtml(state.dayCaps.map(row => row.limit_date).join(', '))}.` : 'No dates are capped.'}</p>
       ${saveFoot(canEdit)}
     </form>
     <form data-section-form="labour-day">
@@ -782,6 +800,24 @@ async function saveLabour(form) {
 // The whole roster in one call. Rows added, rows removed and people changed all
 // travel together, because a half-saved roster is a wrong denominator rather than
 // a missing one — and the report would show a number instead of admitting it.
+// Blank means no cap, which is the same thing as no row — so the function deletes
+// rather than storing a row that says nothing.
+async function saveDayCap(form) {
+  const data = new FormData(form);
+  const number = name => {
+    const raw = String(data.get(name) || '').trim();
+    return raw === '' ? null : Number(raw);
+  };
+  await db.rpc('save_location_day_limit', {
+    p_location_id: state.locationId,
+    p_date: data.get('limit_date'),
+    p_max_concurrent: number('max_concurrent'),
+    p_max_total: number('max_total'),
+    p_note: String(data.get('cap_note') || '').trim() || null,
+  }, { key: `settings:day-cap:${state.locationId}:${data.get('limit_date')}`, retry: 0, userMessage: 'The day could not be capped.' });
+  db.invalidate(`settings:day-caps:${state.locationId}`);
+}
+
 async function saveHolidays(form) {
   const data = new FormData(form);
   await saveSettingsFields({ holiday_calendar: data.get('holiday_calendar') || 'none' });
@@ -1010,6 +1046,7 @@ async function submitSection(event) {
     else if (kind === 'labour-day') await saveLabourDay(form);
     else if (kind === 'shifts') await saveShifts(form);
     else if (kind === 'holidays') await saveHolidays(form);
+    else if (kind === 'day-cap') await saveDayCap(form);
     else if (kind === 'combining') await saveCombining(form);
     else if (kind === 'truck-capacity') await saveTruckCapacity(form);
     else if (kind === 'direction-windows') await saveDirectionWindows(form);

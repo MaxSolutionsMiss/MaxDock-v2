@@ -121,6 +121,7 @@
       { location_id: 'loc-1', holiday_date: iso(0, 0, 40).slice(0, 10), name: 'Civic Holiday', source: 'statutory' },
       { location_id: 'loc-1', holiday_date: iso(0, 0, 120).slice(0, 10), name: 'Thanksgiving', source: 'statutory' },
     ],
+    location_day_limits: [{ location_id: 'loc-1', limit_date: iso(0, 0, 5).slice(0, 10), max_concurrent_appointments: 1, max_appointments: 6, note: 'Line rebuild — keep the docks quiet' }],
     location_labour_days: [{ location_id: 'loc-1', work_date: iso(0, 0, -2).slice(0, 10), people: 2, hours_each: 6, note: 'Civic holiday — skeleton crew' }],
     truck_types: [{ code: 'trailer_53', name: '53 ft Trailer', sort_order: 1 }, { code: 'trailer_48', name: '48 ft Trailer', sort_order: 2 }, { code: 'straight_truck_26', name: '26 ft Straight Truck', sort_order: 3 }, { code: 'cube_van', name: 'Cube Van', sort_order: 4 }, { code: 'courier_van', name: 'Courier Van', sort_order: 5 }],
     // The live catalogue, minus the two the owner retired and minus VIP, which is
@@ -201,6 +202,7 @@
     save_location_labour: () => null,
     record_labour_day: () => null,
     save_location_shifts: () => null,
+    save_location_day_limit: () => null,
     apply_holiday_calendar: () => ({ year: 2026, calendar: 'ca', holidays: 12, docks_blocked: 55, skipped: [], skipped_count: 0 }),
     statutory_holidays: () => [{ holiday_date: '2026-08-03', name: 'Civic Holiday' }],
     admin_get_mis_integration_settings: () => ({ database_type: 'sql_server', server_name: '', server_port: null, database_name: '', source_name: '', sync_mode: 'manual_csv', daily_sync_time: '05:00', is_enabled: false, credential_secret_name: '', last_success_at: null }),
