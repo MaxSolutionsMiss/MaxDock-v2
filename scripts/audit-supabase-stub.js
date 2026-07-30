@@ -187,6 +187,18 @@
     }));
   }
 
+  // Every booking this session made, with the arguments it was asked for. The
+  // reference counts up from the number the fixture already uses, so a sheet of
+  // five loads comes back as five distinct bookings rather than the same one five
+  // times — which is the difference between an import working and looking like it.
+  globalThis.__bookCalls = [];
+  let nextReference = 143;
+  function booked(name, args = {}) {
+    globalThis.__bookCalls.push({ name, args });
+    const reference = `MXD-2026-${String(nextReference++).padStart(6, '0')}`;
+    return { booking_reference: reference, appointment_id: `a-${reference}`, start_at: iso(9), end_at: iso(10), dock_name: 'Dock 1' };
+  }
+
   const RPC = {
     get_user_preference: () => ({ text_size: 'normal', location_id: 'loc-1' }),
     save_user_preference: () => ({}),
@@ -325,8 +337,11 @@
     list_routed_appointment_slots: () => SLOTS,
     list_capacity_aware_appointment_slots: () => SLOTS,
     preview_routed_appointment_time: () => ({ slot_start: iso(9), slot_end: iso(10), recommended_dock_name: 'Dock 1', counterpart_dock_name: 'Dock 2' }),
-    book_routed_appointment: () => ({ booking_reference: 'MXD-2026-000143', appointment_id: 'a4', start_at: iso(9), end_at: iso(10), dock_name: 'Dock 1' }),
-    book_appointment: () => ({ booking_reference: 'MXD-2026-000143', appointment_id: 'a4', start_at: iso(9), end_at: iso(10), dock_name: 'Dock 1' }),
+    // A bulk import books row after row, so each answer carries its own reference
+    // and every call is kept — an import that booked the right number of loads with
+    // the wrong arguments looks identical from the outside otherwise.
+    book_routed_appointment: (args) => booked('book_routed_appointment', args),
+    book_appointment: (args) => booked('book_appointment', args),
     // Combining answers with the surviving appointment, grown by what it absorbed —
     // the shape the confirmation draws its fullness bar from. The merge is recorded
     // first, so the numbers reported back are read off the changed schedule rather

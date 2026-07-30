@@ -38,6 +38,9 @@ jobs:
         run: node scripts/verify-stage3-booking.mjs
       - name: Verify bulk user import
         run: node scripts/verify-users-import.mjs
+
+      - name: Verify bulk appointment import
+        run: node scripts/verify-appointments-import.mjs
       - name: Prepare static site artifact
         if: github.event_name != 'pull_request'
         shell: bash

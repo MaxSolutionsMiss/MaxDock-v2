@@ -72,6 +72,9 @@ jobs:
       - name: Bulk user import
         run: node scripts/verify-users-import.mjs
 
+      - name: Verify bulk appointment import
+        run: node scripts/verify-appointments-import.mjs
+
   layout:
     runs-on: ubuntu-latest
     steps:
@@ -94,3 +97,10 @@ jobs:
         env:
           PLAYWRIGHT_BROWSERS_PATH: /home/runner/.cache/ms-playwright
         run: node scripts/verify-combine-end-to-end.mjs
+
+      - name: Import a sheet of loads from the dock board
+        # A spreadsheet of next week is how a site actually arrives on MaxDock, and
+        # the import must never become a second way to create an appointment.
+        env:
+          PLAYWRIGHT_BROWSERS_PATH: /home/runner/.cache/ms-playwright
+        run: node scripts/verify-import-end-to-end.mjs

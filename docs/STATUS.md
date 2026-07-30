@@ -1635,3 +1635,47 @@ row, so the field widened rather than the words shrinking.
 long-fields-for-two-numbers complaint, in a select. Sized to its content. The
 row-fill rule exempts rows with no wide field, which is why it now passes rather
 than being asked to stretch.
+
+## A sheet of loads, imported (2026-07-30)
+
+A site coming onto MaxDock has next week already written down somewhere, and typing
+forty loads into a wizard is the reason it never gets written down here. **Import
+appointments** sits on the dock board beside Book appointment, for anybody who may
+book one.
+
+**It is not a second way to create an appointment.** Every row goes through
+`book_appointment` or `book_routed_appointment` — the same two functions the wizard
+calls, with the same arguments — so the notice period, the booking window, the
+capacity check, the direction windows, the duration rules and the dock choice are
+the ones that already exist. A load that would be turned down at the counter is
+turned down here and says why. `verify-appointments-import.mjs` fails the build if
+the import ever writes to `appointments`, reaches for
+`update_appointment_details` to finish a row off, or sends the file anywhere.
+
+**A Max site at the other end books the run at both ends**, decided the way the
+wizard decides it: the name in the sheet matched against the sites this account can
+actually reach.
+
+**After hours is never granted by a sheet.** `p_after_hours_confirmed` is hard
+false. Booking a site outside its own hours is a decision somebody takes with their
+name against it, on the screen, one load at a time.
+
+**Nothing is booked until the sheet is read back.** Every row gets a verdict and
+every refusal names its own reason — not "invalid row" but `Truck type "Flatbed" is
+not enabled at this site`. The types are checked against what this location has
+enabled, not a list in the code.
+
+**It reads what a site actually sends.** `2026-08-11` and `08/11/2026`; `08:00`,
+`8:00` and `2:30 PM`; `53 ft Trailer`, `53ft trailer` and `trailer_53`; `Inbound`,
+`in`, `receiving`. Columns MaxDock does not recognise are ignored rather than
+refused, so an export from somebody else's system can be handed over as it is. A
+slashed date is read month-first and the date it was read as is printed back on
+every row, so a sheet written the other way round is caught before it is booked.
+A bare column called "Type" is deliberately *not* mapped: on a shipping sheet that
+is as likely to mean the load as the company.
+
+Walked in a browser by `verify-import-end-to-end.mjs`: a six-row sheet with three
+good rows and three refusals for three different reasons, checked down to the
+arguments each RPC was called with — the codes behind the names, the routed row
+carrying the other site's id, the priority flag, and after-hours false on all of
+them.

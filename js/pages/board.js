@@ -9,6 +9,7 @@ import { openWall, paintWall } from '../ui/wall.js';
 import { renderTimeline, fitTimelineBlocks, watchTimelineFit, clockLabel } from '../ui/timeline.js';
 import { createAppointmentDetails } from '../ui/appointment-details.js';
 import { createCombineDialog, laneForRecord, laneDescription } from '../ui/combine-loads.js';
+import { createAppointmentImport } from '../ui/appointment-import.js';
 import { format } from '../format.js';
 
 const state = {
@@ -33,6 +34,7 @@ const state = {
   truckCapacity: new Map(),
   detailsModal: null,
   combineDialog: null,
+  importDialog: null,
   signature: '',
 };
 
@@ -264,7 +266,7 @@ function buildShell(root) {
       filters: `<div class="ctrl-field"><label for="board-direction">Direction</label><select class="select" id="board-direction" data-filter-direction><option value="all">All movements</option><option value="inbound">Inbound</option><option value="outbound">Outbound</option></select></div>
       <div class="ctrl-field"><label for="board-status">Status</label><select class="select" id="board-status" data-filter-status><option value="all">All statuses</option><option value="scheduled">Scheduled</option><option value="arrived">Arrived</option><option value="complete">Complete</option><option value="cancelled">Cancelled</option></select></div>
       <div class="ctrl-field ctrl-field--grow"><label for="board-search">Search</label><input class="input" type="search" id="board-search" placeholder="Reference, company, PO" data-filter-search autocomplete="off"></div>`,
-      trailing: [['block', can('block.manage')], ['book', can('appointment.create')]],
+      trailing: [['block', can('block.manage')], ['importAppointments', can('appointment.create')], ['book', can('appointment.create')]],
     })}
     <section class="kpis" aria-label="Dock board summary" data-kpis></section>
     <section class="board" data-board-host aria-label="Dock schedule"></section>
@@ -362,6 +364,15 @@ function buildShell(root) {
     onCombine: lane => state.combineDialog.open(lane.rows, laneDescription(lane), state.elements.host),
   });
   state.editModal = createModal(state.elements.editBackdrop, { onRequestClose: () => state.editModal.close() });
+  state.importDialog = createAppointmentImport({
+    location: state.context.location,
+    // Only the sites this account may actually book into. A Max site at the other
+    // end books the run at both ends, and offering one the user has no access to
+    // would be a row certain to be refused.
+    locations: state.context.locations || [],
+    reference: () => state.reference || { appointmentTypes: [], truckTypes: [], handlingTypes: [] },
+    onDone: async () => { patchData(await fetchBoardData()); },
+  });
 }
 // Everything an operator has in their hand when they are looking for a load: the
 // booking reference off the paperwork, the company that sent it, the carrier on
@@ -634,6 +645,10 @@ function wireEvents(root) {
     if (event.target.closest('[data-today]')) { state.date = format.todayInput(state.context.location); patchData(await fetchBoardData()); }
     const block = event.target.closest('[data-block-time]');
     if (block) openBlockModal(block);
+    const importer = event.target.closest('[data-import-appointments]');
+    // The reference lists have to be in hand before the sheet is judged against
+    // them, or the first import of a session would mark every type unknown.
+    if (importer) { await loadEditReference(); state.importDialog.open(importer); }
     if (event.target.closest('[data-close-block]')) state.blockModal.close();
     if (event.target.closest('[data-close-edit]')) state.editModal.close();
     if (event.target.closest('[data-export]')) exportCsv();
@@ -711,7 +726,7 @@ const page = {
   destroy() {
     state.unwatchFit?.();
     state.blockModal?.destroy(); state.editModal?.destroy(); state.detailsModal?.destroy();
-    state.combineDialog?.destroy(); state.customizePanel?.destroy();
+    state.combineDialog?.destroy(); state.importDialog?.destroy(); state.customizePanel?.destroy();
   },
 };
 
