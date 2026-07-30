@@ -164,7 +164,7 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 /* Label above its control, not beside it: side by side the two filters ran into
    each other, and the uppercase label competed with the select next to it for the
    same horizontal space. */
-.ctrl-field{display:flex;flex-direction:column;align-items:stretch;gap:3px;min-width:150px}
+.ctrl-field{display:flex;flex-direction:column;align-items:stretch;gap:3px;min-width:10.4em}
 .ctrl-field label,.ctrl-field>span{font-size:var(--t-micro);text-transform:uppercase;letter-spacing:.07em;color:var(--ink-muted);font-weight:600}
 /* Label beside the control instead of above it, for bands that are a single
    line of their own — the whole row then shares one centre line. */
@@ -523,11 +523,11 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 .frow{display:grid;grid-template-columns:repeat(12,1fr);gap:var(--s3) var(--s4);align-items:end}
 .frow>*{grid-column:span 4;min-width:0}
 .frow>.field{max-width:none}
-.frow>.field--xs{grid-column:span 2}
-.frow>.field--sm{grid-column:span 3}
-.frow>.field--md{grid-column:span 4}
-.frow>.field--lg{grid-column:span 6}
-.frow>.field--xl{grid-column:span 8}
+.frow>.field--xs{grid-column:span 2;min-width:6em}
+.frow>.field--sm{grid-column:span 3;min-width:9.5em}
+.frow>.field--md{grid-column:span 4;min-width:13.5em}
+.frow>.field--lg{grid-column:span 6;min-width:19em}
+.frow>.field--xl{grid-column:span 8;min-width:25em}
 /* A field is sized by what goes in it. A two-digit minute count had the same width
    as a company name, which is the "long fields for two numbers" the owner called
    out — and a bare number with no unit beside it tells you nothing. */
@@ -542,13 +542,13 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 /* Same shape as a fixed unit label, but the unit is the manager's to pick. */
 .unitsel{width:auto;flex:none;border-left:none;border-radius:0 var(--radius) var(--radius) 0;background:var(--surface-sunk);color:var(--ink-muted);font-size:var(--t-small);padding:0 4px 0 6px}
 .field .unitsel{width:auto}
-.frow>.field--num{grid-column:span 2;min-width:124px}
+.frow>.field--num{grid-column:span 2;min-width:8.6em}
 /* A number with its unit as a choice needs room for the widest unit word. */
-.frow>.field--dur{grid-column:span 3;min-width:150px}
-.frow>.field--num .input{text-align:left;min-width:58px}
+.frow>.field--dur{grid-column:span 3;min-width:10.4em}
+.frow>.field--num .input{text-align:left;min-width:4em}
 /* A date and time reads as one value or it reads as nothing. Below this the
    browser clips the minutes off the end rather than shrinking the text. */
-.input[type="datetime-local"]{min-width:206px}
+.input[type="datetime-local"]{min-width:14.2em}
 .frow>.field--full{grid-column:1/-1}
 /* A control acting on the field beside it sits on that field's baseline, not the
    row's top, or it floats above its label. Alignment only: the width comes from a

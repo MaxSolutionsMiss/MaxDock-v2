@@ -591,7 +591,7 @@ function renderContactStep() {
     <div class="frow">
       <div class="field ${external ? 'field--sm' : 'field--md'}"><span class="field__label">Requester name<span class="field__req" aria-hidden="true">*</span></span><input class="input" data-field="requester_name" maxlength="120" autocomplete="name"></div>
       <div class="field ${external ? 'field--lg' : 'field--xl'}"><span class="field__label">Requester email<span class="field__req" aria-hidden="true">*</span></span><input class="input" data-field="requester_email" type="email" maxlength="180" autocomplete="email"></div>
-      ${external ? '<div class="field field--sm"><span class="field__label">Company or organisation</span><input class="input" data-field="company_name" maxlength="120" autocomplete="organization"></div>' : ''}
+      ${external ? '<div class="field field--sm"><span class="field__label">Company</span><input class="input" data-field="company_name" maxlength="120" autocomplete="organization"></div>' : ''}
     </div>`;
   hosts.step.querySelector('[data-field="requester_name"]').value = state.form.requester_name;
   hosts.step.querySelector('[data-field="requester_email"]').value = state.form.requester_email;

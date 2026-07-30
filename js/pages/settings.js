@@ -251,7 +251,7 @@ function renderHolidays(canEdit) {
   return `<form data-section-form="holidays">
     <h3 class="card__title">Holidays</h3>
     <div class="frow">
-      <label class="field field--md"><span class="field__label">Calendar</span><select class="select" name="holiday_calendar" ${canEdit ? '' : 'disabled'}>
+      <label class="field field--lg"><span class="field__label">Calendar</span><select class="select" name="holiday_calendar" ${canEdit ? '' : 'disabled'}>
         <option value="none" ${chosen === 'none' ? 'selected' : ''}>None — set closures by hand</option>
         <option value="ca" ${chosen === 'ca' ? 'selected' : ''}>Canada (Ontario)</option>
         <option value="us" ${chosen === 'us' ? 'selected' : ''}>United States (federal)</option>
@@ -400,9 +400,9 @@ function renderAssignment() {
       <button type="button" class="switch ${autoAssign ? '' : 'switch--off'}" data-assign-switch aria-pressed="${autoAssign}" aria-label="Auto-assign docks" ${disabled}></button>
     </div>
     <div class="frow">
-      <div class="field field--lg"><span class="field__label">Dock order</span><select class="select" name="dock_assignment_strategy" ${disabled}>
-        <option value="balanced" ${s.dock_assignment_strategy === 'balanced' ? 'selected' : ''}>Balanced across docks</option>
-        <option value="fill_first" ${s.dock_assignment_strategy === 'fill_first' ? 'selected' : ''}>Fill one dock first</option>
+      <div class="field field--md"><span class="field__label">Dock order</span><select class="select" name="dock_assignment_strategy" ${disabled}>
+        <option value="balanced" ${s.dock_assignment_strategy === 'balanced' ? 'selected' : ''}>Spread evenly</option>
+        <option value="fill_first" ${s.dock_assignment_strategy === 'fill_first' ? 'selected' : ''}>Fill one first</option>
       </select></div>
       <div class="field field--num"><span class="field__label">Most at once</span><span class="inputwrap"><input class="input" type="number" min="1" name="max_concurrent_appointments" value="${s.max_concurrent_appointments ?? ''}" placeholder="∞" ${disabled}><span class="input__unit">trucks</span></span></div>
     </div>

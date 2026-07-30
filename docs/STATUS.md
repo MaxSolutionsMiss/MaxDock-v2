@@ -1890,3 +1890,31 @@ rule.
 
 The search box is no longer the widest control in the band. A booking reference is
 fourteen characters; it did not need a third of the row.
+
+## The text-size setting was a pixel floor away from working (2026-07-30)
+
+The two layout rules added earlier failed CI on their first real run — 10 findings, all
+of them theirs, and all in states this container's sweep had not reached: Large and
+Larger text, 1280px, and step 4 of the booking wizard.
+
+The individual faults were symptoms of one thing. **Every field size floor was in
+pixels while the type ramp scales.** `--t-base` is `calc(14.5px * var(--scale))` and
+`--scale` goes to 1.32 at Larger, so at Larger the words in a field grew by a third and
+the box did not move at all: two-word labels wrapped onto a second line and stood
+taller than their neighbours, and selects were cut off mid-option. Which is exactly
+what a text-size setting exists to prevent.
+
+`.ctrl-field`, `.field--xs`, `--sm`, `--md`, `--lg`, `--xl`, `--num`, `--dur`, the
+number input inside a `--num` field and the datetime input are all expressed in `em`
+now. The values are the same widths at Normal and grow with the ramp above it.
+
+Also fixed, as themselves: **"Company or organisation"** is *Company* — the field
+beside it already asks for a name, and the extra word was what pushed the label onto a
+second line. **"Balanced across docks" / "Fill one dock first"** are *Spread evenly* and
+*Fill one first*, which fit the box the row can spare and read better under the label
+anyway. The **holiday calendar** select is wide enough for the names of countries.
+
+The local sweep now covers what CI covers: five widths, three text sizes, every
+settings window, every report view, seven pages, the booking wizard walked five steps
+and the role dialog — and it watches for the trade, because a floor that stops a label
+wrapping by pushing the page sideways is a worse fault than the one it fixed. Clean.
