@@ -26,6 +26,10 @@ const PRESETS = [
 
 const state = {
   context: null,
+  // The site this page is reporting on. It starts as the one in the top bar and then
+  // belongs to this page: a report is something you read *about* a site, not a site you
+  // are working at, and reading Guelph's scorecard should not move the dock board.
+  locationId: null,
   view: 'overview',
   preset: 'last30',
   from: '',
@@ -61,10 +65,10 @@ function applyPreset(presetId) {
 
 async function fetchReport() {
   return db.rpc('get_ai_operations_context', {
-    p_location_id: state.context.location.id,
+    p_location_id: state.locationId,
     p_start_date: state.from,
     p_end_date: state.to,
-  }, { key: `reports:${state.context.location.id}:${state.from}:${state.to}`, cache: 60000, retry: 1, userMessage: 'The report data could not be loaded.' });
+  }, { key: `reports:${state.locationId}:${state.from}:${state.to}`, cache: 60000, retry: 1, userMessage: 'The report data could not be loaded.' });
 }
 
 const KPI_CARDS = [
@@ -87,24 +91,6 @@ function kpiRow() {
 // of blue that told you a shape and nothing else; this splits inbound from outbound
 // and prints the day and the number, so a glance gives you the reading and not just
 // the silhouette.
-function barChart(rows, valueKey, altKey) {
-  if (!rows.length) return '<p class="hint">No data in this range.</p>';
-  const label = row => String(row.date || row.label || row.name || '').slice(-5);
-  const max = Math.max(1, ...rows.map(row => num(row[valueKey]) + (altKey ? num(row[altKey]) : 0)));
-  return `<div class="spark">${rows.map(row => {
-    const primary = num(row[valueKey]);
-    const secondary = altKey ? num(row[altKey]) : 0;
-    const total = primary + secondary;
-    return `<div class="spark__col" title="${escapeHtml(`${row.date || row.label || row.name}: ${altKey ? `${primary} in / ${secondary} out` : primary}`)}">
-      <span class="spark__n">${total || ''}</span>
-      <span class="spark__track">
-        <span class="spark__fill" style="height:${(primary / max * 100).toFixed(1)}%"></span>
-        ${altKey ? `<span class="spark__fill spark__fill--alt" style="height:${(secondary / max * 100).toFixed(1)}%"></span>` : ''}
-      </span>
-      <span class="spark__l">${escapeHtml(label(row))}</span>
-    </div>`;
-  }).join('')}</div>`;
-}
 
 // Three readings side by side instead of one tall wall of bars in the middle of
 // the page: trucks a day, skids a day split inbound/outbound, and dock hours
@@ -140,6 +126,61 @@ function trendStrip(byDay) {
 // Dates are read by people here, not by the API. Never print the ISO string.
 const dayLabel = value => format.shortDateInput(value, state.context?.location);
 const rangeLabel = () => `${format.shortDateInput(state.from, state.context?.location)} – ${format.shortDateInput(state.to, state.context?.location)}`;
+// Which site, in words. On a printed report the range alone does not say whose figures
+// these are, and the picker is not on the paper.
+const siteName = () => (state.context?.locations || []).find(site => site.id === state.locationId)?.name || state.context?.location?.name || '';
+const siteRange = () => `${siteName()} · ${rangeLabel()}`;
+
+// ── Three shapes, each for one job ────────────────────────────────────────────
+//
+// A dial for a single bounded percentage against a target — dock time used, crew used,
+// trailer used. One measure, one number, and the thing a manager wants is "how close to
+// full is this", which a bar an inch wide does not answer at a glance. Coloured by band,
+// and the band is *named* under the number as well as coloured, because a colour on its
+// own is not a reading anybody can rely on.
+function dial(percent, label, note) {
+  if (percent === null || percent === undefined) {
+    return `<figure class="dial dial--empty"><div class="dial__face"><span class="dial__v">—</span></div><figcaption class="dial__l">${escapeHtml(label)}<span>not measured</span></figcaption></figure>`;
+  }
+  const value = Math.max(0, Number(percent));
+  const shown = Math.min(100, value);
+  // Bands, and what each one means here. Over 100 is a finding, not an error: the day
+  // asked for more than there was.
+  const band = value > 100 ? 'over' : value >= 85 ? 'high' : value >= 55 ? 'mid' : 'low';
+  const words = { over: 'over capacity', high: 'near capacity', mid: 'healthy', low: 'light' }[band];
+  return `<figure class="dial dial--${band}" role="img" aria-label="${escapeHtml(`${label}: ${value.toFixed(1)} per cent, ${words}`)}">
+    <div class="dial__face" style="--pct:${shown.toFixed(1)}"><span class="dial__v">${value.toFixed(0)}<i>%</i></span></div>
+    <figcaption class="dial__l">${escapeHtml(label)}<span>${escapeHtml(note || words)}</span></figcaption>
+  </figure>`;
+}
+
+// A ring for a part-to-whole with two parts — in and out. Two slices, both named and
+// both carrying their number in the legend, so identity never rests on the colour.
+// Anything with more parts than this is a ranked bar below, not a thinner slice.
+function ring(parts, centreLabel) {
+  const total = parts.reduce((sum, part) => sum + num(part.value), 0);
+  if (!total) return '<p class="hint">No data in this range.</p>';
+  const first = (num(parts[0].value) / total) * 100;
+  return `<figure class="ring" role="img" aria-label="${escapeHtml(parts.map(part => `${part.label} ${num(part.value)}`).join(', '))}">
+    <div class="ring__face" style="--a:${first.toFixed(1)}"><span class="ring__c">${compact(total)}<i>${escapeHtml(centreLabel)}</i></span></div>
+    <figcaption class="ring__k">${parts.map((part, index) => `<span class="lg lg--${index ? 'b' : 'a'}">${escapeHtml(part.label)} <b>${compact(num(part.value))}</b></span>`).join('')}</figcaption>
+  </figure>`;
+}
+
+// Ranked bars for a magnitude across named categories: truck mix, on-time by partner.
+// One hue, because the category is named on its own row — five hues for five truck types
+// cannot be told apart under colour blindness however they are chosen, and the name is a
+// better label than a colour anyway.
+function ranked(rows, { unit = '', max = 8 } = {}) {
+  const list = rows.filter(row => num(row.value) > 0).sort((a, b) => num(b.value) - num(a.value)).slice(0, max);
+  if (!list.length) return '<p class="hint">No data in this range.</p>';
+  const top = Math.max(...list.map(row => num(row.value)));
+  return `<div class="ranked">${list.map(row => `<div class="ranked__row">
+    <span class="ranked__l" title="${escapeHtml(row.label)}">${escapeHtml(row.label)}</span>
+    <span class="ranked__t"><span style="width:${((num(row.value) / top) * 100).toFixed(1)}%"></span></span>
+    <span class="ranked__v">${escapeHtml(row.shown || `${compact(num(row.value))}${unit}`)}</span>
+  </div>`).join('')}</div>`;
+}
 
 function table(headers, rows) {
   return `<table class="table"><thead><tr>${headers.map(header => `<th>${escapeHtml(header)}</th>`).join('')}</tr></thead><tbody>${
@@ -152,8 +193,12 @@ function renderOverview() {
   const byDay = state.data.by_day || [];
   return `${kpiRow()}
     <div class="panel panel--fill">
-      <div class="panel__head"><h3 class="panel__title">Daily shape</h3><div class="panel__actions"><span class="sub">${escapeHtml(rangeLabel())}</span></div></div>
+      <div class="panel__head"><h3 class="panel__title">Daily shape</h3><div class="panel__actions"><span class="sub">${escapeHtml(siteRange())}</span></div></div>
       <div class="panel__body">${trendStrip(byDay)}</div>
+      <div class="panel__body">${ring([
+        { label: 'Inbound skids', value: state.data.summary?.inbound_skids },
+        { label: 'Outbound skids', value: state.data.summary?.outbound_skids },
+      ], 'skids moved')}</div>
       <div class="panel__scroll">${table(['Date', 'Appointments', 'Cancelled', 'Priority', 'Inbound skids', 'Outbound skids'], byDay.map(row => [dayLabel(row.date), num(row.appointments), num(row.cancelled), num(row.priority), num(row.inbound_skids), num(row.outbound_skids)]))}</div>
     </div>`;
 }
@@ -162,8 +207,8 @@ function renderTruckFlow() {
   const byVehicle = state.data.by_vehicle || [];
   return `${kpiRow()}
     <div class="panel panel--fill">
-      <div class="panel__head"><h3 class="panel__title">Truck mix</h3><div class="panel__actions"><span class="sub">${escapeHtml(rangeLabel())}</span></div></div>
-      <div class="panel__body">${barChart(byVehicle, 'appointments')}<p class="hint">Appointments by truck type across the selected range.</p></div>
+      <div class="panel__head"><h3 class="panel__title">Truck mix</h3><div class="panel__actions"><span class="sub">${escapeHtml(siteRange())}</span></div></div>
+      <div class="panel__body">${ranked(byVehicle.map(row => ({ label: row.name, value: row.appointments, shown: `${compact(num(row.appointments))} trucks · ${compact(num(row.skids))} skids` })))}<p class="hint">Trucks by type across the selected range, biggest first.</p></div>
       <div class="panel__scroll">${table(['Truck type', 'Appointments', 'Skids'], byVehicle.map(row => [row.name, num(row.appointments), num(row.skids)]))}</div>
     </div>`;
 }
@@ -174,7 +219,11 @@ function renderSkidMovement() {
   return `${kpiRow()}
     <div class="panel panel--fill">
       <div class="panel__head"><h3 class="panel__title">Skid movement per day</h3><div class="panel__actions"><span class="sub">${compact(s.inbound_skids)} in · ${compact(s.outbound_skids)} out</span></div></div>
-      <div class="panel__body">${barChart(byDay, 'inbound_skids', 'outbound_skids')}<p class="hint">Blue = inbound, green = outbound.</p></div>
+      <div class="panel__body">${byDay.length
+        ? `<div class="trends">${trend('Skids per day', 'skids', byDay, ['inbound_skids', 'outbound_skids'], compact(num(s.inbound_skids) + num(s.outbound_skids)))}</div>
+           ${ring([{ label: 'Inbound skids', value: s.inbound_skids }, { label: 'Outbound skids', value: s.outbound_skids }], 'skids moved')}`
+        : '<p class="hint">No data in this range.</p>'}
+        <p class="hint">A taller column is a heavier day. The ring is the balance over the whole range: a site that ships out what it takes in sits near half and half, and a site drifting off centre is either filling up or emptying.</p></div>
       <div class="panel__scroll">${table(['Date', 'Inbound skids', 'Outbound skids', 'Net change'], byDay.map(row => [dayLabel(row.date), num(row.inbound_skids), num(row.outbound_skids), num(row.inbound_skids) - num(row.outbound_skids)]))}</div>
     </div>`;
 }
@@ -186,7 +235,13 @@ function renderDockUtilisation() {
   const warnings = [];
   if (num(compatibility.docks_without_vehicle_types) > 0) warnings.push(`${compatibility.docks_without_vehicle_types} active dock(s) accept no configured truck type.`);
   if (num(compatibility.vehicle_types_without_docks) > 0) warnings.push(`${compatibility.vehicle_types_without_docks} enabled truck type(s) have no compatible dock.`);
-  return `<div class="kpis" style="--kpi-cols:4">
+  return `<div class="panel"><div class="panel__head"><h3 class="panel__title">How hard the doors worked</h3><div class="panel__actions"><span class="sub">${escapeHtml(siteRange())}</span></div></div>
+      <div class="dials">
+        ${dial(num(s.occupied_utilization_percent), 'Dock time used', 'of the hours the doors were open')}
+        ${dial(s.available_dock_minutes ? (num(s.blocked_minutes) / num(s.available_dock_minutes)) * 100 : null, 'Time blocked off', 'maintenance, breaks, events')}
+        ${dial(num(s.active_docks) ? (num(s.booked_minutes) / 60) / num(s.active_docks) / Math.max(1, (state.data.by_day || []).length) / 9.5 * 100 : null, 'Busiest door share', 'booked hours per door per day')}
+      </div></div>
+    <div class="kpis" style="--kpi-cols:4">
       <article class="kpi kpi--signal"><span class="kpi__label">Dock time used</span><span class="kpi__value">${num(s.occupied_utilization_percent).toFixed(1)}<span>%</span></span></article>
       <article class="kpi"><span class="kpi__label">Booked hours</span><span class="kpi__value">${compact(num(s.booked_minutes) / 60)}</span></article>
       <article class="kpi kpi--stop"><span class="kpi__label">Blocked hours</span><span class="kpi__value">${compact(num(s.blocked_minutes) / 60)}</span></article>
@@ -194,7 +249,7 @@ function renderDockUtilisation() {
     </div>
     <div class="panel panel--fill">
       <div class="panel__head"><h3 class="panel__title">Busiest start hours</h3><div class="panel__actions"><span class="sub">${compact(num(s.available_dock_minutes) / 60)} dock-hours available</span></div></div>
-      <div class="panel__body">${barChart(byHour, 'appointments')}<p class="hint">Appointment start times across the selected range.</p>
+      <div class="panel__body">${ranked(byHour.map(row => ({ label: row.label, value: row.appointments, shown: `${compact(num(row.appointments))} trucks · ${compact(num(row.skids))} skids` })))}<p class="hint">The eight busiest booking hours across the selected range, heaviest first. The full hour-by-hour record is in the table below.</p>
         ${warnings.length ? `<p class="form-message">${warnings.map(escapeHtml).join(' ')}</p>` : ''}</div>
       <div class="panel__scroll">${table(['Hour', 'Appointments', 'Skids'], byHour.map(row => [row.label, num(row.appointments), num(row.skids)]))}</div>
     </div>`;
@@ -225,7 +280,11 @@ function renderScorecard(kind) {
       <article class="kpi kpi--stop"><span class="kpi__label">No shows</span><span class="kpi__value">${rows.reduce((sum, row) => sum + num(row.no_shows), 0)}</span></article>
     </div>
     <div class="panel panel--fill">
-      <div class="panel__head"><h3 class="panel__title">${kind === 'location' ? 'Max site scorecard' : 'Vendor &amp; carrier scorecard'}</h3><div class="panel__actions"><span class="sub">${escapeHtml(rangeLabel())}</span></div></div>
+      <div class="panel__head"><h3 class="panel__title">${kind === 'location' ? 'Max site scorecard' : 'Vendor &amp; carrier scorecard'}</h3><div class="panel__actions"><span class="sub">${escapeHtml(siteRange())}</span></div></div>
+      <div class="panel__body">${ranked(rows
+        .filter(row => row.on_time_pct !== null && row.on_time_pct !== undefined)
+        .map(row => ({ label: row.partner_name, value: Number(row.on_time_pct), shown: `${Number(row.on_time_pct).toFixed(1)}% of ${num(row.trucks)}` })),
+        { max: 10 })}<p class="hint">On time, worst to best is bottom to top — the row to act on is the shortest bar with the most trucks beside it.</p></div>
       <div class="panel__scroll"><table class="table"><thead><tr>
         <th>Partner</th><th>On time</th><th>Trucks</th><th>Skids</th><th>Late</th><th>Average late</th><th>No show</th><th>Cancelled</th><th>Average at dock</th><th class="col-fill">Truck types</th>
       </tr></thead><tbody>${
@@ -273,14 +332,28 @@ function renderFullness() {
   const overall = capacity ? Math.round((skids / capacity) * 1000) / 10 : null;
   const absorbed = rows.reduce((sum, row) => sum + num(row.loads_absorbed), 0);
   const part = rows.reduce((sum, row) => sum + num(row.part_trucks), 0);
-  return `<div class="kpis" style="--kpi-cols:4">
+  const savedPct = rows.reduce((sum, row) => sum + num(row.trucks), 0)
+    ? (rows.reduce((sum, row) => sum + num(row.loads_absorbed), 0) / (rows.reduce((sum, row) => sum + num(row.trucks), 0) + rows.reduce((sum, row) => sum + num(row.loads_absorbed), 0))) * 100
+    : null;
+  return `<div class="panel"><div class="panel__head"><h3 class="panel__title">How full the trucks ran</h3><div class="panel__actions"><span class="sub">${escapeHtml(siteRange())}</span></div></div>
+      <div class="dials">
+        ${dial(overall, 'Trailer used', 'skids against what the trailers hold')}
+        ${dial(measured ? (rows.reduce((sum, row) => sum + num(row.full_trucks), 0) / measured) * 100 : null, 'Trucks that ran full', '90% or more')}
+        ${dial(savedPct, 'Trucks saved by combining', 'of what would have run')}
+      </div>
+      <div class="panel__body">${ranked(rows
+        .filter(row => row.fullness_pct !== null && row.fullness_pct !== undefined)
+        .map(row => ({ label: row.partner_name, value: Number(row.fullness_pct), shown: `${Number(row.fullness_pct).toFixed(0)}% · ${num(row.trucks)} trucks` })),
+        { max: 10 })}<p class="hint">Trailer used per lane. A long run of short bars is a lane that should be combining.</p></div>
+    </div>
+    <div class="kpis" style="--kpi-cols:4">
       <article class="kpi kpi--ok"><span class="kpi__label">Trailer used</span><span class="kpi__value">${overall === null ? '—' : overall.toFixed(1)}<span>%</span></span></article>
       <article class="kpi kpi--out"><span class="kpi__label">Trucks measured</span><span class="kpi__value">${compact(measured)}</span></article>
       <article class="kpi"><span class="kpi__label">Loads combined</span><span class="kpi__value">${compact(absorbed)}</span></article>
       <article class="kpi kpi--stop"><span class="kpi__label">Under 60% full</span><span class="kpi__value">${compact(part)}</span></article>
     </div>
     <div class="panel panel--fill">
-      <div class="panel__head"><h3 class="panel__title">Truck fullness and combining</h3><div class="panel__actions"><span class="sub">${escapeHtml(rangeLabel())}</span></div></div>
+      <div class="panel__head"><h3 class="panel__title">Truck fullness and combining</h3><div class="panel__actions"><span class="sub">${escapeHtml(siteRange())}</span></div></div>
       <div class="panel__scroll"><table class="table"><thead><tr>
         <th>Lane</th><th>Trucks</th><th>Full</th><th>Under 60%</th><th>Combined</th><th>Loads absorbed</th><th>Trucks saved</th><th class="col-fill">Trailer used</th>
       </tr></thead><tbody>${
@@ -312,14 +385,20 @@ function renderLabour() {
   const overall = available ? Math.round((truckHours / available) * 1000) / 10 : null;
   const recorded = rows.filter(row => row.source === 'recorded').length;
   const busiest = [...worked].sort((a, b) => num(b.utilization_percent) - num(a.utilization_percent))[0];
-  return `<div class="kpis" style="--kpi-cols:4">
+  return `<div class="panel"><div class="panel__head"><h3 class="panel__title">What the day asked of the crew</h3><div class="panel__actions"><span class="sub">${escapeHtml(siteRange())}</span></div></div>
+      <div class="dials">
+        ${dial(overall, 'Crew used', 'hours on trucks against hours available')}
+        ${dial(busiest && busiest.utilization_percent !== null && busiest.utilization_percent !== undefined ? Number(busiest.utilization_percent) : null, 'Busiest day', busiest ? dayLabel(busiest.work_date) : 'no day measured')}
+        ${dial(rows.length ? (recorded / rows.length) * 100 : null, 'Days with a real count', 'the rest come off the shift roster')}
+      </div></div>
+    <div class="kpis" style="--kpi-cols:4">
       <article class="kpi kpi--ok"><span class="kpi__label">Crew used</span><span class="kpi__value">${overall === null ? '—' : overall.toFixed(1)}<span>%</span></span></article>
       <article class="kpi kpi--out"><span class="kpi__label">Hours available</span><span class="kpi__value">${compact(Math.round(available))}</span></article>
       <article class="kpi kpi--signal"><span class="kpi__label">Hours on trucks</span><span class="kpi__value">${compact(Math.round(truckHours))}</span></article>
       <article class="kpi"><span class="kpi__label">Trucks handled</span><span class="kpi__value">${compact(trucks)}</span></article>
     </div>
     <div class="panel panel--fill">
-      <div class="panel__head"><h3 class="panel__title">Labour hours by day</h3><div class="panel__actions"><span class="sub">${escapeHtml(rangeLabel())}</span></div></div>
+      <div class="panel__head"><h3 class="panel__title">Labour hours by day</h3><div class="panel__actions"><span class="sub">${escapeHtml(siteRange())}</span></div></div>
       <div class="panel__scroll"><table class="table"><thead><tr>
         <th>Date</th><th>People</th><th>Hours each</th><th>Available</th><th>Trucks</th><th>Hours on trucks</th><th>Crew used</th><th>Crew figures</th><th class="col-fill">Note</th>
       </tr></thead><tbody>${
@@ -335,7 +414,7 @@ function renderLabour() {
           <td class="data cell-wrap2">${escapeHtml(row.note || '')}</td>
         </tr>`).join('') : '<tr><td colspan="9" class="data">No days in this range.</td></tr>'
       }</tbody></table></div>
-      <p class="hint hint--wide">Hours on trucks is every booked window multiplied by the crew a truck takes — the same arithmetic the operations brief uses, so the two cannot disagree. Cancelled and no-show loads are left out; nobody worked them. Available hours come from the day's recorded crew where somebody recorded one, and from the shift roster under Settings › Labour where nobody did — which is what the Crew figures column says. There is no fudge factor in it: it is the shifts running that weekday, each one's length times the people on it. ${recorded} of ${rows.length} day${rows.length === 1 ? '' : 's'} in this range ${recorded === 1 ? 'has' : 'have'} recorded hours.${busiest && busiest.utilization_percent !== null ? ` Busiest day was ${escapeHtml(String(busiest.work_date))} at ${Number(busiest.utilization_percent).toFixed(1)}%.` : ''}</p>
+      <p class="hint hint--wide">Hours on trucks is every booked window multiplied by the crew a truck takes — the same arithmetic the operations brief uses, so the two cannot disagree. Cancelled and no-show loads are left out; nobody worked them. Available hours come from the day's recorded crew where somebody recorded one, and from the shift roster under Settings › Labour where nobody did — which is what the Crew figures column says. There is no fudge factor in it: it is the shifts running that weekday, each one's length times the people on it. ${recorded} of ${rows.length} day${rows.length === 1 ? '' : 's'} in this range ${recorded === 1 ? 'has' : 'have'} recorded hours.${busiest && busiest.utilization_percent !== null ? ` Busiest day was ${escapeHtml(dayLabel(busiest.work_date))} at ${Number(busiest.utilization_percent).toFixed(1)}%.` : ''}</p>
     </div>`;
 }
 
@@ -425,23 +504,23 @@ async function reload() {
     const [data, scorecard, fullness, labour] = await Promise.all([
       fetchReport(),
       db.rpc('get_partner_scorecard', {
-        p_location_id: state.context.location.id,
+        p_location_id: state.locationId,
         p_start_date: state.from,
         p_end_date: state.to,
-      }, { key: `reports:scorecard:${state.context.location.id}:${state.from}:${state.to}`, cache: 60000, retry: 1 }).catch(() => []),
+      }, { key: `reports:scorecard:${state.locationId}:${state.from}:${state.to}`, cache: 60000, retry: 1 }).catch(() => []),
       db.rpc('get_truck_fullness_scorecard', {
-        p_location_id: state.context.location.id,
+        p_location_id: state.locationId,
         p_start_date: state.from,
         p_end_date: state.to,
-      }, { key: `reports:fullness:${state.context.location.id}:${state.from}:${state.to}`, cache: 60000, retry: 1 }).catch(() => []),
+      }, { key: `reports:fullness:${state.locationId}:${state.from}:${state.to}`, cache: 60000, retry: 1 }).catch(() => []),
       // Only asked for by an account allowed to see it. The RPC refuses anyone
       // else anyway, but a report nobody may read is not a request worth making.
       state.context.can('reports.view_labour')
         ? db.rpc('get_labour_utilization', {
-          p_location_id: state.context.location.id,
+          p_location_id: state.locationId,
           p_from: state.from,
           p_to: state.to,
-        }, { key: `reports:labour:${state.context.location.id}:${state.from}:${state.to}`, cache: 60000, retry: 1 }).catch(() => [])
+        }, { key: `reports:labour:${state.locationId}:${state.from}:${state.to}`, cache: 60000, retry: 1 }).catch(() => [])
         : Promise.resolve([]),
     ]);
     state.data = data;
@@ -473,7 +552,8 @@ function buildShell(root) {
     ${pageHead('Reports', { actions: ['export', 'print', 'customize'] })}
     ${controlsBar({
       label: 'Report controls',
-      filters: `<div class="ctrl-field"><label for="report-view">View</label><select class="select" id="report-view" data-view>${VIEWS.filter(view => !view.permission || state.context.can(view.permission)).map(view => `<option value="${view.id}">${view.label}</option>`).join('')}</select></div>
+      filters: `<div class="ctrl-field"><label for="report-site">Site</label><select class="select" id="report-site" data-site>${(state.context.locations || []).map(site => `<option value="${site.id}" ${site.id === state.locationId ? 'selected' : ''}>${escapeHtml(site.name)}</option>`).join('')}</select></div>
+      <div class="ctrl-field"><label for="report-view">View</label><select class="select" id="report-view" data-view>${VIEWS.filter(view => !view.permission || state.context.can(view.permission)).map(view => `<option value="${view.id}">${view.label}</option>`).join('')}</select></div>
       <div class="ctrl-field"><label for="report-preset">Range</label><select class="select" id="report-preset" data-preset>${PRESETS.map(preset => `<option value="${preset.id}">${preset.label}</option>`).join('')}</select></div>
       <div class="ctrl-field"><label for="report-from">From</label><input class="input input--date" type="date" id="report-from" data-from></div>
       <div class="ctrl-field"><label for="report-to">To</label><input class="input input--date" type="date" id="report-to" data-to></div>
@@ -484,6 +564,7 @@ function buildShell(root) {
   state.elements = {
     root,
     subtitle: root.querySelector('[data-subtitle]'),
+    site: root.querySelector('[data-site]'),
     view: root.querySelector('[data-view]'),
     preset: root.querySelector('[data-preset]'),
     from: root.querySelector('[data-from]'),
@@ -510,6 +591,9 @@ function wireEvents(root) {
     }
   });
   root.addEventListener('change', event => {
+    // Changing the site reloads this page's figures and nothing else: the rest of the
+    // application stays where the person left it.
+    if (event.target.matches('[data-site]')) { state.locationId = event.target.value; reload(); return; }
     if (event.target.matches('[data-view]')) { state.view = event.target.value; renderView(); }
     if (event.target.matches('[data-preset]')) {
       applyPreset(event.target.value);
@@ -524,6 +608,7 @@ const page = {
   permission: 'reports.view',
   async mount(context) {
     state.context = context;
+    state.locationId = context.location.id;
     document.title = `Reports · ${context.location.name} · MaxDock`;
     buildShell(context.pageRoot);
     wireEvents(context.pageRoot);

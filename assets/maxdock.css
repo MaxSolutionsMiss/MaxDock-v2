@@ -23,6 +23,7 @@
      is bottom-aligned without anyone arranging it. */
   --ctl-h:36px;
   --shadow-overlay:0 12px 32px rgba(22,32,42,.16),0 2px 6px rgba(22,32,42,.08);
+  --chart-a:#0082CB; --chart-b:#1B7A4B; --chart-track:#E7ECEF;
 }
 html[data-text="large"]{--scale:1.15; --rail-w:214px}
 html[data-text="larger"]{--scale:1.32; --rail-w:236px}
@@ -629,14 +630,6 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 /* The panel sizes to its content and the page stops stretching it. A short section
    in a full-height panel left a large empty area under the Save button, which is
    the wasted vertical space the owner objected to. */
-/* Short enough to sit inside a card without becoming the page. */
-.spark{display:flex;align-items:flex-end;gap:3px;height:120px}
-.spark__col{flex:1 1 0;min-width:0;display:flex;flex-direction:column;align-items:center;gap:2px;height:100%}
-.spark__n{font-size:var(--t-micro);color:var(--ink-muted);font-variant-numeric:tabular-nums;line-height:1}
-.spark__track{flex:1;width:100%;display:flex;align-items:flex-end;justify-content:center;gap:1px;min-height:0}
-.spark__fill{width:45%;background:var(--dock);border-radius:2px 2px 0 0;min-height:2px}
-.spark__fill--alt{background:repeating-linear-gradient(45deg,var(--ok),var(--ok) 3px,#8FC7AC 3px,#8FC7AC 6px)}
-.spark__l{font-size:9px;color:var(--ink-faint);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
 /* Three short trends side by side rather than one tall block of bars: truckloads,
    skid movement and booked dock time, each with its own total and unit. The table
    below is where the exact numbers are read; this is only the shape. */
@@ -1186,3 +1179,37 @@ body.modal-open{overflow:hidden}
    what decides that. .section-gap declared earlier lost to .watch__t's margin
    shorthand and every heading using it sat flush against what was above it. */
 .section-gap{margin-top:var(--s5)}
+
+/* ── Charts ───────────────────────────────────────────────────────────────────
+   A dial for one bounded percentage, a ring for a two-part whole, ranked bars for a
+   magnitude across named categories. Drawn with conic-gradient rather than SVG so
+   there is no third language on the page and no library to load. Colour never carries
+   identity alone: the dial names its band, the ring names both slices in its legend,
+   and a ranked row is labelled with the category itself. */
+.dials{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:var(--s4);padding:var(--s4)}
+.dial{margin:0;display:grid;justify-items:center;gap:var(--s2)}
+.dial__face{position:relative;width:104px;aspect-ratio:1;display:grid;place-items:center}
+.dial__face::before{content:'';position:absolute;inset:0;border-radius:50%;
+  background:conic-gradient(var(--c,var(--chart-a)) calc(var(--pct,0)*1%),var(--chart-track) 0);
+  -webkit-mask:radial-gradient(circle,transparent 56%,var(--ink) 57%);mask:radial-gradient(circle,transparent 56%,var(--ink) 57%)}
+.dial__v{position:relative;font-size:var(--t-title);font-weight:600;color:var(--ink)}
+.dial__v i{font-style:normal;font-size:var(--t-small);color:var(--ink-muted)}
+.dial--low{--c:var(--ok)} .dial--mid{--c:var(--chart-a)} .dial--high{--c:var(--signal)} .dial--over{--c:var(--stop)}
+.dial--empty .dial__face::before{background:var(--chart-track)}
+.dial__l{font-size:var(--t-small);font-weight:600;text-align:center;display:grid;gap:1px}
+.dial__l span{font-weight:400;font-size:var(--t-micro);color:var(--ink-muted);text-transform:none}
+.ring{margin:0;display:grid;justify-items:center;gap:var(--s3);padding:var(--s4)}
+.ring__face{position:relative;width:132px;aspect-ratio:1;display:grid;place-items:center}
+.ring__face::before{content:'';position:absolute;inset:0;border-radius:50%;
+  background:conic-gradient(var(--chart-a) calc(var(--a,50)*1%),var(--chart-b) 0);
+  -webkit-mask:radial-gradient(circle,transparent 58%,var(--ink) 59%);mask:radial-gradient(circle,transparent 58%,var(--ink) 59%)}
+.ring__c{position:relative;font-size:var(--t-lead);font-weight:600;display:grid;justify-items:center;line-height:1.1}
+.ring__c i{font-style:normal;font-size:var(--t-micro);font-weight:400;color:var(--ink-muted)}
+.ring__k{display:flex;gap:var(--s4);flex-wrap:wrap;justify-content:center}
+.lg--a{--c:var(--chart-a)} .lg--b{--c:var(--chart-b)}
+.ranked{display:grid;gap:var(--s2);padding:var(--s4)}
+.ranked__row{display:grid;grid-template-columns:minmax(0,9em) minmax(0,1fr) auto;gap:var(--s3);align-items:center;font-size:var(--t-small)}
+.ranked__l{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--ink-muted)}
+.ranked__t{height:10px;border-radius:5px;background:var(--chart-track);overflow:hidden}
+.ranked__t>span{display:block;height:100%;border-radius:5px;background:var(--chart-a)}
+.ranked__v{font-weight:600;font-variant-numeric:tabular-nums}
