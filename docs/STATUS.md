@@ -1955,3 +1955,15 @@ onto repository-per-product exactly and a path split would need a proxy for no g
 The rename is an owner's action in GitHub settings. What it breaks on this side is
 twelve URL references and the smoke test's `BASE`, all listed in that document, all one
 commit.
+
+## A spacing fault was hiding the functional walks (2026-07-30)
+
+The three browser walks — combining, the appointment import, role access — were steps
+under the layout audit. When the audit failed on a wrapping label, GitHub *skipped*
+them. So the run that reported "10 layout findings" also silently ran none of the checks
+that prove the features work, and a functional regression could have sat behind a
+spacing fault indefinitely.
+
+They are their own `flows` job now, and each step carries `if: !cancelled()` so one
+failing walk still reports the other two. Whether the layout is right and whether the
+application works are two questions, and a push should get both answers every time.

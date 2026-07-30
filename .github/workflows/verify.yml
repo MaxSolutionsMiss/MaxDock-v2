@@ -93,24 +93,42 @@ jobs:
           npx playwright install --with-deps chromium
           node scripts/audit-layout.mjs
 
+  # Its own job, not three more steps under the layout audit. A label wrapping onto a
+  # second line would fail that audit and *skip* these, so a functional regression in
+  # combining, importing or role access could sit behind a spacing fault and never be
+  # reported. Two different questions deserve two answers on every push.
+  flows:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install a browser
+        env:
+          PLAYWRIGHT_BROWSERS_PATH: /home/runner/.cache/ms-playwright
+        run: |
+          npm i --no-save playwright@1.56.1
+          npx playwright install --with-deps chromium
+
       - name: Walk combining from a board block to the load leaving both boards
         # Combining existed on both sides and had never once been carried through:
         # no appointment in the database had ever been merged, because the only way
         # in was a line in the operations brief. This drives the whole path.
+        if: '!cancelled()'
         env:
           PLAYWRIGHT_BROWSERS_PATH: /home/runner/.cache/ms-playwright
         run: node scripts/verify-combine-end-to-end.mjs
 
-      - name: Import a sheet of loads from the dock board
+      - name: Import a sheet of loads from Data integration
         # A spreadsheet of next week is how a site actually arrives on MaxDock, and
         # the import must never become a second way to create an appointment.
+        if: '!cancelled()'
         env:
           PLAYWRIGHT_BROWSERS_PATH: /home/runner/.cache/ms-playwright
         run: node scripts/verify-import-end-to-end.mjs
 
-      - name: Arrange a role's rail and read it back off the rail
+      - name: Arrange a role's access and read it back off the rail
         # Taking a link off a rail must never be able to become a lock, and a System
         # Admin must never be able to lose Settings.
+        if: '!cancelled()'
         env:
           PLAYWRIGHT_BROWSERS_PATH: /home/runner/.cache/ms-playwright
         run: node scripts/verify-rail-end-to-end.mjs
