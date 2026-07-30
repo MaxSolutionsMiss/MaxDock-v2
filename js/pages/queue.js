@@ -365,6 +365,15 @@ const DEFAULT_BLOCK_FIELDS = ['reference', 'status', 'route', 'time', 'skids', '
 // Trucks is the shape of the day. Labour is the question behind "can somebody have
 // Thursday off". Combining is the duplication nobody has spotted yet. Attention is
 // what is going wrong right now.
+// A bullet is either a sentence or a sentence with a second line under it. The second line
+// carries what somebody needs to be able to read off the card but never acts on from here:
+// the references behind a combining lane. Two of them inside the sentence is what made that
+// bullet run to six lines, and putting them on a line of their own in smaller type is what
+// lets them be on the card at all. Both the card and the email go through these, so the two
+// cannot show different bullets.
+const pointText = point => (typeof point === 'string' ? point : point.text);
+const pointSub = point => (typeof point === 'string' ? '' : point.sub || '');
+
 function briefGroups() {
   const appointments = state.records.filter(record => record.entry_kind !== 'block' && !record.merged_into_appointment_id);
   if (!appointments.length) return [{ title: 'Trucks', points: ['Nothing is scheduled at this location today.'] }];
@@ -399,7 +408,7 @@ function briefGroups() {
     groups.push({
       title: 'Combining',
       mark: 'combine',
-      points: combining.map(lane => lane.text),
+      points: combining.map(lane => ({ text: lane.text, sub: lane.refs })),
       action: can('appointment.create') ? { label: 'Combine', attribute: 'data-combine-lane' } : null,
     });
   }
@@ -466,12 +475,14 @@ function labourPoints(appointments) {
 function combinePoints(appointments) {
   return combinableLanes(appointments).slice(0, 3).map(lane => {
     const { total, biggest, fits } = laneFullness(lane, capacityFor);
-    // The references are not in the sentence. Two of them are sixteen characters each and
-    // made this the one bullet on the card that ran to six lines, and nobody acts on a
-    // number by reading it here: the Combine button beside it opens the dialog that lists
-    // them and ticks them. What belongs here is the decision — how much, and does it fit.
+    // The references are not in the sentence, but they are on the card: they sit under it
+    // on a line of their own, in smaller type. Inside the sentence, two sixteen-character
+    // references made this the one bullet that ran to six lines. On their own line they
+    // cost one line and answer the question the sentence raises, which is "which loads".
+    // Acting on them still happens in the dialog the Combine button opens.
     return {
       ...lane,
+      refs: lane.rows.map(row => row.booking_reference).filter(Boolean).join(', '),
       // Short on purpose. This is a bullet in a card three across, and the long form ran to
       // four lines of eighteen characters at every width. It says the decision and nothing
       // else: how many, where to, how full, does it fit. The dialog behind the button
@@ -506,7 +517,7 @@ function renderBriefCard() {
         <span class="briefcol__m" aria-hidden="true">${mark(group.mark || 'chart')}</span>
         <div class="briefcol__c">
           <h4 class="briefcol__t">${escapeHtml(group.title)}</h4>
-          <ul class="briefpoints">${group.points.map((point, index) => `<li>${escapeHtml(point)}${group.action ? ` <button class="linkBtn" type="button" ${group.action.attribute}="${index}">${escapeHtml(group.action.label)}</button>` : ''}</li>`).join('')}</ul>
+          <ul class="briefpoints">${group.points.map((point, index) => `<li>${escapeHtml(pointText(point))}${pointSub(point) ? `<small class="briefpoint__s">${escapeHtml(pointSub(point))}</small>` : ''}${group.action ? ` <button class="linkBtn" type="button" ${group.action.attribute}="${index}">${escapeHtml(group.action.label)}</button>` : ''}</li>`).join('')}</ul>
         </div>
       </section>`).join('')}</div>`;
   host.innerHTML = `<div class="brief__head"><span class="brief__ico">AI</span><div class="brief__t">${escapeHtml(state.context.location.name)} · today at a glance</div><button class="linkBtn" type="button" data-share-brief>Share with team</button></div>
@@ -522,7 +533,8 @@ function shareBrief() {
   const brief = state.brief?.brief || {};
   const lines = [
     ...briefFigures().map(item => `${item.label}: ${item.value}`),
-    ...briefGroups().flatMap(group => ['', `${group.title}`, ...group.points.map(point => `• ${point}`)]),
+    ...briefGroups().flatMap(group => ['', `${group.title}`,
+      ...group.points.map(point => `• ${pointText(point)}${pointSub(point) ? ` (${pointSub(point)})` : ''}`)]),
     // Whatever the AI service adds beyond the summary the Attention column already
     // carries. Absent when that call failed, which is not a reason to send nothing.
     ...(brief.pressures?.length ? ['', 'Pressures', ...brief.pressures.map(item => `• ${item}`)] : []),
