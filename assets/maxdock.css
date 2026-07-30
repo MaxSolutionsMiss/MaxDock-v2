@@ -1020,10 +1020,22 @@ html[data-text="larger"] .frow>.field--md:not(.field-action){grid-column:span 5}
 /* Container queries, not media queries, and in em. The column count has to answer "is
    there room for this text" rather than "how wide is the window": a px breakpoint keeps
    three columns at Larger text on a window that has not grown, which is how a bullet ends
-   up six lines of nineteen characters. Measured against the card in its own type size. */
+   up six lines of nineteen characters. Measured against the card in its own type size.
+
+   Two columns start at 52em rather than 44. A column has to hold the widest thing in it,
+   and the widest thing is now a pair of booking references under a combining bullet. At 44
+   the card split in two at 684px, giving each column 218px of text, where the reference
+   wrapped and took the sentence above it with it: one width in the whole range where that
+   bullet went to six lines while every other width drew it in three. The number is the
+   content's, so it moves when the content does.
+
+   Three columns start at 72em rather than 66, for the same reason one breakpoint up: at 66
+   a 1280 laptop drew three 225px columns and wrapped the sentence again. 72 is the smallest
+   value that clears it while keeping three columns on a 1440, which is the window most of
+   this is looked at on; going further only costs 1440 its third column for nothing. */
 .briefcols{display:grid;grid-template-columns:minmax(0,1fr);gap:var(--s3)}
-@container (min-width:44em){.briefcols{grid-template-columns:repeat(2,minmax(0,1fr))}}
-@container (min-width:66em){.briefcols{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@container (min-width:52em){.briefcols{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@container (min-width:72em){.briefcols{grid-template-columns:repeat(3,minmax(0,1fr))}}
 /* The mark sits on the heading, in MaxDock blue, with the points directly under it. A
    gutter of its own cost the points width and left the column looking half empty; the
    column is just as recognisable by shape with the mark on its title line. */
