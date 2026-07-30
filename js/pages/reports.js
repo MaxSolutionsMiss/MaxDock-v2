@@ -888,7 +888,7 @@ function buildShell(root) {
       <button class="btn btn--primary" type="button" data-apply>Apply</button>`,
       actions: [],
     })}
-    <div data-report-host></div>`;
+    <div class="reportstack" data-report-host></div>`;
   state.elements = {
     root,
     subtitle: root.querySelector('[data-subtitle]'),

@@ -350,6 +350,11 @@ function buildShell(root) {
     location: state.context.location,
     capacityFor: record => capacityFor(record.truck_type_code),
     truckName: code => state.truckTypeNames.get(code),
+    // Every truck type at this site with its capacity, so the dialog can work out which
+    // trailer a combined run actually needs rather than only that it does not fit.
+    truckTypes: () => [...state.truckCapacity.entries()].map(([code, skid_capacity]) => ({
+      code, skid_capacity, name: state.truckTypeNames.get(code) || code,
+    })),
     onDone: async () => { patchData(await fetchBoardData()); },
   });
   // Editing is handed back to the form that already exists rather than rebuilt.

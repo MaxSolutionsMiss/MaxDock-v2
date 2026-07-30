@@ -5,6 +5,7 @@ import { startPage } from '../router.js';
 import { createModal } from '../ui/modal.js';
 import { renderQr } from '../ui/qr.js';
 import { toast } from '../ui/toast.js';
+import { truckUpgrade, upgradeMessage } from '../truck-ladder.js';
 
 const STEPS = Object.freeze(['Load', 'Vehicle', 'Time', 'Contact', 'Confirm']);
 const TERMINAL_STATUSES = new Set(['completed', 'cancelled', 'no_show']);
@@ -477,7 +478,7 @@ function renderVehicleStep() {
       <div class="field field--md"><span class="field__label">Handling<span class="field__req" aria-hidden="true">*</span></span><select class="select" data-field="handling_type_code"></select></div>
       <div class="field field--md"><span class="field__label">Carrier or courier</span><input class="input" data-field="carrier_name" maxlength="120" autocomplete="organization"></div>
     </div>
-    <p class="hint hint--flush hint--wide" data-fullness hidden></p>
+    <p class="hint hint--wide section-gap" data-fullness hidden></p>
 `;
   addOptions(hosts.step.querySelector('[data-field="truck_type_code"]'), state.reference.truckTypes, state.form.truck_type_code, 'Choose one');
   addOptions(hosts.step.querySelector('[data-field="handling_type_code"]'), state.reference.handlingTypes, state.form.handling_type_code, 'Choose one');
@@ -887,6 +888,12 @@ function validateStep(step = state.step) {
   }
   if (step === 2) {
     if (!form.date) return 'Choose a requested date.';
+    // A time cannot be chosen for a load that will not fit the truck. This used to print
+    // "4 over" in amber beside a list of times and let the person pick one, which books a
+    // truck that cannot carry what is on it — a problem discovered at the dock, by a
+    // driver. Either take the bigger trailer or leave a load out of the run.
+    const over = currentUpgrade();
+    if (over) return upgradeMessage(over);
     if (form.after_hours) {
       if (!isStaff()) return 'Customer appointments cannot be booked after hours.';
       if (!form.custom_time) return 'Choose the custom start time.';
@@ -1089,6 +1096,14 @@ function combinedSkids() {
     + selectedMatches().reduce((total, match) => total + Number(match.skid_count || 0), 0);
 }
 
+// Does the combined run fit the truck that is booked, and if not, which truck does.
+// One call site's worth of logic, asked from three places — the picker that shows the
+// offer, the button that takes it, and the gate that stops a time being chosen for a load
+// that cannot travel.
+function currentUpgrade() {
+  return truckUpgrade(state.reference.truckTypes, state.form.truck_type_code, combinedSkids());
+}
+
 function truckCapacity() {
   const truck = (state.reference.truckTypes || []).find(row => row.code === state.form.truck_type_code);
   const capacity = Number(truck?.skid_capacity || 0);
@@ -1139,7 +1154,7 @@ function renderCombinePicker() {
     shelf.replaceChildren();
     return;
   }
-  const overCapacity = truckCapacity() && combinedSkids() > truckCapacity();
+  const upgrade = currentUpgrade();
   shelf.innerHTML = `
     <div class="grouplabel">Combine with</div>
     <p class="hint hint--flush hint--wide">${state.combineMatches.length} other ${state.form.direction} load${state.combineMatches.length === 1 ? '' : 's'} already booked that day. Tick the ones travelling with this shipment: their skids move onto this booking, they are cancelled, and the times below are recalculated for the combined load.</p>
@@ -1150,7 +1165,11 @@ function renderCombinePicker() {
         return `<label class="check-row"><input type="checkbox" data-combine="${escapeHtml(key)}"${checked ? ' checked' : ''}><span><strong>${escapeHtml(match.booking_reference || 'Existing appointment')} · ${escapeHtml(format.time(match.start_at, currentLocation()))}</strong><small>${Number(match.skid_count || 0)} skids · ${escapeHtml(clean(match.carrier_name) || 'Carrier not listed')}${match.company_name ? ` · ${escapeHtml(match.company_name)}` : ''}</small></span></label>`;
       }).join('')}
     </div>
-    ${selectedMatches().length ? `${fullnessBar(combinedSkids(), truckCapacity())}<p class="inline-note${overCapacity ? ' inline-note--warning' : ''}">${escapeHtml(combineSummary())}</p>` : ''}`;
+    ${selectedMatches().length ? `${fullnessBar(combinedSkids(), truckCapacity())}
+      <p class="inline-note${upgrade ? ' inline-note--warning' : ''}">${escapeHtml(upgrade ? upgradeMessage(upgrade) : combineSummary())}</p>
+      ${upgrade && upgrade.fits ? `<div class="form-actions">
+        <button class="btn btn--primary" type="button" data-action="upgrade-truck">Change to a ${escapeHtml(upgrade.fits.name)}</button>
+      </div><p class="hint hint--flush hint--wide">Changing the trailer changes how long the load holds a door, so the times below are worked out again. Nothing is booked until you confirm.</p>` : ''}` : ''}`;
 }
 
 // What has to happen whenever the set of ticked loads changes, however it changed:
@@ -1576,6 +1595,17 @@ async function handleAction(button) {
       ? `${count} load${count === 1 ? '' : 's'} ticked to travel on this truck. Untick anything that should stay on its own, then book.`
       : ''));
     hosts.step.querySelector('[data-combine]')?.focus();
+  } else if (action === 'upgrade-truck') {
+    // Take the bigger trailer. Everything downstream of the truck has to be worked out
+    // again — the window it holds a door for, and therefore which times are free — so this
+    // is the same path a hand-changed truck type takes rather than a shortcut past it.
+    const upgrade = currentUpgrade();
+    if (upgrade?.fits) {
+      state.form.truck_type_code = upgrade.fits.code;
+      renderAll();
+      const warning = await recheckCombinedSlots();
+      setMessage(warning || `Changed to a ${upgrade.fits.name}. ${combinedSkids()} skids of ${upgrade.fits.skid_capacity} — pick a time below.`);
+    }
   } else if (action === 'continue-separately') {
     state.sameDayAccepted = true;
     sameDayModal.close();

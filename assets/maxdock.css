@@ -156,8 +156,17 @@ html[data-rail="mini"]{--rail-w:64px}
 /* The filters take the slack and wrap inside themselves. Left as loose children
    they competed with the right-hand group for the same line, so the utilities
    dropped to a row of their own and left a band of empty white above them. */
-.controls__filters{display:flex;align-items:end;gap:var(--s2) var(--s3);flex-wrap:wrap;flex:1 1 0;min-width:0}
-.datenav{display:flex;align-items:center;gap:var(--s1)}
+/* flex:1 1 auto, and the `auto` is the whole point. With flex-basis:0 the filters have no
+   base size, so a line always "fits" — the group shrank to 67px and overflowed instead of
+   anything wrapping, which is the same starvation the grid had by a different route. Basis
+   auto means the group's real width counts towards the line, so the line overflows, the
+   utilities wrap, and the filters get the rest of line one. */
+.controls__filters{display:flex;align-items:end;gap:var(--s2) var(--s3);flex-wrap:wrap;flex:1 1 auto;min-width:0}
+/* Wraps and shrinks. Four controls in a row came to 302px whatever the screen, so on a
+   390px phone the group hung 22px outside the band it was in. The date box is the part with
+   give in it, and the steppers keep their tap size. */
+.datenav{display:flex;align-items:center;gap:var(--s1);flex-wrap:wrap;min-width:0}
+.datenav .input--date{flex:1 1 8em;min-width:0}
 .iconbtn{width:var(--ctl-h);min-height:var(--ctl-h);height:var(--ctl-h);border:1px solid var(--rule-strong);background:var(--surface);border-radius:var(--radius);cursor:pointer;color:var(--ink-muted);font-size:16px;display:grid;place-items:center}
 .input,.select,textarea{font-family:inherit;font-size:var(--t-base);color:var(--ink);background:var(--surface);border:1px solid var(--rule-strong);border-radius:var(--radius);padding:0 10px;min-height:var(--ctl-h)}
 textarea{padding:8px 10px;min-height:70px;resize:vertical}
@@ -223,30 +232,17 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
    halves only get air on their outer edge, with the divider hard against them. On
    the halves, every section stands in the same half inch of white whichever side
    of the rule it is on. */
-/* Five shared rows — mark, heading, words, the control, the action — and each half
-   lays its children into them with `subgrid`, so the two sides line up by construction
-   rather than by luck. Two separate grids could not: the right half has a labelled
-   field where the left has a button, the headings wrap differently at different widths,
-   and Open the camera drifted a few pixels off the booking-number box at every size.
-   With subgrid every row is as tall as the taller side, and Open the camera sits on
-   exactly the row the booking-number field does. A browser without subgrid ignores the
-   declaration and gets today's auto rows, which is a stack that still reads correctly. */
+/* Shared rows, laid into each half with `subgrid`, so the two sides line up by
+   construction. Two separate grids could not: one half has a labelled field where the other
+   has a button, and the headings wrap differently at different widths. A browser without
+   subgrid ignores the declaration and gets auto rows — a stack that still reads right. */
 .recv__panel{display:grid;grid-template-columns:1fr auto 1fr;grid-template-rows:auto auto auto auto auto auto;gap:0;padding:0}
-/* Six rows, and the fourth and fifth are the reason there are six: a control's caption
-   and the control itself are separate rows, so "Booking number" sits in row four and the
-   box it labels sits in row five — and Open the camera can be put in row five as well.
-   That is the alignment asked for: the button's top edge is the input's top edge, not
-   the top edge of the caption above it. The field passes the two rows down to its own
-   label and input with a nested subgrid, because they are its children, not the box's. */
-/* Row four is the caption and row five is the control, on both sides — which is why
-   each half now names what it wants ("QR code", "Booking number") instead of one of them
-   having a caption and the other going straight from prose to a button. Open the camera
-   and the booking-number box are both row five, so their top edges are the same edge by
-   construction and stay that way at every width and text size.
-   The caption cannot be a wrapping <label> around the input, as fields elsewhere are: a
-   subgrid only shares rows with its own children, and margins on a subgrid item inset the
-   tracks it inherited. A <label for> beside the input is two grid items, and two grid
-   items is what two rows need. */
+/* Row four is the caption and row five the control, on both sides — so each half names what
+   it wants ("QR code", "Booking number") and Open the camera shares the booking box's row,
+   which makes their top edges the same edge at every width and text size.
+   The caption cannot be a wrapping <label> as fields elsewhere are: a subgrid shares rows
+   only with its own children, and a margin on a subgrid item insets the tracks it
+   inherited. A <label for> beside the input is two items, which is what two rows need. */
 .recv__box--scan .recv__stage{grid-row:6}
 .recv__box--type .form-actions{grid-row:6}
 /* Top of the row, not the middle of it. Row five is as tall as the jumbo input, and a
@@ -273,8 +269,12 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
    sheet of paper in bad light — the field where a mis-key costs the most is the field
    that should be hardest to mis-key. Centred and spaced out in the data face, because
    MXD-2026-000071 is a code being copied, not a sentence being written. */
+/* Left, not centred. Centred, the prefilled MXD-2026- sat in the middle of the box with
+   white on both sides and read as the whole value — there was nothing to say the digits go
+   after it. Against the left edge, the prefix is where a person starts reading and the
+   empty half of the box is visibly the part they fill in. */
 .input--jumbo{min-height:calc(var(--ctl-h)*2);height:calc(var(--ctl-h)*2);font-family:var(--font-data);font-size:calc(var(--t-base)*2);
-  font-weight:600;letter-spacing:.03em;text-align:center;padding:0 var(--s3)}
+  font-weight:600;letter-spacing:.03em;text-align:left;padding:0 var(--s4)}
 /* And Open the camera stands the same height as the box across from it. Top alignment
    alone left a 36px button beside a 72px field, which lines up on one edge and looks
    wrong on the other three — and the argument for the big field is the argument for the
@@ -334,6 +334,12 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
    than the row below it and the strip looked ragged. 1fr on the implicit rows
    makes them all as tall as the tallest. */
 .kpis{display:grid;gap:var(--s3);margin-bottom:var(--s3);flex:none;grid-template-columns:repeat(var(--kpi-cols,4),minmax(0,1fr));grid-auto-rows:1fr}
+/* A report's sections come from eight different render functions and none should have to
+   know what is above it, so the air belongs to the container: the host had no rule at all
+   and panels sat hard against each other. The strip's own bottom margin goes, or it would
+   double against the gap. */
+.reportstack{display:grid;gap:var(--s5);align-content:start}
+.reportstack>.kpis{margin-bottom:0}
 /* The customize control belongs to the cards, so it sits at the end of their row
    at their height, not in the page header where nothing said what it applied to.
    Its own narrow column, shared by the panels below, so the side column still
@@ -1234,19 +1240,6 @@ body.modal-open{overflow:hidden}
   .appointment-card__identity{flex-wrap:wrap}
 }
 
-/* The controls band stops being three groups abreast before the rail collapses.
-   Three tracks — the page's own control, its filters, the actions — and the outer two are
-   `auto`, so they take their content and the filters get whatever is left. On the dock
-   board at 1024px with the rail still expanded, that left the filters **66px** for a date
-   filter, a status filter and a search box, and all three overflowed to the right, across
-   the actions. Block dock time was under the search box and stopped being clickable.
-
-   It had been overflowing for a while and missing the button's centre by eleven pixels,
-   which is not a layout working — it is one that has not been caught yet. Widening the
-   search box by the ten per cent asked for closed those eleven pixels, and a floor tuned
-   to just miss the button would only wait for the next change to the band. So the band
-   stacks while there is still room to stack into: below 1100px each group gets the full
-   width, which is what it already did below 900. */
 /* --- narrow screens
    The rail is a fixed 196px, which on a 390px phone left 194px for the whole
    application. Below 900px it keeps its icons and drops its labels — the labels
@@ -1255,7 +1248,13 @@ body.modal-open{overflow:hidden}
   /* Narrow enough that the rail is icons whatever the reader chose — the width
      rules, and the collapsed treatment comes from the rail's own container
      query. Nothing to toggle here, so the control is not offered. */
-  :root{--rail-w:60px}
+  /* html:root, not :root — `html[data-text="large"]` sets --rail-w:214px and is one
+     specificity point above a bare :root, so it won this whatever the source order and
+     whatever the viewport. On a 430px phone at Large text the rail took 214px of 430 and
+     the top bar was left 194px for 314px of content, so Sign out hung 89px off the right
+     edge of every page in the application. Adding `html` ties the specificity, and this
+     rule is later in the file, so the narrow screen wins where it should. */
+  html:root{--rail-w:60px}
   .rail__collapse{display:none}
   .page{padding:var(--s3) var(--s3) var(--s4)}
   /* One group a line, and the utilities left-aligned with everything else rather than

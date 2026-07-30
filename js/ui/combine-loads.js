@@ -1,6 +1,7 @@
 import { db } from '../db.js';
 import { createModal } from './modal.js';
 import { truckFill } from './truckfill.js';
+import { truckUpgrade, upgradeMessage } from '../truck-ladder.js';
 import { format } from '../format.js';
 import { toast } from './toast.js';
 
@@ -78,7 +79,7 @@ export function laneDescription(lane) {
   return `${lane.rows.length} ${lane.direction} loads ${lane.direction === 'outbound' ? 'to' : 'from'} ${lane.partner} today`;
 }
 
-export function createCombineDialog({ location, capacityFor, truckName, onDone } = {}) {
+export function createCombineDialog({ location, capacityFor, truckName, truckTypes, onDone } = {}) {
   const backdrop = document.createElement('div');
   backdrop.className = 'scrim';
   backdrop.hidden = true;
@@ -94,6 +95,7 @@ export function createCombineDialog({ location, capacityFor, truckName, onDone }
       </div>
       <div class="modal__foot">
         <button class="btn btn--quiet" type="button" data-combine-close>Cancel</button>
+        <button class="btn btn--quiet" type="button" data-combine-upgrade hidden></button>
         <button class="btn btn--primary" type="button" data-combine-run>Combine</button>
       </div>
     </section>`;
@@ -105,6 +107,7 @@ export function createCombineDialog({ location, capacityFor, truckName, onDone }
     summary: backdrop.querySelector('[data-combine-summary]'),
     message: backdrop.querySelector('[data-combine-message]'),
     run: backdrop.querySelector('[data-combine-run]'),
+    upgrade: backdrop.querySelector('[data-combine-upgrade]'),
   };
   let rows = [];
   let chosen = new Set();
@@ -115,6 +118,11 @@ export function createCombineDialog({ location, capacityFor, truckName, onDone }
   // worked. It can still be the truck that keeps the booking, which is often exactly
   // what you want: the driver is here, put the rest of the run on him.
   const onDock = row => ['arrived', 'in_progress'].includes(row.status);
+
+  // The site's truck types, asked for rather than captured: the dialog is created when the
+  // page mounts and the capacity map is filled by the fetch that follows, so a list taken
+  // at construction time would be empty for the life of the page.
+  const typesNow = () => (typeof truckTypes === 'function' ? truckTypes() : truckTypes) || [];
 
   // Which load keeps its booking is the person's choice, not the clock's.
   //
@@ -179,7 +187,10 @@ export function createCombineDialog({ location, capacityFor, truckName, onDone }
     const working = picked.filter(row => onDock(row) && row.id !== keep.id);
     const total = totalSkids();
     const capacity = capacityOf(keep);
-    const over = capacity && total > capacity;
+    // Over the truck it is going on is not a warning to read past. It is either a bigger
+    // trailer or a shorter run, and the system knows which trailer.
+    const upgrade = truckUpgrade(typesNow(), keep.truck_type_code, total);
+    const over = Boolean(upgrade);
     const absorbed = picked.length - 1;
     els.summary.innerHTML = `
       <p class="inline-note${over || working.length ? ' inline-note--warning' : ''}">One truck: ${escapeHtml(keep.booking_reference || 'the earliest load')} at ${escapeHtml(format.time(keep.start_at, location))}, ${total} skids, ${absorbed} load${absorbed === 1 ? '' : 's'} cancelled onto it.</p>
@@ -190,8 +201,15 @@ export function createCombineDialog({ location, capacityFor, truckName, onDone }
         label: truckName?.(keep.truck_type_code) || keep.truck_type_code || '',
         wide: true,
       })}
-      ${over ? '<p class="hint">More than this truck holds. Keep one of the bigger trucks instead, or leave a load out of the run.</p>' : ''}`;
-    els.run.disabled = busy || working.length > 0;
+      ${over ? `<p class="form-message">${escapeHtml(upgradeMessage(upgrade))}</p>` : ''}`;
+    // Combining a run onto a truck that cannot carry it books a problem for the driver to
+    // find. The action is refused until the run fits, and the way to make it fit is beside
+    // it — a bigger trailer where one exists, otherwise unticking a load or keeping one of
+    // the other trucks, which the message says.
+    els.upgrade.hidden = !upgrade?.fits;
+    els.upgrade.textContent = upgrade?.fits ? `Change to a ${upgrade.fits.name}` : '';
+    els.upgrade.disabled = busy;
+    els.run.disabled = busy || working.length > 0 || over;
   }
 
   function renderAll() { renderList(); renderSummary(); }
@@ -222,8 +240,42 @@ export function createCombineDialog({ location, capacityFor, truckName, onDone }
     }
   }
 
+  // Put the run on a bigger trailer.
+  //
+  // Through a function that changes the truck and nothing else, rather than the full edit
+  // RPC: that one wants System Admin, and the people combining loads are coordinators. The
+  // database re-checks everything the longer trailer touches — that the dock accepts it,
+  // that the longer window does not run into the next truck or past closing — so a refusal
+  // here is a real answer and is shown as one.
+  async function upgradeTruck() {
+    const keep = keeper();
+    const upgrade = truckUpgrade(typesNow(), keep?.truck_type_code, totalSkids());
+    if (!keep || !upgrade?.fits || busy) return;
+    busy = true;
+    renderAll();
+    els.message.textContent = '';
+    try {
+      await db.rpc('set_appointment_truck_type', {
+        p_appointment_id: keep.id,
+        p_truck_type_code: upgrade.fits.code,
+      }, { key: `combine:truck:${crypto.randomUUID()}`, retry: 0, userMessage: 'The truck could not be changed.' });
+      // The row in this dialog is a copy of the schedule's, so the change is reflected here
+      // as well as fetched again — otherwise the dialog would still be refusing a run that
+      // now fits.
+      keep.truck_type_code = upgrade.fits.code;
+      els.message.textContent = '';
+      await onDone?.();
+    } catch (error) {
+      els.message.textContent = error.userMessage || 'The truck could not be changed.';
+    } finally {
+      busy = false;
+      renderAll();
+    }
+  }
+
   backdrop.addEventListener('click', event => {
     if (event.target.closest('[data-combine-close]')) { modal.close(); return; }
+    if (event.target.closest('[data-combine-upgrade]')) { upgradeTruck(); return; }
     if (event.target.closest('[data-combine-run]')) run();
   });
   backdrop.addEventListener('change', event => {
