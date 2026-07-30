@@ -353,15 +353,38 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
    how big, and the two things anybody wants to do with it. Deliberately plain — a thumbnail of
    a PDF is a lot of work to say what the file name already says. */
 .doclist{list-style:none;margin:0;padding:0;display:grid;gap:2px}
-.docrow{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:var(--s3);padding:var(--s2) var(--s2);border-radius:var(--radius)}
-.docrow:hover{background:var(--surface-sunk)}
-.docrow__k{width:26px;height:32px;border-radius:3px;border:1px solid var(--rule-strong);background:var(--surface);flex:none;position:relative}
-.docrow__k::after{content:"";position:absolute;left:4px;right:4px;top:8px;height:2px;background:var(--ink-faint);box-shadow:0 5px 0 var(--ink-faint),0 10px 0 var(--ink-faint)}
-.docrow__k--pdf{border-color:var(--stop)} .docrow__k--image{border-color:var(--dock)} .docrow__k--sheet{border-color:var(--ok)}
+.docrow{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:var(--s3);padding:var(--s2);border-radius:var(--radius)}
+/* A sheet of paper, edged in the colour of what it is. The three ruled lines that were drawn
+   inside it were decoration on a 26px box — the file name says what the file is. */
+.docrow__k{width:22px;height:28px;border-radius:3px;border:1px solid var(--rule-strong);border-left-width:3px;background:var(--surface);flex:none}
+.docrow__k--pdf{border-left-color:var(--stop)} .docrow__k--image{border-left-color:var(--dock)} .docrow__k--sheet{border-left-color:var(--ok)}
 .docrow__n{min-width:0;display:grid;gap:1px}
 .docrow__n b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}
 .docrow__n span{font-size:var(--t-micro);color:var(--ink-muted)}
 .docrow__a{display:flex;gap:var(--s2);flex:none}
+/* The appointment window, landscape.
+   A monitor is wider than it is tall and this window used to be one column you scrolled
+   through twice — the code, the paperwork, the booking and the history in a single stack. The
+   two things a person *does* here are scan and attach, so they take one side; the booking is
+   what they read, so it takes the other; the history is a long list and goes underneath at
+   full width. One column again below 760px, where there is no width to share. */
+.apptcols{display:grid;grid-template-columns:minmax(0,17em) minmax(0,1fr);gap:var(--s5);align-items:start}
+.apptcols__side,.apptcols__main,.apptdocs{min-width:0}
+.apptcols__side{display:grid;gap:var(--s4);align-content:start}
+/* Big enough to read off a phone held at arm's length, which is the whole job of it. */
+.qrbox,.apptdocs{display:grid;gap:var(--s2)}
+.qrbox{justify-items:center}
+.qrbox .qr-frame{width:100%;max-width:210px;margin:0}
+.qrbox__c,.apptdocs .watch__t{margin:0}
+.qrbox__c{font-size:var(--t-micro);color:var(--ink-muted);text-align:center}
+/* The file box takes the room and the button keeps its own width, so the pair sits on one
+   line at this column's width instead of wrapping under itself. */
+.docadd{display:flex;gap:var(--s2);align-items:center;min-width:0;flex-wrap:wrap}
+.docadd .input{flex:1 1 auto;min-width:0}
+.docadd .btn{flex:none}
+@media (max-width:760px){
+  .apptcols{grid-template-columns:minmax(0,1fr)}
+}
 /* The customize control belongs to the cards, so it sits at the end of their row
    at their height, not in the page header where nothing said what it applied to.
    Its own narrow column, shared by the panels below, so the side column still
@@ -558,9 +581,6 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 .fullness__bar>span{display:block;height:100%;background:var(--ok)}
 .fullness__t{font-size:var(--t-small);color:var(--ink-muted);font-variant-numeric:tabular-nums}
 .fullness--over .fullness__bar>span{background:var(--stop)}
-.qrblock{display:flex;align-items:center;gap:var(--s4);flex-wrap:wrap;padding:var(--s3) 0;border-top:1px solid var(--rule);border-bottom:1px solid var(--rule)}
-.qrblock .qr-frame{flex:none;width:150px;margin:0}
-.qrblock>div{min-width:0;flex:1 1 220px}
 /* Capped rather than filling: the cell takes what it needs up to a limit and the
    row's action stays beside it, with an empty .col-fill header taking the rest. */
 .table td.cell-cap{max-width:24ch;overflow:hidden;text-overflow:ellipsis}
@@ -954,7 +974,7 @@ html[data-text="larger"] .frow>.field--md:not(.field-action){grid-column:span 5}
 .split>*:last-child{grid-column:span 1;min-width:0;overflow-y:auto}
 .heat{background:var(--surface);border:1px solid var(--rule);border-radius:var(--radius-lg);padding:var(--s3) var(--s4);display:flex;flex-direction:column}
 .heat__t{font-size:var(--t-base);font-weight:600;margin:0 0 var(--s2);display:flex;align-items:center}.heat__t .btn{margin-left:auto}
-.heatgrid{display:grid;grid-template-columns:44px repeat(10,1fr);gap:2px}.heatgrid .hh{font-family:var(--font-data);font-size:9px;color:var(--ink-faint);text-align:center}.heatgrid .hd{font-family:var(--font-data);font-size:10px;color:var(--ink-muted);display:flex;align-items:center}.hc{height:20px;border-radius:2px;background:var(--dock);opacity:calc(var(--v)/5)}
+.heatgrid{display:grid;grid-template-columns:44px repeat(10,1fr);gap:2px}.heatgrid .hh{font-family:var(--font-data);font-size:9px;color:var(--ink-faint);text-align:center}.heatgrid .hd{font-family:var(--font-data);font-size:10px;color:var(--ink-muted);display:flex;align-items:center}.hc{height:20px;border-radius:2px;background:var(--dock);opacity:calc(var(--v)/var(--peak,5))}
 .watch{background:var(--surface);border:1px solid var(--rule);border-radius:var(--radius-lg);padding:var(--s3) var(--s4);overflow:auto}.watch__t{font-size:var(--t-base);font-weight:600;margin:0 0 var(--s3)}.watchitem{display:flex;gap:var(--s2);padding:var(--s2) 0;border-bottom:1px solid var(--rule);font-size:var(--t-small)}.watchitem:last-child{border:none}.watchitem b{display:block}.wdot{width:8px;height:8px;border-radius:50%;flex:none;margin-top:4px;background:var(--c)}
 
 /* Capacity components — approved page-5-settings.html */

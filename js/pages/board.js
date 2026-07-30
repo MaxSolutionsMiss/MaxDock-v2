@@ -38,6 +38,12 @@ const state = {
 
 const KPI_CARDS = [
   { id: 'appointments', label: 'Appointments', className: '', compute: (appts) => appts.length },
+  // Trucks and skids answer different questions — how many vehicles are coming
+  // through the gate, and how much is on them. A day of 20 trucks carrying two
+  // skids each is nothing like a day of 20 carrying twenty, so both are here and
+  // either can be switched off.
+  { id: 'inboundTrucks', label: 'Inbound trucks', className: 'kpi--out', compute: appts => appts.filter(r => r.direction === 'inbound').length },
+  { id: 'outboundTrucks', label: 'Outbound trucks', className: 'kpi--ok', compute: appts => appts.filter(r => r.direction === 'outbound').length },
   { id: 'inbound', label: 'Inbound skids', className: 'kpi--out', compute: appts => appts.filter(r => r.direction === 'inbound').reduce((sum, r) => sum + Number(r.skid_count || 0), 0) },
   { id: 'outbound', label: 'Outbound skids', className: 'kpi--ok', compute: appts => appts.filter(r => r.direction === 'outbound').reduce((sum, r) => sum + Number(r.skid_count || 0), 0) },
   { id: 'active', label: 'Active trucks', className: 'kpi--signal', compute: appts => appts.filter(r => ['arrived', 'loading', 'unloading'].includes(r.status)).length },
@@ -84,8 +90,13 @@ const STATUS_FILTERS = {
   scheduled: new Set(['scheduled', 'confirmed']),
   arrived: new Set(['arrived', 'in_progress']),
   complete: new Set(['completed']),
-  cancelled: new Set(['cancelled', 'no_show']),
+  'no-show': new Set(['no_show']),
 };
+
+// Cancelled loads do not reach the board at all. A no-show is not one of them —
+// the truck was expected and did not come, which is something the day has to
+// account for, so it stays on the schedule.
+const isCancelled = record => record?.status === 'cancelled' || !!record?.merged_into_appointment_id;
 
 // update_appointment_details is restricted to System Admin / Site Admin server-side.
 // A linked movement is the mirrored view of another site's appointment, so it must be
@@ -138,6 +149,12 @@ async function fetchBoardData() {
     truckCapacity: new Map((truckCapacities || []).map(row => [row.truck_type_code, Number(row.skid_capacity || 0)])),
     records: (scheduleRows || []).map(normalizeRecord).filter(record => {
       if (!record.start_at) return false;
+      // A cancelled load is not work any more. Leaving it on the board doubles
+      // the number of things to read past on a day that is already full, and it
+      // is worst exactly where it matters most — a combine leaves its cancelled
+      // half sitting beside the truck that is actually carrying the freight. It
+      // is still there to be found by its number, in the appointment window.
+      if (isCancelled(record)) return false;
       return format.sameLocalDate(record.start_at, selectedDate, state.context.location);
     }),
   };
@@ -262,7 +279,7 @@ function buildShell(root) {
         <button class="iconbtn" type="button" data-day="1" aria-label="Next day">›</button>
       </div></div>`,
       filters: `<div class="ctrl-field"><label for="board-direction">Direction</label><select class="select" id="board-direction" data-filter-direction><option value="all">All movements</option><option value="inbound">Inbound</option><option value="outbound">Outbound</option></select></div>
-      <div class="ctrl-field"><label for="board-status">Status</label><select class="select" id="board-status" data-filter-status><option value="all">All statuses</option><option value="scheduled">Scheduled</option><option value="arrived">Arrived</option><option value="complete">Complete</option><option value="cancelled">Cancelled</option></select></div>
+      <div class="ctrl-field"><label for="board-status">Status</label><select class="select" id="board-status" data-filter-status><option value="all">All statuses</option><option value="scheduled">Scheduled</option><option value="arrived">Arrived</option><option value="complete">Complete</option><option value="no-show">No show</option></select></div>
       ${searchField({ id: 'board-search', placeholder: 'Reference, company, PO', attribute: 'data-filter-search' })}`,
       trailing: [['block', can('block.manage')], ['book', can('appointment.create')]],
     })}

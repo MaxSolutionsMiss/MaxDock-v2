@@ -15,6 +15,11 @@ const ACTIVE_STATUSES = new Set(['arrived', 'in_progress']);
 const EXPECTED_STATUSES = new Set(['scheduled', 'confirmed']);
 
 const KPI_CARDS = [
+  // How many trucks are coming in and how many are going out is the first thing
+  // asked of a shift, ahead of where any of them are in it — so both counts lead,
+  // and either can be switched off with the rest.
+  { id: 'inboundTrucks', label: 'Inbound trucks', className: 'kpi--out', suffix: '', compute: recs => recs.filter(r => r.direction === 'inbound').length },
+  { id: 'outboundTrucks', label: 'Outbound trucks', className: 'kpi--ok', suffix: '', compute: recs => recs.filter(r => r.direction === 'outbound').length },
   { id: 'expected', label: 'Expected', className: 'kpi--signal', suffix: '', compute: recs => recs.filter(r => EXPECTED_STATUSES.has(r.status)).length },
   { id: 'onsite', label: 'On site', className: 'kpi--out', suffix: '', compute: recs => recs.filter(r => ACTIVE_STATUSES.has(r.status)).length },
   { id: 'completed', label: 'Completed', className: 'kpi--ok', suffix: '', compute: recs => recs.filter(r => r.status === 'completed').length },
@@ -102,7 +107,13 @@ async function fetchQueueData() {
     // had to spend.
     db.select('location_shifts', q => q.select('name,start_time,end_time,people,days_of_week,is_active').eq('location_id', locationId).eq('is_active', true), { key: `queue:shifts:${locationId}`, cache: 60000 }).catch(() => []),
   ]);
-  const records = (scheduleRows || []).map(normalizeRecord).filter(record => record.start_at && format.sameLocalDate(record.start_at, state.date, state.context.location));
+  // Cancelled loads are dropped before the queue ever sees them — including the
+  // half that a combine cancels, which would otherwise sit in the list beside
+  // the truck now carrying its freight. Its trail lives in the appointment
+  // window, which is still reachable by the cancelled number.
+  const records = (scheduleRows || []).map(normalizeRecord)
+    .filter(record => record.status !== 'cancelled' && !record.merged_into_appointment_id)
+    .filter(record => record.start_at && format.sameLocalDate(record.start_at, state.date, state.context.location));
   return {
     docks: docks || [],
     hours: hours || null,
@@ -204,10 +215,22 @@ function renderHeatmap() {
   const hours = heatmapHours();
   const appointments = state.records.filter(record => record.entry_kind !== 'block');
   const header = `<span class="hh"></span>${hours.map(hour => `<span class="hh">${String(hour % 24).padStart(2, '0')}</span>`).join('')}`;
+  const countAt = (dock, hour) => appointments.filter(record => record.dock_id === dock.id
+    && Math.floor(format.localTimeMinutes(record.start_at, state.context.location) / 60) === hour % 24).length;
+  // Scaled to the busiest cell on the day, not to a fixed five.
+  //
+  // A dock holds one truck at a time and a movement takes the better part of an hour, so a
+  // dock-hour realistically holds one or two. Against a hard scale of five, that painted the
+  // whole grid at a fifth or two fifths opacity — a heat map with no heat in it, whatever the
+  // day looked like. Now the busiest cell is the darkest, and the rest are read against it.
+  //
+  // The floor of two is what stops a quiet day looking like a crisis: with one movement
+  // anywhere and a scale of one, every occupied cell would be solid.
+  const busiest = Math.max(2, ...state.docks.flatMap(dock => hours.map(hour => countAt(dock, hour))));
   const rows = state.docks.map(dock => {
     const cells = hours.map(hour => {
-      const count = appointments.filter(record => record.dock_id === dock.id && Math.floor(format.localTimeMinutes(record.start_at, state.context.location) / 60) === hour % 24).length;
-      return `<span class="hc" style="--v:${Math.min(5, count)}" title="${count} movement${count === 1 ? '' : 's'}"></span>`;
+      const count = countAt(dock, hour);
+      return `<span class="hc" style="--v:${count};--peak:${busiest}" title="${count} movement${count === 1 ? '' : 's'}"></span>`;
     }).join('');
     return `<span class="hd">${escapeHtml(dock.name)}</span>${cells}`;
   }).join('');
@@ -286,6 +309,8 @@ function briefFigures() {
   // green in the brief as it is on the card strip and on the board.
   return [
     { id: 'trucks', label: 'Trucks today', value: appointments.length },
+    { id: 'inboundTrucks', label: 'Inbound trucks', value: inbound.length, className: 'kpi--out' },
+    { id: 'outboundTrucks', label: 'Outbound trucks', value: outbound.length, className: 'kpi--ok' },
     { id: 'inbound', label: 'Inbound skids', value: skids(inbound), className: 'kpi--out' },
     { id: 'outbound', label: 'Outbound skids', value: skids(outbound), className: 'kpi--ok' },
     { id: 'expected', label: 'Still to come', value: expected.length, className: 'kpi--signal' },
@@ -303,6 +328,8 @@ function briefFigures() {
 // picker offers all of them even on a quiet day.
 const BRIEF_FIGURES = [
   { id: 'trucks', label: 'Trucks today' },
+  { id: 'inboundTrucks', label: 'Inbound trucks' },
+  { id: 'outboundTrucks', label: 'Outbound trucks' },
   { id: 'inbound', label: 'Inbound skids' },
   { id: 'outbound', label: 'Outbound skids' },
   { id: 'expected', label: 'Still to come' },
@@ -626,7 +653,7 @@ function buildShell(root) {
         <div class="panel__scroll"><table class="table"><thead><tr><th>Time</th><th>Reference</th><th>Dock</th><th>Company</th><th>Load</th><th>Status</th><th></th></tr></thead><tbody data-rows></tbody></table></div>
       </div>
       <div>
-        <div class="heat"><h3 class="heat__t">Dock heatmap</h3><div class="heatgrid" data-heat></div><p class="hint">Darker = busier.</p></div>
+        <div class="heat"><h3 class="heat__t">Dock heatmap</h3><div class="heatgrid" data-heat></div><p class="hint">Darker = busier, against the busiest hour on this board today.</p></div>
         <div class="watch"><h3 class="watch__t">Watch for</h3><div data-watch></div></div>
       </div>
     </div>`;

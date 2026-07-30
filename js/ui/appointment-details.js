@@ -49,6 +49,9 @@ function cell(label, value) {
 // for, so it gets the accent rather than the same grey as an edit.
 function eventTone(entry) {
   if (entry.details?.is_check_in) return 'var(--ok)';
+  // A combine is the one event that moves freight off this number and onto
+  // another, so it is the line somebody chasing a load is scanning for.
+  if (entry.details?.is_merge) return 'var(--dock-deep)';
   if (entry.action === 'created') return 'var(--dock)';
   if (entry.action === 'status_changed') return 'var(--signal)';
   return 'var(--rule-strong)';
@@ -60,25 +63,43 @@ export function createAppointmentDetails({ location, onEdit, laneFor, onCombine 
   backdrop.hidden = true;
   backdrop.setAttribute('aria-hidden', 'true');
   backdrop.innerHTML = `
-    <section class="modal modal--md" role="dialog" aria-modal="true" aria-labelledby="appt-details-title">
+    <section class="modal modal--wide" role="dialog" aria-modal="true" aria-labelledby="appt-details-title">
       <div class="modal__head">
         <div><h2 class="modal__title" id="appt-details-title" data-title>Appointment</h2><p class="modal__sub" data-sub></p></div>
         <button class="modal__x" type="button" data-close aria-label="Close">×</button>
       </div>
       <div class="modal__body">
-        <div class="confirmgrid" data-grid></div>
-        <div class="section-gap qrblock" data-checkin hidden>
-          <div class="qr-frame" data-qr></div>
-          <div><h3 class="watch__t">Check-in code</h3><p class="hint hint--flush" data-qr-note></p></div>
+        <!-- Two columns, because a monitor is wider than it is tall and this window used to be
+             a single column you scrolled through twice. The code and the paperwork are the two
+             things somebody *does* here, so they take one side; the booking itself is what they
+             read, so it takes the other; and the history goes underneath at full width, where a
+             long list belongs. It collapses to one column on a narrow screen. -->
+        <div class="apptcols">
+          <!-- The side is what a person *does*: hold the code up to be scanned, and attach a
+               sheet of paper. The list of what is already attached is information about the
+               load, so it sits with the rest of the load's information where there is width
+               for a file name. -->
+          <div class="apptcols__side">
+            <div class="qrbox" data-checkin hidden>
+              <div class="qr-frame" data-qr></div>
+              <p class="qrbox__c" data-qr-note></p>
+            </div>
+            <div class="apptdocs">
+              <h3 class="watch__t">Add a document</h3>
+              <div class="docadd">
+                <input class="input" type="file" data-doc-file accept=".pdf,.jpg,.jpeg,.png,.heic,.webp,.doc,.docx,.xlsx,.csv">
+                <button class="btn btn--quiet" type="button" data-doc-upload>Upload</button>
+              </div>
+              <p class="hint hint--flush">PDF, image or Word · up to ${MAX_MB} MB each</p>
+              <p class="form-message" data-doc-message aria-live="polite"></p>
+            </div>
+          </div>
+          <div class="apptcols__main">
+            <div class="confirmgrid" data-grid></div>
+            <h3 class="watch__t section-gap">Documents</h3>
+            <div data-docs></div>
+          </div>
         </div>
-        <h3 class="watch__t section-gap">Documents</h3>
-        <p class="hint hint--flush hint--wide">The paperwork that belongs to this load — a bill of lading, a PO, a packing slip, a photo of a damaged skid. Up to ${MAX_MB} MB each, as many as the load needs. Combining loads brings their documents onto the surviving truck.</p>
-        <div data-docs></div>
-        <div class="form-actions">
-          <label class="field field--lg"><span class="field__label">Add a document</span><input class="input" type="file" data-doc-file accept=".pdf,.jpg,.jpeg,.png,.heic,.webp,.csv,.xlsx,.doc,.docx,.txt"></label>
-          <button class="btn btn--quiet" type="button" data-doc-upload>Upload</button>
-        </div>
-        <p class="form-message" data-doc-message aria-live="polite"></p>
         <h3 class="watch__t section-gap">Activity</h3>
         <div data-log></div>
       </div>
@@ -315,7 +336,7 @@ export function createAppointmentDetails({ location, onEdit, laneFor, onCombine 
     const url = new URL('receiving.html', globalThis.location.href);
     url.searchParams.set('t', token);
     renderQr(els.qr, url.href, { label: `Check-in code for MaxDock appointment ${record.booking_reference || ''}` });
-    els.qrNote.textContent = `Scan at the dock to check ${record.booking_reference || 'this appointment'} in. Generated in this browser — nothing about the appointment is sent anywhere to draw it.`;
+    els.qrNote.textContent = 'Scan at the dock to check this load in';
     els.checkin.hidden = false;
     void site;
   }

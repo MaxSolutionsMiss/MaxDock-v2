@@ -50,6 +50,10 @@ jobs:
 
       - name: Documents on an appointment
         run: node scripts/verify-appointment-documents.mjs
+
+      - name: What the board and the queue show
+        run: node scripts/verify-schedule-metrics.mjs
+
       - name: Prepare static site artifact
         if: github.event_name != 'pull_request'
         shell: bash
