@@ -53,10 +53,15 @@ jobs:
           # specifiers are stamped too, because versioning only the <script> tag
           # would leave every module it imports cached.
           v="$(git rev-parse --short=12 HEAD)"
+          # Only our own relative paths — never the Supabase CDN tag.
           find _site -name '*.html' -print0 \
-            | xargs -0 sed -i -E "s#(href=\"[^\"]*assets/maxdock\.css)\"#\1?v=$v\"#g; s#(src=\"[^\"]*\.js)\"#\1?v=$v\"#g"
+            | xargs -0 sed -i -E "s#(href=\"(\.\./)?assets/maxdock\.css)\"#\1?v=$v\"#g; s#(src=\"(\.\./)?js/[^\"]*\.js)\"#\1?v=$v\"#g"
           find _site/js -name '*.js' -print0 \
             | xargs -0 sed -i -E "s#(from '\.\.?/[^']+\.js)'#\1?v=$v'#g; s#(import\('\.\.?/[^']+\.js)'#\1?v=$v'#g"
+          if grep -rq 'supabase.min.js?v=' _site; then
+            echo "Cache-busting must not touch the Supabase CDN tag." >&2
+            exit 1
+          fi
           if grep -rqE "from '\.\.?/[^']+\.js'" _site/js; then
             echo "Cache-busting missed an import specifier:" >&2
             grep -rnE "from '\.\.?/[^']+\.js'" _site/js >&2
