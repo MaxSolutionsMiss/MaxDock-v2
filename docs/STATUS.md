@@ -1967,3 +1967,80 @@ spacing fault indefinitely.
 They are their own `flows` job now, and each step carries `if: !cancelled()` so one
 failing walk still reports the other two. Whether the layout is right and whether the
 application works are two questions, and a push should get both answers every time.
+
+## The lanes the operation actually runs (2026-07-30)
+
+The two weeks of demo data were spread evenly and were, in the internal half, wrong:
+sites transferred to whichever other site the generator picked. Ontario does not work
+that way. **Milton is the warehouse**, and Guelph, Mississauga, Pickering, Markham and
+Owen Sound are production sites that ship into it and draw from it. In the US the pair
+is **Bristol and Concord**, moving work between themselves.
+
+Re-pointed rather than regenerated — the movements, their docks, their hours and their
+counterpart doors are all real bookings and there was no reason to throw them away and
+book them again. Every in-window internal lane is now one the operation runs:
+
+| Lane | Loads | Skids |
+|---|---|---|
+| Mississauga → Milton | 26 | 345 |
+| Pickering → Milton | 20 | 316 |
+| Concord → Bristol | 15 | 234 |
+| Bristol → Concord | 14 | 200 |
+| Guelph → Milton | 13 | 259 |
+| Mississauga → Guelph | 11 | 135 |
+| Milton → Guelph | 10 | 161 |
+| Owen Sound → Milton | 10 | 162 |
+| Markham ↔ Milton | 14 | 95 |
+
+Milton is now the busiest site in the window at 94 movements, against Mississauga 85 and
+Pickering 70 — which is the shape a warehouse should have and did not before.
+
+**Every site's trailer capacities are entered**, not just Milton and Mississauga: 53 ft
+holds 26, 48 ft holds 20, 26 ft straight truck 10, cube van 2, courier 1, at all twelve.
+Nothing is left null, so the truck-fullness bar draws everywhere and the combine dialog
+can say whether a run fits at any site rather than at two of them.
+
+**And the combining examples are 53 ft loads, deliberately arranged so the choice
+matters.** Bristol → Concord on 31 July: three loads at 12:00 (10 skids), 13:45 (10) and
+14:00 (16). All three together is 36 skids into a trailer that holds 26 — it does not
+fit, and the dialog says so. 12:00 + 13:45 is 20 of 26. 12:00 + 14:00 is 26 of 26,
+exactly full. So *which* load everything merges into is a real decision with a real
+answer, which is the whole point of offering the choice. Two more pairs sit behind it:
+Guelph → Milton on 31 July at 25 of 26, and Mississauga → Milton on 3 August at 20 of 26.
+
+## Reports: which site, and charts that answer something (2026-07-30)
+
+Two asks, and they belong together — the first is what makes the second worth looking at.
+
+**A site picker.** Reports read the site from the top bar, so seeing Milton's numbers
+meant switching the whole application to Milton and back again. Site is now the first
+field in the range controls, and every panel is captioned with the site *and* the range.
+That caption matters most on paper, where the picker is not there to say whose figures
+these are.
+
+**Three forms, each for one job**, replacing a wall of blue bars that gave a silhouette
+and no reading:
+
+- a **dial** for one bounded percentage against capacity — dock time used, crew used,
+  trailer used. "How close to full was this" is the question a manager actually has. The
+  band is *named* under the number as well as coloured, because a colour is not a reading.
+- a **ring** for a two-part whole: skids in against skids out. A site that ships what it
+  receives sits near half and half; one drifting off centre is filling up or emptying,
+  and that is the finding.
+- **ranked bars** for a magnitude across named categories — truck mix, busiest hours,
+  on-time by partner. One hue, because the category is named on its own row. Five hues
+  for five truck types cannot be told apart under colour blindness however they are
+  chosen, and the name was always the better label than the colour.
+
+Drawn with `conic-gradient` and a mask, so there is no SVG and no library on the page.
+The mask has to go on a `::before` rather than on the element itself, or it takes the
+centre number with it — which it did, once.
+
+The two chart hues are validated rather than chosen: worst adjacent pair ΔE 18.8 under
+deuteranopia, 19.5 with normal vision, both over 3:1 against the surface. Identity never
+rests on colour anywhere — the ring names both slices with their numbers, the dial names
+its band, a ranked row carries its own category.
+
+The `.spark` rules and the `barChart()` these replaced are deleted rather than left
+behind. The stylesheet was five hundred bytes under its declaration budget, and that is
+where the room for the new forms came from.
