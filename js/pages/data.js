@@ -3,6 +3,7 @@ import { db } from '../db.js';
 import { toast } from '../ui/toast.js';
 import { renderState } from '../ui/empty.js';
 import { pageHead } from '../ui/pagehead.js';
+import { createAppointmentImport } from '../ui/appointment-import.js';
 import { format } from '../format.js';
 
 const DATABASE_TYPES = [
@@ -20,6 +21,11 @@ const DATABASE_TYPES = [
 const SECTIONS = [
   { id: 'connections', label: 'Connections' },
   { id: 'import', label: 'Inventory import' },
+  // A sheet of loads. It began on the dock board, where it was the fifth button in
+  // the controls band and the reason that band wrapped. While the trial is finding
+  // its feet, importing a fortnight of somebody's appointments is an administrator's
+  // job rather than something left on the screen a coordinator works from all day.
+  { id: 'appointments', label: 'Appointment import' },
 ];
 
 const state = {
@@ -29,6 +35,8 @@ const state = {
   runs: [],
   locations: [],
   section: 'connections',
+  importDialog: null,
+  reference: null,
   // null until an administrator opens or closes it themselves; before that the
   // panel follows whether the feed is on, so a connected feed shows its settings.
   misOpen: null,
@@ -136,8 +144,21 @@ function renderRuns() {
   </div>`;
 }
 
+// The import itself is the shared dialog every other screen would have used, opened
+// from here. What this section draws is why you would open it, and for which site —
+// the dialog books into one location and the picker in the top bar is what says which.
+function renderAppointmentImport() {
+  return `<div class="card">
+    <h3 class="card__title">Appointment import</h3>
+    <p class="hint hint--wide">A spreadsheet of loads, booked one at a time through the ordinary booking — so notice periods, opening hours, capacity, direction windows and dock choice all apply, and a row that would be turned down at the counter is turned down here and says why. Nothing is booked until every row has been read back on screen with a verdict against it.</p>
+    <p class="hint hint--wide">Loads are booked into <b>${escapeHtml(state.context.location?.name || 'the selected site')}</b>, which is the site chosen in the top bar. A Max site named at the other end of a row books the run at both ends.</p>
+    <div class="form-actions"><button class="btn btn--primary" type="button" data-open-appointment-import>Import appointments</button></div>
+  </div>`;
+}
+
 function renderSection() {
   if (state.section === 'import') return `${renderImport()}${renderRuns()}`;
+  if (state.section === 'appointments') return renderAppointmentImport();
   return renderConnections();
 }
 
@@ -264,9 +285,46 @@ async function saveMisSettings(event) {
   }
 }
 
+async function loadEnabledTypes(mappingTable, codeColumn, masterTable) {
+  const locationId = state.context.location.id;
+  const mappings = await db.select(mappingTable, query => query.select(codeColumn).eq('location_id', locationId).eq('is_active', true), {
+    key: `data:${mappingTable}:${locationId}`, cache: 300000, retry: 1,
+  });
+  const codes = (mappings || []).map(row => row[codeColumn]);
+  if (!codes.length) return [];
+  return db.select(masterTable, query => query.select('code,name,sort_order').in('code', codes).eq('is_active', true).order('sort_order'), {
+    key: `data:${masterTable}:${locationId}`, cache: 300000, retry: 1,
+  });
+}
+
+async function openAppointmentImport(trigger) {
+  if (!state.reference) {
+    const [appointmentTypes, truckTypes, handlingTypes] = await Promise.all([
+      loadEnabledTypes('location_appointment_types', 'appointment_type_code', 'appointment_types'),
+      loadEnabledTypes('location_truck_types', 'truck_type_code', 'truck_types'),
+      loadEnabledTypes('location_handling_types', 'handling_type_code', 'handling_types'),
+    ]);
+    state.reference = { appointmentTypes: appointmentTypes || [], truckTypes: truckTypes || [], handlingTypes: handlingTypes || [] };
+  }
+  if (!state.importDialog) {
+    state.importDialog = createAppointmentImport({
+      location: state.context.location,
+      // Only the sites this account can reach: a Max site at the other end of a row
+      // books the run at both ends, and offering one it has no access to would be a
+      // row certain to be refused.
+      locations: state.context.locations || [],
+      reference: () => state.reference,
+      onDone: async () => { await fetchAll(); render(); },
+    });
+  }
+  state.importDialog.open(trigger);
+}
+
 function wireEvents(root) {
   root.addEventListener('click', event => {
     if (event.target.closest('[data-print]')) { globalThis.print(); return; }
+    const openImport = event.target.closest('[data-open-appointment-import]');
+    if (openImport) { openAppointmentImport(openImport); return; }
     const section = event.target.closest('[data-section]');
     if (section) { state.section = section.dataset.section; render(); return; }
     if (event.target.closest('[data-run-import]')) { runImport(); return; }
@@ -331,7 +389,7 @@ const page = {
     render();
   },
   refresh() {},
-  destroy() {},
+  destroy() { state.importDialog?.destroy(); state.importDialog = null; },
 };
 
 startPage(page);

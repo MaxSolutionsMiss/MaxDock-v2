@@ -26,21 +26,26 @@ const errors = [];
 const read = path => readFileSync(path, 'utf8');
 const require_ = (text, pattern, message) => { if (!pattern.test(text)) errors.push(message); };
 
-for (const file of ['js/ui/appointment-import.js', 'js/ui/sheet.js', 'js/pages/board.js', 'js/ui/pagehead.js']) {
+for (const file of ['js/ui/appointment-import.js', 'js/ui/sheet.js', 'js/pages/data.js']) {
   if (!existsSync(file)) errors.push(`Missing ${file}`);
 }
 
 if (!errors.length) {
   const importer = read('js/ui/appointment-import.js');
+  const data = read('js/pages/data.js');
   const board = read('js/pages/board.js');
-  const head = read('js/ui/pagehead.js');
 
-  // Reachable, from the screen where somebody is looking at the schedule.
-  require_(head, /importAppointments/, 'There is no Import appointments action.');
-  require_(head, /data-import-appointments/, 'The import action has nothing to open it.');
-  require_(board, /data-import-appointments/, 'The dock board does not offer the appointment import.');
-  require_(board, /createAppointmentImport/, 'The dock board does not open the import dialog.');
-  require_(board, /importAppointments', can\('appointment\.create'\)/, 'The import must be offered only to an account that may book.');
+  // Under Data integration, which is System Admin only. While the trial is finding
+  // its feet, importing a fortnight of somebody's appointments is an administrator's
+  // job rather than a button on the screen a coordinator works from all day.
+  require_(data, /createAppointmentImport/, 'Data integration does not open the appointment import.');
+  require_(data, /id: 'appointments', label: 'Appointment import'/, 'Data integration has no Appointment import section.');
+  require_(data, /permission: 'system\.manage'/, 'The page holding the import must require system.manage.');
+  require_(data, /role_code === 'system_admin'/, 'The page holding the import must be System Admin only.');
+  // And nowhere else. Two doors to a bulk creation is two places to forget a rule.
+  if (/appointment-import|data-import-appointments/.test(board)) {
+    errors.push('The dock board still offers the appointment import. It belongs to Data integration alone for now.');
+  }
 
   // One way to book, and this is not a new one.
   require_(importer, /book_routed_appointment.*book_appointment|book_appointment.*book_routed_appointment/s,
@@ -67,7 +72,7 @@ if (!errors.length) {
 
   // Checked against this site's own configuration, not against a list in the code.
   require_(importer, /appointmentTypes|truckTypes|handlingTypes/, 'Rows are not checked against the types enabled at this location.');
-  require_(board, /reference: \(\) =>/, 'The import is not given this location\'s enabled types to check against.');
+  require_(data, /reference: \(\) => state\.reference/, 'The import is not given this location\'s enabled types to check against.');
 
   // A customer's shipment list is read here and goes nowhere else.
   if (/fetch\(|XMLHttpRequest|https?:\/\/|db\.edge\(/.test(importer)) {

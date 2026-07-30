@@ -1,4 +1,4 @@
-import { startPage, RAIL_PAGES, railPageAllowedByPermissions } from '../router.js';
+import { startPage } from '../router.js';
 import { db } from '../db.js';
 import { toast } from '../ui/toast.js';
 import { createModal } from '../ui/modal.js';
@@ -24,31 +24,14 @@ const SECTIONS = [
   { id: 'trucks', label: 'Truck types' },
   { id: 'labour', label: 'Labour' },
   { id: 'quickqr', label: 'Quick QR codes' },
-  // The only section here that is not about the selected site: roles are company
-  // wide. Offered to a System Admin alone, because a Site Admin changing what
-  // every Coordinator at every site sees is broader than their job, and a section
-  // somebody can never change is noise on their screen rather than information.
-  { id: 'roles', label: 'What each role sees', systemAdminOnly: true },
 ];
-
-// Whose rail is configurable. A System Admin's is not — hiding Settings from the
-// only role that can put it back is how a company locks itself out of its own
-// administration, and the database refuses to store such a row. A Customer's rail
-// is one item, so there is nothing to arrange.
-const CONFIGURABLE_ROLES = ['site_admin', 'shipping_manager', 'coordinator'];
 
 const state = {
   context: null,
   locationId: null,
   canManage: false,
   canManageDocks: false,
-  // Roles are company wide, so what each role sees is a System Admin's window and
-  // nobody else's. Kept as its own flag rather than read off the role code in six
-  // places.
-  isSystemAdmin: false,
-  rolePermissions: new Map(),
-  roleNames: new Map(),
-  hiddenPages: new Map(),
+
   canManageLabour: false,
   labourDay: null,
   shifts: [],
@@ -171,30 +154,8 @@ async function fetchAll() {
   state.appointmentTypes = appointmentTypes || [];
   state.handlingTypes = handlingTypes || [];
   state.shortcuts = shortcuts || [];
-  if (state.isSystemAdmin) await fetchRoleVisibility();
 }
 
-// What each role is permitted, and what an administrator has hidden on top of that.
-// Company wide, so it is not refetched when the site picker changes.
-async function fetchRoleVisibility() {
-  const [rolePermissions, roles, hidden] = await Promise.all([
-    db.select('role_permissions', q => q.select('role_code,permission_code'), { key: 'settings:role-permissions', cache: 60000 }).catch(() => []),
-    db.select('roles', q => q.select('code,name,rank').eq('is_active', true).order('rank', { ascending: false }), { key: 'settings:roles', cache: 60000 }).catch(() => []),
-    db.rpc('list_role_page_visibility', {}, { key: 'settings:role-visibility', cache: 0, retry: 1 }).catch(() => []),
-  ]);
-  state.rolePermissions = new Map();
-  for (const row of rolePermissions || []) {
-    if (!state.rolePermissions.has(row.role_code)) state.rolePermissions.set(row.role_code, new Set());
-    state.rolePermissions.get(row.role_code).add(row.permission_code);
-  }
-  state.roleNames = new Map((roles || []).map(row => [row.code, row.name]));
-  state.hiddenPages = new Map();
-  for (const row of hidden || []) {
-    if (row.is_visible !== false) continue;
-    if (!state.hiddenPages.has(row.role_code)) state.hiddenPages.set(row.role_code, new Set());
-    state.hiddenPages.get(row.role_code).add(row.page_code);
-  }
-}
 
 // Every settings window ends the same way: Reset, Save, Edit — one size, in that
 // order, and the same size as Add dock at the top of the window, because controls
@@ -715,58 +676,25 @@ function renderQuickQr() {
       </div>
     </div>`).join('');
   return `<form class="card" data-section-form="quickqr">
-    <h3 class="card__title">Quick QR (QQ)${canEdit ? '<button class="btn btn--primary btn--sm at-end" type="button" data-add-shortcut>New code</button>' : ''}</h3>
+    <h3 class="card__title">Quick QR codes${canEdit ? '<button class="btn btn--primary btn--sm at-end" type="button" data-add-shortcut>New code</button>' : ''}</h3>
     ${rows || '<p class="hint">No quick codes yet. Make one for a run this site books over and over.</p>'}
     <p class="hint hint--wide">A quick code is a booking saved with everything but the time. Print it, put it where the loads are made up, and scanning it opens MaxDock with the load already in — the person booking picks a time and confirms. Edit a code and every printed copy of it changes with it; the paper does not have to be replaced.</p>
   </form>`;
 }
 
-// One tick per role per rail page. A page the role's permissions do not allow shows
-// a dash rather than an empty box, because "not permitted" and "permitted but taken
-// off the rail" are different facts and an empty box would say the wrong one.
-//
-// Ticked means it appears. That is the way round somebody reads it — "what does a
-// Coordinator see" — even though what is stored is the list of pages turned off.
-function renderRoles() {
-  const canEdit = state.isSystemAdmin;
-  const roles = CONFIGURABLE_ROLES.filter(code => state.roleNames?.has(code));
-  const head = roles.map(code => `<th>${escapeHtml(state.roleNames.get(code))}</th>`).join('');
-  const rows = RAIL_PAGES.map(page => {
-    const cells = roles.map(code => {
-      const permitted = railPageAllowedByPermissions(state.rolePermissions?.get(code) || new Set(), page);
-      if (!permitted) return '<td class="data" title="This role does not hold the permission for this screen">—</td>';
-      const shown = !state.hiddenPages?.get(code)?.has(page.code);
-      return `<td><label class="check-row check-row--inline"><input type="checkbox" data-role-page="${escapeHtml(code)}" value="${escapeHtml(page.code)}" ${shown ? 'checked' : ''}><span class="sr">${escapeHtml(`${state.roleNames.get(code)} sees ${page.label}`)}</span></label></td>`;
-    }).join('');
-    return `<tr><td class="data data--strong">${escapeHtml(page.label)}</td>${cells}</tr>`;
-  }).join('');
-  return `<form class="card card--table" data-section-form="roles">
-    <h3 class="card__title">What each role sees</h3>
-    <div class="tablewrap"><table class="table">
-      <thead><tr><th class="col-fill">Screen</th>${head}</tr></thead>
-      <tbody>${rows}</tbody>
-    </table></div>
-    <p class="hint hint--wide">Ticked means the link is on that role's rail. A dash means the role does not hold the permission for that screen, which is not something this window can grant — permissions do that. This tidies a rail; it is not a lock. A screen taken off a rail still opens for an account that holds its permission, so anything that must be refused has to be refused by a permission rather than by a missing link. A System Admin sees everything and is not listed: hiding Settings from the only role that can put it back would lock the company out of its own administration. This applies to every site.</p>
-    ${saveFoot(canEdit)}
-  </form>`;
-}
 
 function renderPanel() {
   const map = {
     hours: renderHours, timing: renderTiming, notice: renderNotice, capacity: renderCapacity,
     combining: renderCombining, docks: renderDocks, trucks: renderTruckTypes,
-    labour: renderLabour, quickqr: renderQuickQr, roles: renderRoles,
+    labour: renderLabour, quickqr: renderQuickQr,
   };
   state.elements.panel.innerHTML = (map[state.section] || renderHours)();
   applyLocks();
 }
 
-function visibleSections() {
-  return SECTIONS.filter(section => !section.systemAdminOnly || state.isSystemAdmin);
-}
-
 function renderNav() {
-  state.elements.nav.innerHTML = visibleSections().map(section => `<button type="button" data-section="${section.id}" aria-current="${section.id === state.section}">${section.label}</button>`).join('');
+  state.elements.nav.innerHTML = SECTIONS.map(section => `<button type="button" data-section="${section.id}" aria-current="${section.id === state.section}">${section.label}</button>`).join('');
 }
 
 function switchSection(id) {
@@ -968,25 +896,6 @@ async function saveCombining(form) {
 
 // Only the capacity column moves here; the enabled flag and setup minutes stay
 // with the Docks and truck types section that owns them.
-// One call per role, with the pages that role is *not* to see. The screen shows
-// ticks for what appears, so this is inverted on the way out — and sent as a whole
-// list rather than a row at a time, so a page added to the rail later cannot end up
-// half-configured.
-async function saveRoleVisibility(form) {
-  const roles = CONFIGURABLE_ROLES.filter(code => state.roleNames?.has(code));
-  for (const code of roles) {
-    const boxes = [...form.querySelectorAll(`[data-role-page="${code}"]`)];
-    const hidden = boxes.filter(box => !box.checked).map(box => box.value);
-    await db.rpc('save_role_page_visibility', { p_role_code: code, p_hidden_page_codes: hidden }, {
-      key: `settings:role-visibility:${code}:${crypto.randomUUID()}`, retry: 0,
-    });
-  }
-  db.invalidate('settings:role-visibility');
-  // Every rail in every open tab is drawn from this, so the cached copy the shell
-  // loaded has to go — otherwise the person who just made the change is the last
-  // to see it.
-  db.invalidate('navigation:visibility');
-}
 
 async function saveTruckCapacity(form) {
   const updates = [...form.querySelectorAll('[data-capacity-code]')].map(row => {
@@ -1126,10 +1035,7 @@ async function submitSection(event) {
   event.preventDefault();
   const form = event.target;
   const kind = form.dataset.sectionForm;
-  // Every other window on this screen lands on the selected site, so the save
-  // names it and asks first. What each role sees is company wide, and asking
-  // "apply to Milton?" would say something untrue about what is about to happen.
-  if (kind !== 'roles' && !await confirmLocation()) return;
+  if (!await confirmLocation()) return;
   const submit = form.querySelector('[type="submit"]');
   submit.disabled = true;
   try {
@@ -1148,7 +1054,6 @@ async function submitSection(event) {
     else if (kind === 'direction-windows') await saveDirectionWindows(form);
     else if (kind === 'docks') await saveDocks(form);
     else if (kind === 'truck-types') await saveTruckTypes(form);
-    else if (kind === 'roles') await saveRoleVisibility(form);
     db.invalidate('booking:');
     await fetchAll();
     toast('Settings saved.', 'success');
@@ -1706,7 +1611,6 @@ const page = {
     state.locationId = context.location.id;
     state.canManage = context.can('settings.manage');
     state.canManageDocks = context.can('dock.manage');
-    state.isSystemAdmin = context.profile?.role_code === 'system_admin';
     // Labour has a permission of its own so a site manager can state the crew
     // without being handed every other setting at the location.
     state.canManageLabour = context.can('settings.manage_labour');

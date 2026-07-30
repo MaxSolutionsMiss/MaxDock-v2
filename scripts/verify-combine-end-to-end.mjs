@@ -97,6 +97,17 @@ const picks = dialog.locator('[data-combine-pick]');
 check(await picks.count() === 2, `The dialog offered ${await picks.count()} loads on the lane; the lane has two.`);
 check(await picks.nth(0).isChecked() && await picks.nth(1).isChecked(), 'The lane\'s loads are not ticked when the dialog opens.');
 
+// Which load keeps its booking is a choice, and the earliest is only the suggestion.
+const keeps = dialog.locator('[data-combine-keep]');
+check(await keeps.count() === 2, `Every load on the run must be offerable as the one that keeps the booking. Found ${await keeps.count()}.`);
+check(await keeps.nth(0).isChecked(), 'The earliest load is not suggested as the one that keeps the booking.');
+// Each row says whether the whole run fits that particular truck — the thing the
+// choice should be made on.
+const listText = await dialog.locator('[data-combine-list]').innerText();
+check(/the run fits — 20 of 26/.test(listText), `A row does not say whether the run fits that truck. It says: "${listText.replace(/\n/g, ' | ')}"`);
+check(/holds 26/.test(listText), 'A row does not say what its own trailer holds.');
+check(/53 ft Trailer, holds 26/.test(listText), 'A row does not name its trailer beside what it holds.');
+
 const summary = (await dialog.locator('[data-combine-summary]').textContent()) || '';
 check(/MXD-2026-000146/.test(summary), `The dialog does not name the surviving load. It says: "${summary}"`);
 check(/20 skids/.test(summary), `The dialog does not add the lane's skids up. It says: "${summary}"`);
@@ -106,6 +117,16 @@ const bar = dialog.locator('.fullness__bar');
 check(await bar.count() > 0, 'The truck-fullness bar did not render, so no capacity reached the dialog.');
 const fullness = (await dialog.locator('.fullness__t').textContent().catch(() => '')) || '';
 check(/77% full · 20 of 26 skids/.test(fullness), `The fullness figure is wrong. It says: "${fullness}"`);
+
+// Choosing the later load moves everything onto it, which is the whole point of the
+// choice: the truck with the room is not always the earliest.
+await keeps.nth(1).check();
+await page.waitForTimeout(200);
+const afterSwap = (await dialog.locator('[data-combine-summary]').textContent()) || '';
+check(/MXD-2026-000147/.test(afterSwap), `Choosing the later load did not move the booking onto it. It says: "${afterSwap}"`);
+// And back, so the rest of this walk measures the suggested keeper.
+await dialog.locator('[data-combine-keep]').first().check();
+await page.waitForTimeout(200);
 
 // ── Combining ─────────────────────────────────────────────────────────────────
 await dialog.locator('[data-combine-run]').click();

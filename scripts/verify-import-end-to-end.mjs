@@ -1,4 +1,4 @@
-// A sheet of loads, imported from the dock board, in a real browser.
+// A sheet of loads, imported from Data integration, in a real browser.
 //
 // The static gate beside this one proves the import cannot become a second way to
 // create an appointment. This proves it works: that a file a site would actually
@@ -58,11 +58,16 @@ const page = await context.newPage();
 const crashes = [];
 page.on('pageerror', error => crashes.push(String(error)));
 
-await page.goto(`http://127.0.0.1:${PORT}/app/board.html`, { waitUntil: 'networkidle' });
-await page.waitForSelector('[data-board-host]', { timeout: 15000 });
+// Data integration, System Admin only, rather than the dock board — importing a
+// fortnight of somebody's appointments is an administrator's job while the trial is
+// finding its feet.
+await page.goto(`http://127.0.0.1:${PORT}/app/data.html`, { waitUntil: 'networkidle' });
+await page.waitForSelector('[data-section]', { timeout: 15000 });
+await page.click('[data-section="appointments"]');
+await page.waitForSelector('[data-open-appointment-import]', { timeout: 8000 });
 
-const action = page.locator('[data-import-appointments]');
-check(await action.isVisible().catch(() => false), 'The dock board has no Import appointments action.');
+const action = page.locator('[data-open-appointment-import]');
+check(await action.isVisible().catch(() => false), 'Data integration has no Import appointments action.');
 await action.click();
 await page.waitForSelector('#appt-import-title', { state: 'visible', timeout: 8000 });
 const dialog = page.locator('.scrim:not([hidden])', { has: page.locator('#appt-import-title') });

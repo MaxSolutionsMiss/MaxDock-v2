@@ -1791,3 +1791,102 @@ windows, no truck on a door that does not accept it, nothing completed in the fu
 `list_location_schedule`, `get_labour_utilization`, `get_truck_fullness_scorecard` and
 `get_partner_scorecard` all answer with sensible numbers at every site, including the
 four that had never held an appointment.
+
+## Combining: which load keeps the booking is a choice (2026-07-30)
+
+The survivor was always the earliest load ticked. Three loads at 08:00, 11:00 and
+16:00 are not interchangeable: one of them is on a 53 and the others on a 26, one of
+them is the truck that is actually going, and the one with room is often the last.
+
+Every load on the run now carries **Keeps the booking**. The earliest is the
+suggestion, because growing it eats into time that is still free rather than into
+somebody else's slot — and any ticked load can take its place. Choosing one
+recomputes the fullness against *that* trailer, which is the point: the run fits the
+53 and does not fit the 26.
+
+Each row says what it needs to be chosen on — `53 ft Trailer, holds 26 · the run fits
+— 20 of 26` — on a second line, because on the first line the trailer was competing
+with the radio for width and being cut to "53 ft …", losing the one number the
+decision rests on. Over capacity, the dialog says to keep one of the bigger trucks
+instead rather than only colouring the bar red.
+
+**A load already on the dock can only be the keeper.** It is being worked, so it
+cannot be cancelled onto another truck. `merge_appointments` refuses that anyway; the
+dialog says so before the choice is committed, disables its tick, and offers it as
+the survivor first — which is usually what you want. The driver is here; put the rest
+of the run on him.
+
+## Role access moves to Users, and now covers what a role may *do* (2026-07-30)
+
+It was **What each role sees** in Settings. Two things were wrong with that. Settings
+is where one *site's* operating rules live and a role applies to every site; and
+seeing is only half the question — the other half is what the role may do, which is
+the half that actually decides anything.
+
+**Users now carries its own two sections**, the way Settings and Data integration
+carry theirs: **Users** and **Role access**. One row per role — people on it, how
+many permissions of twenty-seven, how many of its available screens it sees — because
+twenty-seven permissions across five roles is a matrix nobody reads.
+
+**The dialog has both halves, in the order they depend on each other.** *What it sees*
+is the rail and only tidiness. *What it may do* is the real boundary: RLS and every
+security-definer function ask `has_permission`, so a tick there changes what an
+account can reach. A screen cannot be ticked unless the permission behind it is, and
+unticking a permission drops its screen on the spot rather than leaving a pair that
+cannot be true. The permissions are grouped by subject — appointments, the board,
+reports, sites, people — rather than listed as codes.
+
+`save_role_permissions` refuses anybody who is not a System Admin, refuses to touch
+System Admin itself, and refuses a permission code MaxDock does not have — a row that
+would sit in the table doing nothing while reading on screen as though it granted
+something. A System Admin's own row opens read-only and says why.
+
+### Two `display:contents` traps
+
+`.dock-checks` flattens its wrapper divs so the ticks themselves are the grid items,
+which is right for a list of ticks. Twice now that has silently destroyed a nested
+layout: the combine rows collapsed into one column, and the permission group headings
+scattered into the middle of the columns as though they were ticks. Both fixed by not
+nesting inside it — the combine list has its own container, and each permission
+subject is its own bordered, named group.
+
+### And one cascade fault it exposed
+
+`.section-gap` was declared before `.watch__t`, whose margin shorthand sets
+`margin-top:0`, so every heading carrying that utility sat flush against whatever was
+above it — in this dialog and in the appointment window. Utilities are applied *to*
+components to adjust one thing, so they have to win at equal specificity, and order is
+what decides that. They are at the end of the stylesheet now, under a heading that
+says why.
+
+## The users table, organised (2026-07-30)
+
+**The row.** An empty `.col-fill` column was the reason there was half a screen of
+nothing between the status and Edit. A real column belongs there and **Sites** is the
+one an administrator asks for most — which sites is this person on — so Status now
+sits beside the actions where it reads as belonging to the row rather than stranded.
+
+**The detail.** Label beside value, in columns sized to the longest thing in them, is
+what left five site names wrapping to three lines next to a two-word value and a lone
+row at the bottom with a screen of space beside it. It is the same `.confirmgrid` the
+appointment window draws now — label above value, even columns, one rhythm across the
+application — with an em dash for anything absent so the columns stay in step from row
+to row. A grid that changes shape depending on whether somebody has a company against
+their name is the disorganisation, not the cure for it.
+
+A table cell does not wrap, which is right for a schedule row and wrong for a grid of
+prose inside one: the values ran straight over each other until the detail values were
+told to wrap.
+
+## The dock board gives the import back (2026-07-30)
+
+**Import appointments** was the fifth button in the dock board's controls band and the
+reason that band wrapped onto two rows. It is under **Data integration** now, which is
+System Admin only: while the trial is finding its feet, importing a fortnight of
+somebody's appointments is an administrator's job rather than a button on the screen
+every coordinator works from all day. `verify-appointments-import.mjs` fails the build
+if the board offers it again — two doors to a bulk creation is two places to forget a
+rule.
+
+The search box is no longer the widest control in the band. A booking reference is
+fourteen characters; it did not need a third of the row.

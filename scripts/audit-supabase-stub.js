@@ -109,6 +109,7 @@
   const OTHER_ROLE_PERMISSIONS = {
     site_admin: ['ai.insights', 'appointment.assign', 'appointment.cancel', 'appointment.cancel_own', 'appointment.complete', 'appointment.create', 'appointment.update', 'appointment.view', 'appointment.view_own', 'audit.view', 'block.manage', 'dock.manage', 'dock.view', 'location.view', 'notifications.view', 'operations.queue.view', 'reports.view', 'reports.view_labour', 'settings.manage', 'settings.manage_labour', 'settings.view', 'user.manage', 'user.view', 'appointment.check_in'],
     shipping_manager: ['ai.insights', 'appointment.assign', 'appointment.cancel', 'appointment.cancel_own', 'appointment.complete', 'appointment.create', 'appointment.update', 'appointment.view', 'appointment.view_own', 'audit.view', 'block.manage', 'dock.view', 'location.view', 'notifications.view', 'operations.queue.view', 'reports.view', 'reports.view_labour', 'settings.manage_labour', 'settings.view', 'appointment.check_in'],
+    customer: ['appointment.cancel_own', 'appointment.create', 'appointment.view_own', 'location.view', 'notifications.view'],
     coordinator: ['ai.insights', 'appointment.assign', 'appointment.cancel_own', 'appointment.complete', 'appointment.create', 'appointment.update', 'appointment.view', 'appointment.view_own', 'audit.view', 'dock.view', 'location.view', 'notifications.view', 'operations.queue.view', 'reports.view', 'appointment.check_in'],
   };
   const TABLE = {
@@ -124,6 +125,23 @@
         .flatMap(([role_code, codes]) => codes.map(permission_code => ({ permission_code, role_code }))),
     ],
     locations: LOC,
+    // The live permission catalogue, so the role-access window renders the twenty-seven
+    // real permissions rather than an empty fieldset.
+    permissions: [
+      ['ai.insights', 'Generate AI Insights'], ['appointment.assign', 'Assign Docks'],
+      ['appointment.cancel', 'Cancel Appointments'], ['appointment.cancel_own', 'Cancel Own Appointments'],
+      ['appointment.check_in', 'Receive Trucks'], ['appointment.complete', 'Complete Appointments'],
+      ['appointment.create', 'Create Appointments'], ['appointment.delete', 'Delete Appointments'],
+      ['appointment.update', 'Update Appointments'], ['appointment.view', 'View Appointments'],
+      ['appointment.view_own', 'View Own Appointments'], ['audit.view', 'View Audit History'],
+      ['block.manage', 'Manage Blocked Time'], ['dock.manage', 'Manage Docks'], ['dock.view', 'View Docks'],
+      ['location.manage', 'Manage Locations'], ['location.view', 'View Locations'],
+      ['notifications.view', 'View Notifications'], ['operations.queue.view', 'View Operations Queue'],
+      ['reports.view', 'View Reports'], ['reports.view_labour', 'View Labour hours report'],
+      ['settings.manage', 'Manage Settings'], ['settings.manage_labour', 'Manage labour settings'],
+      ['settings.view', 'View Settings'], ['system.manage', 'Manage System'],
+      ['user.manage', 'Manage Users'], ['user.view', 'View Users'],
+    ].map(([code, name]) => ({ code, name, description: name })),
     docks: DOCKS,
     location_operating_hours: [{ location_id: 'loc-1', day_of_week: new Date().getDay(), is_open: true, open_time: '07:00:00', close_time: '17:00:00' }],
     location_settings: [{ location_id: 'loc-1', slot_interval_minutes: 60, buffer_minutes: 10, base_minutes: 30, minutes_per_skid: 3, full_truck_minimum_minutes: 75, full_truck_skid_threshold: 24, priority_minimum_minutes: 75, minimum_notice_minutes: 240, maximum_advance_days: 10, auto_assign_dock: true, is_active: true, capacity_enabled: true, skid_capacity: 120, capacity_reserve_skids: 10, capacity_enforcement_mode: 'warn', current_occupied_skids: 67, inventory_as_of: iso(6), capacity_last_source: 'mis_csv', dock_assignment_strategy: 'balanced', max_concurrent_appointments: 2, suggest_same_day_consolidation: true, consolidation_window_hours: null, handlers_per_truck: 2, holiday_calendar: 'ca'}],
@@ -222,6 +240,10 @@
     save_role_page_visibility: (args = {}) => {
       globalThis.__savedVisibility = [...(globalThis.__savedVisibility || []), args];
       return (args.p_hidden_page_codes || []).length;
+    },
+    save_role_permissions: (args = {}) => {
+      globalThis.__savedPermissions = [...(globalThis.__savedPermissions || []), args];
+      return (args.p_permission_codes || []).length;
     },
     save_user_preference: () => ({}),
     record_user_usage: () => ({}),

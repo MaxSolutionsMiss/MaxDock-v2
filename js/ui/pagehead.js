@@ -26,7 +26,6 @@ export function icon(name) {
 const ACTIONS = {
   block: { icon: 'block', attribute: 'data-block-time', label: 'Block dock time', primary: true },
   importUsers: { icon: 'import', attribute: 'data-import-users', label: 'Import users', primary: true },
-  importAppointments: { icon: 'import', attribute: 'data-import-appointments', label: 'Import appointments', primary: true },
   addUser: { icon: 'add', attribute: 'data-add-user', label: 'Add user', primary: true, accent: true },
   book: { icon: 'add', attribute: 'data-open-booking', label: 'Book appointment', primary: true, accent: true },
   export: { icon: 'export', attribute: 'data-export', label: 'Export CSV', iconOnly: true },
@@ -35,7 +34,7 @@ const ACTIONS = {
   customize: { icon: 'customize', attribute: 'data-customize', label: 'Customize this page', iconOnly: true },
 };
 
-const LEAD_ORDER = ['block', 'importUsers', 'importAppointments', 'addUser', 'book'];
+const LEAD_ORDER = ['block', 'importUsers', 'addUser', 'book'];
 const END_ORDER = ['export', 'print', 'fullscreen', 'customize'];
 
 const escapeHtml = value => String(value ?? '').replace(/[&<>'"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[char]));

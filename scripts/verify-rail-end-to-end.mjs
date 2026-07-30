@@ -1,4 +1,4 @@
-// What each role sees, arranged on the settings screen and read back off the rail.
+// Role access, arranged under Users and read back off the rail.
 //
 // The static gate beside this one proves the rules. This proves the behaviour, in
 // the only order that matters: a rail that is untouched by default, a tick that
@@ -47,50 +47,79 @@ const railOf = page => page.$$eval('.rail__link', links => links.map(link => lin
 // ── Untouched by default ──────────────────────────────────────────────────────
 {
   const { context, page } = await openPage();
-  await page.goto(`http://127.0.0.1:${PORT}/app/settings.html`, { waitUntil: 'networkidle' });
+  // Users, not Settings: a role applies to every site, and Settings is where one
+  // site's operating rules live.
+  await page.goto(`http://127.0.0.1:${PORT}/app/users.html`, { waitUntil: 'networkidle' });
   await page.waitForSelector('[data-section]', { timeout: 15000 });
   const rail = await railOf(page);
   check(rail.includes('Reports') && rail.includes('Dock board') && rail.includes('Settings'),
     `A rail with nothing hidden must be the whole rail. It was: ${JSON.stringify(rail)}`);
 
   const sections = await page.$$eval('[data-section]', items => items.map(item => item.textContent.trim()));
-  check(sections.includes('What each role sees'), `A System Admin has no window for arranging rails. Sections: ${JSON.stringify(sections)}`);
+  check(JSON.stringify(sections) === JSON.stringify(['Users', 'Role access']),
+    `Users should carry its own two sections. It carries: ${JSON.stringify(sections)}`);
 
-  // ── The grid says which of those are even possible ──────────────────────────
+  // ── One row a role, not a matrix nobody reads ───────────────────────────────
   await page.click('[data-section="roles"]');
-  await page.waitForSelector('[data-section-form="roles"] table', { timeout: 8000 });
-  const rows = await page.$$eval('[data-section-form="roles"] tbody tr', trs => trs.map(tr => tr.querySelector('td')?.textContent.trim()));
-  check(rows.length >= 8, `The grid should list every rail page. It listed: ${JSON.stringify(rows)}`);
-  check(rows.includes('Dock board') && rows.includes('Data integration'), 'The grid does not list the whole rail.');
+  await page.waitForSelector('[data-edit-role]', { timeout: 8000 });
+  const roleRows = await page.$$eval('[data-edit-role]', items => items.map(item => item.dataset.editRole));
+  check(roleRows.includes('system_admin') && roleRows.includes('coordinator'),
+    `Every role should be listed. Listed: ${JSON.stringify(roleRows)}`);
 
-  // A page a role cannot open is a dash, not an empty box — the two say different
-  // things and an empty box would say the wrong one.
-  const coordinatorSettings = await page.$$eval('[data-section-form="roles"] tbody tr', (trs) => {
-    const row = trs.find(tr => tr.querySelector('td')?.textContent.trim() === 'Settings');
-    return row ? [...row.querySelectorAll('td')].slice(1).map(td => (td.querySelector('input') ? 'box' : td.textContent.trim())) : null;
-  });
-  check(JSON.stringify(coordinatorSettings) === JSON.stringify(['box', 'box', '—']),
-    `Settings must be a dash for a Coordinator and a box for the two roles that hold settings.view. It was: ${JSON.stringify(coordinatorSettings)}`);
+  // A System Admin can be looked at and not changed.
+  await page.locator('[data-edit-role="system_admin"]').click();
+  await page.waitForSelector('#role-access-title', { state: 'visible', timeout: 8000 });
+  check(await page.locator('[data-role-save]').isHidden(), 'A System Admin is offered a save action.');
+  check(/cannot be changed/.test(await page.locator('[data-role-locked]').textContent() || ''),
+    'The dialog does not say why a System Admin cannot be changed.');
+  await page.locator('.scrim:not([hidden]) [data-role-close]').first().click();
+  await page.waitForTimeout(300);
 
   // ── Take Reports off the Coordinator's rail ─────────────────────────────────
-  check(await page.locator('[data-section-form="roles"] [type="submit"]').isDisabled(),
-    'The roles window is editable before Edit was pressed.');
-  await page.locator('[data-section-form="roles"] [data-edit-section]').click();
-  const box = page.locator('[data-role-page="coordinator"][value="reports"]');
-  check(await box.isChecked(), 'Reports is not ticked for a Coordinator to begin with.');
-  await box.uncheck();
-  await page.locator('[data-section-form="roles"] [type="submit"]').click();
+  await page.locator('[data-edit-role="coordinator"]').click();
+  await page.waitForSelector('#role-access-title', { state: 'visible', timeout: 8000 });
+  const dialog = page.locator('.scrim:not([hidden])', { has: page.locator('#role-access-title') });
+  // Both halves are on screen, and in this order: what it may do is the boundary,
+  // what it sees depends on it.
+  const headings = await dialog.locator('.watch__t').allTextContents();
+  check(JSON.stringify(headings) === JSON.stringify(['What it sees', 'What it may do']),
+    `The dialog must carry both halves, in that order. It carries: ${JSON.stringify(headings)}`);
+  // The permissions are grouped by subject rather than listed as twenty-seven codes.
+  const groups = await dialog.locator('fieldset legend').allTextContents();
+  check(groups.length >= 4, `The permissions should be grouped by subject. Groups: ${JSON.stringify(groups)}`);
+
+  const screen = dialog.locator('[data-role-screen="reports"]');
+  check(await screen.isChecked(), 'Reports is not ticked for a Coordinator to begin with.');
+  // Settings is a screen a Coordinator holds no permission for, so it cannot be
+  // ticked into existence here.
+  check(await dialog.locator('[data-role-screen="settings"]').isDisabled(),
+    'A screen the role has no permission for is offered as though a tick could grant it.');
+  await screen.uncheck();
+
+  // Removing the permission behind a screen takes the screen with it, rather than
+  // leaving a rail arranged for access the role does not have.
+  await dialog.locator('[data-role-permission="reports.view"]').uncheck();
+  await page.waitForTimeout(250);
+  check(await dialog.locator('[data-role-screen="reports"]').isDisabled(),
+    'Removing reports.view left the Reports screen still tickable.');
+
+  // Put it back, so what is saved is a hidden screen rather than a lost permission.
+  await dialog.locator('[data-role-permission="reports.view"]').check();
+  await page.waitForTimeout(250);
+  await dialog.locator('[data-role-screen="reports"]').uncheck();
+  await dialog.locator('[data-role-save]').click();
   await page.waitForTimeout(900);
 
   const saved = await page.evaluate(() => globalThis.__savedVisibility || []);
   const coordinator = saved.filter(call => call.p_role_code === 'coordinator').at(-1);
   check(JSON.stringify(coordinator?.p_hidden_page_codes) === JSON.stringify(['reports']),
     `The Coordinator's hidden list is wrong: ${JSON.stringify(coordinator?.p_hidden_page_codes)}`);
-  // Every role is sent, so a page added to the rail later cannot end up half set up.
-  check(saved.some(call => call.p_role_code === 'site_admin') && saved.some(call => call.p_role_code === 'shipping_manager'),
-    'Saving must state every configurable role, not only the one that changed.');
-  check(!saved.some(call => call.p_role_code === 'system_admin'),
-    'A System Admin\'s rail was sent for saving. It is not configurable.');
+  const permissions = await page.evaluate(() => globalThis.__savedPermissions || []);
+  const held = permissions.filter(call => call.p_role_code === 'coordinator').at(-1);
+  check((held?.p_permission_codes || []).includes('reports.view'),
+    'The permission behind a merely hidden screen must be left alone.');
+  check(!saved.some(call => call.p_role_code === 'system_admin') && !permissions.some(call => call.p_role_code === 'system_admin'),
+    'A System Admin was sent for saving. It is not configurable.');
   await context.close();
 }
 
@@ -131,4 +160,4 @@ if (failures.length) {
   console.error('');
   process.exit(1);
 }
-console.log('Per-role rail verification passed: arranged in Settings, gone from the role, never from a System Admin.');
+console.log('Role access verification passed: arranged under Users, gone from the role, never from a System Admin.');

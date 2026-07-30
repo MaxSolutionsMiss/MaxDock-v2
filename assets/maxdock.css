@@ -396,10 +396,16 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 /* Sized to the longest label rather than split into equal columns, so "Time in
    MaxDock" and "Email" both read as one label and one value, and the strip wraps
    instead of running off the side. */
-.userdetail{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:var(--s2) var(--s5);animation:slidein var(--motion) ease-out}
-.userdetail__item{display:flex;gap:var(--s2);align-items:baseline;min-width:0}
-.userdetail__label{font-size:var(--t-micro);text-transform:uppercase;letter-spacing:.03em;color:var(--ink-muted);font-weight:600;white-space:nowrap}
-.userdetail__value{min-width:0;overflow-wrap:anywhere;white-space:normal}
+/* An account's details are the same kind of thing as an appointment's, so they are
+   the same .confirmgrid: label above value, even columns, one rhythm. Laid out beside
+   each other in columns sized to their longest value, five site names wrapped to
+   three lines next to a two-word value and left a lone row at the bottom with half a
+   screen of space beside it. This only adds the reveal and a little more air between
+   columns than a dialog needs, because a table row is wider than a dialog. */
+.userdetail{grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:var(--s3) var(--s5);animation:slidein var(--motion) ease-out}
+/* A table cell does not wrap, which is right for a row of a schedule and wrong for a
+   grid of prose inside one — the values ran straight over each other. */
+.userdetail .confirmgrid__v{white-space:normal}
 @keyframes slidein{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
 @media (prefers-reduced-motion:reduce){.userdetail{animation:none}.userrow__toggle svg{transition:none}}
 /* A table of five short columns has no business spanning a wide monitor: the row
@@ -561,7 +567,6 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 .appointment-search{flex-direction:row;align-items:center;gap:var(--s2);min-width:0;max-width:320px}
 .appointment-search .input{max-width:210px}
 /* A heading that opens a new subject inside a dialog body or card. */
-.section-gap{margin-top:var(--s5)}
 /* The stock count is its own subject inside the capacity card: a number somebody
    walked the floor for, and the moment they took it. Ruled off from the limits
    above it so the two are not read as one set of numbers. */
@@ -926,6 +931,23 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 .daypick:has(input:disabled){cursor:default;opacity:.6}
 .sr{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
 .dock-check span{overflow:hidden;text-overflow:ellipsis}
+/* One load on the run: whether it travels, whether it is the truck that keeps the
+   booking, and whether the whole run fits that truck. Three questions to a line and
+   in that order, because the middle one is the decision and the last one is what the
+   decision should be made on. The chosen truck is tinted and ruled so it reads as the
+   one surviving rather than as one more tick in a list. */
+/* Not a .dock-checks grid: that flattens its wrapper divs with display:contents so
+   the options themselves are the grid items, which is right for a list of ticks and
+   wrong for a list of rows that each carry three things. Same border and padding, so
+   it still reads as one bordered group. */
+.combinelist{border:1px solid var(--rule);border-radius:var(--radius);padding:var(--s2)}
+.combinerow{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px var(--s4);align-items:center;padding:var(--s2) var(--s3);border-radius:var(--radius);border:1px solid transparent}
+.combinerow+.combinerow{margin-top:2px}
+.combinerow--keeps{background:var(--dock-wash);border-color:var(--rule-strong)}
+.combinerow__keep{display:flex;align-items:center;gap:6px;font-size:var(--t-small);color:var(--ink-muted);white-space:nowrap;cursor:pointer}
+.combinerow--keeps .combinerow__keep{color:var(--ink);font-weight:600}
+.combinerow__keep:has(input:disabled){opacity:.5;cursor:default}
+.combinerow__note{grid-column:1/-1;font-size:var(--t-micro);color:var(--ink-muted)}
 input[type="checkbox"],input[type="radio"]{width:16px;height:16px;accent-color:var(--dock);flex:none;margin:0}
 .table input[type="checkbox"]{width:16px;height:16px}
 /* The whole cell toggles the row, not just the 16px box. */
@@ -1157,3 +1179,10 @@ body.modal-open{overflow:hidden}
    account-setup branches at once. Last rule in the file, so it wins on source
    order. */
 [hidden]{display:none}
+
+/* ── Utilities ─────────────────────────────────────────────────────────────────
+   Last on purpose. These are applied *to* components to adjust one thing, so they
+   have to win against the component's own rule at equal specificity, and order is
+   what decides that. .section-gap declared earlier lost to .watch__t's margin
+   shorthand and every heading using it sat flush against what was above it. */
+.section-gap{margin-top:var(--s5)}

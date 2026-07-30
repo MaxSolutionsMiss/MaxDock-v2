@@ -24,19 +24,22 @@ const errors = [];
 const read = path => readFileSync(path, 'utf8');
 const require_ = (text, pattern, message) => { if (!pattern.test(text)) errors.push(message); };
 
-for (const file of ['js/router.js', 'js/session.js', 'js/pages/settings.js']) {
+for (const file of ['js/router.js', 'js/session.js', 'js/pages/users.js', 'js/ui/role-access.js']) {
   if (!existsSync(file)) errors.push(`Missing ${file}`);
 }
 
 if (!errors.length) {
   const router = read('js/router.js');
   const session = read('js/session.js');
+  const users = read('js/pages/users.js');
+  const dialog = read('js/ui/role-access.js');
   const settings = read('js/pages/settings.js');
 
   // One catalogue, exported rather than copied.
   require_(router, /export const RAIL_PAGES/, 'The rail has no exported catalogue for the settings screen to read.');
   require_(router, /export function railPageAllowedByPermissions/, 'There is no way to ask whether a role is permitted a page, separately from whether it is hidden.');
-  require_(settings, /import \{ startPage, RAIL_PAGES, railPageAllowedByPermissions \}/, 'The settings screen keeps its own list of rail pages instead of reading the rail\'s.');
+  require_(users, /import \{ startPage, RAIL_PAGES, railPageAllowedByPermissions \}/, 'The users screen keeps its own list of rail pages instead of reading the rail\'s.');
+  require_(dialog, /import \{ RAIL_PAGES, railPageAllowedByPermissions \}/, 'The role dialog keeps its own list of rail pages instead of reading the rail\'s.');
 
   // Permission first, visibility second, and only ever subtracting.
   require_(router, /function routeAllowed\(context, item\) \{\s*\n\s*if \(!hasRoutePermission\(context, item\)\) return false;/,
@@ -55,21 +58,31 @@ if (!errors.length) {
   // A System Admin always sees everything, in the client as well as the database.
   require_(session, /role_code === 'system_admin' \|\| !hiddenPages\.has\(pageCode\)/,
     'A System Admin\'s rail must be exempt from hiding, or a company can lock itself out of Settings.');
-  require_(settings, /const CONFIGURABLE_ROLES = \['site_admin', 'shipping_manager', 'coordinator'\]/,
-    'The roles whose rail is configurable must be stated, and must not include system_admin.');
-  if (/CONFIGURABLE_ROLES = \[[^\]]*system_admin/.test(settings)) {
-    errors.push('system_admin must not be a configurable role.');
-  }
+  // A System Admin's row is shown and never editable, and the dialog says why rather
+  // than greying a control and leaving somebody guessing.
+  require_(dialog, /readOnly = target\.code === 'system_admin'/, 'A System Admin must be read-only in the role dialog.');
+  require_(dialog, /els\.save\.hidden = readOnly/, 'The save action must not be offered for a role that cannot be changed.');
 
   // Loaded with the shell, advisory, and cleared when it changes.
   require_(session, /list_role_page_visibility/, 'The shell never loads what this role is shown.');
   require_(session, /catch\(\(\) => \[\]\)/, 'Loading rail visibility must not be able to take the application down.');
-  require_(settings, /save_role_page_visibility/, 'The settings screen cannot save what each role sees.');
-  require_(settings, /db\.invalidate\('navigation:visibility'\)/, 'Saving must clear the cached rail, or the person who changed it is the last to see it.');
+  require_(dialog, /save_role_page_visibility/, 'The role dialog cannot save what each role sees.');
+  // What a role may *do* is the real boundary, and it is the same window's job.
+  require_(dialog, /save_role_permissions/, 'The role dialog cannot change what a role may do.');
+  require_(dialog, /db\.invalidate\('navigation:visibility'\)/, 'Saving must clear the cached rail, or the person who changed it is the last to see it.');
+  require_(dialog, /db\.invalidate\('permissions:'\)/, 'Saving permissions must clear the cached permission set.');
+  // A screen cannot be shown for access the role does not hold, and unticking the
+  // permission must take the screen with it rather than leaving an impossible pair.
+  require_(dialog, /if \(!railPageAllowedByPermissions\(held, page\)\) hidden\.delete\(page\.code\)/,
+    'Removing a permission must drop the screen that depended on it.');
 
-  // Company wide, so the save must not claim to be about the selected site.
-  require_(settings, /kind !== 'roles' && !await confirmLocation\(\)/, 'The roles window must not ask "apply to this site?" — it applies to every site.');
-  require_(settings, /systemAdminOnly: true/, 'The roles section must be offered to a System Admin only.');
+  // Under Users, not Settings: Settings is where a site's operating rules live and a
+  // role applies to every site. And on a page that is System Admin only already.
+  require_(users, /\{ id: 'roles', label: 'Role access' \}/, 'Users has no Role access section.');
+  require_(users, /role_code === 'system_admin'/, 'The page holding role access must be System Admin only.');
+  if (/renderRoles|CONFIGURABLE_ROLES|save_role_page_visibility/.test(settings)) {
+    errors.push('Settings still carries role access. It belongs under Users — a role applies to every site.');
+  }
 
   // The rail must not offer a link whose page would refuse. Both of these carried no
   // permission at all until the visibility work went in.

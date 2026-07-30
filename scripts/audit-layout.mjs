@@ -66,10 +66,6 @@ const MODALS = {
     // an absence. MXD-2026-000146 is one of the two Guelph loads in the fixture.
     { name: 'combine-loads', prepare: '[data-open-record]:has-text("MXD-2026-000146")', trigger: '[data-combine]' },
     { name: 'book-appointment', trigger: '[data-open-booking]', walkSteps: 5 },
-    // A sheet of loads. Measured empty: the file input, the template action and the
-    // sentence explaining what pressing the button will do are the layout, and a
-    // preview table is the same .table every other screen draws.
-    { name: 'import-appointments', trigger: '[data-import-appointments]' },
     { name: 'notifications', trigger: '.notif__btn' },
     // The printable card behind a saved booking: a QR, the run in words, and the
     // link under it. Opened from inside the booking dialog, so the booking dialog
@@ -103,6 +99,10 @@ const MODALS = {
   // The bell is on every page; the panel it opens carries a list, a sound switch
   // and two actions, and was never measured.
   reports: [{ name: 'notifications', trigger: '.notif__btn' }],
+  // A sheet of loads, from the System Admin screen it now belongs to. Measured empty:
+  // the file input, the template action and the sentence saying what pressing the
+  // button will do are the layout; a preview table is the same .table as everywhere.
+  data: [{ name: 'import-appointments', prepare: '[data-section="appointments"]', trigger: '[data-open-appointment-import]' }],
   users: [
     { name: 'add-user', trigger: '[data-add-user]' },
     { name: 'edit-user', trigger: '[data-edit-user]' },

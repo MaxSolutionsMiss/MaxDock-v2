@@ -91,7 +91,7 @@ pair is one fewer truck, one fewer driver, one fewer dock hour.
 Sites record their **shift roster** — each shift, its hours, how many people on
 it — and how many people a truck takes.
 
-The **Labour utilisation report** then reads:
+The **Labour hours report** then reads:
 > *24 of 38.4 dock hours booked today — 62% of the crew's day. 14.4 hours spare —
 > room for about two of the crew to be off and still clear the day.*
 
@@ -147,12 +147,12 @@ scorecards meaningful.
 ### 11. Reports that lead somewhere
 | Report | The question it answers |
 |---|---|
-| Dock utilisation | Are we short of doors, or short of planning? |
+| Dock hours | Are we short of doors, or short of planning? |
 | Skid movement | What actually moved, in and out, by day |
 | Vendor scorecard | Who shows up on time, who doesn't, and how late |
 | Site scorecard | How our own sites perform against each other |
 | Truck fullness & combining | How full our trailers run, how many trucks we saved |
-| Labour utilisation | Crew hours available against crew hours used |
+| Labour hours | Crew hours available against crew hours used |
 
 Every one exports to CSV.
 

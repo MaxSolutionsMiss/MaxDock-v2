@@ -77,7 +77,7 @@ export function laneDescription(lane) {
   return `${lane.rows.length} ${lane.direction} loads ${lane.direction === 'outbound' ? 'to' : 'from'} ${lane.partner} today`;
 }
 
-export function createCombineDialog({ location, capacityFor, onDone } = {}) {
+export function createCombineDialog({ location, capacityFor, truckName, onDone } = {}) {
   const backdrop = document.createElement('div');
   backdrop.className = 'scrim';
   backdrop.hidden = true;
@@ -86,8 +86,8 @@ export function createCombineDialog({ location, capacityFor, onDone } = {}) {
     <section class="modal modal--md" role="dialog" aria-modal="true" aria-labelledby="combine-title">
       <div class="modal__head"><div><h2 class="modal__title" id="combine-title">Combine these loads</h2><p class="modal__sub" data-combine-sub></p></div><button class="modal__x" type="button" data-combine-close aria-label="Close">×</button></div>
       <div class="modal__body">
-        <p class="hint hint--lead hint--wide">The first load ticked keeps its booking and its dock. The rest are cancelled onto it, and whoever booked them is told which number replaced theirs.</p>
-        <div class="pickgroup pickgroup--wide dock-checks" data-combine-list></div>
+        <p class="hint hint--lead hint--wide">Tick the loads that are travelling together, then choose which one keeps its booking and its dock — usually the truck with the room. The rest are cancelled onto it, and whoever booked them is told which number replaced theirs.</p>
+        <div class="combinelist" data-combine-list></div>
         <div data-combine-summary></div>
         <p class="form-message" data-combine-message aria-live="polite"></p>
       </div>
@@ -107,18 +107,61 @@ export function createCombineDialog({ location, capacityFor, onDone } = {}) {
   };
   let rows = [];
   let chosen = new Set();
+  let keeperId = null;
   let busy = false;
 
-  // The survivor is the earliest load ticked: it is the one already booked at the
-  // front of the day, so growing it eats into time that is still free rather than
-  // into a slot somebody else has.
-  const keeper = () => rows.filter(row => chosen.has(row.id)).sort((a, b) => format.compareChronologically(a.start_at, b.start_at))[0] || null;
+  // A load already on the dock cannot be cancelled onto another truck — it is being
+  // worked. It can still be the truck that keeps the booking, which is often exactly
+  // what you want: the driver is here, put the rest of the run on him.
+  const onDock = row => ['arrived', 'in_progress'].includes(row.status);
+
+  // Which load keeps its booking is the person's choice, not the clock's.
+  //
+  // Three loads at 08:00, 11:00 and 16:00 are not interchangeable: one of them is on
+  // a 53 and the others on a 26, one of them is the truck that is actually going, and
+  // the one with room is not always the earliest. So the earliest ticked load is the
+  // suggestion — it grows into time that is still free rather than into somebody
+  // else's slot — and any ticked load can take its place.
+  const earliestTicked = () => rows.filter(row => chosen.has(row.id))
+    .sort((a, b) => format.compareChronologically(a.start_at, b.start_at))[0] || null;
+  const keeper = () => rows.find(row => row.id === keeperId && chosen.has(row.id)) || earliestTicked();
+
+  const capacityOf = row => Number(capacityFor?.(row) || 0);
+  const totalSkids = () => rows.filter(row => chosen.has(row.id)).reduce((sum, row) => sum + skidsOf(row), 0);
+
+  // The space, per load, so the choice can be made on the screen rather than worked
+  // out on paper: does the combined run fit *this* truck.
+  function fitNote(row) {
+    if (!chosen.has(row.id)) return '';
+    const capacity = capacityOf(row);
+    if (!capacity) return 'no capacity set for this truck at this site';
+    const total = totalSkids();
+    return total <= capacity ? `the run fits — ${total} of ${capacity}` : `${total - capacity} over this truck`;
+  }
 
   function renderList() {
-    els.list.innerHTML = rows.map(row => `<label class="dock-check">
-      <input type="checkbox" data-combine-pick="${escapeHtml(row.id)}" ${chosen.has(row.id) ? 'checked' : ''}>
-      <span>${escapeHtml(row.booking_reference || 'Appointment')} · ${escapeHtml(format.time(row.start_at, location))} · ${skidsOf(row)} skids</span>
-    </label>`).join('');
+    const keep = keeper();
+    els.list.innerHTML = rows.map(row => {
+      const ticked = chosen.has(row.id);
+      const isKeeper = keep && keep.id === row.id;
+      const truck = truckName?.(row.truck_type_code) || row.truck_type_code || 'truck';
+      const capacity = capacityOf(row);
+      const note = [
+        `${truck}${capacity ? `, holds ${capacity}` : ''}`,
+        onDock(row) ? 'on the dock, so it can only be the truck that keeps the booking' : fitNote(row),
+      ].filter(Boolean).join(' · ');
+      return `<div class="combinerow${isKeeper ? ' combinerow--keeps' : ''}">
+        <label class="dock-check">
+          <input type="checkbox" data-combine-pick="${escapeHtml(row.id)}" ${ticked ? 'checked' : ''} ${onDock(row) && !isKeeper ? 'disabled' : ''}>
+          <span><b>${escapeHtml(row.booking_reference || 'Appointment')}</b> · ${escapeHtml(format.time(row.start_at, location))} · ${skidsOf(row)} skids</span>
+        </label>
+        <label class="combinerow__keep">
+          <input type="radio" name="combine-keeper" data-combine-keep="${escapeHtml(row.id)}" ${isKeeper ? 'checked' : ''} ${ticked ? '' : 'disabled'}>
+          <span>Keeps the booking</span>
+        </label>
+        <span class="combinerow__note">${escapeHtml(note)}</span>
+      </div>`;
+    }).join('');
   }
 
   function renderSummary() {
@@ -129,18 +172,27 @@ export function createCombineDialog({ location, capacityFor, onDone } = {}) {
       els.run.disabled = true;
       return;
     }
-    const total = picked.reduce((sum, row) => sum + skidsOf(row), 0);
-    const capacity = Number(capacityFor?.(keep) || 0);
+    // A load being worked cannot be cancelled onto another truck. Said here rather
+    // than left to the merge to refuse, so the choice can be corrected before it is
+    // committed.
+    const working = picked.filter(row => onDock(row) && row.id !== keep.id);
+    const total = totalSkids();
+    const capacity = capacityOf(keep);
     const percent = capacity ? Math.round((total / capacity) * 100) : 0;
     const over = capacity && total > capacity;
+    const absorbed = picked.length - 1;
     els.summary.innerHTML = `
-      <p class="inline-note${over ? ' inline-note--warning' : ''}">One truck: ${escapeHtml(keep.booking_reference || 'the earliest load')} at ${escapeHtml(format.time(keep.start_at, location))}, ${total} skids, ${picked.length - 1} load${picked.length === 2 ? '' : 's'} cancelled onto it.</p>
+      <p class="inline-note${over || working.length ? ' inline-note--warning' : ''}">One truck: ${escapeHtml(keep.booking_reference || 'the earliest load')} at ${escapeHtml(format.time(keep.start_at, location))}, ${total} skids, ${absorbed} load${absorbed === 1 ? '' : 's'} cancelled onto it.</p>
+      ${working.length ? `<p class="form-message">${escapeHtml(working.map(row => row.booking_reference).join(', '))} ${working.length === 1 ? 'is' : 'are'} already on the dock and cannot be cancelled onto another truck. Either keep that booking instead, or untick it.</p>` : ''}
       ${capacity ? `<div class="fullness${over ? ' fullness--over' : ''}">
         <div class="fullness__bar"><span style="width:${Math.min(100, percent)}%"></span></div>
         <div class="fullness__t">${percent}% full · ${total} of ${capacity} skids${over ? ` · ${total - capacity} over` : ` · room for ${capacity - total}`}</div>
-      </div>` : '<p class="hint">This truck type has no skid capacity set for this site, so how full it ends up is not known.</p>'}`;
-    els.run.disabled = busy;
+      </div>` : '<p class="hint">This truck type has no skid capacity set for this site, so how full it ends up is not known.</p>'}
+      ${over ? '<p class="hint">More than this truck holds. Keep one of the bigger trucks instead, or leave a load out of the run.</p>' : ''}`;
+    els.run.disabled = busy || working.length > 0;
   }
+
+  function renderAll() { renderList(); renderSummary(); }
 
   async function run() {
     const picked = rows.filter(row => chosen.has(row.id));
@@ -164,7 +216,7 @@ export function createCombineDialog({ location, capacityFor, onDone } = {}) {
       els.message.textContent = error.userMessage || 'The loads could not be combined.';
     } finally {
       busy = false;
-      renderSummary();
+      renderAll();
     }
   }
 
@@ -174,22 +226,35 @@ export function createCombineDialog({ location, capacityFor, onDone } = {}) {
   });
   backdrop.addEventListener('change', event => {
     const box = event.target.closest('[data-combine-pick]');
-    if (!box) return;
-    if (box.checked) chosen.add(box.dataset.combinePick);
-    else chosen.delete(box.dataset.combinePick);
-    renderSummary();
+    if (box) {
+      if (box.checked) chosen.add(box.dataset.combinePick);
+      else {
+        chosen.delete(box.dataset.combinePick);
+        // Unticking the load that was keeping the booking hands the choice back to
+        // the suggestion rather than leaving a keeper that is no longer in the run.
+        if (keeperId === box.dataset.combinePick) keeperId = null;
+      }
+      renderAll();
+      return;
+    }
+    const keep = event.target.closest('[data-combine-keep]');
+    if (keep) { keeperId = keep.dataset.combineKeep; renderAll(); }
   });
 
   // candidates: the loads on this lane, already filtered by the caller to ones
   // that can still travel. Everything is ticked to begin with, because the caller
   // only offers this when it has found a run worth combining.
   function open(candidates, describe, trigger) {
-    rows = candidates.filter(row => row.id);
+    rows = candidates.filter(row => row.id)
+      .sort((a, b) => format.compareChronologically(a.start_at, b.start_at));
     chosen = new Set(rows.map(row => row.id));
+    // No choice made yet, so the suggestion stands: the earliest load. A truck
+    // already on the dock cannot be cancelled onto anything, so if one is in the run
+    // it is the one that keeps the booking to begin with.
+    keeperId = rows.find(row => onDock(row))?.id || null;
     els.sub.textContent = describe || '';
     els.message.textContent = '';
-    renderList();
-    renderSummary();
+    renderAll();
     modal.open({ trigger });
   }
 

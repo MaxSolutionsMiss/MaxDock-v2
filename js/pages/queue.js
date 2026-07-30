@@ -703,6 +703,7 @@ const page = {
     state.combineDialog = createCombineDialog({
       location: context.location,
       capacityFor: record => capacityFor(record.truck_type_code),
+      truckName: code => state.truckTypeNames.get(code),
       onDone: () => refreshData(),
     });
     // The same offer the brief makes, on the row somebody has just opened. One

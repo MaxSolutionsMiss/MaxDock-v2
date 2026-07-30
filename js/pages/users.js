@@ -1,15 +1,27 @@
-import { startPage } from '../router.js';
+import { startPage, RAIL_PAGES, railPageAllowedByPermissions } from '../router.js';
 import { db } from '../db.js';
 import { toast } from '../ui/toast.js';
 import { createModal } from '../ui/modal.js';
 import { renderState } from '../ui/empty.js';
 import { pageHead, controlsBar } from '../ui/pagehead.js';
 import { readSheet, toCsv, downloadFile } from '../ui/sheet.js';
+import { createRoleAccessDialog } from '../ui/role-access.js';
 import { format } from '../format.js';
+
+const SECTIONS = [
+  { id: 'people', label: 'Users' },
+  { id: 'roles', label: 'Role access' },
+];
 
 const state = {
   context: null,
   isSystemAdmin: false,
+  section: 'people',
+  permissionCatalogue: [],
+  rolePermissions: new Map(),
+  hiddenPages: new Map(),
+  roleCounts: new Map(),
+  roleDialog: null,
   roles: [],
   users: [],
   usage: new Map(),
@@ -44,14 +56,34 @@ function generatePassword() {
 }
 
 async function fetchAll() {
-  const [users, usage, roles] = await Promise.all([
+  const [users, usage, roles, permissions, rolePermissions, hidden] = await Promise.all([
     db.rpc('admin_list_users_with_identity', {}, { key: 'users:list', cache: 0 }),
     db.rpc('admin_list_user_usage', {}, { key: 'users:usage', cache: 0 }),
-    db.select('roles', q => q.select('code,name').eq('is_active', true).order('rank'), { key: 'roles:active', cache: 60000 }),
+    // Ranked high to low, so the roles read down the screen the way authority does.
+    db.select('roles', q => q.select('code,name,rank').eq('is_active', true).order('rank', { ascending: false }), { key: 'roles:active', cache: 60000 }),
+    db.select('permissions', q => q.select('code,name,description').order('code'), { key: 'users:permissions', cache: 300000 }).catch(() => []),
+    db.select('role_permissions', q => q.select('role_code,permission_code'), { key: 'users:role-access', cache: 0 }).catch(() => []),
+    db.rpc('list_role_page_visibility', {}, { key: 'users:role-visibility', cache: 0, retry: 1 }).catch(() => []),
   ]);
   state.users = users || [];
   state.usage = new Map((usage || []).map(row => [row.user_id, row]));
   state.roles = roles || [];
+  state.permissionCatalogue = permissions || [];
+  state.rolePermissions = new Map();
+  for (const row of rolePermissions || []) {
+    if (!state.rolePermissions.has(row.role_code)) state.rolePermissions.set(row.role_code, new Set());
+    state.rolePermissions.get(row.role_code).add(row.permission_code);
+  }
+  state.hiddenPages = new Map();
+  for (const row of hidden || []) {
+    if (row.is_visible !== false) continue;
+    if (!state.hiddenPages.has(row.role_code)) state.hiddenPages.set(row.role_code, new Set());
+    state.hiddenPages.get(row.role_code).add(row.page_code);
+  }
+  state.roleCounts = new Map();
+  for (const user of state.users) {
+    state.roleCounts.set(user.role_code, (state.roleCounts.get(user.role_code) || 0) + 1);
+  }
 }
 
 const EXTERNAL_PARTY_TYPES = ['Customer', 'Vendor'];
@@ -127,6 +159,24 @@ function timeSignedIn(usage) {
   return `${format.duration(week)} this week · ${format.duration(month)} this month`;
 }
 
+// One labelled value. An em dash rather than an omitted cell, so the columns stay in
+// step from row to row — a grid that changes shape depending on whether somebody has
+// a company against their name is the disorganisation, not the cure for it.
+function detailCell(label, value) {
+  return `<div class="confirmgrid__cell"><span class="confirmgrid__l">${escapeHtml(label)}</span><span class="confirmgrid__v">${escapeHtml(value || '—')}</span></div>`;
+}
+
+function openRoleDialog(code, trigger) {
+  const role = state.roles.find(item => item.code === code);
+  if (!role) return;
+  state.roleDialog.open(role, {
+    permissions: [...(state.rolePermissions.get(code) || new Set())],
+    permissionCatalogue: state.permissionCatalogue,
+    hiddenPages: [...(state.hiddenPages.get(code) || new Set())],
+    people: state.roleCounts.get(code) || 0,
+  }, trigger);
+}
+
 function renderTable() {
   const users = filteredUsers();
   const selectable = selectableUsers();
@@ -151,8 +201,8 @@ function renderTable() {
       <td class="data--strong">${escapeHtml(user.full_name)}</td>
       <td class="data">${escapeHtml(user.username)}</td>
       <td><span class="tag tag--quiet">${escapeHtml(roleLabel(user))}</span></td>
+      <td class="cell-elide" title="${escapeHtml(sites)}">${escapeHtml(sites)}</td>
       <td>${statusTag}</td>
-      <td class="col-fill"></td>
       <td class="userrow__end">
         <button class="btn btn--quiet btn--icon userrow__toggle" type="button" data-expand-user="${user.user_id}" aria-expanded="${open}" aria-controls="user-more-${user.user_id}" title="${open ? 'Hide details' : 'Show details'}" aria-label="${open ? 'Hide details for' : 'Show details for'} ${escapeHtml(user.full_name)}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg></button>
         <button class="btn btn--quiet btn--sm" type="button" data-edit-user="${user.user_id}">Edit</button>
@@ -160,13 +210,13 @@ function renderTable() {
     </tr>
     <tr class="usermore" id="user-more-${user.user_id}" ${open ? '' : 'hidden'}>
       <td colspan="7">
-        <div class="userdetail">
-          <div class="userdetail__item"><span class="userdetail__label">Email</span><span class="userdetail__value data">${escapeHtml(user.email || '—')}</span></div>
-          <div class="userdetail__item"><span class="userdetail__label">Locations</span><span class="userdetail__value data">${escapeHtml(sites)}</span></div>
-          <div class="userdetail__item"><span class="userdetail__label">Last seen</span><span class="userdetail__value data">${escapeHtml(lastSeen)}</span></div>
-          <div class="userdetail__item"><span class="userdetail__label">Time in MaxDock</span><span class="userdetail__value data">${escapeHtml(timeSignedIn(usage))}</span></div>
-          ${user.organization_name ? `<div class="userdetail__item"><span class="userdetail__label">Company</span><span class="userdetail__value data">${escapeHtml(user.organization_name)}</span></div>` : ''}
-          <div class="userdetail__item"><span class="userdetail__label">Account created</span><span class="userdetail__value data">${escapeHtml(user.created_at ? format.dateShort(user.created_at, state.context.location) : '—')}</span></div>
+        <div class="confirmgrid userdetail">
+          ${detailCell('Email', user.email)}
+          ${detailCell('Company', user.organization_name)}
+          ${detailCell('Sites', sites)}
+          ${detailCell('Last seen', lastSeen)}
+          ${detailCell('Time in MaxDock', timeSignedIn(usage))}
+          ${detailCell('Account created', user.created_at ? format.dateShort(user.created_at, state.context.location) : null)}
         </div>
       </td>
     </tr>`;
@@ -676,18 +726,18 @@ function openImportModal() {
   state.importModal.open({ trigger: state.elements.importTrigger });
 }
 
-function buildShell(root) {
+// The people, and the filters that narrow them. Re-rendered when the section changes,
+// so the filter values are put back from state rather than lost.
+function renderPeopleSection() {
   const canAdd = state.isSystemAdmin;
-  root.innerHTML = `
-    ${pageHead('Users', { actions: ['export', 'print'] })}
-    ${controlsBar({
+  return `${controlsBar({
       label: 'User controls',
       // Role, then Location, then the search box — the same left-to-right order
       // the page is read in — and Add user at the far right of the band, where
       // every other page keeps its primary action.
       filters: `<div class="ctrl-field"><label for="user-role">Role</label><select class="select" id="user-role" data-role-filter></select></div>
       <div class="ctrl-field"><label for="user-location">Location</label><select class="select" id="user-location" data-location-filter></select></div>
-      <div class="ctrl-field ctrl-field--grow"><label for="user-search">Search</label><input class="input" type="search" id="user-search" placeholder="Name, username or email" data-search></div>`,
+      <div class="ctrl-field"><label for="user-search">Search</label><input class="input" type="search" id="user-search" placeholder="Name, username or email" data-search></div>`,
       trailing: [['importUsers', canAdd], ['addUser', canAdd]],
     })}
     <div class="panel panel--fill">
@@ -698,7 +748,77 @@ function buildShell(root) {
         <button class="btn btn--quiet btn--sm" type="button" data-bulk-deactivate>Deactivate</button>
         <button class="text-link at-end" type="button" data-bulk-clear>Clear selection</button>
       </div>
-      <div class="panel__scroll"><table class="table"><thead><tr><th><label class="cellcheck"><input type="checkbox" data-select-all aria-label="Select all users"></label></th><th>Name</th><th>Username</th><th>Role</th><th>Status</th><th class="col-fill"></th><th></th></tr></thead><tbody data-rows></tbody></table></div>
+      <div class="panel__scroll"><table class="table"><thead><tr><th><label class="cellcheck"><input type="checkbox" data-select-all aria-label="Select all users"></label></th><th>Name</th><th>Username</th><th>Role</th><th class="col-fill">Sites</th><th>Status</th><th></th></tr></thead><tbody data-rows></tbody></table></div>
+    </div>`;
+}
+
+// The roles, what each one may do, and what each one sees. One row a role, because
+// that is the unit an administrator changes — the twenty-seven permissions behind it
+// are a matrix nobody reads across five columns.
+function renderRolesSection() {
+  const rows = state.roles.map(role => {
+    const held = state.rolePermissions.get(role.code) || new Set();
+    const hidden = state.hiddenPages.get(role.code) || new Set();
+    const permitted = RAIL_PAGES.filter(page => railPageAllowedByPermissions(held, page));
+    const seen = permitted.filter(page => !hidden.has(page.code));
+    const fixed = role.code === 'system_admin';
+    const people = state.roleCounts.get(role.code) || 0;
+    return `<tr>
+      <td class="data data--strong">${escapeHtml(role.name || role.code)}</td>
+      <td class="data">${escapeHtml(role.code)}</td>
+      <td class="data">${people}</td>
+      <td class="data">${fixed ? 'Everything' : `${held.size} of ${state.permissionCatalogue.length}`}</td>
+      <td class="cell-elide" title="${escapeHtml(fixed ? 'Every screen' : seen.map(page => page.label).join(', ') || 'None')}">${escapeHtml(fixed ? 'Every screen' : `${seen.length} of ${permitted.length} available`)}</td>
+      <td class="userrow__end"><button class="btn btn--quiet btn--sm" type="button" data-edit-role="${escapeHtml(role.code)}">${fixed ? 'View' : 'Edit'}</button></td>
+    </tr>`;
+  }).join('');
+  return `<div class="panel panel--fill">
+      <div class="panel__head"><h3 class="panel__title">Roles</h3><div class="panel__actions"><span class="sub">${state.roles.length} roles · every site</span></div></div>
+      <div class="panel__scroll"><table class="table"><thead><tr>
+        <th>Role</th><th>Code</th><th>People</th><th>May do</th><th class="col-fill">Sees</th><th></th>
+      </tr></thead><tbody>${rows}</tbody></table></div>
+    </div>
+    <p class="hint hint--wide">A role applies to every site. <b>May do</b> is the real boundary — the database asks these, so removing one closes the screen and the request behind it. <b>Sees</b> is the navigation rail, and only tidiness: a screen taken off a rail still opens for an account that holds its permission, so anything that must be refused has to be refused by a permission. A System Admin holds everything and cannot be changed, or a company could lock itself out of MaxDock.</p>`;
+}
+
+function renderSection() {
+  state.elements.nav.innerHTML = SECTIONS.map(section => `<button type="button" data-section="${section.id}" aria-current="${section.id === state.section}">${escapeHtml(section.label)}</button>`).join('');
+  state.elements.panel.innerHTML = state.section === 'roles' ? renderRolesSection() : renderPeopleSection();
+  if (state.section !== 'roles') {
+    // The panel was rewritten, so the controls in it are new elements.
+    cacheSectionElements();
+    renderFilters();
+    renderTable();
+  }
+}
+
+function cacheSectionElements() {
+  const root = state.elements.root;
+  Object.assign(state.elements, {
+    roleFilter: root.querySelector('[data-role-filter]'),
+    locationFilter: root.querySelector('[data-location-filter]'),
+    search: root.querySelector('[data-search]'),
+    count: root.querySelector('[data-count]'),
+    rows: root.querySelector('[data-rows]'),
+    selectAll: root.querySelector('[data-select-all]'),
+    bulkBar: root.querySelector('[data-bulk-bar]'),
+    bulkCount: root.querySelector('[data-bulk-count]'),
+    bulkActivate: root.querySelector('[data-bulk-activate]'),
+    bulkDeactivate: root.querySelector('[data-bulk-deactivate]'),
+    // The two actions that open dialogs live in this band too, and a dialog wants
+    // something to hand focus back to when it closes.
+    addTrigger: root.querySelector('[data-add-user]'),
+    importTrigger: root.querySelector('[data-import-users]'),
+  });
+  if (state.elements.search) state.elements.search.value = state.filters.search;
+}
+
+function buildShell(root) {
+  root.innerHTML = `
+    ${pageHead('Users', { actions: ['export', 'print'] })}
+    <div class="setlayout">
+      <nav class="setnav" data-user-nav aria-label="User sections"></nav>
+      <div class="setpanel" data-user-panel></div>
     </div>
     <div class="scrim" data-add-backdrop hidden aria-hidden="true">
       <section class="modal" role="dialog" aria-modal="true" aria-labelledby="add-user-title">
@@ -782,23 +902,13 @@ function buildShell(root) {
   state.elements = {
     root,
     subtitle: root.querySelector('[data-subtitle]'),
-    roleFilter: root.querySelector('[data-role-filter]'),
-    locationFilter: root.querySelector('[data-location-filter]'),
-    search: root.querySelector('[data-search]'),
-    count: root.querySelector('[data-count]'),
-    rows: root.querySelector('[data-rows]'),
-    selectAll: root.querySelector('[data-select-all]'),
-    bulkBar: root.querySelector('[data-bulk-bar]'),
-    bulkCount: root.querySelector('[data-bulk-count]'),
-    bulkActivate: root.querySelector('[data-bulk-activate]'),
-    bulkDeactivate: root.querySelector('[data-bulk-deactivate]'),
-    addTrigger: root.querySelector('[data-add-user]'),
+    nav: root.querySelector('[data-user-nav]'),
+    panel: root.querySelector('[data-user-panel]'),
     addBackdrop: root.querySelector('[data-add-backdrop]'),
     addForm: root.querySelector('[data-add-form]'),
     addFoot: root.querySelector('[data-add-foot]'),
     addResult: root.querySelector('[data-add-result]'),
     addResultFoot: root.querySelector('[data-add-result-foot]'),
-    importTrigger: root.querySelector('[data-import-users]'),
     importBackdrop: root.querySelector('[data-import-backdrop]'),
     importFile: root.querySelector('[data-import-file]'),
     importPreview: root.querySelector('[data-import-preview]'),
@@ -821,11 +931,19 @@ function buildShell(root) {
 }
 
 function wireEvents(root) {
-  state.elements.roleFilter.addEventListener('change', event => { state.filters.role = event.target.value; renderTable(); });
-  state.elements.locationFilter.addEventListener('change', event => { state.filters.location = event.target.value; renderTable(); });
-  state.elements.search.addEventListener('input', event => { state.filters.search = event.target.value; renderTable(); });
+  // Delegated, not bound to the controls themselves: switching section rewrites the
+  // panel, and a listener on a replaced element is a filter that silently stops working.
+  root.addEventListener('input', event => {
+    if (!event.target.matches('[data-search]')) return;
+    state.filters.search = event.target.value;
+    renderTable();
+  });
 
   root.addEventListener('click', event => {
+    const section = event.target.closest('[data-section]');
+    if (section) { state.section = section.dataset.section; renderSection(); return; }
+    const editRole = event.target.closest('[data-edit-role]');
+    if (editRole) { openRoleDialog(editRole.dataset.editRole, editRole); return; }
     if (event.target.closest('[data-export]')) { exportCsv(); return; }
     if (event.target.closest('[data-print]')) { globalThis.print(); return; }
     if (event.target.closest('[data-bulk-activate]')) { applyBulkStatus(true); return; }
@@ -871,6 +989,8 @@ function wireEvents(root) {
   });
 
   root.addEventListener('change', event => {
+    if (event.target.matches('[data-role-filter]')) { state.filters.role = event.target.value; renderTable(); return; }
+    if (event.target.matches('[data-location-filter]')) { state.filters.location = event.target.value; renderTable(); return; }
     if (event.target.matches('[data-import-file]')) { loadImportFile(event.target.files?.[0]); return; }
     const box = event.target.closest('[data-select-user]');
     if (box) {
@@ -915,16 +1035,23 @@ const page = {
     }
     buildShell(context.pageRoot);
     wireEvents(context.pageRoot);
+    state.roleDialog = createRoleAccessDialog({
+      onSaved: async () => {
+        await fetchAll();
+        renderSection();
+        toast('Role access saved. Anybody signed in sees it on their next page.', 'success');
+      },
+    });
     await fetchAll();
     state.elements.subtitle.textContent = `${state.users.length} people`;
-    renderFilters();
-    renderTable();
+    renderSection();
   },
   refresh() {},
   destroy() {
     state.addModal?.destroy();
     state.editModal?.destroy();
     state.importModal?.destroy();
+    state.roleDialog?.destroy();
   },
 };
 
