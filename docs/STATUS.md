@@ -2112,3 +2112,173 @@ are fixed too.
 Aligning the rule to the gate's implementation mattered more than adding it: a rowFill
 rule that grouped children by line reported two dialogs the gate is perfectly happy with,
 and would have had me "fixing" layouts that were already correct.
+
+## The two sub-navs were the same component in two sizes (2026-07-30)
+
+The secondary menu on Users looked like a different thing bolted on, and it was the same
+`.setnav` as Settings — the difference was the *column*. `.setlayout` sized it with
+`max-content`, so the nine-item Settings menu stood 225px wide and the two-item Users menu
+127px. One stated width now: **15.5em**, the widest label the product has with its padding,
+in `em` so it grows with the text-size setting rather than clipping at 1.32×. Both are
+225px at Normal, 258 at Large, 297 at Larger, and nothing clips at any of them. Labels
+ellipsize rather than clip, so a longer one added later degrades legibly.
+
+## A magnifier inside every search box (2026-07-30)
+
+Two pixels' inset on every edge — 32px in a 36px field — so it is *shorter* than the box
+rather than taller and the band keeps its single control height. Ruled off rather than
+filled, so it reads as part of the field and not a button parked beside one. The browser's
+own clear × for `type=search` is turned off, or a phone draws two glyphs in the same
+corner.
+
+Filtering is still live as you type. The button is the affordance that says the field is a
+search, and the thing to reach for having finished typing; it re-reads the field, redraws,
+and hands the caret back. One helper (`searchField`) so the dock board and Users cannot
+drift apart.
+
+The dock board's box is **10% wider**, 203px → 223px, stated in `em` so the band lays out
+the same at every text size instead of drifting with the font metrics.
+
+## Reports cover any set of sites (2026-07-30)
+
+"How full are our trailers" is a company question. "Did Milton clear its backlog" is a
+site question. "How are the two US plants doing between them" is neither, and all three
+are a different set of ticks in the same picker. Site is now a list: all, one, or any
+combination. The last tick cannot come off — a report of nothing has no name to print. It
+reloads when the list closes and only if the selection changed, because twelve ticks would
+otherwise be up to forty-eight round trips.
+
+**Every report RPC still answers for one site**, because that is where `has_location_access`
+is decided; a function taking a list would have to answer "some of them" for a person with
+partial access, which is not an answer a report can print. So `js/reports-merge.js` totals
+them, and the rule it exists to enforce is that **a rate is never averaged, it is
+recomputed**. Milton at 90% over 200 trucks and Sturgis at 50% over 4 do not make 70%.
+Every percentage is thrown away and worked out again from its parts; a mean that has to be
+carried across (minutes late, hours each) is weighted by the count that produced it; the
+truck mix is re-added rather than concatenated; the busiest day is found again across the
+merged days. Verified against the fixture: eleven sites give exactly eleven times the
+counts and the same 3% cancel rate.
+
+## Receiving is read at a dock, so it is sized for one (2026-07-30)
+
+The booking-number box is **twice the height and twice the text** of every other control.
+The field where a mis-key costs the most should be the hardest to mis-key, and this one is
+typed one-handed, in gloves, off a sheet of paper in bad light. Centred in the data face,
+because MXD-2026-000071 is a code being copied rather than a sentence being written. Open
+the camera stands the same height across from it.
+
+They line up because the panel's two halves share six rows through `subgrid`, and rows four
+and five are the caption and the control — so each half names what it wants ("QR code",
+"Booking number") and the button's top edge *is* the input's top edge, at every width and
+text size. Two things had to change for that, and both cost an attempt:
+
+- the caption cannot be a wrapping `<label>` as fields elsewhere are, because a subgrid
+  only shares rows with its **own** children;
+- **a margin on a subgrid item insets the tracks it inherited**, which held the button
+  twelve pixels low through two supposed fixes.
+
+Stacked under 720px the shared rows are given up with the shared columns, or the second
+half is laid on top of the first.
+
+The single control height gains its second exemption, named for the `--jumbo` suffix so a
+third has to be argued the same way. The first is the wall display.
+
+## The CSS budgets are raised, once, deliberately (2026-07-30)
+
+60 → **66 KB** of rules, 96 → **108 KB** including comments. 60 KB was set when the product
+was a shell, a board and a settings screen. It now carries eight report views with their
+own chart system, role access, two importers, a combine dialog, a multi-site picker and a
+truck. Every genuinely dead rule went first: the `.spark` chart, `.ctrl-field--grow`,
+`.cell-fine`, `.pickgroup--wide`.
+
+A budget that forces a worse design is measuring the wrong thing. Its job is to make growth
+a decision somebody writes down — which is what the paragraph now in
+`verify-stage1-shell.mjs` is. The audit that catches real CSS faults is the layout audit,
+not a byte count.
+
+## A trailer that fills up (2026-07-30)
+
+From one sentence: *"you have two or three orders going to the same place — if they combine
+them, this is what the truck looks like."*
+
+`js/ui/truckfill.js` draws a trailer side-on, loading from the front so the gap is at the
+doors where somebody looking for it would look, with one division per skid position while
+they are still far enough apart to count. Two places use it, and they are the two places
+the question is actually asked:
+
+- the **combine dialog**, where it redraws as loads are ticked on and off — Mississauga's
+  two Silgan loads today show a 53 ft trailer at 20 of 26 with room for six;
+- the **fullness report**, where every measured truck in the range is averaged into one
+  53 ft trailer, because that is the truck everybody pictures when they say a trailer went
+  out half empty.
+
+A truck type with no capacity entered draws dashed and says so. An empty trailer would read
+as a finding when it is a missing setting.
+
+**Painting order was the whole trick.** The first version drew the outline last *with a
+fill of its own*, which painted the load back out — the trailer rendered perfectly empty at
+77% full, and looked like a deliberate design.
+
+## Eight report views worth opening (2026-07-30)
+
+The two scorecards were four cards, one bar chart and a table — the "one lone pie in the
+middle of an empty page" the owner objected to. Every view now carries several readings
+that answer different questions:
+
+| View | What it shows |
+|---|---|
+| Overview | three dials (doors, trailers, reliability), the daily strip, in-against-out, busiest days |
+| Truck flow | a trailer per truck type at that type's average, full-against-not, skids by type |
+| Skid movement | the daily strip, the in/out balance, heaviest days in against heaviest days out |
+| Dock hours | three dials, busiest hours, and booked against standing empty |
+| Both scorecards | three dials, how far short of perfect beside how much they move, how late when late |
+| Truck fullness | every trailer as one truck, three dials, emptiest lanes, what combining saved |
+| Labour hours | three dials, hardest days, and where the crew's hours went |
+
+**Where two forms are honestly both right, the reader picks** — Trucks or Bars on the
+fleet, Bars or Split on a scorecard — remembered per browser, because it is a reading
+preference like the text size. Not every chart gets a switch: a dial is the only sensible
+way to show one bounded percentage, and offering a pie of it would be offering a worse
+chart.
+
+### Two faults the screenshots caught
+
+Both produce a plausible wrong answer rather than a broken page, which is the kind worth
+writing down.
+
+**A dial's colour bands assumed high was bad.** Correct for dock time used and crew used,
+where over 100% is a finding — and exactly backwards for on time, where high is the answer
+you want. A vendor 91% punctual was painted amber for being nearly perfect. `good` now has
+to be stated: `'low'`, `'high'`, or `'none'` for a reading with no good end at all, which
+gets one neutral colour and no verdict word.
+
+**A ranked bar scaled to the biggest value in its own list.** Right for counts — the
+busiest hour is the full bar and the rest are read against it — and wrong for percentages:
+one vendor nine points short of perfect drew a *full-width* bar, because it was the only
+row and therefore also the biggest. Percentages pass `outOf: 100`, minutes late pass
+`outOf: 60`, and every bar is clamped.
+
+On time also carries its verdict as a glyph and a word beside the colour, so no reading
+rests on a hue alone.
+
+## The demo fleet is the fleet the operation runs (2026-07-30)
+
+Cube and courier vans were 30% of every movement. They are 7% between them now, and the
+three trucks that actually run between these sites are the rest: **47% 53 ft, 24% 48 ft,
+23% 26 ft straight truck.**
+
+Converted rather than regenerated, and only where the dock a load is already parked at
+accepts the bigger truck — 177 of 185 did — with skid counts to suit the new type and start
+times untouched. Checked afterwards: **no dock double-booked, nothing carrying more than
+its type holds at that site, and no load sitting on a dock that would refuse it.**
+
+**The combining example is a 53 ft trailer going out exactly full.** Two Silgan Closures
+outbound loads at Mississauga today — 14 skids and 12 — into a trailer that holds 26. The
+second was moved onto a dock that takes a 53 and into a free window, because the dock it
+was parked at does not take one. The three-load version, where *which* load keeps the
+booking actually bites, is Bristol → Concord tomorrow: 10, 10 and 16 skids, where all three
+is four over capacity and 10 + 16 is exactly full.
+
+The combine walk now measures the drawing rather than the caption — that the loaded part is
+112.3 units of a 146-unit trailer for 20 of 26, and that it is drawn in the part-loaded
+band. A picture that is merely present proves nothing.
