@@ -340,6 +340,15 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
    double against the gap. */
 .reportstack{display:grid;gap:var(--s5);align-content:start}
 .reportstack>.kpis{margin-bottom:0}
+/* The band that opens every report view: the mark, the view's name, and whose figures over
+   which dates. Not boxed — it is a title, and a card around a title would make the page one
+   box deeper for nothing. */
+.viewhead{display:flex;align-items:center;gap:var(--s3);min-width:0}
+.viewhead__mark{width:40px;height:40px;flex:none;border-radius:var(--radius-lg);background:var(--dock-wash);color:var(--dock-deep);display:grid;place-items:center}
+.viewhead__mark svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.viewhead__t{min-width:0}
+.viewhead__t h2{margin:0;font-size:var(--t-title);font-weight:600;line-height:1.15}
+.viewhead__t p{margin:1px 0 0;font-size:var(--t-small);color:var(--ink-muted)}
 /* The customize control belongs to the cards, so it sits at the end of their row
    at their height, not in the page header where nothing said what it applied to.
    Its own narrow column, shared by the panels below, so the side column still

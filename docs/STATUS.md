@@ -2403,3 +2403,40 @@ carried `hint--flush`, which is exactly what held it against the row above; and 
 booking-number box is **left**-aligned, because centred, the prefilled `MXD-2026-` sat in the
 middle with white on both sides and read as the whole value, with nothing to say the digits
 go after it.
+
+## A mark on every report view (2026-07-30)
+
+A report that opens with a heading and a number is correct and hard to tell apart from the
+last one you looked at. Every view now opens with a band carrying its mark, its name and
+whose figures over which dates — drawn from the same 24px grid and 1.7px stroke as every
+other glyph in the product, because the ask was for something less dry, not for clip-art, and
+a set that looks like one set is what makes it read as a product rather than a collection.
+
+A site outline on the site scorecard, an office block on the vendor one, a row of doors on
+dock hours, two figures on labour, a lorry on truck flow, skids on skid movement. Truck
+fullness gets a part-filled box rather than a second lorry: it is about the space inside the
+trailer, and two views sharing a glyph defeats the point of having them. Checked
+programmatically that no two views share a mark, because that is the kind of thing that
+happens quietly.
+
+One function builds the band for all eight, so they cannot describe themselves in eight
+different ways, and it is prepended in `renderView` so a new view gets one without having to
+remember.
+
+## The CSS file budget was the wrong shape (2026-07-30)
+
+It took raising the same number twice in one day to see it. The file limit sat 2 KB above the
+rules content, so what it actually rationed was **comments** — the reasoning the verifier's
+own paragraph insists on keeping. Both raises were spent on prose, and clearing it the third
+time would have meant deleting explanation to satisfy a number whose job the rules gate
+already does.
+
+So the two figures now have two different jobs. **The rules budget is the gate**: 66 KB of
+declarations, about a kilobyte spare, and growth in what the browser actually parses stays a
+decision somebody has to write down. **The file figure is a sanity bound** at 160 KB — it
+catches a pasted library or a duplicated stylesheet and nothing else. If that one ever fails,
+look for something that is not CSS.
+
+Two orphaned comments came out along the way, both describing approaches that had already
+been replaced: the 1100px controls breakpoint and the nested-subgrid field. Dead prose for
+rules that no longer exist is worse than no prose, because it is read as current.

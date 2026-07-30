@@ -8,16 +8,22 @@ import { format } from '../format.js';
 import { mergeContext, mergeScorecard, mergeFullness, mergeLabour } from '../reports-merge.js';
 import { truckFill } from '../ui/truckfill.js';
 
+// Each view carries a mark as well as a name. A report that opens with a heading and a
+// number is correct and hard to tell apart from the last one you looked at; a mark makes the
+// view recognisable before it is read, and on paper says what the sheet is at arm's length.
+// Drawn from the same grid and stroke as every other glyph in the product — the ask was for
+// something less dry, not for clip-art.
 const VIEWS = [
-  { id: 'overview', label: 'Overview' },
-  { id: 'truck-flow', label: 'Truck flow' },
-  { id: 'skid-movement', label: 'Skid movement' },
-  { id: 'dock-utilisation', label: 'Dock hours' },
-  { id: 'scorecard-company', label: 'Vendor scorecard' },
-  { id: 'scorecard-location', label: 'Site scorecard' },
-  { id: 'fullness', label: 'Truck fullness' },
-  { id: 'labour', label: 'Labour hours', permission: 'reports.view_labour' },
+  { id: 'overview', label: 'Overview', icon: 'chart' },
+  { id: 'truck-flow', label: 'Truck flow', icon: 'truck' },
+  { id: 'skid-movement', label: 'Skid movement', icon: 'skid' },
+  { id: 'dock-utilisation', label: 'Dock hours', icon: 'door' },
+  { id: 'scorecard-company', label: 'Vendor scorecard', icon: 'company' },
+  { id: 'scorecard-location', label: 'Site scorecard', icon: 'site' },
+  { id: 'fullness', label: 'Truck fullness', icon: 'load' },
+  { id: 'labour', label: 'Labour hours', icon: 'crew', permission: 'reports.view_labour' },
 ];
+const viewIcon = () => VIEWS.find(view => view.id === state.view)?.icon || 'chart';
 
 const PRESETS = [
   { id: 'last7', label: 'Past 7 days', days: 7 },
@@ -242,6 +248,17 @@ function ranked(rows, { unit = '', max = 8, outOf = 0 } = {}) {
 // A reading and its verdict, drawn as well as coloured and worded. The bands are the
 // ones the scorecard table already uses, so a tag in the table and a badge on a card
 // never disagree about whether 87% is acceptable.
+// The band at the top of every view: the mark, what the view is, and which sites and dates
+// it covers. One function rather than a heading in each of the eight render functions, so
+// they cannot describe themselves in eight different ways.
+function viewHead(note = '') {
+  const view = VIEWS.find(item => item.id === state.view);
+  return `<header class="viewhead">
+    <span class="viewhead__mark">${icon(viewIcon())}</span>
+    <div class="viewhead__t"><h2>${escapeHtml(view?.label || 'Report')}</h2><p>${escapeHtml(note || siteRange())}</p></div>
+  </header>`;
+}
+
 function verdict(percent) {
   if (percent === null || percent === undefined) return { key: 'quiet', glyph: '', words: 'no arrivals' };
   if (percent >= 90) return { key: 'ok', glyph: icon('ok'), words: 'on target' };
@@ -677,7 +694,9 @@ function renderView() {
     'scorecard-location': () => renderScorecard('location'),
     fullness: renderFullness, labour: renderLabour,
   };
-  state.elements.host.innerHTML = (renderers[state.view] || renderOverview)();
+  // The header is prepended here rather than by each renderer, so every view has one and
+  // none of them has to remember.
+  state.elements.host.innerHTML = viewHead() + (renderers[state.view] || renderOverview)();
 }
 
 function csvRowsForView() {

@@ -16,6 +16,22 @@ const ICONS = {
   ok: '<circle cx="12" cy="12" r="9"></circle><path d="M8 12.5l2.6 2.6L16 9.5"></path>',
   warn: '<path d="M12 3.5 21.5 20H2.5z"></path><path d="M12 9.5v4.5M12 17h.01"></path>',
   stop: '<circle cx="12" cy="12" r="9"></circle><path d="M9 9l6 6M15 9l-6 6"></path>',
+  // A mark per report section, so a view is recognisable before a word of it is read and a
+  // printed page says what it is at arm's length. Drawn from the same 24px grid and the same
+  // 2px stroke as every other glyph here — the ask was for something less dry, not for
+  // clip-art, and a set that looks like one set is what makes it read as a product.
+  site: '<path d="M3 21h18M5 21V8l7-5 7 5v13"></path><path d="M10 21v-6h4v6"></path>',
+  company: '<rect x="4" y="3" width="16" height="18" rx="2"></rect><path d="M8 7h3M13 7h3M8 11h3M13 11h3M10 21v-5h4v5"></path>',
+  door: '<rect x="3" y="4" width="18" height="14" rx="1"></rect><path d="M3 18h18M7 8v6M12 8v6M17 8v6"></path>',
+  crew: '<circle cx="9" cy="8" r="3"></circle><path d="M3 20v-1a6 6 0 0 1 12 0v1"></path><path d="M17 8.5a2.5 2.5 0 1 0 0-.01M16 20v-1a5 5 0 0 1 5-5"></path>',
+  skid: '<path d="M3 16h18M5 16v3M12 16v3M19 16v3"></path><rect x="6" y="5" width="12" height="8" rx="1"></rect>',
+  truck: '<path d="M2 7h10v9H2zM12 10h5l3 3v3h-8z"></path><circle cx="6" cy="18.5" r="1.8"></circle><circle cx="16" cy="18.5" r="1.8"></circle>',
+  clock: '<circle cx="12" cy="12" r="9"></circle><path d="M12 7.5V12l3.2 2"></path>',
+  chart: '<path d="M4 20V4M4 20h16"></path><path d="M8 20v-6M13 20v-10M18 20v-4"></path>',
+  // Truck fullness is about the space inside the trailer, not the trailer, so its mark is a
+  // box part filled rather than a second lorry — Truck flow already has the lorry, and two
+  // views sharing a glyph defeats the point of having them.
+  load: '<rect x="3" y="5" width="18" height="14" rx="1"></rect><path d="M3 12h11v7H3z" fill="currentColor" stroke="none"></path><path d="M14 5v14"></path>',
 };
 
 // The same glyphs, for the row-level actions a page draws itself. Rendered into a
