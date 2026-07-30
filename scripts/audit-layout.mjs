@@ -533,7 +533,19 @@ function collect(scope) {
     const body = root.querySelector('.modal__body');
     const bodyScrolls = body && /auto|scroll/.test(getComputedStyle(body).overflowY);
     if (r.height > vh + 1 && !bodyScrolls) out.modal.push(`dialog is ${Math.round(r.height - vh)}px taller than the ${vh}px viewport with no scrollable body`);
-    const foot = root.querySelector('.modal__foot, .form-actions');
+    // The dialog's *own* action row, which is its footer wherever it has one. This used to
+    // be `querySelector('.modal__foot, .form-actions')`, and querySelector returns the first
+    // match in document order — so the moment a dialog grew a .form-actions inside its body
+    // (the upload row on the appointment window) the rule started measuring that instead,
+    // and reported the footer as 540px below the fold on a dialog whose footer was pinned
+    // and visible the whole time.
+    //
+    // A row inside a scrolling body is also not a fold problem by definition: it is content,
+    // and content in a scroll region is reached by scrolling. Only a row that is meant to
+    // stay put can be below the fold.
+    const foot = root.querySelector('.modal__foot')
+      || [...root.querySelectorAll('.form-actions')].find(row => !(bodyScrolls && body.contains(row)))
+      || null;
     if (foot) {
       const fr = foot.getBoundingClientRect();
       if (fr.bottom > vh + 1) out.modal.push(`the action row is ${Math.round(fr.bottom - vh)}px below the fold`);
