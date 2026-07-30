@@ -1,0 +1,107 @@
+#!/usr/bin/env node
+// Scanning a load in at the dock, and the things that must stay true about how it is read.
+//
+//   The in-app scanner used to be offered only where the browser carried BarcodeDetector.
+//   That reads like a narrow gap and is not one: the API sits behind a preference on
+//   Safari, is absent from Firefox, and on desktop Chrome and Edge exists only on macOS
+//   and ChromeOS. The scanner therefore appeared on Android and close to nowhere else, and
+//   the iPad standing at the dock — the device the screen was drawn for — was sent away to
+//   the camera app. The camera was never the missing part. Only the decode was.
+//
+//   So there is a decoder in the repository now, and with it two rules worth a build
+//   failure. It is vendored rather than fetched from a CDN, because a CDN tag is a third
+//   party who can change what a receiver runs while accepting a load. And it is reached by
+//   import() at the moment somebody presses the button, never by a static import, because
+//   a quarter of a megabyte on the critical path of every page is not a trade anybody
+//   agreed to. Both of those are one careless edit away from silently reversing.
+//
+//   The camera is released on every exit path. A page that walks away with the light still
+//   on is the fastest way to lose the trust of somebody holding the device.
+import { readFileSync, existsSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+
+const errors = [];
+const read = path => readFileSync(path, 'utf8');
+const need = (text, pattern, message) => { if (!pattern.test(text)) errors.push(message); };
+const forbid = (text, pattern, message) => { if (pattern.test(text)) errors.push(message); };
+
+const FILES = [
+  'js/pages/receiving.js', 'js/ui/qr-scan.js', 'js/ui/qr-decode.js',
+  'js/vendor/jsQR.js', 'js/vendor/README.md', 'js/vendor/LICENSE-jsQR.txt',
+];
+for (const file of FILES) if (!existsSync(file)) errors.push(`Missing ${file}`);
+
+if (!errors.length) {
+  const recv = read('js/pages/receiving.js');
+  const scan = read('js/ui/qr-scan.js');
+  const decode = read('js/ui/qr-decode.js');
+  const vendor = read('js/vendor/jsQR.js');
+  const notes = read('js/vendor/README.md');
+
+  // ── The scanner is offered wherever there is a camera ───────────────────────
+  need(scan, /export const canScan = \(\) => Boolean\(globalThis\.navigator\?\.mediaDevices\?\.getUserMedia\)/,
+    'Whether to offer the scanner is not decided by whether a camera can be opened. Anything else puts the button behind a decoder that now exists on every browser.');
+  need(recv, /\$\{canScan\(\)/,
+    'The receiving screen chooses whether to offer the scan button on something other than whether a camera can be opened.');
+  forbid(recv, /BarcodeDetector/,
+    'The receiving screen still names BarcodeDetector. Which decoder is used is qr-scan\'s business; the page that offered the button only where that API existed is what hid the scanner from every iPad.');
+  need(scan, /typeof globalThis\.BarcodeDetector === 'function'/,
+    'Nothing prefers the browser\'s own detector, so every browser pays for the vendored decoder including the ones that do not need it.');
+  need(scan, /try \{ return await nativeReader\(\); \} catch/,
+    'A BarcodeDetector that exists but will not construct is treated as working. Chrome away from macOS does exactly that, and the scanner would throw instead of falling back.');
+
+  // ── The decoder is loaded on demand, and never before ───────────────────────
+  need(scan, /await import\('\.\/qr-decode\.js'\)/,
+    'The decoder is not reached by import(), so it is not loaded on demand.');
+  forbid(scan, /^import .*qr-decode/m,
+    'The decoder is statically imported by the scanner, which puts a quarter of a megabyte on the critical path of the receiving page whether or not anybody scans.');
+  for (const [file, text] of [['js/pages/receiving.js', recv]]) {
+    forbid(text, /^import[^\n]*(qr-decode|vendor\/)/m,
+      `${file} imports the decoder statically. It must arrive only through qr-scan's import(), or every visit to the page downloads it.`);
+  }
+  // Exactly one module may know how the vendored file is packaged.
+  const importsVendor = FILES.filter(file => file !== 'js/vendor/jsQR.js' && file !== 'js/vendor/README.md'
+    && file !== 'js/vendor/LICENSE-jsQR.txt' && /vendor\/jsQR\.js/.test(read(file)));
+  if (importsVendor.length !== 1 || importsVendor[0] !== 'js/ui/qr-decode.js') {
+    errors.push(`The vendored file should be reached from js/ui/qr-decode.js and nowhere else; found: ${importsVendor.join(', ') || 'nothing'}.`);
+  }
+  need(decode, /if \(typeof jsQR !== 'function'\) throw/,
+    'A decoder that failed to load is allowed to pass silently, which reads at the dock as a camera that cannot see a code plainly in front of it.');
+
+  // ── Vendored, not fetched, and written down ────────────────────────────────
+  // Both ways somebody could reach for a CDN: an import inside the scanner, and a script
+  // tag on the page. The Supabase tag is the one third-party script this application has,
+  // and it is not what this is about, so this names decoders rather than hosts.
+  const pages = ['app/receiving.html', 'index.html'].filter(existsSync).map(read).join('\n');
+  forbid(scan + decode + recv + pages, /https?:\/\/[^\s'"]*(jsqr|qrcode|barcode|zxing|quagga)/i,
+    'The decoder is fetched from a CDN. That is a third party able to change what a receiver runs while accepting a load, which is the whole reason it is committed here instead.');
+  forbid(vendor, /\beval\(|new Function\(|XMLHttpRequest|fetch\(|WebSocket/,
+    'The vendored decoder calls out or evaluates code. It was committed on the basis that it is a pure function from pixels to a string.');
+  need(notes, /jsqr.*1\.4\.0|1\.4\.0/i, 'The vendored decoder\'s version is not written down, so nobody can tell what was copied.');
+  need(notes, /Apache-2\.0/, 'The vendored decoder\'s licence is not written down.');
+  const sha = createHash('sha256').update(readFileSync('js/vendor/jsQR.js')).digest('hex');
+  if (!notes.includes(sha)) {
+    errors.push(`js/vendor/README.md records a checksum that is not this file's. Either the file was changed without the note, or the note without the file. Actual SHA-256: ${sha}`);
+  }
+
+  // ── The reading loop, and the camera light ─────────────────────────────────
+  need(recv, /const reader = await createReader\(\)/, 'The receiving screen does not build a reader, so nothing decodes.');
+  need(recv, /setTimeout\(tick, 100\)/,
+    'The scan loop runs every animation frame. Reading pixels costs real time on a tablet, and sixty reads a second only heats the device.');
+  need(recv, /if \(state\.scanner\?\.stopped\) \{ stopScanner\(\); return; \}/,
+    'Nothing checks whether the page was left while the decoder was still being fetched, so the camera can be left on with nothing watching it.');
+  need(recv, /state\.scanner = \{ stream, stopped: false, timer: 0 \}[\s\S]{0,200}await video\.play\(\)/,
+    'The scanner is recorded after the awaits that follow it, so a press or a page change in between has no camera to stop.');
+  need(recv, /if \(state\.scanner\.timer\) globalThis\.clearTimeout/,
+    'Stopping the scanner leaves its next read scheduled.');
+  need(recv, /catch \(error\) \{\s*\n\s*stopScanner\(\);/,
+    'A camera that opened and then failed is not shut down, so the light stays on after an error.');
+}
+
+if (errors.length) {
+  console.error('QR scanning verification failed');
+  for (const error of errors) console.error(`- ${error}`);
+  process.exit(1);
+}
+
+console.log('QR scanning verification passed');

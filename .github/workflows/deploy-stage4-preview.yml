@@ -67,6 +67,9 @@ jobs:
       - name: Reading a settings section against editing one
         run: node scripts/verify-edit-mode.mjs
 
+      - name: Scanning a load in at the dock
+        run: node scripts/verify-qr-scan.mjs
+
   deploy-preview:
     runs-on: ubuntu-latest
     needs: verify
@@ -119,15 +122,15 @@ jobs:
           find site/stage4-preview -name '*.html' -print0 \
             | xargs -0 sed -i -E "s#(href=\"(\.\./)?assets/maxdock\.css)\"#\1?v=$v\"#g; s#(src=\"(\.\./)?js/[^\"]*\.js)\"#\1?v=$v\"#g"
           find site/stage4-preview/js -name '*.js' -print0 \
-            | xargs -0 sed -i -E "s#(from '\.\.?/[^']+\.js)'#\1?v=$v'#g; s#(import\('\.\.?/[^']+\.js)'#\1?v=$v'#g"
+            | xargs -0 sed -i -E "s#(from '\.\.?/[^']+\.js)'#\1?v=$v'#g; s#(import\('\.\.?/[^']+\.js)'#\1?v=$v'#g; s#(import '\.\.?/[^']+\.js)'#\1?v=$v'#g"
           # Proof rather than hope: every relative import must carry the stamp.
           if grep -rq 'supabase.min.js?v=' site/stage4-preview; then
             echo "Cache-busting must not touch the Supabase CDN tag." >&2
             exit 1
           fi
-          if grep -rqE "from '\.\.?/[^']+\.js'" site/stage4-preview/js; then
+          if grep -rqE "(from|import) '\.\.?/[^']+\.js'" site/stage4-preview/js; then
             echo "Cache-busting missed an import specifier:" >&2
-            grep -rnE "from '\.\.?/[^']+\.js'" site/stage4-preview/js >&2
+            grep -rnE "(from|import) '\.\.?/[^']+\.js'" site/stage4-preview/js >&2
             exit 1
           fi
 

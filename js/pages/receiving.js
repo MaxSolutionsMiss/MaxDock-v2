@@ -3,6 +3,7 @@ import { db } from '../db.js';
 import { toast } from '../ui/toast.js';
 import { pageHead } from '../ui/pagehead.js';
 import { format } from '../format.js';
+import { canScan, createReader } from '../ui/qr-scan.js';
 
 // Receiving.
 //
@@ -10,12 +11,15 @@ import { format } from '../format.js';
 // There are two ways in and both land here:
 //
 //   1. The phone's own camera app reads the code and opens this page with the
-//      token in the query string. Every phone can do this — no scanner library,
-//      and it is the only route that works on iOS, where the browser has no
-//      barcode API at all.
+//      token in the query string. Every phone can do this, with nothing loaded
+//      and no permission to grant, so it stays the route the printed code is
+//      built around.
 //   2. In-app scanning, for a receiver who would rather stay in MaxDock. This
-//      uses BarcodeDetector where the browser has it, and simply is not offered
-//      where it does not, rather than presenting a camera that cannot read.
+//      works on every browser that can open a camera, the iPad at the dock
+//      included. It used to be offered only where the browser had its own
+//      barcode API, which meant Android and almost nowhere else; the camera was
+//      never the missing part, only the decode, so that is the only part that
+//      falls back. See js/ui/qr-scan.js.
 //
 //   3. A typed booking number, for paperwork that will not scan. Everything past
 //      the lookup works from the appointment's id, so all three routes converge
@@ -45,7 +49,6 @@ const stepLabel = (step, direction) => (typeof step.label === 'function' ? step.
 
 const escapeHtml = value => String(value ?? '').replace(/[&<>'"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[char]));
 
-const hasScanner = () => typeof globalThis.BarcodeDetector === 'function';
 
 function tokenFromUrl() {
   const value = new URL(globalThis.location.href).searchParams.get('t');
@@ -98,9 +101,9 @@ function renderIdle(message = '') {
           <h3 class="card__title">Scan the code</h3>
           <p class="hint">Point your phone camera at the QR code on the driver's paperwork.</p>
           <span class="field__label recv__cap">QR code</span>
-          ${hasScanner()
+          ${canScan()
             ? '<div class="form-actions"><button class="btn btn--primary btn--block btn--jumbo" type="button" data-scan>Open the camera</button></div>'
-            : '<p class="hint hint--flush">This browser cannot scan inside the app. Use the phone’s own camera app on the code, and it will open MaxDock here.</p>'}
+            : '<p class="hint hint--flush">This browser cannot open a camera here. Use the phone’s own camera app on the code, and it will open MaxDock here.</p>'}
           <div class="recv__stage" data-stage hidden><video class="recv__video" data-video playsinline muted></video><div class="recv__frame" aria-hidden="true"></div></div>
         </div>
         <div class="recv__or"><span class="tag tag--quiet">or</span></div>
@@ -261,25 +264,37 @@ async function startScanner() {
   const stage = state.elements.host.querySelector('[data-stage]');
   const video = state.elements.host.querySelector('[data-video]');
   if (!stage || !video) return;
+  let stream = null;
   try {
-    const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+    // Claimed before the first await after it, so a second press or a page change while the
+    // decoder is still being fetched has something to stop and the camera cannot be left on.
+    state.scanner = { stream, stopped: false, timer: 0 };
     stage.hidden = false;
     video.srcObject = stream;
     await video.play();
-    const detector = new globalThis.BarcodeDetector({ formats: ['qr_code'] });
-    state.scanner = { stream, stopped: false };
+    // Where the browser has no detector this fetches the decoder, which is why it is here
+    // and not at the top of the file. By now the camera is already showing, so the wait
+    // happens behind a picture rather than behind a button that looks stuck.
+    const reader = await createReader();
+    if (state.scanner?.stopped) { stopScanner(); return; }
+    // Paced rather than run every frame. Reading pixels costs real time on a tablet, and a
+    // scan that lands within a tenth of a second of the code being in shot is instant to
+    // the person holding it; running sixty times a second would only heat the device.
     const tick = async () => {
       if (state.scanner?.stopped) return;
       try {
-        const found = await detector.detect(video);
-        const token = found.map(code => tokenFromScan(code.rawValue)).find(Boolean);
+        const token = tokenFromScan(await reader.read(video));
         if (token) { stopScanner(); await lookup(token); return; }
       } catch { /* a frame that cannot be read is not an error worth showing */ }
-      globalThis.requestAnimationFrame(tick);
+      if (state.scanner && !state.scanner.stopped) state.scanner.timer = globalThis.setTimeout(tick, 100);
     };
-    globalThis.requestAnimationFrame(tick);
+    tick();
   } catch (error) {
+    stopScanner();
+    if (stream) for (const track of stream.getTracks()) track.stop();
     stage.hidden = true;
+    video.srcObject = null;
     toast(error?.name === 'NotAllowedError' ? 'MaxDock needs camera access to scan.' : 'The camera could not be started.', 'error');
   }
 }
@@ -287,6 +302,7 @@ async function startScanner() {
 function stopScanner() {
   if (!state.scanner) return;
   state.scanner.stopped = true;
+  if (state.scanner.timer) globalThis.clearTimeout(state.scanner.timer);
   for (const track of state.scanner.stream.getTracks()) track.stop();
   state.scanner = null;
 }

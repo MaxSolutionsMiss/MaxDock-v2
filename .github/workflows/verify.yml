@@ -99,6 +99,9 @@ jobs:
       - name: Reading a settings section against editing one
         run: node scripts/verify-edit-mode.mjs
 
+      - name: Scanning a load in at the dock
+        run: node scripts/verify-qr-scan.mjs
+
   layout:
     runs-on: ubuntu-latest
     steps:
