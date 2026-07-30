@@ -220,12 +220,13 @@ Frame as **fit, not feature count**:
 | Booking, scheduling, board, queue, check-in, statuses, reports, roles | Working |
 | Duration engine, Max-to-Max routing, capacity, direction windows | Working, verified |
 | Labour roster + utilisation report, holidays, per-day caps | Built this week; set your real numbers before demoing |
-| **Combining** | Built and authorised, but **no merge has completed in this database yet.** Prove one before you demo it — it is slide 6, the strongest slide. |
-| **Truck fullness bar** | Needs skid capacity per truck type per site. Milton has them; **Mississauga is empty**, which is why the bar looks missing. |
+| **Combining** | Working, proven. `MXD-2026-000098` is combined onto `MXD-2026-000097` at Mississauga: one truck, 20 skids, 77% full, and it left both ends of the Max-to-Max run. Demo it from the **dock board** — open the block, then "Combine 2 loads to Milton". |
+| **Truck fullness bar** | Working at Milton and Mississauga. **Still empty at Bristol, Concord, Guelph, Markham, Owen Sound and Pickering** — do not demo fullness at those sites until the capacities are in. |
 | Notification **emails** | Not sending. Needs an email provider and a verified `maxpkgsolutions.com` sender. Notices are already being recorded with recipients, ready to flow. |
 | Bulk **appointment** import | Not built (user import is) |
 | Per-role rail visibility | Not built |
 | Demo data across all sites | Not populated |
 
-**Before the demo, in order:** prove one combine end-to-end → set Mississauga's
-truck capacities → enter real shift rosters → populate demo data per site.
+**Before the demo, in order:** ~~prove one combine end-to-end~~ (done) → ~~set
+Mississauga's truck capacities~~ (done) → enter real shift rosters → set the
+remaining six sites' truck capacities → populate demo data per site.
