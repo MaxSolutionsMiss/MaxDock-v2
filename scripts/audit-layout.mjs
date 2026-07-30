@@ -199,6 +199,16 @@ function collect(scope) {
     // A cell that deliberately truncates with an ellipsis and carries the full
     // text in its title is doing the right thing, not clipping by accident.
     if (!vis(el) || ((el.classList.contains('cell-elide') || el.classList.contains('cell-cap')) && el.title)) return;
+    // A single-line free-text field whose typed value is longer than the box is
+    // the browser scrolling inside it, which is what a text input does and what a
+    // caret is for. No width satisfies it — a 120-character note cannot fit a
+    // 390px phone — so the rule cannot be met there and does not apply.
+    //
+    // It still applies to everything with a bounded value: a number, a time, a
+    // date, a select, a table cell, a label. Those overflowing means the box is
+    // genuinely too narrow, which is the defect this rule exists to catch.
+    const freeText = el.tagName === 'INPUT' && ['text', 'search', 'email', 'tel', 'url', ''].includes((el.getAttribute('type') || '').toLowerCase());
+    if (freeText && el.value && el.value.length > 20) return;
     if (el.scrollWidth > el.clientWidth + 1) {
       out.clipped.push({ text: (el.textContent || el.value || '').trim().slice(0, 44), over: el.scrollWidth - el.clientWidth, sel: el.className });
     }
