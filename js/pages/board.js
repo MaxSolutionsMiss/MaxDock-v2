@@ -3,7 +3,7 @@ import { db } from '../db.js';
 import { createModal } from '../ui/modal.js';
 import { toast } from '../ui/toast.js';
 import { renderState } from '../ui/empty.js';
-import { pageHead, controlsBar } from '../ui/pagehead.js';
+import { pageHead, controlsBar, searchField } from '../ui/pagehead.js';
 import { createCustomizePanel } from '../ui/customize.js';
 import { openWall, paintWall } from '../ui/wall.js';
 import { renderTimeline, fitTimelineBlocks, watchTimelineFit, clockLabel } from '../ui/timeline.js';
@@ -263,7 +263,7 @@ function buildShell(root) {
       </div></div>`,
       filters: `<div class="ctrl-field"><label for="board-direction">Direction</label><select class="select" id="board-direction" data-filter-direction><option value="all">All movements</option><option value="inbound">Inbound</option><option value="outbound">Outbound</option></select></div>
       <div class="ctrl-field"><label for="board-status">Status</label><select class="select" id="board-status" data-filter-status><option value="all">All statuses</option><option value="scheduled">Scheduled</option><option value="arrived">Arrived</option><option value="complete">Complete</option><option value="cancelled">Cancelled</option></select></div>
-      <div class="ctrl-field"><label for="board-search">Search</label><input class="input" type="search" id="board-search" placeholder="Reference, company, PO" data-filter-search autocomplete="off"></div>`,
+      ${searchField({ id: 'board-search', placeholder: 'Reference, company, PO', attribute: 'data-filter-search' })}`,
       trailing: [['block', can('block.manage')], ['book', can('appointment.create')]],
     })}
     <section class="kpis" aria-label="Dock board summary" data-kpis></section>
@@ -663,6 +663,17 @@ function wireEvents(root) {
     if (!event.target.matches('[data-filter-search]')) return;
     state.filters.search = event.target.value;
     renderBoard();
+  });
+  // The magnifier inside the box. Filtering already happened as they typed, so this
+  // reads what is in the field and draws again — which is the right thing whether it
+  // is pressed after typing or on an empty box, and it hands the caret back either way.
+  root.addEventListener('click', event => {
+    if (!event.target.closest('[data-search-go]')) return;
+    const field = root.querySelector('[data-filter-search]');
+    if (!field) return;
+    state.filters.search = field.value;
+    renderBoard();
+    field.focus();
   });
   root.addEventListener('change', async event => {
     if (event.target.matches('[data-board-date]')) { state.date = event.target.value; patchData(await fetchBoardData()); }

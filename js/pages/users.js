@@ -3,7 +3,7 @@ import { db } from '../db.js';
 import { toast } from '../ui/toast.js';
 import { createModal } from '../ui/modal.js';
 import { renderState } from '../ui/empty.js';
-import { pageHead, controlsBar } from '../ui/pagehead.js';
+import { pageHead, controlsBar, searchField } from '../ui/pagehead.js';
 import { readSheet, toCsv, downloadFile } from '../ui/sheet.js';
 import { createRoleAccessDialog } from '../ui/role-access.js';
 import { format } from '../format.js';
@@ -737,7 +737,7 @@ function renderPeopleSection() {
       // every other page keeps its primary action.
       filters: `<div class="ctrl-field"><label for="user-role">Role</label><select class="select" id="user-role" data-role-filter></select></div>
       <div class="ctrl-field"><label for="user-location">Location</label><select class="select" id="user-location" data-location-filter></select></div>
-      <div class="ctrl-field"><label for="user-search">Search</label><input class="input" type="search" id="user-search" placeholder="Name, username or email" data-search></div>`,
+      ${searchField({ id: 'user-search', placeholder: 'Name, username or email', attribute: 'data-search' })}`,
       trailing: [['importUsers', canAdd], ['addUser', canAdd]],
     })}
     <div class="panel panel--fill">
@@ -940,6 +940,13 @@ function wireEvents(root) {
   });
 
   root.addEventListener('click', event => {
+    // The magnifier inside the search box. The list already filtered as they typed;
+    // this reads the field and draws again, then hands the caret back.
+    if (event.target.closest('[data-search-go]')) {
+      const field = root.querySelector('[data-search]');
+      if (field) { state.filters.search = field.value; renderTable(); field.focus(); }
+      return;
+    }
     const section = event.target.closest('[data-section]');
     if (section) { state.section = section.dataset.section; renderSection(); return; }
     const editRole = event.target.closest('[data-edit-role]');

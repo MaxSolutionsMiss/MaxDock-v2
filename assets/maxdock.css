@@ -170,9 +170,38 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 /* Label beside the control instead of above it, for bands that are a single
    line of their own — the whole row then shares one centre line. */
 .ctrl-field--inline{flex-direction:row;align-items:center;gap:var(--s2);min-width:0}
-/* The one field in a band that should take the slack — a search box has no
-   natural width, unlike a select sized to its longest option. */
-.ctrl-field--grow{flex:1 1 220px;min-width:180px;max-width:340px}
+/* A search box at a stated width rather than whatever the browser's default input
+   size works out to. 15.4em is the previous 203px plus the ten per cent asked for,
+   and stating it means the dock board band lays out the same at every text size
+   instead of drifting with the font metrics. */
+.ctrl-field--find{flex:0 0 auto;min-width:0}
+.searchbox{position:relative;display:flex;width:15.4em;max-width:100%}
+.searchbox .input{flex:1 1 auto;min-width:0;padding-right:calc(var(--ctl-h) + 4px)}
+/* Two glyphs in one corner otherwise: the browser draws its own clear × for a
+   type=search field, and it lands exactly where the magnifier is. */
+.searchbox .input::-webkit-search-cancel-button{-webkit-appearance:none;appearance:none}
+/* Inside the box, and two pixels shorter than it on every edge, so the field is
+   still exactly --ctl-h tall and nothing sticks out of it. Ruled off rather than
+   filled, so it reads as part of the field and not as a button parked beside one. */
+.searchbox__go{position:absolute;top:2px;right:2px;width:calc(var(--ctl-h) - 4px);height:calc(var(--ctl-h) - 4px);
+  display:grid;place-items:center;border:none;border-left:1px solid var(--rule);background:none;color:var(--ink-muted);
+  border-radius:0 3px 3px 0;cursor:pointer}
+.searchbox__go svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round}
+.searchbox__go:hover{color:var(--dock-deep);background:var(--dock-wash)}
+.searchbox .input:focus-visible+.searchbox__go{border-left-color:var(--dock)}
+/* A list of ticks behind a control shaped exactly like the selects beside it, for the
+   places one answer is not enough — which sites a report covers. The button carries
+   .select for its border, height and arrow, so the band keeps one control height.
+   Absolute rather than a popover element: it has to sit inside a controls band that
+   already scrolls and wraps, and anchor positioning is not yet safe to rely on. */
+.multipick{position:relative;display:flex}
+.multipick__btn{text-align:left;cursor:pointer;min-width:11em;max-width:16em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.multipick__menu{position:absolute;top:calc(100% + 4px);left:0;z-index:30;min-width:100%;width:max-content;max-width:min(20em,80vw);
+  max-height:min(52vh,380px);overflow:auto;display:grid;gap:1px;padding:var(--s2);
+  background:var(--surface);border:1px solid var(--rule-strong);border-radius:var(--radius);box-shadow:var(--shadow-overlay)}
+.multipick__menu .dock-check{padding:0 var(--s2);border-radius:var(--radius)}
+.multipick__menu .dock-check:hover{background:var(--surface-sunk)}
+.multipick__rule{height:1px;background:var(--rule);margin:3px 0}
 /* Controls at their own width on one line, bottom aligned — for the places a
    grid column would only stretch a button across half a page. */
 .inline-controls{display:flex;flex-wrap:wrap;align-items:end;gap:var(--s3)}
@@ -183,11 +212,41 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
    halves only get air on their outer edge, with the divider hard against them. On
    the halves, every section stands in the same half inch of white whichever side
    of the rule it is on. */
-.recv__panel{display:grid;grid-template-columns:1fr auto 1fr;gap:0;padding:0}
+/* Five shared rows — mark, heading, words, the control, the action — and each half
+   lays its children into them with `subgrid`, so the two sides line up by construction
+   rather than by luck. Two separate grids could not: the right half has a labelled
+   field where the left has a button, the headings wrap differently at different widths,
+   and Open the camera drifted a few pixels off the booking-number box at every size.
+   With subgrid every row is as tall as the taller side, and Open the camera sits on
+   exactly the row the booking-number field does. A browser without subgrid ignores the
+   declaration and gets today's auto rows, which is a stack that still reads correctly. */
+.recv__panel{display:grid;grid-template-columns:1fr auto 1fr;grid-template-rows:auto auto auto auto auto auto;gap:0;padding:0}
+/* Six rows, and the fourth and fifth are the reason there are six: a control's caption
+   and the control itself are separate rows, so "Booking number" sits in row four and the
+   box it labels sits in row five — and Open the camera can be put in row five as well.
+   That is the alignment asked for: the button's top edge is the input's top edge, not
+   the top edge of the caption above it. The field passes the two rows down to its own
+   label and input with a nested subgrid, because they are its children, not the box's. */
+/* Row four is the caption and row five is the control, on both sides — which is why
+   each half now names what it wants ("QR code", "Booking number") instead of one of them
+   having a caption and the other going straight from prose to a button. Open the camera
+   and the booking-number box are both row five, so their top edges are the same edge by
+   construction and stay that way at every width and text size.
+   The caption cannot be a wrapping <label> around the input, as fields elsewhere are: a
+   subgrid only shares rows with its own children, and margins on a subgrid item inset the
+   tracks it inherited. A <label for> beside the input is two grid items, and two grid
+   items is what two rows need. */
+.recv__box--scan .recv__stage{grid-row:6}
+.recv__box--type .form-actions{grid-row:6}
+/* Top of the row, not the middle of it. Row five is as tall as the jumbo input, and a
+   36px button centred in it landed halfway down — which is what the drift was. */
+.recv__box .form-actions{align-self:start}
+.recv__box--type .input{width:100%}
 /* Each half is a card in its own right — a tinted mark, a heading, the words, the
    control — so a receiver holding a phone under a dock light can tell the two
    apart before reading either. */
-.recv__box{display:grid;gap:var(--s2);align-content:start;justify-items:start;min-width:0;padding:var(--s6)}
+.recv__box{display:grid;grid-row:1/-1;grid-template-rows:subgrid;gap:var(--s2);align-content:start;justify-items:start;min-width:0;padding:var(--s6)}
+.recv__or{grid-row:1/-1}
 /* The panel's halves are grid cells, not a stack: the card's own vertical rhythm
    would push the second heading a row's air below the first. */
 .recv .recv__panel>*+*{margin-top:0}
@@ -195,10 +254,31 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 .recv__mark{width:60px;height:60px;border-radius:var(--radius-lg);background:var(--dock-wash);display:grid;place-items:center;margin-bottom:var(--s3)}
 .recv__box .card__title{font-size:var(--t-lead)}
 .recv__box .form-actions,.recv__box .field{width:100%;margin-top:var(--s3)}
+.recv__cap{grid-row:4;align-self:end}
+.recv__box--scan .form-actions,.recv__box--type .input{grid-row:5;margin-top:0}
+/* Twice the height and twice the text of every other control, and the one place in
+   MaxDock that is exempt from the single control height on purpose. This is typed by a
+   receiver standing at a dock with gloves on, often one-handed, reading a number off a
+   sheet of paper in bad light — the field where a mis-key costs the most is the field
+   that should be hardest to mis-key. Centred and spaced out in the data face, because
+   MXD-2026-000071 is a code being copied, not a sentence being written. */
+.input--jumbo{min-height:calc(var(--ctl-h)*2);height:calc(var(--ctl-h)*2);font-family:var(--font-data);font-size:calc(var(--t-base)*2);
+  font-weight:600;letter-spacing:.03em;text-align:center;padding:0 var(--s3)}
+/* And Open the camera stands the same height as the box across from it. Top alignment
+   alone left a 36px button beside a 72px field, which lines up on one edge and looks
+   wrong on the other three — and the argument for the big field is the argument for the
+   big button: this is the one screen used one-handed, at a dock, wearing gloves. */
+.btn--jumbo{min-height:calc(var(--ctl-h)*2);font-size:var(--t-lead)}
 .recv__or{display:grid;grid-template-rows:1fr auto 1fr;justify-items:center;gap:var(--s3);padding:var(--s6) 0}
 .recv__or::before,.recv__or::after{content:"";width:1px;background:var(--rule)}
 @media (max-width:720px){
-  .recv__panel{grid-template-columns:minmax(0,1fr)}
+  /* Stacked, so the shared rows have to go with the shared columns — both halves span
+     every row, and in one column that would lay the second on top of the first. */
+  .recv__panel{grid-template-columns:minmax(0,1fr);grid-template-rows:none}
+  .recv__box{grid-row:auto;grid-template-rows:none}
+  .recv__cap,.recv__box--scan .form-actions,.recv__box--type .input,
+  .recv__box--scan .recv__stage,.recv__box--type .form-actions{grid-row:auto}
+  .recv__or{grid-row:auto}
   .recv__box{padding:var(--s5)}
   .recv__or{grid-template-rows:none;grid-template-columns:1fr auto 1fr;align-items:center;width:100%;padding:0 var(--s5)}
   .recv__or::before,.recv__or::after{width:auto;height:1px}
@@ -381,7 +461,6 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 .table td.cell-wrap2{white-space:normal;overflow:hidden;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;line-clamp:2;line-height:1.3}
 /* The figures under a date: quieter, tighter, and one line of their own. They
    qualify the line above rather than competing with it. */
-.cell-fine{display:block;font-size:var(--t-micro);color:var(--ink-faint);white-space:nowrap;line-height:1.3}
 /* A row that opens. Closed it carries the four things somebody scanning a list
    wants — who, what they sign in as, what they are, whether they are on — and the
    rest is a click away under it. Everything on one line made the row as wide as
@@ -654,9 +733,17 @@ html[data-text="larger"] .frow>.field--md:not(.field-action){grid-column:span 5}
 .trend__col .trend__bar:last-child{border-radius:0 0 2px 2px}
 .trend__col .trend__bar:only-child{border-radius:2px 2px 0 0}
 .trend__axis{display:flex;justify-content:space-between;gap:var(--s2);font-size:var(--t-micro);color:var(--ink-faint);white-space:nowrap;font-variant-numeric:tabular-nums}
-.setlayout{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:var(--s4);align-items:start}
+/* One width, not each menu's own. max-content sized this column to its longest
+   label, so the nine-item Settings menu stood 225px wide and the two-item Users
+   menu 127px — the same component in two sizes, which is what made the second one
+   look like a different thing bolted on. 15.5em is the widest label the product
+   has ("Booking window & notice") with its padding, in em so it grows with the
+   text-size setting rather than clipping at 1.32×. */
+.setlayout{display:grid;grid-template-columns:15.5em minmax(0,1fr);gap:var(--s4);align-items:start}
 .setnav{display:flex;flex-direction:column;gap:2px;background:var(--surface);border:1px solid var(--rule);border-radius:var(--radius-lg);padding:var(--s2);align-self:start}
-.setnav button{font-family:inherit;text-align:left;font-size:var(--t-base);color:var(--ink-muted);background:none;border:none;border-radius:var(--radius);padding:8px var(--s3);cursor:pointer;white-space:nowrap}
+/* Ellipsis rather than clip, so a label longer than any of today's degrades legibly
+   instead of being cut mid-word. */
+.setnav button{font-family:inherit;text-align:left;font-size:var(--t-base);color:var(--ink-muted);background:none;border:none;border-radius:var(--radius);padding:8px var(--s3);cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-height:32px}
 .setnav button:hover{background:var(--surface-sunk);color:var(--ink)}
 .setnav button[aria-current="true"]{background:var(--dock-wash);color:var(--dock-deep);font-weight:600}
 .setpanel{min-width:0;max-width:1040px}
@@ -903,7 +990,6 @@ html[data-text="larger"] .frow>.field--md:not(.field-action){grid-column:span 5}
 .pickgroup{--check-col:180px;border:none;padding:0;margin:0}
 /* One load per line: a reference, a time and a skid count do not fit in the
    column width a truck type does, and the tail is the part being judged. */
-.pickgroup--wide{--check-col:100%}
 /* A group heading has to sit nearer the boxes it names than the group above it.
    Equal air either side of the rule left "Appointment block" reading as the tail
    of the metric cards. */

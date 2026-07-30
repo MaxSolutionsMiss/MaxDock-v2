@@ -5,6 +5,7 @@ import { renderState } from '../ui/empty.js';
 import { pageHead, controlsBar } from '../ui/pagehead.js';
 import { createCustomizePanel } from '../ui/customize.js';
 import { format } from '../format.js';
+import { mergeContext, mergeScorecard, mergeFullness, mergeLabour } from '../reports-merge.js';
 
 const VIEWS = [
   { id: 'overview', label: 'Overview' },
@@ -26,10 +27,16 @@ const PRESETS = [
 
 const state = {
   context: null,
-  // The site this page is reporting on. It starts as the one in the top bar and then
-  // belongs to this page: a report is something you read *about* a site, not a site you
-  // are working at, and reading Guelph's scorecard should not move the dock board.
-  locationId: null,
+  // The sites this page is reporting on — a list, because the questions worth asking
+  // are rarely about exactly one place. "How full are our trailers" is a company
+  // question; "did Milton clear its backlog" is a site question; "how are the two US
+  // plants doing between them" is neither, and every one of those is a different set of
+  // ticks in the same picker.
+  //
+  // It starts as the site in the top bar and then belongs to this page: a report is
+  // something you read *about* a site, not a site you are working at, so changing it
+  // must not move the dock board.
+  locationIds: [],
   view: 'overview',
   preset: 'last30',
   from: '',
@@ -40,6 +47,7 @@ const state = {
   labour: [],
   elements: {},
   customizePanel: null,
+  siteMenu: null,
   visibleCards: [],
 };
 
@@ -63,12 +71,26 @@ function applyPreset(presetId) {
   else if (presetId === 'month') { state.from = `${today.slice(0, 7)}-01`; state.to = today; }
 }
 
+// Every report RPC answers for one site, because permission is decided per site. So
+// each is asked once per chosen site and the answers are totalled — see
+// js/reports-merge.js, which recomputes every rate rather than averaging it.
+//
+// One site is the overwhelmingly common case and takes exactly the one call it always
+// did; the merge functions hand a single answer straight back untouched.
+function fanOut(name, args, keyPrefix, options = {}) {
+  return Promise.all(state.locationIds.map(id => db.rpc(name, { ...args(id) }, {
+    key: `${keyPrefix}:${id}:${state.from}:${state.to}`,
+    cache: 60000,
+    retry: 1,
+    ...options,
+  })));
+}
+
 async function fetchReport() {
-  return db.rpc('get_ai_operations_context', {
-    p_location_id: state.locationId,
-    p_start_date: state.from,
-    p_end_date: state.to,
-  }, { key: `reports:${state.locationId}:${state.from}:${state.to}`, cache: 60000, retry: 1, userMessage: 'The report data could not be loaded.' });
+  const parts = await fanOut('get_ai_operations_context',
+    id => ({ p_location_id: id, p_start_date: state.from, p_end_date: state.to }),
+    'reports', { userMessage: 'The report data could not be loaded.' });
+  return mergeContext(parts);
 }
 
 const KPI_CARDS = [
@@ -126,9 +148,18 @@ function trendStrip(byDay) {
 // Dates are read by people here, not by the API. Never print the ISO string.
 const dayLabel = value => format.shortDateInput(value, state.context?.location);
 const rangeLabel = () => `${format.shortDateInput(state.from, state.context?.location)} – ${format.shortDateInput(state.to, state.context?.location)}`;
-// Which site, in words. On a printed report the range alone does not say whose figures
-// these are, and the picker is not on the paper.
-const siteName = () => (state.context?.locations || []).find(site => site.id === state.locationId)?.name || state.context?.location?.name || '';
+// Which sites, in words. On a printed report the range alone does not say whose figures
+// these are, and the picker is not on the paper — so the selection is spelled out down
+// to four names and only becomes a count past that, because "7 sites" on a sheet of
+// paper is not something a reader can check.
+const allSites = () => state.context?.locations || [];
+function siteName() {
+  const chosen = allSites().filter(site => state.locationIds.includes(site.id));
+  if (!chosen.length) return state.context?.location?.name || '';
+  if (chosen.length === allSites().length && chosen.length > 1) return `All ${chosen.length} sites`;
+  if (chosen.length <= 4) return chosen.map(site => site.name).join(', ');
+  return `${chosen.length} sites`;
+}
 const siteRange = () => `${siteName()} · ${rangeLabel()}`;
 
 // ── Three shapes, each for one job ────────────────────────────────────────────
@@ -503,24 +534,18 @@ async function reload() {
     // report down with it.
     const [data, scorecard, fullness, labour] = await Promise.all([
       fetchReport(),
-      db.rpc('get_partner_scorecard', {
-        p_location_id: state.locationId,
-        p_start_date: state.from,
-        p_end_date: state.to,
-      }, { key: `reports:scorecard:${state.locationId}:${state.from}:${state.to}`, cache: 60000, retry: 1 }).catch(() => []),
-      db.rpc('get_truck_fullness_scorecard', {
-        p_location_id: state.locationId,
-        p_start_date: state.from,
-        p_end_date: state.to,
-      }, { key: `reports:fullness:${state.locationId}:${state.from}:${state.to}`, cache: 60000, retry: 1 }).catch(() => []),
+      fanOut('get_partner_scorecard',
+        id => ({ p_location_id: id, p_start_date: state.from, p_end_date: state.to }),
+        'reports:scorecard').then(mergeScorecard).catch(() => []),
+      fanOut('get_truck_fullness_scorecard',
+        id => ({ p_location_id: id, p_start_date: state.from, p_end_date: state.to }),
+        'reports:fullness').then(mergeFullness).catch(() => []),
       // Only asked for by an account allowed to see it. The RPC refuses anyone
       // else anyway, but a report nobody may read is not a request worth making.
       state.context.can('reports.view_labour')
-        ? db.rpc('get_labour_utilization', {
-          p_location_id: state.locationId,
-          p_from: state.from,
-          p_to: state.to,
-        }, { key: `reports:labour:${state.locationId}:${state.from}:${state.to}`, cache: 60000, retry: 1 }).catch(() => [])
+        ? fanOut('get_labour_utilization',
+          id => ({ p_location_id: id, p_from: state.from, p_to: state.to }),
+          'reports:labour').then(mergeLabour).catch(() => [])
         : Promise.resolve([]),
     ]);
     state.data = data;
@@ -544,7 +569,88 @@ function syncControls() {
   const custom = state.preset === 'custom';
   state.elements.from.disabled = !custom;
   state.elements.to.disabled = !custom;
-  state.elements.subtitle.textContent = `${state.context.location.name} · ${rangeLabel()}`;
+  // The page's own subtitle says which sites, not which site the top bar is on.
+  state.elements.subtitle.textContent = siteRange();
+  state.siteMenu?.sync?.();
+}
+
+// A select can only hold one answer, so this is a button that opens a list of ticks.
+// The button carries .select so it is the same height, border and arrow as the three
+// controls beside it — one control height across the band, whatever is behind it.
+//
+// The report is not refetched on every tick. Twelve sites means twelve ticks and would
+// mean up to forty-eight round trips; it reloads once, when the list closes, and only
+// if the selection actually changed.
+function sitePicker() {
+  const sites = allSites();
+  const all = sites.length > 1 && state.locationIds.length === sites.length;
+  return `<div class="multipick" data-sites>
+    <button class="select multipick__btn" type="button" id="report-sites" data-sites-toggle aria-expanded="false" aria-haspopup="true">
+      <span data-sites-summary>${escapeHtml(siteName())}</span>
+    </button>
+    <div class="multipick__menu" data-sites-menu hidden>
+      ${sites.length > 1 ? `<label class="dock-check"><input type="checkbox" data-sites-all ${all ? 'checked' : ''}><span><b>All sites</b></span></label>
+      <div class="multipick__rule"></div>` : ''}
+      ${sites.map(site => `<label class="dock-check"><input type="checkbox" data-site-id="${escapeHtml(site.id)}" ${state.locationIds.includes(site.id) ? 'checked' : ''}><span>${escapeHtml(site.name)}</span></label>`).join('')}
+    </div>
+  </div>`;
+}
+
+// The list is open, a tick changed, or somebody clicked away. One place, so the button
+// text and the report can never disagree about what is selected.
+function siteMenu(root) {
+  const host = root.querySelector('[data-sites]');
+  const menu = root.querySelector('[data-sites-menu]');
+  const toggle = root.querySelector('[data-sites-toggle]');
+  const summary = root.querySelector('[data-sites-summary]');
+  if (!host) return { close: () => {} };
+  let openedWith = '';
+
+  const sync = () => {
+    const sites = allSites();
+    summary.textContent = siteName();
+    const all = root.querySelector('[data-sites-all]');
+    if (all) all.checked = sites.length > 1 && state.locationIds.length === sites.length;
+    for (const box of menu.querySelectorAll('[data-site-id]')) box.checked = state.locationIds.includes(box.dataset.siteId);
+  };
+
+  function close() {
+    if (menu.hidden) return;
+    menu.hidden = true;
+    toggle.setAttribute('aria-expanded', 'false');
+    // Only if it changed. Closing a list you opened and left alone should cost nothing.
+    if (state.locationIds.join(',') !== openedWith) { syncControls(); reload(); }
+  }
+
+  function open() {
+    openedWith = state.locationIds.join(',');
+    menu.hidden = false;
+    toggle.setAttribute('aria-expanded', 'true');
+  }
+
+  toggle.addEventListener('click', () => (menu.hidden ? open() : close()));
+  menu.addEventListener('change', event => {
+    const all = event.target.closest('[data-sites-all]');
+    if (all) {
+      state.locationIds = all.checked ? allSites().map(site => site.id) : [allSites()[0]?.id].filter(Boolean);
+      sync();
+      return;
+    }
+    const box = event.target.closest('[data-site-id]');
+    if (!box) return;
+    const id = box.dataset.siteId;
+    const next = box.checked ? [...new Set([...state.locationIds, id])] : state.locationIds.filter(other => other !== id);
+    // A report of no sites has nothing to say and no name to print, so the last tick
+    // cannot come off. Untick it and it goes straight back on.
+    if (!next.length) { sync(); return; }
+    // Kept in the order the sites are listed, not the order they were ticked, so the
+    // label reads the same however somebody arrived at the same selection.
+    state.locationIds = allSites().map(site => site.id).filter(siteId => next.includes(siteId));
+    sync();
+  });
+  document.addEventListener('click', event => { if (!host.contains(event.target)) close(); });
+  menu.addEventListener('keydown', event => { if (event.key === 'Escape') { close(); toggle.focus(); } });
+  return { close, sync };
 }
 
 function buildShell(root) {
@@ -552,7 +658,7 @@ function buildShell(root) {
     ${pageHead('Reports', { actions: ['export', 'print', 'customize'] })}
     ${controlsBar({
       label: 'Report controls',
-      filters: `<div class="ctrl-field"><label for="report-site">Site</label><select class="select" id="report-site" data-site>${(state.context.locations || []).map(site => `<option value="${site.id}" ${site.id === state.locationId ? 'selected' : ''}>${escapeHtml(site.name)}</option>`).join('')}</select></div>
+      filters: `<div class="ctrl-field"><label for="report-sites">Sites</label>${sitePicker()}</div>
       <div class="ctrl-field"><label for="report-view">View</label><select class="select" id="report-view" data-view>${VIEWS.filter(view => !view.permission || state.context.can(view.permission)).map(view => `<option value="${view.id}">${view.label}</option>`).join('')}</select></div>
       <div class="ctrl-field"><label for="report-preset">Range</label><select class="select" id="report-preset" data-preset>${PRESETS.map(preset => `<option value="${preset.id}">${preset.label}</option>`).join('')}</select></div>
       <div class="ctrl-field"><label for="report-from">From</label><input class="input input--date" type="date" id="report-from" data-from></div>
@@ -564,7 +670,7 @@ function buildShell(root) {
   state.elements = {
     root,
     subtitle: root.querySelector('[data-subtitle]'),
-    site: root.querySelector('[data-site]'),
+    sites: root.querySelector('[data-sites]'),
     view: root.querySelector('[data-view]'),
     preset: root.querySelector('[data-preset]'),
     from: root.querySelector('[data-from]'),
@@ -593,7 +699,6 @@ function wireEvents(root) {
   root.addEventListener('change', event => {
     // Changing the site reloads this page's figures and nothing else: the rest of the
     // application stays where the person left it.
-    if (event.target.matches('[data-site]')) { state.locationId = event.target.value; reload(); return; }
     if (event.target.matches('[data-view]')) { state.view = event.target.value; renderView(); }
     if (event.target.matches('[data-preset]')) {
       applyPreset(event.target.value);
@@ -608,9 +713,10 @@ const page = {
   permission: 'reports.view',
   async mount(context) {
     state.context = context;
-    state.locationId = context.location.id;
+    state.locationIds = [context.location.id];
     document.title = `Reports · ${context.location.name} · MaxDock`;
     buildShell(context.pageRoot);
+    state.siteMenu = siteMenu(context.pageRoot);
     wireEvents(context.pageRoot);
     state.customizePanel = await createCustomizePanel({
       preferenceKey: 'report-cards',

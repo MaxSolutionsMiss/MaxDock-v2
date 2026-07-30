@@ -10,6 +10,7 @@ const ICONS = {
   move: '<circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 2"></path>',
   edit: '<path d="M4 20h4L19 9a2.1 2.1 0 0 0-3-3L5 17v3z"></path><path d="M14.5 6.5 17.5 9.5"></path>',
   cancel: '<circle cx="12" cy="12" r="9"></circle><path d="M5.6 5.6 18.4 18.4"></path>',
+  search: '<circle cx="10.5" cy="10.5" r="6.5"></circle><path d="M15.5 15.5 21 21"></path>',
 };
 
 // The same glyphs, for the row-level actions a page draws itself. Rendered into a
@@ -33,6 +34,27 @@ const ACTIONS = {
   fullscreen: { icon: 'fullscreen', attribute: 'data-fullscreen', label: 'Full screen', title: 'Full screen — opens the wall display' },
   customize: { icon: 'customize', attribute: 'data-customize', label: 'Customize this page', iconOnly: true },
 };
+
+// A search box, the same one on every page that has one.
+//
+// The magnifier is *inside* the box — sat on top of the field at two pixels' inset,
+// so it is a hair shorter than the field rather than taller, and the row's single
+// control height is untouched. It is not decoration: filtering is live as you type,
+// and the button is the affordance that says so and the thing a person reaches for
+// when they have finished typing and want to be sure. It runs the filter and leaves
+// the caret where it was.
+//
+// The browser's own clear × for type=search is turned off in the stylesheet, or a
+// phone draws two glyphs in the same corner.
+export function searchField({ id, label = 'Search', placeholder = '', attribute }) {
+  return `<div class="ctrl-field ctrl-field--find">
+    <label for="${escapeHtml(id)}">${escapeHtml(label)}</label>
+    <div class="searchbox">
+      <input class="input" type="search" id="${escapeHtml(id)}" placeholder="${escapeHtml(placeholder)}" ${attribute} autocomplete="off">
+      <button class="searchbox__go" type="button" data-search-go="${escapeHtml(id)}" aria-label="${escapeHtml(label)}" title="${escapeHtml(label)}">${icon('search')}</button>
+    </div>
+  </div>`;
+}
 
 const LEAD_ORDER = ['block', 'importUsers', 'addUser', 'book'];
 const END_ORDER = ['export', 'print', 'fullscreen', 'customize'];

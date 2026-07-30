@@ -258,12 +258,22 @@ function collect(scope) {
 
   // One control height everywhere. The owner's first rule of consistency: every
   // button, select and single-line input is exactly --ctl-h tall on every page,
-  // in every dialog, for every role. The wall display is exempt — it scales its
-  // whole type ramp to the screen it is broadcast on.
+  // in every dialog, for every role.
+  //
+  // Two exemptions, both deliberate and both about a screen being read at a distance
+  // rather than at a desk. The wall display scales its whole type ramp to the screen
+  // it is broadcast on. And .input--jumbo is the booking-number box on Receiving,
+  // which the owner asked to be twice the height and twice the text: it is typed by a
+  // receiver standing at a dock with gloves on and a phone in the other hand, and a
+  // 36px box was the wrong size for the one field on that screen that matters. An
+  // exemption named for its suffix, so a third one has to be argued for the same way.
+  // The camera button beside it carries .btn--jumbo for the same reason and is exempt on
+  // the same grounds: the two controls on that screen are a matched pair.
   const ctlH = Math.round(parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--ctl-h')) || 0);
   if (ctlH) {
     root.querySelectorAll('.btn,.select,.input,.seg button,.iconbtn,.notif__btn,.linkBtn,.modal__x').forEach(el => {
       if (!vis(el) || el.closest('.wall') || el.tagName === 'TEXTAREA') return;
+      if (/--jumbo/.test(el.className)) return;
       const h = Math.round(el.getBoundingClientRect().height);
       if (Math.abs(h - ctlH) > 1) {
         out.ctlHeights.push({ h, want: ctlH, text: (el.textContent || el.getAttribute('aria-label') || el.value || el.type || '').trim().slice(0, 28), sel: el.className });
