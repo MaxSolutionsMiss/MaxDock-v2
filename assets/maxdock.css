@@ -349,6 +349,19 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 .viewhead__t{min-width:0}
 .viewhead__t h2{margin:0;font-size:var(--t-title);font-weight:600;line-height:1.15}
 .viewhead__t p{margin:1px 0 0;font-size:var(--t-small);color:var(--ink-muted)}
+/* The paperwork on an appointment. A row per document: what kind it is, what it is called and
+   how big, and the two things anybody wants to do with it. Deliberately plain — a thumbnail of
+   a PDF is a lot of work to say what the file name already says. */
+.doclist{list-style:none;margin:0;padding:0;display:grid;gap:2px}
+.docrow{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:var(--s3);padding:var(--s2) var(--s2);border-radius:var(--radius)}
+.docrow:hover{background:var(--surface-sunk)}
+.docrow__k{width:26px;height:32px;border-radius:3px;border:1px solid var(--rule-strong);background:var(--surface);flex:none;position:relative}
+.docrow__k::after{content:"";position:absolute;left:4px;right:4px;top:8px;height:2px;background:var(--ink-faint);box-shadow:0 5px 0 var(--ink-faint),0 10px 0 var(--ink-faint)}
+.docrow__k--pdf{border-color:var(--stop)} .docrow__k--image{border-color:var(--dock)} .docrow__k--sheet{border-color:var(--ok)}
+.docrow__n{min-width:0;display:grid;gap:1px}
+.docrow__n b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}
+.docrow__n span{font-size:var(--t-micro);color:var(--ink-muted)}
+.docrow__a{display:flex;gap:var(--s2);flex:none}
 /* The customize control belongs to the cards, so it sits at the end of their row
    at their height, not in the page header where nothing said what it applied to.
    Its own narrow column, shared by the panels below, so the side column still

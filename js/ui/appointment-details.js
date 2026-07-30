@@ -19,6 +19,28 @@ import { renderQr } from './qr.js';
 
 const escapeHtml = value => String(value ?? '').replace(/[&<>'"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[char]));
 
+// Four megabytes, said once. The bucket enforces the same number, because a limit only
+// checked in a browser is a limit anybody with a fetch call can ignore — this one is here so
+// a person picking a 30 MB photo is told before they wait for the upload to fail.
+const MAX_MB = 4;
+const MAX_BYTES = MAX_MB * 1024 * 1024;
+const BUCKET = 'appointment-documents';
+
+const fileSize = bytes => (bytes >= 1024 * 1024
+  ? `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+  : `${Math.max(1, Math.round(bytes / 1024))} KB`);
+
+// A mark for what kind of file it is, so a list of eight documents can be skimmed. Not a
+// preview: a PDF thumbnail in a dialog is a lot of work to tell somebody something the file
+// name already says.
+const fileKind = (mime, name) => {
+  const lower = String(name || '').toLowerCase();
+  if (/^image\//.test(mime || '') || /\.(jpe?g|png|heic|webp|gif)$/.test(lower)) return 'image';
+  if ((mime || '').includes('pdf') || lower.endsWith('.pdf')) return 'pdf';
+  if (/\.(xlsx?|csv)$/.test(lower)) return 'sheet';
+  return 'file';
+};
+
 function cell(label, value) {
   return `<div class="confirmgrid__cell"><span class="confirmgrid__l">${escapeHtml(label)}</span><span class="confirmgrid__v">${escapeHtml(value ?? '—')}</span></div>`;
 }
@@ -49,6 +71,14 @@ export function createAppointmentDetails({ location, onEdit, laneFor, onCombine 
           <div class="qr-frame" data-qr></div>
           <div><h3 class="watch__t">Check-in code</h3><p class="hint hint--flush" data-qr-note></p></div>
         </div>
+        <h3 class="watch__t section-gap">Documents</h3>
+        <p class="hint hint--flush hint--wide">The paperwork that belongs to this load — a bill of lading, a PO, a packing slip, a photo of a damaged skid. Up to ${MAX_MB} MB each, as many as the load needs. Combining loads brings their documents onto the surviving truck.</p>
+        <div data-docs></div>
+        <div class="form-actions">
+          <label class="field field--lg"><span class="field__label">Add a document</span><input class="input" type="file" data-doc-file accept=".pdf,.jpg,.jpeg,.png,.heic,.webp,.csv,.xlsx,.doc,.docx,.txt"></label>
+          <button class="btn btn--quiet" type="button" data-doc-upload>Upload</button>
+        </div>
+        <p class="form-message" data-doc-message aria-live="polite"></p>
         <h3 class="watch__t section-gap">Activity</h3>
         <div data-log></div>
       </div>
@@ -66,6 +96,10 @@ export function createAppointmentDetails({ location, onEdit, laneFor, onCombine 
     checkin: backdrop.querySelector('[data-checkin]'),
     qr: backdrop.querySelector('[data-qr]'),
     qrNote: backdrop.querySelector('[data-qr-note]'),
+    docs: backdrop.querySelector('[data-docs]'),
+    docFile: backdrop.querySelector('[data-doc-file]'),
+    docUpload: backdrop.querySelector('[data-doc-upload]'),
+    docMessage: backdrop.querySelector('[data-doc-message]'),
   };
   let current = null;
   let currentLane = null;
@@ -73,7 +107,12 @@ export function createAppointmentDetails({ location, onEdit, laneFor, onCombine 
   backdrop.addEventListener('click', event => {
     if (event.target.closest('[data-close]')) { modal.close(); return; }
     if (event.target.closest('[data-edit]') && current) { modal.close(); onEdit?.(current); return; }
-    if (event.target.closest('[data-combine]') && currentLane) { modal.close(); onCombine?.(currentLane, current); }
+    if (event.target.closest('[data-combine]') && currentLane) { modal.close(); onCombine?.(currentLane, current); return; }
+    if (event.target.closest('[data-doc-upload]')) { uploadDocument(); return; }
+    const view = event.target.closest('[data-doc-open]');
+    if (view) { openDocument(view.dataset.docOpen); return; }
+    const drop = event.target.closest('[data-doc-remove]');
+    if (drop) { removeDocument(drop.dataset.docRemove, drop.dataset.docPath); }
   });
 
   function renderLog(entries) {
@@ -128,9 +167,13 @@ export function createAppointmentDetails({ location, onEdit, laneFor, onCombine 
       cell('First scanned', record.checked_in_at ? format.timestamp(record.checked_in_at, site) : 'Not scanned yet'),
     ].join('');
     els.log.innerHTML = '<p class="hint">Loading activity…</p>';
+    els.docs.innerHTML = '<p class="hint">Loading documents…</p>';
+    els.docMessage.textContent = '';
+    if (els.docFile) els.docFile.value = '';
     els.checkin.hidden = true;
     modal.open({ trigger });
     renderCheckIn(record, site);
+    loadDocuments(record);
 
     try {
       const rows = await db.rpc('get_appointment_history', { p_appointment_id: record.id || record.appointment_id }, {
@@ -141,6 +184,117 @@ export function createAppointmentDetails({ location, onEdit, laneFor, onCombine 
       // Reading history needs audit.view, which not every role holds. That is a
       // permission, not a fault, and the details above are still worth showing.
       els.log.innerHTML = `<p class="hint">${escapeHtml(error.userMessage || 'The activity log is not available for your account.')}</p>`;
+    }
+  }
+
+  // ── Documents ───────────────────────────────────────────────────────────────
+  //
+  // Read, add and remove, and nothing clever. The bucket is private, so viewing means asking
+  // for a short-lived signed link at the moment somebody clicks — not holding a hundred URLs
+  // that expire while the window is open.
+  async function loadDocuments(record) {
+    const id = record.id || record.appointment_id;
+    if (!id) return;
+    try {
+      const rows = await db.select('appointment_documents', query => query
+        .select('id,file_name,mime_type,size_bytes,storage_path,origin_reference,uploaded_at')
+        .eq('appointment_id', id)
+        .order('uploaded_at', { ascending: false }), { key: `appointment:docs:${id}`, cache: 0, retry: 1 });
+      if (current !== record) return;
+      renderDocuments(Array.isArray(rows) ? rows : [], record);
+    } catch (error) {
+      els.docs.innerHTML = `<p class="hint">${escapeHtml(error.userMessage || 'The documents for this load could not be read.')}</p>`;
+    }
+  }
+
+  function renderDocuments(rows, record) {
+    if (!rows.length) {
+      els.docs.innerHTML = '<p class="hint">Nothing attached to this load yet.</p>';
+      return;
+    }
+    const site = { timezone: record.location_timezone || location?.timezone };
+    els.docs.innerHTML = `<ul class="doclist">${rows.map(row => `<li class="docrow">
+      <span class="docrow__k docrow__k--${fileKind(row.mime_type, row.file_name)}" aria-hidden="true"></span>
+      <span class="docrow__n">
+        <b>${escapeHtml(row.file_name)}</b>
+        <span>${escapeHtml(fileSize(Number(row.size_bytes || 0)))} · ${escapeHtml(format.timestamp(row.uploaded_at, site))}${
+          // Only after a merge. Before one it would say the number already at the top of the
+          // window, which is noise.
+          row.origin_reference && row.origin_reference !== record.booking_reference
+            ? ` · came with ${escapeHtml(row.origin_reference)}` : ''}</span>
+      </span>
+      <span class="docrow__a">
+        <button class="btn btn--quiet btn--sm" type="button" data-doc-open="${escapeHtml(row.storage_path)}">View</button>
+        <button class="btn btn--quiet btn--sm" type="button" data-doc-remove="${escapeHtml(row.id)}" data-doc-path="${escapeHtml(row.storage_path)}" aria-label="${escapeHtml(`Remove ${row.file_name}`)}">Remove</button>
+      </span>
+    </li>`).join('')}</ul>`;
+  }
+
+  async function uploadDocument() {
+    const record = current;
+    const file = els.docFile?.files?.[0];
+    els.docMessage.textContent = '';
+    if (!record || !file) { els.docMessage.textContent = 'Choose a file first.'; return; }
+    if (file.size > MAX_BYTES) {
+      els.docMessage.textContent = `${file.name} is ${fileSize(file.size)}. The limit is ${MAX_MB} MB — send a smaller scan or split it.`;
+      return;
+    }
+    const id = record.id || record.appointment_id;
+    // The site that physically owns the appointment, not the site whose board is open. On a
+    // linked movement those differ — the board shows the far end of another site's booking —
+    // and a document belongs to the load, so it is filed against the site holding it. An
+    // account without access to that site is refused by row-level security, which is right.
+    const locationId = record.physical_location_id || record.location_id || location?.id;
+    if (!locationId) { els.docMessage.textContent = 'This load has no site recorded, so a document cannot be filed against it.'; return; }
+    els.docUpload.disabled = true;
+    // The site is the first path segment because every policy on the bucket asks "may this
+    // account see this site", and a policy that has to look the answer up in a table is a
+    // policy that runs on every object in the list.
+    const safe = file.name.replace(/[^\w.\- ]+/g, '_').slice(0, 90);
+    const path = `${locationId}/${id}/${crypto.randomUUID()}-${safe}`;
+    try {
+      await db.storage.upload(BUCKET, path, file, { userMessage: 'The document could not be uploaded.' });
+      // The row is written after the file lands, so a failed upload never leaves a document
+      // in the list that cannot be opened.
+      await db.insert('appointment_documents', {
+        appointment_id: id,
+        location_id: locationId,
+        storage_path: path,
+        file_name: file.name.slice(0, 200),
+        mime_type: file.type || null,
+        size_bytes: file.size,
+      }, { select: false, userMessage: 'The document was uploaded but could not be filed against this load.' });
+      els.docFile.value = '';
+      await loadDocuments(record);
+    } catch (error) {
+      els.docMessage.textContent = error.userMessage || 'The document could not be uploaded.';
+    } finally {
+      els.docUpload.disabled = false;
+    }
+  }
+
+  async function openDocument(path) {
+    els.docMessage.textContent = '';
+    try {
+      const url = await db.storage.signedUrl(BUCKET, path, 300, { userMessage: 'That document could not be opened.' });
+      if (url) globalThis.open(url, '_blank', 'noopener');
+    } catch (error) {
+      els.docMessage.textContent = error.userMessage || 'That document could not be opened.';
+    }
+  }
+
+  async function removeDocument(id, path) {
+    const record = current;
+    els.docMessage.textContent = '';
+    try {
+      // The row first: it is the one under row-level security, so if this account may not
+      // remove the document nothing has been deleted from the bucket by the time it is
+      // refused.
+      await db.remove('appointment_documents', query => query.eq('id', id), { select: false, userMessage: 'That document could not be removed.' });
+      await db.storage.remove(BUCKET, [path]).catch(() => {});
+      await loadDocuments(record);
+    } catch (error) {
+      els.docMessage.textContent = error.userMessage || 'That document could not be removed.';
     }
   }
 

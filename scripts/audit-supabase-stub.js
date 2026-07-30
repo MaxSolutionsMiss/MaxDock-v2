@@ -175,6 +175,14 @@
       { id: 1, notification_type: 'appointment_booked', title: 'Appointment booked', message: 'MXD-2026-000141 was booked for Pickering at 08:00.', appointment_id: 'a2', read_at: null, created_at: iso(8) },
       { id: 2, notification_type: 'appointment_status', title: 'Appointment completed', message: 'MXD-2026-000142 was marked complete.', appointment_id: 'a3', read_at: iso(11), created_at: iso(11) },
     ],
+    // Paperwork on the load the audit opens. Three rows, because the interesting states are
+    // the ordinary one, one that came in on a load since combined onto this truck, and a
+    // kind of file that is not a PDF.
+    appointment_documents: [
+      { id: 'doc-1', appointment_id: 'a1', location_id: 'loc-1', storage_path: 'loc-1/a1/doc-1-bol.pdf', file_name: 'BOL-88214.pdf', mime_type: 'application/pdf', size_bytes: 284000, origin_reference: null, uploaded_at: iso(5) },
+      { id: 'doc-2', appointment_id: 'a1', location_id: 'loc-1', storage_path: 'loc-1/a1/doc-2-po.pdf', file_name: 'PO-4471 Haleon.pdf', mime_type: 'application/pdf', size_bytes: 96000, origin_reference: 'MXD-2026-000147', uploaded_at: iso(6) },
+      { id: 'doc-3', appointment_id: 'a1', location_id: 'loc-1', storage_path: 'loc-1/a1/doc-3-skid.jpg', file_name: 'damaged-skid.jpg', mime_type: 'image/jpeg', size_bytes: 1810000, origin_reference: null, uploaded_at: iso(7) },
+    ],
   };
   // Combining is the one thing here that has to be watched *changing* the schedule:
   // the whole point of a merge is that the absorbed load leaves the board, and an
@@ -439,6 +447,16 @@
       },
       from: table => builder(table),
       rpc: (name, args) => result(RPC[name] ? RPC[name](args) : null),
+      // Paperwork on an appointment. The audit needs the section to render and the list to
+      // have rows in it; it does not need a real file to travel anywhere, so upload and sign
+      // answer in the shape the client reads and nothing leaves the browser.
+      storage: {
+        from: () => ({
+          upload: (path) => result({ path }),
+          createSignedUrl: (path) => result({ signedUrl: `blob:audit/${encodeURIComponent(path)}` }),
+          remove: () => result([]),
+        }),
+      },
       // Answers per function: a bulk import calls the invite function once per
       // row, and a brief-shaped answer to that would render an import that
       // created nobody as if it had worked.

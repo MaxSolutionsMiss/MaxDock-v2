@@ -81,6 +81,9 @@ jobs:
       - name: Which truck a combined run needs
         run: node scripts/verify-truck-ladder.mjs
 
+      - name: Documents on an appointment
+        run: node scripts/verify-appointment-documents.mjs
+
   layout:
     runs-on: ubuntu-latest
     steps:

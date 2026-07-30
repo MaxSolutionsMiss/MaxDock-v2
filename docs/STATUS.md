@@ -2440,3 +2440,85 @@ look for something that is not CSS.
 Two orphaned comments came out along the way, both describing approaches that had already
 been replaced: the 1100px controls breakpoint and the nested-subgrid field. Dead prose for
 rules that no longer exist is worse than no prose, because it is read as current.
+
+## Paperwork on an appointment (2026-07-30)
+
+A bill of lading, a PO, a packing slip, a photo of a damaged skid — up to 4 MB each, as many
+as a load needs, against any appointment, by anybody who can see it.
+
+**Where it is not shown is half the design.** The dock board and the operations queue are read
+at a distance while a truck waits, and a list of attachments on a block would cost room the
+reference, the time and the skid count need more. Documents live on the appointment's own
+detail window, which is where somebody has already stopped to look at one movement. The
+verifier fails if either page so much as mentions them.
+
+**Combining carries the paperwork with the load.** Three loads to the same place each arrive
+with a BOL; merging them and leaving the documents on three cancelled appointments would mean
+the truck that actually goes has no paperwork attached — worse than not having the feature,
+because it looks like it worked. `merge_appointments` moves them and stamps
+`origin_reference` with the absorbed load's number, so "which of the three did this BOL come
+with" still has an answer. Only where it is null, so a document that has been through two
+merges still names the load it started on.
+
+### The details that are one line from being wrong
+
+- **4 MB is enforced in the bucket as well as the browser.** A limit only checked in a client
+  is a limit anybody with a fetch call can ignore. The client check exists so somebody
+  picking a 30 MB photo is told before waiting for the upload to fail.
+- **The row is written after the file lands.** The other order leaves a document in the list
+  that cannot be opened.
+- **The row is deleted before the file.** The other order leaves an orphaned file when
+  row-level security refuses the delete.
+- **A document is filed against the site that owns the appointment**, not the site whose board
+  is open — on a linked movement those differ, and the schedule already returns
+  `physical_location_id` for exactly this reason.
+- **Links are signed and last five minutes.** The bucket is private and a customer's bill of
+  lading is not something to hand out a permanent URL for.
+
+Storage objects are keyed `<location_id>/<appointment_id>/<uuid>-<name>`, so the site is the
+first path segment and every bucket policy is one lookup on it rather than a join into a table
+whose own policies are being evaluated. `appointment_documents.location_id` is denormalised for
+the same reason.
+
+`scripts/verify-appointment-documents.mjs` was proved against three wrong versions before being
+trusted: the row written first, the document filed against the open page's site, and documents
+leaking onto the dock board.
+
+## Demo data for combining, for the next six days (2026-07-30)
+
+One or two lanes a day where two loads fill about 95% of a 53 ft trailer, so combining them is
+the obvious thing to do and the truck goes out nearly full:
+
+| Day | Lane | Loads | Fills |
+|---|---|---|---|
+| Thu 30 Jul | Pickering → Milton | 13 + 12 | 25 of 26 · 96% |
+| Fri 31 Jul | Guelph → Milton | 9 + 16 | 25 of 26 · 96% |
+| Fri 31 Jul | Markham → Milton | 12 + 13 | 25 of 26 · 96% |
+| Sat 1 Aug | Bristol → Concord | 13 + 12 | 25 of 26 · 96% |
+| Mon 3 Aug | Guelph → Milton | 9 + 8 + 8 | 25 of 26 · 96% |
+| Mon 3 Aug | Owen Sound → Milton | 12 + 12 | 24 of 26 · 92% |
+| Tue 4 Aug | Concord → Bristol | 14 + 11 | 25 of 26 · 96% |
+| Tue 4 Aug | Milton → Guelph | 13 + 12 | 25 of 26 · 96% |
+| Wed 5 Aug | Markham → Milton | 8 + 9 + 8 | 25 of 26 · 96% |
+| Wed 5 Aug | Mississauga → Milton | 12 + 13 | 25 of 26 · 96% |
+
+Placed by walking each day in quarter hours and taking the first time a 53-capable door was
+free **at both ends** — an internal movement reserves a dock at the origin and the destination,
+so a time that suits one is not necessarily bookable. Times are staggered: two loads booked to
+the same minute look generated, and a morning load with an afternoon one is also what makes
+"which one keeps the booking" an interesting question. Four pre-existing loads that had crowded
+these lanes were moved to days where their own lane was empty rather than deleted — they are
+real movements, just on the wrong afternoon.
+
+Sunday is closed everywhere and Milton is closed on Saturday, which is why 1 August is the US
+pair and 2 August has nothing.
+
+**And the board has more than two colours now.** Every site carries a truck being worked, one
+checked in and waiting, and a run of completed work, with check-ins scattered a few minutes
+either side of the booked start so the scorecard has both on-time and late arrivals to report.
+One no-show, at one site, so that colour and that column are not always empty. The live states
+had to be given windows that are still open: the board's own settle pass moves an arrived or
+in-progress load to completed once its window has passed.
+
+Checked after every change: no dock double-booked anywhere, no load carrying more than its
+truck type holds at its site, and no load on a dock that would refuse its truck.

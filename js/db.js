@@ -140,6 +140,32 @@ export const db = Object.freeze({
     }, { ...options, cache: 0, retry: options.retry ?? 0 });
   },
 
+  // Files, for the one thing in MaxDock that is a file: the paperwork attached to an
+  // appointment. Three operations and no more — put one in, get a link to read it, take one
+  // out — routed through the same `execute` as every other call so a dropped connection is
+  // reported the same way and retried on the same terms.
+  storage: Object.freeze({
+    async upload(bucket, path, file, options = {}) {
+      return execute(`storage:upload:${path}`, () => client.storage.from(bucket).upload(path, file, {
+        contentType: file.type || 'application/octet-stream',
+        upsert: false,
+      }), { ...options, cache: 0, retry: options.retry ?? 0 });
+    },
+    // A signed URL rather than a public one. The bucket is private, and a document is a
+    // customer's bill of lading — the link is good for a few minutes and for one reader.
+    async signedUrl(bucket, path, seconds = 300, options = {}) {
+      const data = await execute(`storage:sign:${path}:${crypto.randomUUID()}`,
+        () => client.storage.from(bucket).createSignedUrl(path, seconds),
+        { ...options, cache: 0, retry: options.retry ?? 1 });
+      return data?.signedUrl || '';
+    },
+    async remove(bucket, paths, options = {}) {
+      return execute(`storage:remove:${paths.join(',')}`,
+        () => client.storage.from(bucket).remove(paths),
+        { ...options, cache: 0, retry: 0 });
+    },
+  }),
+
   async edge(functionName, body, options = {}) {
     const key = options.key || stableKey(`edge:${functionName}`, body);
     return execute(key, () => client.functions.invoke(functionName, { body }), options);
