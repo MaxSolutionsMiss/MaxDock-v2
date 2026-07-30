@@ -45,12 +45,12 @@ const BODY_PARTS = {
   // A trailer seen from the side, which is the view the owner keeps asking for and the
   // one truckfill.js already draws. It is the one shape that fills along its length rather
   // than up its height, because that is how a trailer actually loads.
-  truck: '<rect x="12" y="22" width="46" height="30"/>',
+  truck: '<rect x="11" y="16" width="49" height="36"/>',
   // The doorway itself, as an opening in a wall rather than an arch. What fills is the
   // door's own time, and it reaches almost to the platform so a light day still shows.
-  door: '<rect x="12" y="16" width="40" height="52"/>',
+  door: '<rect x="6" y="16" width="52" height="52"/>',
   // A clock face, low enough in the box that a small reading still shows inside it.
-  clock: '<circle cx="32" cy="48" r="26"/>',
+  clock: '<path clip-rule="evenodd" d="M32 22a26 26 0 1 1 0 52 26 26 0 0 1 0-52zm0 7.5a18.5 18.5 0 1 0 0 37 18.5 18.5 0 0 0 0-37z"/>',
 };
 
 // The detail drawn over the fill: the rings on the calendar, the hinges on the trailer,
@@ -61,9 +61,9 @@ const DETAIL = {
   day: '<path d="M20 6v12M44 6v12"/><path d="M6 30h52"/><path d="M6 46h52M6 60h52M23 30v44M41 30v44"/>',
   // Cab, hitch, wheels and the ground it stands on. Same anatomy as the big trailer in
   // the combine dialog, drawn small.
-  truck: '<path d="M12 52V38H4l-3 6v8z"/><path d="M0 52h64"/><circle cx="7" cy="57" r="5"/><circle cx="40" cy="57" r="5"/><circle cx="53" cy="57" r="5"/>',
+  truck: '<path d="M11 52V34H4l-3.4 7v11z"/><circle cx="6" cy="57" r="4.6"/><circle cx="38" cy="57" r="4.6"/><circle cx="52" cy="57" r="4.6"/><path d="M0 62.4h64"/>',
   // The roller housing above, the slats it rolls down, and the platform in front.
-  door: '<path d="M7 6h50v10H7z"/><path d="M12 26h40M12 36h40M12 46h40"/><path d="M2 68h60v6H2z"/><path d="M10 74v2M54 74v2"/>',
+  door: '<path d="M1 4h62v10H1z"/><path d="M6 26h52M6 36h52M6 46h52"/><path d="M0 68h64v6H0z"/><path d="M8 74v3M56 74v3"/>',
   clock: '<path d="M32 26v5M58 48h-5M32 70v-5M6 48h5"/><path d="M32 32v16l11 7"/>',
 };
 
@@ -114,7 +114,7 @@ export function fillFigure({ percent, shape = 'crew', label = '', note = '', ban
 // starting behind the cab, exactly as the big trailer in the combine dialog does. It is
 // measured against the trailer body rather than the whole box: a fill starting at x=0
 // would be a fifth of the way down the drawing before it reached the trailer at all.
-const ALONG = { truck: { x: 12, w: 46 } };
+const ALONG = { truck: { x: 11, w: 49 } };
 
 function drawing(percent, shape, load) {
   const id = `ff${++seq}`;

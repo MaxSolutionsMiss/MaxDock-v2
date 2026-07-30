@@ -99,8 +99,8 @@ if (!errors.length) {
   // One outline around the whole glance, with the groups as columns inside it. Giving each
   // group its own card made a page of nothing but metric cards, which is a lot of border
   // for what is really one summary; a tinted panel behind cards was a box around boxes.
-  need(css, /\.brief\{background:var\(--surface\);border:1px solid var\(--rule\)/,
-    'The glance has no outline of its own, so its title, figures and groups do not read as one thing.');
+  need(css, /\.brief\{background:var\(--surface\);border:1px solid var\(--dock\)/,
+    'The glance has no outline of its own in MaxDock blue, so its title, figures and groups do not read as one thing set apart from the schedule below.');
   forbid(css, /\.brief\{[^}]*linear-gradient/,
     'The brief sits on a tinted panel, which puts a box around a row of boxes.');
   forbid(css, /\.briefcol\{background:var\(--surface\);border:1px solid/,
