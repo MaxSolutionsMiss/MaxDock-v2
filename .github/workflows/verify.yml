@@ -78,6 +78,9 @@ jobs:
       - name: Verify per-role rail visibility
         run: node scripts/verify-role-visibility.mjs
 
+      - name: Which truck a combined run needs
+        run: node scripts/verify-truck-ladder.mjs
+
   layout:
     runs-on: ubuntu-latest
     steps:

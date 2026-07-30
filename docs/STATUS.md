@@ -2328,3 +2328,78 @@ needs 93px more than the 67px column it was given`. Proved both ways before ship
 at 1440, 1280, 1024 and 900 as the stylesheet now stands, and firing at exactly 1024 with
 the old grid put back. A group that does not fit its column is a fault whether or not it
 currently lands on something clickable.
+
+## A run that will not fit gets a bigger trailer, not a time slot (2026-07-30)
+
+Combining over capacity was a warning you could book straight past. Step three printed
+"115% full · 4 over" in red beside a list of available times and let you pick one — which
+books a truck that cannot carry what is on it, and the person who finds out is the driver at
+the dock. The queue dialog was no better: *"keep one of the bigger trucks instead"* is
+advice, not an action.
+
+A 48 ft trailer four skids over is a 53 ft trailer, and the system knows that.
+`js/truck-ladder.js` works out the smallest truck **at that site** that holds the run — per
+site, because skid capacity is set per site and a ladder inferred from trailer lengths would
+be wrong wherever somebody double-stacks.
+
+The subtlety is that it is not "the next size up". A 24-skid run on a 26 ft straight truck
+must be offered the 53, not the 48 — the 48 holds twenty and would still be over. And where
+nothing at the site fits, no truck is offered at all and the message says so with the number
+in it: *"the largest trailer at this site holds 26 — this run needs more than one truck."*
+
+Both places refuse and offer. The wizard's time step will not validate while the run is over
+the truck; the picker and the dialog footer carry **Change to a 53 ft Trailer**, and taking
+it re-asks for the times because a longer trailer holds a door longer. Deliberately not
+automatic: changing the truck changes the window and possibly which docks will take it.
+
+### set_appointment_truck_type
+
+A new RPC that changes the trailer and nothing else. Narrow on purpose, for two reasons that
+both rule out `update_appointment_details`: it requires System Admin or Site Admin and the
+people who combine loads are **coordinators**, so it would refuse exactly the users who need
+this; and it takes all sixteen fields, so a caller without one to hand would blank it.
+
+Everything the longer trailer actually touches is re-checked in the database, not the client:
+the type is enabled at this site with a capacity entered, the assigned dock accepts it, the
+window is recomputed with the same `calculate_appointment_duration_internal` every booking
+uses, and the longer window neither runs into the next truck on that door nor past closing.
+
+### The ladder is tested directly, and proved to fail
+
+`scripts/verify-truck-ladder.mjs` — the module imports nothing, so it can be. It was run
+against two plausible wrong implementations before being trusted:
+
+- **"the next size up"** — offers a 48 ft for a 24-skid run off a 26 ft truck, and cheerfully
+  claims a 53 ft takes a 40-skid run. Four failures.
+- **treating a missing capacity as zero** — turns "nobody has entered this" into "it never
+  fits". Three failures.
+
+## The rail was eating half a phone at Large text (2026-07-30)
+
+`html[data-text="large"]` sets `--rail-w:214px`, and it is one specificity point above the
+bare `:root{--rail-w:60px}` in the narrow-screen block — so it won whatever the source order
+and whatever the viewport. On a 430px phone at Large text the rail took **214px of 430**, the
+top bar was left 194px for 314px of content, and **Sign out hung 89px off the right edge of
+every page in the application**.
+
+`html:root` ties the specificity, and this rule is later in the file, so the narrow screen
+wins where it should. This is the third time in this project a correct-looking later
+declaration has lost to specificity — after `.section-gap` and the utilities ordering — and
+the pattern is always the same: a variable overridden at a breakpoint by a selector weaker
+than the one that set it.
+
+Found by the band sweep, at a width-and-text-size combination nothing had ever rendered.
+
+## Report sections had no spacing rule at all (2026-07-30)
+
+Panels and metric strips sat hard against each other and read as one run of boxes — the
+owner's "the sections are running into each other". The air belongs to the container: a
+report's sections come from eight different render functions and none of them should have to
+know what is above it. The strip's own bottom margin is dropped there or it would double
+against the gap.
+
+Two smaller ones from the same screenshots: the truck-capacity note on booking step two
+carried `hint--flush`, which is exactly what held it against the row above; and the jumbo
+booking-number box is **left**-aligned, because centred, the prefilled `MXD-2026-` sat in the
+middle with white on both sides and read as the whole value, with nothing to say the digits
+go after it.
