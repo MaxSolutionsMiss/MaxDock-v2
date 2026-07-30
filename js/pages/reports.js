@@ -2,10 +2,11 @@ import { startPage } from '../router.js';
 import { db } from '../db.js';
 import { toast } from '../ui/toast.js';
 import { renderState } from '../ui/empty.js';
-import { pageHead, controlsBar } from '../ui/pagehead.js';
+import { pageHead, controlsBar, icon } from '../ui/pagehead.js';
 import { createCustomizePanel } from '../ui/customize.js';
 import { format } from '../format.js';
 import { mergeContext, mergeScorecard, mergeFullness, mergeLabour } from '../reports-merge.js';
+import { truckFill } from '../ui/truckfill.js';
 
 const VIEWS = [
   { id: 'overview', label: 'Overview' },
@@ -48,6 +49,14 @@ const state = {
   elements: {},
   customizePanel: null,
   siteMenu: null,
+  // Which form a panel that honestly has more than one is drawn in. Not every chart gets
+  // a switch — a dial is the only sensible way to show one bounded percentage, and
+  // offering a pie of it would be offering a worse chart. Where two forms genuinely
+  // answer the same question differently, the reader picks, and the pick is remembered.
+  forms: {},
+  // Skid capacity per truck type at the chosen sites, so a truck type can be drawn as a
+  // trailer with the right amount of room in it.
+  capacity: {},
   visibleCards: [],
 };
 
@@ -169,7 +178,13 @@ const siteRange = () => `${siteName()} · ${rangeLabel()}`;
 // full is this", which a bar an inch wide does not answer at a glance. Coloured by band,
 // and the band is *named* under the number as well as coloured, because a colour on its
 // own is not a reading anybody can rely on.
-function dial(percent, label, note) {
+// `good` says which end of the scale is the good end, and it has to be said rather than
+// assumed. Dock time used and crew used are capacity readings: low is comfortable and over
+// 100 is a finding. On time and trucks that ran full are the other way up — 95% is the
+// answer you want and 40% is the problem — and colouring those two the same way was
+// painting a 91% on-time vendor amber for being nearly punctual. `none` is for readings
+// with no good end at all, which get one neutral colour and no verdict word.
+function dial(percent, label, note, { good = 'low' } = {}) {
   if (percent === null || percent === undefined) {
     return `<figure class="dial dial--empty"><div class="dial__face"><span class="dial__v">—</span></div><figcaption class="dial__l">${escapeHtml(label)}<span>not measured</span></figcaption></figure>`;
   }
@@ -177,9 +192,15 @@ function dial(percent, label, note) {
   const shown = Math.min(100, value);
   // Bands, and what each one means here. Over 100 is a finding, not an error: the day
   // asked for more than there was.
-  const band = value > 100 ? 'over' : value >= 85 ? 'high' : value >= 55 ? 'mid' : 'low';
-  const words = { over: 'over capacity', high: 'near capacity', mid: 'healthy', low: 'light' }[band];
-  return `<figure class="dial dial--${band}" role="img" aria-label="${escapeHtml(`${label}: ${value.toFixed(1)} per cent, ${words}`)}">
+  const band = good === 'none' ? 'mid'
+    : good === 'high'
+      ? (value >= 90 ? 'low' : value >= 75 ? 'mid' : 'high')
+      : (value > 100 ? 'over' : value >= 85 ? 'high' : value >= 55 ? 'mid' : 'low');
+  const words = good === 'none' ? ''
+    : good === 'high'
+      ? { low: 'on target', mid: 'slipping', high: 'not acceptable' }[band]
+      : { over: 'over capacity', high: 'near capacity', mid: 'healthy', low: 'light' }[band];
+  return `<figure class="dial dial--${band}" role="img" aria-label="${escapeHtml(`${label}: ${value.toFixed(1)} per cent${words ? `, ${words}` : ''}`)}">
     <div class="dial__face" style="--pct:${shown.toFixed(1)}"><span class="dial__v">${value.toFixed(0)}<i>%</i></span></div>
     <figcaption class="dial__l">${escapeHtml(label)}<span>${escapeHtml(note || words)}</span></figcaption>
   </figure>`;
@@ -202,15 +223,49 @@ function ring(parts, centreLabel) {
 // One hue, because the category is named on its own row — five hues for five truck types
 // cannot be told apart under colour blindness however they are chosen, and the name is a
 // better label than a colour anyway.
-function ranked(rows, { unit = '', max = 8 } = {}) {
+// `outOf` matters more than it looks. Scaling to the biggest value in the list is right
+// for counts — the busiest hour is the full bar and everything else is read against it —
+// and wrong for percentages: a single vendor nine points short of perfect drew a
+// full-width bar, because it was the only row and therefore also the biggest. A percentage
+// is out of a hundred whatever else is in the list.
+function ranked(rows, { unit = '', max = 8, outOf = 0 } = {}) {
   const list = rows.filter(row => num(row.value) > 0).sort((a, b) => num(b.value) - num(a.value)).slice(0, max);
   if (!list.length) return '<p class="hint">No data in this range.</p>';
-  const top = Math.max(...list.map(row => num(row.value)));
+  const top = outOf || Math.max(...list.map(row => num(row.value)));
   return `<div class="ranked">${list.map(row => `<div class="ranked__row">
     <span class="ranked__l" title="${escapeHtml(row.label)}">${escapeHtml(row.label)}</span>
-    <span class="ranked__t"><span style="width:${((num(row.value) / top) * 100).toFixed(1)}%"></span></span>
+    <span class="ranked__t"><span style="width:${Math.min(100, (num(row.value) / top) * 100).toFixed(1)}%"></span></span>
     <span class="ranked__v">${escapeHtml(row.shown || `${compact(num(row.value))}${unit}`)}</span>
   </div>`).join('')}</div>`;
+}
+
+// A reading and its verdict, drawn as well as coloured and worded. The bands are the
+// ones the scorecard table already uses, so a tag in the table and a badge on a card
+// never disagree about whether 87% is acceptable.
+function verdict(percent) {
+  if (percent === null || percent === undefined) return { key: 'quiet', glyph: '', words: 'no arrivals' };
+  if (percent >= 90) return { key: 'ok', glyph: icon('ok'), words: 'on target' };
+  if (percent >= 75) return { key: 'warn', glyph: icon('warn'), words: 'slipping' };
+  return { key: 'stop', glyph: icon('stop'), words: 'not acceptable' };
+}
+
+// The switch on a panel that has two honest forms. Two, not five: a list of every chart
+// type a library can draw is a menu of ways to make the same reading worse.
+function formSwitch(key, options) {
+  const current = state.forms[key] || options[0].id;
+  return `<div class="seg" role="group" aria-label="How to draw this">${options.map(option =>
+    `<button type="button" data-form="${escapeHtml(key)}" data-form-value="${escapeHtml(option.id)}" aria-pressed="${option.id === current}">${escapeHtml(option.label)}</button>`).join('')}</div>`;
+}
+const formOf = (key, fallback) => state.forms[key] || fallback;
+
+// The capacity of a truck type across the chosen sites. They usually agree — a 53 ft
+// trailer holds 26 skids in every Max building — but they are set per site because the
+// same trailer is stacked differently in different buildings, so where they disagree this
+// is the mean of the sites being reported on rather than one of them picked arbitrarily.
+function capacityOfType(code) {
+  const entries = state.capacity[code] || [];
+  if (!entries.length) return 0;
+  return Math.round(entries.reduce((sum, value) => sum + value, 0) / entries.length);
 }
 
 function table(headers, rows) {
@@ -222,25 +277,82 @@ function table(headers, rows) {
 
 function renderOverview() {
   const byDay = state.data.by_day || [];
+  const s = state.data.summary || {};
+  const fullness = state.fullness || [];
+  const capacity = fullness.reduce((sum, row) => sum + num(row.capacity_skids), 0);
+  const measuredSkids = fullness.reduce((sum, row) => sum + (row.fullness_pct === null || row.fullness_pct === undefined ? 0 : num(row.fullness_pct) * num(row.capacity_skids) / 100), 0);
+  const used = capacity ? (measuredSkids / capacity) * 100 : null;
+  const busiest = byDay.slice().sort((a, b) => num(b.appointments) - num(a.appointments)).slice(0, 6)
+    .map(row => ({ label: dayLabel(row.date), value: row.appointments, shown: `${num(row.appointments)} trucks · ${num(row.inbound_skids) + num(row.outbound_skids)} skids` }));
   return `${kpiRow()}
+    <div class="panel">
+      <div class="panel__head"><h3 class="panel__title">The three readings</h3><div class="panel__actions"><span class="sub">${escapeHtml(siteRange())}</span></div></div>
+      <div class="dials">
+        ${dial(num(s.occupied_utilization_percent), 'Dock time used', 'of the hours the doors were open')}
+        ${dial(used, 'Trailer used', 'skids against what the trailers hold', { good: 'high' })}
+        ${dial(num(s.appointments) ? (num(s.cancelled) / num(s.appointments)) * 100 : null, 'Cancelled', 'of every booking made')}
+      </div>
+      <div class="panel__body"><p class="hint hint--flush">Doors, trailers and reliability. Each of the three has its own view with the detail behind it; this is whether any of them needs one.</p></div>
+    </div>
     <div class="panel panel--fill">
       <div class="panel__head"><h3 class="panel__title">Daily shape</h3><div class="panel__actions"><span class="sub">${escapeHtml(siteRange())}</span></div></div>
       <div class="panel__body">${trendStrip(byDay)}</div>
-      <div class="panel__body">${ring([
-        { label: 'Inbound skids', value: state.data.summary?.inbound_skids },
-        { label: 'Outbound skids', value: state.data.summary?.outbound_skids },
-      ], 'skids moved')}</div>
+      <div class="panel__body"><div class="chart2">
+        <section><h4 class="chart2__t">In against out</h4>${ring([
+          { label: 'Inbound skids', value: s.inbound_skids },
+          { label: 'Outbound skids', value: s.outbound_skids },
+        ], 'skids moved')}</section>
+        <section><h4 class="chart2__t">Busiest days</h4>${ranked(busiest, { max: 6 })}</section>
+      </div><p class="hint">A site that ships out what it takes in sits near half and half; one drifting off centre is filling up or emptying.</p></div>
       <div class="panel__scroll">${table(['Date', 'Appointments', 'Cancelled', 'Priority', 'Inbound skids', 'Outbound skids'], byDay.map(row => [dayLabel(row.date), num(row.appointments), num(row.cancelled), num(row.priority), num(row.inbound_skids), num(row.outbound_skids)]))}</div>
     </div>`;
 }
 
+// The fleet: what ran, and how full each kind of truck ran.
+//
+// Two readings, because "we ran 240 fifty-three foot trailers" and "the average one left
+// with nineteen of twenty-six skids in it" are different findings and only the second one
+// is worth a phone call. The mix can be read as bars or as the trucks themselves, and the
+// trucks are the better answer to the second question — which is why they are offered.
 function renderTruckFlow() {
   const byVehicle = state.data.by_vehicle || [];
+  const fullness = state.fullness || [];
+  const full = fullness.reduce((sum, row) => sum + num(row.full_trucks), 0);
+  const measured = fullness.reduce((sum, row) => sum + num(row.measured_trucks), 0);
+  const trailers = byVehicle.map(row => {
+    const capacity = capacityOfType(row.code);
+    const perTruck = num(row.appointments) ? num(row.skids) / num(row.appointments) : 0;
+    return truckFill({
+      skids: Math.round(perTruck),
+      capacity,
+      label: row.name,
+      note: `average of ${compact(num(row.appointments))} truck${num(row.appointments) === 1 ? '' : 's'}`,
+    });
+  }).join('');
+  const bars = ranked(byVehicle.map(row => ({ label: row.name, value: row.appointments, shown: `${compact(num(row.appointments))} trucks · ${compact(num(row.skids))} skids` })));
+  const drawn = formOf('flow', 'trucks') === 'bars' ? bars : `<div class="trucks">${trailers}</div>`;
   return `${kpiRow()}
+    <div class="panel">
+      <div class="panel__head"><h3 class="panel__title">The fleet that ran</h3>
+        <div class="panel__actions">${formSwitch('flow', [{ id: 'trucks', label: 'Trucks' }, { id: 'bars', label: 'Bars' }])}<span class="sub">${escapeHtml(siteRange())}</span></div></div>
+      <div class="panel__body">${byVehicle.length ? drawn : '<p class="hint">No trucks in this range.</p>'}
+        <p class="hint">${formOf('flow', 'trucks') === 'bars'
+          ? 'Trucks by type across the selected range, biggest first.'
+          : 'One trailer per truck type, loaded to the average of every truck of that type that ran. The room left at the doors is the room that was paid for and not used.'}</p></div>
+    </div>
+    <div class="panel">
+      <div class="panel__head"><h3 class="panel__title">Full against not</h3><div class="panel__actions"><span class="sub">${compact(measured)} trucks measured</span></div></div>
+      <div class="panel__body"><div class="chart2">
+        <section><h4 class="chart2__t">Trucks that ran full</h4>${ring([
+          { label: 'Ran full', value: full },
+          { label: 'Had room', value: Math.max(0, measured - full) },
+        ], 'trucks')}</section>
+        <section><h4 class="chart2__t">Skids carried, by truck type</h4>${ranked(byVehicle.map(row => ({ label: row.name, value: row.skids, shown: `${compact(num(row.skids))} skids` })))}</section>
+      </div><p class="hint">Full is 90% of what the trailer holds or more — the last skid or two is rarely worth another appointment. A truck whose type has no capacity entered for its site is not measured either way.</p></div>
+    </div>
     <div class="panel panel--fill">
       <div class="panel__head"><h3 class="panel__title">Truck mix</h3><div class="panel__actions"><span class="sub">${escapeHtml(siteRange())}</span></div></div>
-      <div class="panel__body">${ranked(byVehicle.map(row => ({ label: row.name, value: row.appointments, shown: `${compact(num(row.appointments))} trucks · ${compact(num(row.skids))} skids` })))}<p class="hint">Trucks by type across the selected range, biggest first.</p></div>
-      <div class="panel__scroll">${table(['Truck type', 'Appointments', 'Skids'], byVehicle.map(row => [row.name, num(row.appointments), num(row.skids)]))}</div>
+      <div class="panel__scroll">${table(['Truck type', 'Appointments', 'Skids', 'Average skids a truck', 'Holds'], byVehicle.map(row => [row.name, num(row.appointments), num(row.skids), num(row.appointments) ? (num(row.skids) / num(row.appointments)).toFixed(1) : '—', capacityOfType(row.code) || '—']))}</div>
     </div>`;
 }
 
@@ -255,6 +367,12 @@ function renderSkidMovement() {
            ${ring([{ label: 'Inbound skids', value: s.inbound_skids }, { label: 'Outbound skids', value: s.outbound_skids }], 'skids moved')}`
         : '<p class="hint">No data in this range.</p>'}
         <p class="hint">A taller column is a heavier day. The ring is the balance over the whole range: a site that ships out what it takes in sits near half and half, and a site drifting off centre is either filling up or emptying.</p></div>
+      <div class="panel__body"><div class="chart2">
+        <section><h4 class="chart2__t">Heaviest days in</h4>${ranked(byDay
+          .map(row => ({ label: dayLabel(row.date), value: row.inbound_skids, shown: `${num(row.inbound_skids)} skids in` })), { max: 6 })}</section>
+        <section><h4 class="chart2__t">Heaviest days out</h4>${ranked(byDay
+          .map(row => ({ label: dayLabel(row.date), value: row.outbound_skids, shown: `${num(row.outbound_skids)} skids out` })), { max: 6 })}</section>
+      </div><p class="hint">The two lists rarely hold the same days, and where they do is where the floor was busiest in both directions at once.</p></div>
       <div class="panel__scroll">${table(['Date', 'Inbound skids', 'Outbound skids', 'Net change'], byDay.map(row => [dayLabel(row.date), num(row.inbound_skids), num(row.outbound_skids), num(row.inbound_skids) - num(row.outbound_skids)]))}</div>
     </div>`;
 }
@@ -270,7 +388,7 @@ function renderDockUtilisation() {
       <div class="dials">
         ${dial(num(s.occupied_utilization_percent), 'Dock time used', 'of the hours the doors were open')}
         ${dial(s.available_dock_minutes ? (num(s.blocked_minutes) / num(s.available_dock_minutes)) * 100 : null, 'Time blocked off', 'maintenance, breaks, events')}
-        ${dial(num(s.active_docks) ? (num(s.booked_minutes) / 60) / num(s.active_docks) / Math.max(1, (state.data.by_day || []).length) / 9.5 * 100 : null, 'Busiest door share', 'booked hours per door per day')}
+        ${dial(num(s.active_docks) ? (num(s.booked_minutes) / 60) / num(s.active_docks) / Math.max(1, (state.data.by_day || []).length) / 9.5 * 100 : null, 'Busiest door share', 'booked hours per door per day', { good: 'none' })}
       </div></div>
     <div class="kpis" style="--kpi-cols:4">
       <article class="kpi kpi--signal"><span class="kpi__label">Dock time used</span><span class="kpi__value">${num(s.occupied_utilization_percent).toFixed(1)}<span>%</span></span></article>
@@ -280,7 +398,13 @@ function renderDockUtilisation() {
     </div>
     <div class="panel panel--fill">
       <div class="panel__head"><h3 class="panel__title">Busiest start hours</h3><div class="panel__actions"><span class="sub">${compact(num(s.available_dock_minutes) / 60)} dock-hours available</span></div></div>
-      <div class="panel__body">${ranked(byHour.map(row => ({ label: row.label, value: row.appointments, shown: `${compact(num(row.appointments))} trucks · ${compact(num(row.skids))} skids` })))}<p class="hint">The eight busiest booking hours across the selected range, heaviest first. The full hour-by-hour record is in the table below.</p>
+      <div class="panel__body"><div class="chart2">
+        <section><h4 class="chart2__t">Busiest hours of the day</h4>${ranked(byHour.map(row => ({ label: row.label, value: row.appointments, shown: `${compact(num(row.appointments))} trucks · ${compact(num(row.skids))} skids` })))}</section>
+        <section><h4 class="chart2__t">What the doors did with the day</h4>${ring([
+          { label: 'Booked', value: Math.round(num(s.booked_minutes) / 60) },
+          { label: 'Standing empty', value: Math.max(0, Math.round((num(s.available_dock_minutes) - num(s.booked_minutes) - num(s.blocked_minutes)) / 60)) },
+        ], 'dock-hours')}</section>
+      </div><p class="hint">The eight busiest booking hours, heaviest first, and the same hours as a share of every dock-hour the site had open. Time blocked off for maintenance or a break is in neither slice — it was never available to book. The full hour-by-hour record is in the table below.</p>
         ${warnings.length ? `<p class="form-message">${warnings.map(escapeHtml).join(' ')}</p>` : ''}</div>
       <div class="panel__scroll">${table(['Hour', 'Appointments', 'Skids'], byHour.map(row => [row.label, num(row.appointments), num(row.skids)]))}</div>
     </div>`;
@@ -304,18 +428,62 @@ function renderScorecard(kind) {
   const arrived = rows.reduce((sum, row) => sum + num(row.on_time) + num(row.late), 0);
   const onTime = rows.reduce((sum, row) => sum + num(row.on_time), 0);
   const overall = arrived ? Math.round((onTime / arrived) * 1000) / 10 : null;
+  const trucks = rows.reduce((sum, row) => sum + num(row.trucks), 0);
+  const late = rows.reduce((sum, row) => sum + num(row.late), 0);
+  const noShows = rows.reduce((sum, row) => sum + num(row.no_shows), 0);
+  const cancelled = rows.reduce((sum, row) => sum + num(row.cancelled), 0);
+  const verd = verdict(overall);
+  const who = kind === 'location' ? 'site' : 'vendor';
+  // Late by how much, not just how often. A carrier ten minutes late forty times and one
+  // two hours late twice are the same on-time percentage and are not the same problem.
+  const worstLate = rows
+    .filter(row => row.avg_minutes_late !== null && row.avg_minutes_late !== undefined && num(row.late) > 0)
+    .map(row => ({ label: row.partner_name, value: Number(row.avg_minutes_late), shown: `${format.duration(row.avg_minutes_late)} × ${num(row.late)}` }));
+  // Ranked by how far short of perfect, so the worst offender is the longest bar and the
+  // top row — a chart sorted by on-time percentage puts the partner you need to ring at
+  // the bottom, which is exactly backwards. The bar is the shortfall; the label is the
+  // percentage itself, because that is the number people quote.
+  const punctual = rows
+    .filter(row => row.on_time_pct !== null && row.on_time_pct !== undefined)
+    .map(row => ({ label: row.partner_name, value: Math.max(0.01, 100 - Number(row.on_time_pct)), shown: `${Number(row.on_time_pct).toFixed(0)}% of ${num(row.trucks)}` }));
+  const busiest = rows.map(row => ({ label: row.partner_name, value: row.trucks, shown: `${compact(num(row.trucks))} trucks · ${compact(num(row.skids))} skids` }));
+  const form = formOf(`score-${kind}`, 'bars');
   return `<div class="kpis" style="--kpi-cols:4">
-      <article class="kpi kpi--ok"><span class="kpi__label">On time</span><span class="kpi__value">${overall === null ? '—' : overall.toFixed(1)}<span>%</span></span></article>
+      <article class="kpi kpi--ok"><span class="kpi__label">On time <span class="vd vd--${verd.key}">${verd.glyph}${escapeHtml(verd.words)}</span></span><span class="kpi__value">${overall === null ? '—' : overall.toFixed(1)}<span>%</span></span></article>
       <article class="kpi"><span class="kpi__label">${kind === 'location' ? 'Sites' : 'Vendors'}</span><span class="kpi__value">${rows.length}</span></article>
-      <article class="kpi kpi--out"><span class="kpi__label">Trucks</span><span class="kpi__value">${compact(rows.reduce((sum, row) => sum + num(row.trucks), 0))}</span></article>
-      <article class="kpi kpi--stop"><span class="kpi__label">No shows</span><span class="kpi__value">${rows.reduce((sum, row) => sum + num(row.no_shows), 0)}</span></article>
+      <article class="kpi kpi--out"><span class="kpi__label">Trucks</span><span class="kpi__value">${compact(trucks)}</span></article>
+      <article class="kpi kpi--stop"><span class="kpi__label">No shows</span><span class="kpi__value">${noShows}</span></article>
     </div>
+    <div class="panel">
+      <div class="panel__head"><h3 class="panel__title">How the ${who}s are doing</h3><div class="panel__actions"><span class="sub">${escapeHtml(siteRange())}</span></div></div>
+      <div class="dials">
+        ${dial(overall, 'Turned up on time', 'within 15 minutes of the booking', { good: 'high' })}
+        ${dial(trucks ? ((trucks - noShows - cancelled) / trucks) * 100 : null, 'Trucks that came', 'of every booking made', { good: 'high' })}
+        ${dial(arrived ? (late / arrived) * 100 : null, 'Arrived late', 'of the trucks that came')}
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel__head"><h3 class="panel__title">Punctual against busy</h3>
+        <div class="panel__actions">${formSwitch(`score-${kind}`, [{ id: 'bars', label: 'Bars' }, { id: 'ring', label: 'Split' }])}<span class="sub">${compact(arrived)} arrivals</span></div></div>
+      <div class="panel__body">${form === 'ring'
+        ? `<div class="chart2">
+            <section><h4 class="chart2__t">Every arrival</h4>${ring([{ label: 'On time', value: onTime }, { label: 'Late', value: late }], 'arrivals')}</section>
+            <section><h4 class="chart2__t">Every booking</h4>${ring([{ label: 'Turned up', value: Math.max(0, trucks - noShows - cancelled) }, { label: 'No show or cancelled', value: noShows + cancelled }], 'booked')}</section>
+          </div>`
+        : `<div class="chart2">
+            <section><h4 class="chart2__t">Missed the window, worst first</h4>${ranked(punctual, { max: 8, outOf: 100 })}</section>
+            <section><h4 class="chart2__t">Busiest ${who}s</h4>${ranked(busiest, { max: 8 })}</section>
+          </div>`}
+        <p class="hint">${form === 'ring'
+          ? 'Two ways a booking can go wrong and they are not the same: a truck that came late took a door it was not booked for, and a truck that never came left a door empty.'
+          : `The left bar is how far short of perfect each ${who} is, so the longest bar is the one to act on. The right bar is how much they move — a short bar on the left next to a long one on the right is where a conversation is worth having.`}</p></div>
+    </div>
+    ${worstLate.length ? `<div class="panel">
+      <div class="panel__head"><h3 class="panel__title">When they are late, how late</h3><div class="panel__actions"><span class="sub">${compact(late)} late arrivals</span></div></div>
+      <div class="panel__body">${ranked(worstLate, { max: 8, outOf: 60 })}<p class="hint">Average minutes late, over the trucks that arrived late, against a full hour — so a full bar means an hour or worse. The count beside each bar is how many times.</p></div>
+    </div>` : ''}
     <div class="panel panel--fill">
       <div class="panel__head"><h3 class="panel__title">${kind === 'location' ? 'Max site scorecard' : 'Vendor &amp; carrier scorecard'}</h3><div class="panel__actions"><span class="sub">${escapeHtml(siteRange())}</span></div></div>
-      <div class="panel__body">${ranked(rows
-        .filter(row => row.on_time_pct !== null && row.on_time_pct !== undefined)
-        .map(row => ({ label: row.partner_name, value: Number(row.on_time_pct), shown: `${Number(row.on_time_pct).toFixed(1)}% of ${num(row.trucks)}` })),
-        { max: 10 })}<p class="hint">On time, worst to best is bottom to top — the row to act on is the shortest bar with the most trucks beside it.</p></div>
       <div class="panel__scroll"><table class="table"><thead><tr>
         <th>Partner</th><th>On time</th><th>Trucks</th><th>Skids</th><th>Late</th><th>Average late</th><th>No show</th><th>Cancelled</th><th>Average at dock</th><th class="col-fill">Truck types</th>
       </tr></thead><tbody>${
@@ -366,16 +534,46 @@ function renderFullness() {
   const savedPct = rows.reduce((sum, row) => sum + num(row.trucks), 0)
     ? (rows.reduce((sum, row) => sum + num(row.loads_absorbed), 0) / (rows.reduce((sum, row) => sum + num(row.trucks), 0) + rows.reduce((sum, row) => sum + num(row.loads_absorbed), 0))) * 100
     : null;
+  const fullTrucks = rows.reduce((sum, row) => sum + num(row.full_trucks), 0);
+  const trucks = rows.reduce((sum, row) => sum + num(row.trucks), 0);
+  // One trailer standing for every trailer that ran. Scaled to a 53 ft so the picture is
+  // of a real truck: the same ratio drawn against 26 skids is the same reading, and it is
+  // the truck everybody in the operation pictures when they say "the trailer went out half
+  // empty".
+  const asOne = overall === null ? null : Math.round((overall / 100) * 26);
+  const emptiest = rows
+    .filter(row => row.fullness_pct !== null && row.fullness_pct !== undefined && num(row.trucks) > 1)
+    .map(row => ({ label: row.partner_name, value: Math.max(0.01, 100 - Number(row.fullness_pct)), shown: `${Number(row.fullness_pct).toFixed(0)}% · ${num(row.trucks)} trucks` }));
+  const combining = rows
+    .filter(row => num(row.loads_absorbed) > 0)
+    .map(row => ({ label: row.partner_name, value: row.loads_absorbed, shown: `${num(row.loads_absorbed)} onto ${num(row.combined_trucks)} truck${num(row.combined_trucks) === 1 ? '' : 's'}` }));
   return `<div class="panel"><div class="panel__head"><h3 class="panel__title">How full the trucks ran</h3><div class="panel__actions"><span class="sub">${escapeHtml(siteRange())}</span></div></div>
+      <div class="panel__body">${asOne === null
+        ? '<p class="hint">No truck type in this range has a skid capacity entered, so how full the trucks ran is not known. It is set per site under Settings › Capacity.</p>'
+        : `<div class="trucks">${truckFill({
+          skids: asOne,
+          capacity: 26,
+          label: 'every trailer, as one',
+          note: `${overall.toFixed(1)}% of what the trailers hold, over ${compact(measured)} trucks`,
+          wide: true,
+        })}</div>`}
+        <p class="hint">Every measured truck in the range averaged into one 53 ft trailer. The room at the doors is the room that was paid for and not used — and it is what combining is for.</p></div>
       <div class="dials">
-        ${dial(overall, 'Trailer used', 'skids against what the trailers hold')}
-        ${dial(measured ? (rows.reduce((sum, row) => sum + num(row.full_trucks), 0) / measured) * 100 : null, 'Trucks that ran full', '90% or more')}
-        ${dial(savedPct, 'Trucks saved by combining', 'of what would have run')}
+        ${dial(overall, 'Trailer used', 'skids against what the trailers hold', { good: 'high' })}
+        ${dial(measured ? (fullTrucks / measured) * 100 : null, 'Trucks that ran full', '90% or more', { good: 'high' })}
+        ${dial(savedPct, 'Trucks saved by combining', 'of what would have run', { good: 'none' })}
       </div>
-      <div class="panel__body">${ranked(rows
-        .filter(row => row.fullness_pct !== null && row.fullness_pct !== undefined)
-        .map(row => ({ label: row.partner_name, value: Number(row.fullness_pct), shown: `${Number(row.fullness_pct).toFixed(0)}% · ${num(row.trucks)} trucks` })),
-        { max: 10 })}<p class="hint">Trailer used per lane. A long run of short bars is a lane that should be combining.</p></div>
+    </div>
+    <div class="panel">
+      <div class="panel__head"><h3 class="panel__title">Which lanes are wasting space</h3><div class="panel__actions"><span class="sub">${compact(trucks)} trucks on ${rows.length} lane${rows.length === 1 ? '' : 's'}</span></div></div>
+      <div class="panel__body"><div class="chart2">
+        <section><h4 class="chart2__t">Emptiest lanes, worst first</h4>${ranked(emptiest, { max: 8, outOf: 100 })}</section>
+        <section><h4 class="chart2__t">${combining.length ? 'What combining already saved' : 'Full against not'}</h4>${combining.length
+          ? ranked(combining, { max: 8 })
+          : ring([{ label: 'Ran full', value: fullTrucks }, { label: 'Had room', value: Math.max(0, measured - fullTrucks) }], 'trucks')}</section>
+      </div><p class="hint">${combining.length
+        ? 'The bar on the left is the empty half of the trailer, so the longest bar is the lane to look at first. On the right is what has already been merged onto another truck.'
+        : 'The bar on the left is the empty half of the trailer, so the longest bar is the lane to look at first. Nothing on these lanes has been combined yet — the ring is how many trucks left full anyway.'}</p></div>
     </div>
     <div class="kpis" style="--kpi-cols:4">
       <article class="kpi kpi--ok"><span class="kpi__label">Trailer used</span><span class="kpi__value">${overall === null ? '—' : overall.toFixed(1)}<span>%</span></span></article>
@@ -420,8 +618,18 @@ function renderLabour() {
       <div class="dials">
         ${dial(overall, 'Crew used', 'hours on trucks against hours available')}
         ${dial(busiest && busiest.utilization_percent !== null && busiest.utilization_percent !== undefined ? Number(busiest.utilization_percent) : null, 'Busiest day', busiest ? dayLabel(busiest.work_date) : 'no day measured')}
-        ${dial(rows.length ? (recorded / rows.length) * 100 : null, 'Days with a real count', 'the rest come off the shift roster')}
-      </div></div>
+        ${dial(rows.length ? (recorded / rows.length) * 100 : null, 'Days with a real count', 'the rest come off the shift roster', { good: 'high' })}
+      </div>
+      <div class="panel__body"><div class="chart2">
+        <section><h4 class="chart2__t">Hardest days on the crew</h4>${ranked(worked
+          .filter(row => row.utilization_percent !== null && row.utilization_percent !== undefined)
+          .map(row => ({ label: dayLabel(row.work_date), value: Number(row.utilization_percent), shown: `${Number(row.utilization_percent).toFixed(0)}% · ${num(row.trucks)} trucks` })), { max: 8, outOf: 100 })}</section>
+        <section><h4 class="chart2__t">The crew's hours</h4>${ring([
+          { label: 'On trucks', value: Math.round(truckHours) },
+          { label: 'Everything else', value: Math.max(0, Math.round(available - truckHours)) },
+        ], 'hours')}</section>
+      </div><p class="hint">A day over 100% is a day the trucks asked for more crew than the shift had — overtime, or a queue at the door. "Everything else" is not idle time: it is put-away, cycle counts and every other job that is not standing at a trailer.</p></div>
+    </div>
     <div class="kpis" style="--kpi-cols:4">
       <article class="kpi kpi--ok"><span class="kpi__label">Crew used</span><span class="kpi__value">${overall === null ? '—' : overall.toFixed(1)}<span>%</span></span></article>
       <article class="kpi kpi--out"><span class="kpi__label">Hours available</span><span class="kpi__value">${compact(Math.round(available))}</span></article>
@@ -532,7 +740,7 @@ async function reload() {
     // The scorecard is its own query, fetched alongside so switching views does
     // not go back to the network. A failure there must not take the rest of the
     // report down with it.
-    const [data, scorecard, fullness, labour] = await Promise.all([
+    const [data, scorecard, fullness, labour, capacities] = await Promise.all([
       fetchReport(),
       fanOut('get_partner_scorecard',
         id => ({ p_location_id: id, p_start_date: state.from, p_end_date: state.to }),
@@ -547,11 +755,25 @@ async function reload() {
           id => ({ p_location_id: id, p_from: state.from, p_to: state.to }),
           'reports:labour').then(mergeLabour).catch(() => [])
         : Promise.resolve([]),
+      // What each truck type holds at each chosen site, so a truck type can be drawn as a
+      // trailer with the right amount of room in it. Read straight off the table under
+      // row-level security rather than through an RPC, the way Settings reads it, and
+      // advisory: a report still stands up without it, minus the trailers.
+      Promise.all(state.locationIds.map(id => db.select('location_truck_types',
+        q => q.select('truck_type_code,skid_capacity').eq('location_id', id),
+        { key: `reports:capacity:${id}`, cache: 300000 }).catch(() => []))).catch(() => []),
     ]);
     state.data = data;
     state.scorecard = Array.isArray(scorecard) ? scorecard : [];
     state.fullness = Array.isArray(fullness) ? fullness : [];
     state.labour = Array.isArray(labour) ? labour : [];
+    state.capacity = {};
+    for (const site of (capacities || [])) {
+      for (const row of (site || [])) {
+        if (!num(row.skid_capacity)) continue;
+        (state.capacity[row.truck_type_code] ||= []).push(num(row.skid_capacity));
+      }
+    }
     renderView();
   } catch (error) {
     renderState(state.elements.host, {
@@ -681,6 +903,15 @@ function buildShell(root) {
 
 function wireEvents(root) {
   root.addEventListener('click', event => {
+    // Which form a panel is drawn in. Kept per browser rather than per account: it is a
+    // reading preference, like the text size, not a setting anybody else is affected by.
+    const form = event.target.closest('[data-form]');
+    if (form) {
+      state.forms[form.dataset.form] = form.dataset.formValue;
+      try { localStorage.setItem('maxdock:report-forms', JSON.stringify(state.forms)); } catch { /* private mode */ }
+      renderView();
+      return;
+    }
     if (event.target.closest('[data-export]')) { exportCsv(); return; }
     if (event.target.closest('[data-print]')) { globalThis.print(); return; }
     const customize = event.target.closest('[data-customize]');
@@ -726,6 +957,7 @@ const page = {
       onChange: selected => { state.visibleCards = selected; renderView(); },
     });
     state.visibleCards = state.customizePanel.selected;
+    try { state.forms = JSON.parse(localStorage.getItem('maxdock:report-forms') || '{}') || {}; } catch { state.forms = {}; }
     applyPreset('last30');
     syncControls();
     await reload();

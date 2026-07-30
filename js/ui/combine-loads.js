@@ -1,5 +1,6 @@
 import { db } from '../db.js';
 import { createModal } from './modal.js';
+import { truckFill } from './truckfill.js';
 import { format } from '../format.js';
 import { toast } from './toast.js';
 
@@ -178,16 +179,17 @@ export function createCombineDialog({ location, capacityFor, truckName, onDone }
     const working = picked.filter(row => onDock(row) && row.id !== keep.id);
     const total = totalSkids();
     const capacity = capacityOf(keep);
-    const percent = capacity ? Math.round((total / capacity) * 100) : 0;
     const over = capacity && total > capacity;
     const absorbed = picked.length - 1;
     els.summary.innerHTML = `
       <p class="inline-note${over || working.length ? ' inline-note--warning' : ''}">One truck: ${escapeHtml(keep.booking_reference || 'the earliest load')} at ${escapeHtml(format.time(keep.start_at, location))}, ${total} skids, ${absorbed} load${absorbed === 1 ? '' : 's'} cancelled onto it.</p>
       ${working.length ? `<p class="form-message">${escapeHtml(working.map(row => row.booking_reference).join(', '))} ${working.length === 1 ? 'is' : 'are'} already on the dock and cannot be cancelled onto another truck. Either keep that booking instead, or untick it.</p>` : ''}
-      ${capacity ? `<div class="fullness${over ? ' fullness--over' : ''}">
-        <div class="fullness__bar"><span style="width:${Math.min(100, percent)}%"></span></div>
-        <div class="fullness__t">${percent}% full · ${total} of ${capacity} skids${over ? ` · ${total - capacity} over` : ` · room for ${capacity - total}`}</div>
-      </div>` : '<p class="hint">This truck type has no skid capacity set for this site, so how full it ends up is not known.</p>'}
+      ${truckFill({
+        skids: total,
+        capacity,
+        label: truckName?.(keep.truck_type_code) || keep.truck_type_code || '',
+        wide: true,
+      })}
       ${over ? '<p class="hint">More than this truck holds. Keep one of the bigger trucks instead, or leave a load out of the run.</p>' : ''}`;
     els.run.disabled = busy || working.length > 0;
   }

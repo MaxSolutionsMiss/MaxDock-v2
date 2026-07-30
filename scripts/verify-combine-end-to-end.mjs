@@ -13,8 +13,9 @@
 //      naming the run, not just saying "Combine", because pressing it cancels real
 //      bookings.
 //   2. The dialog offers every load on the lane, says which one survives, and draws
-//      the fullness bar. The bar is the reason Mississauga's skid capacities had to
-//      be entered: with no capacity there is no bar and no answer to "does this fit".
+//      the trailer. The trailer is the reason Mississauga's skid capacities had to be
+//      entered: with no capacity there is nothing to draw the load against and no
+//      answer to "does this fit".
 //   3. Combining calls merge_appointments — the one merge in this application.
 //   4. The absorbed load leaves the dock board.
 //   5. The absorbed load leaves the operations queue, and the survivor is marked as
@@ -111,12 +112,23 @@ check(/53 ft Trailer, holds 26/.test(listText), 'A row does not name its trailer
 const summary = (await dialog.locator('[data-combine-summary]').textContent()) || '';
 check(/MXD-2026-000146/.test(summary), `The dialog does not name the surviving load. It says: "${summary}"`);
 check(/20 skids/.test(summary), `The dialog does not add the lane's skids up. It says: "${summary}"`);
-// The fullness bar is the point of entering skid capacities. Without a capacity the
-// dialog says so instead, which is the state Mississauga was stuck in.
-const bar = dialog.locator('.fullness__bar');
-check(await bar.count() > 0, 'The truck-fullness bar did not render, so no capacity reached the dialog.');
-const fullness = (await dialog.locator('.fullness__t').textContent().catch(() => '')) || '';
-check(/77% full · 20 of 26 skids/.test(fullness), `The fullness figure is wrong. It says: "${fullness}"`);
+// The trailer is the point of entering skid capacities. Without a capacity there is
+// nothing to draw the load against, and the dialog says so instead of drawing a truck.
+// Three things are checked, because a picture that is merely present proves nothing: the
+// drawing is there, the loaded part of it is the right length, and the caption says the
+// same numbers the drawing shows.
+const truck = dialog.locator('.truck');
+check(await truck.count() > 0, 'The trailer did not render, so no capacity reached the dialog.');
+const caption = (await dialog.locator('.truck__cap').textContent().catch(() => '')) || '';
+check(/20 of 26 skids/.test(caption), `The trailer's caption is wrong. It says: "${caption}"`);
+check(/room for 6 more/.test(caption), `The trailer should say what room is left. It says: "${caption}"`);
+// 20 of 26 is 76.9% of the trailer's 146-unit interior, so 112.3 wide. A drawing that
+// says the right number underneath while showing the wrong amount of load is worse than
+// no drawing, so the geometry is measured rather than assumed.
+const loadWidth = Number(await dialog.locator('.truck__load').first().getAttribute('width'));
+check(Math.abs(loadWidth - 112.3) < 1.5, `The loaded part of the trailer is ${loadWidth} units wide; 20 of 26 should be 112.3.`);
+check(/truck__load--part/.test(await dialog.locator('.truck__load').first().getAttribute('class') || ''),
+  'A trailer at 77% should be drawn in the part-loaded band.');
 
 // Choosing the later load moves everything onto it, which is the whole point of the
 // choice: the truck with the room is not always the earliest.

@@ -11,6 +11,11 @@ const ICONS = {
   edit: '<path d="M4 20h4L19 9a2.1 2.1 0 0 0-3-3L5 17v3z"></path><path d="M14.5 6.5 17.5 9.5"></path>',
   cancel: '<circle cx="12" cy="12" r="9"></circle><path d="M5.6 5.6 18.4 18.4"></path>',
   search: '<circle cx="10.5" cy="10.5" r="6.5"></circle><path d="M15.5 15.5 21 21"></path>',
+  // A verdict, drawn. Beside a percentage and its word, so a reading never rests on a
+  // colour: a tick for on time, a bar for slipping, a cross for not acceptable.
+  ok: '<circle cx="12" cy="12" r="9"></circle><path d="M8 12.5l2.6 2.6L16 9.5"></path>',
+  warn: '<path d="M12 3.5 21.5 20H2.5z"></path><path d="M12 9.5v4.5M12 17h.01"></path>',
+  stop: '<circle cx="12" cy="12" r="9"></circle><path d="M9 9l6 6M15 9l-6 6"></path>',
 };
 
 // The same glyphs, for the row-level actions a page draws itself. Rendered into a

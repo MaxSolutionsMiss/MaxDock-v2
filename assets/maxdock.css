@@ -1308,3 +1308,38 @@ body.modal-open{overflow:hidden}
 .ranked__t{height:10px;border-radius:5px;background:var(--chart-track);overflow:hidden}
 .ranked__t>span{display:block;height:100%;border-radius:5px;background:var(--chart-a)}
 .ranked__v{font-weight:600;font-variant-numeric:tabular-nums}
+/* A trailer filling up, for the one question a bar never answered well: how much room is
+   left. Loads from the front, so the gap is at the doors where somebody looking for it
+   would look, and one division per skid position while they are still far enough apart to
+   count. Colour says the band and the caption says it in words too. */
+.trucks{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:var(--s4);padding:var(--s4)}
+.truck{margin:0;display:grid;gap:var(--s2);justify-items:center;min-width:0}
+.truck__svg{width:100%;max-width:230px;height:auto;overflow:visible}
+.truck--wide .truck__svg{max-width:420px}
+.truck__box{fill:none;stroke:var(--ink-muted);stroke-width:1.6}
+.truck__cabin{fill:var(--surface);stroke:var(--ink-muted);stroke-width:1.6}
+.truck__glass{fill:var(--chart-track);stroke:var(--ink-muted);stroke-width:1}
+.truck__wheel{fill:var(--ink-muted);stroke:none}
+.truck__ground,.truck__hitch{stroke:var(--rule-strong);stroke-width:1.4}
+.truck__div{stroke:var(--surface);stroke-width:.8;opacity:.6}
+.truck__well{fill:var(--chart-track)}
+.truck__load{fill:var(--chart-track)}
+.truck__load--light{fill:var(--signal)} .truck__load--part{fill:var(--chart-a)}
+.truck__load--full{fill:var(--ok)} .truck__load--over{fill:var(--stop)}
+.truck--unset .truck__box{stroke-dasharray:3 3}
+.truck__cap{display:grid;justify-items:center;gap:1px;text-align:center;font-size:var(--t-small)}
+.truck__cap b{font-family:var(--font-data);font-size:var(--t-base)}
+.truck__cap span{color:var(--ink-muted);font-size:var(--t-micro)}
+.truck__cap em{font-style:normal;font-weight:600;font-size:var(--t-micro);text-transform:uppercase;letter-spacing:.03em;color:var(--ink-muted)}
+/* Two charts abreast in one panel body, so a view is a dashboard rather than a single
+   drawing floating in the middle of a lot of white. Collapses to one on a narrow card. */
+.chart2{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:var(--s4);align-items:start}
+.chart2>section{min-width:0;display:grid;gap:var(--s2);align-content:start}
+.chart2 .ranked,.chart2 .ring,.chart2 .dials,.chart2 .trucks{padding:0}
+.chart2__t{font-size:var(--t-micro);text-transform:uppercase;letter-spacing:.05em;color:var(--ink-muted);font-weight:600;margin:0}
+/* A verdict beside a reading: the glyph, the word and the colour all saying the same
+   thing, so none of the three is carrying it alone. Sits inside a KPI's label, which is
+   where a person's eye already goes after the number. */
+.vd{display:inline-flex;align-items:center;gap:3px;text-transform:none;letter-spacing:0;font-weight:600;white-space:nowrap}
+.vd svg{width:12px;height:12px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+.vd--ok{color:var(--ok)} .vd--warn{color:var(--signal)} .vd--stop{color:var(--stop)} .vd--quiet{color:var(--ink-faint)}
