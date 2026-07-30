@@ -90,12 +90,20 @@ if (!errors.length) {
   // On the title line it could only ever be text-sized.
   need(queue, /<span class="briefcol__m"[\s\S]{0,120}<div class="briefcol__c">/,
     'The brief\'s mark is not in a gutter beside the column, so it cannot be more than text-sized.');
-  need(css, /\.briefcol\{display:grid;grid-template-columns:auto/,
+  need(css, /\.briefcol\{[^}]*grid-template-columns:auto/,
     'The brief column is not laid out with a gutter for its mark.');
   need(css, /\.briefcol__m svg\{width:[23]\.\d+em/,
     'The brief\'s mark is sized in px or is text-sized; it should be several em so it grows with the type and reads from a distance.');
-  need(css, /\.briefcol__m\{[^}]*color:var\(--dock-deep\)/,
+  need(css, /\.briefcol__m\{[^}]*color:var\(--dock/,
     'The brief\'s marks are not in MaxDock blue.');
+  // Each group is a card in the same family as the metric strip above it, not a slab of
+  // text on a tinted panel: same surface, same border, same accent down the left edge.
+  need(css, /\.briefcol\{background:var\(--surface\);border:1px solid var\(--rule\);border-left:6px/,
+    'The brief\'s groups are not the same card as the metric strip above them.');
+  forbid(css, /\.brief\{[^}]*linear-gradient/,
+    'The brief still sits on a tinted panel, which puts a box around a row of boxes.');
+  need(css, /@container \(min-width:\d+em\)\{\.briefcols/,
+    'The brief\'s column count is chosen by window width rather than by whether the card has room for the text, so Larger text keeps three columns on a window that has not grown.');
   forbid(css, /\.brief__body\{[^}]*max-height/,
     'The brief\'s body is bounded rather than the card. That is what crushed it to zero height and made the Combine action unclickable.');
   forbid(css, /\.brief__body\{[^}]*border-top/,

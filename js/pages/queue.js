@@ -465,10 +465,19 @@ function labourPoints(appointments) {
 function combinePoints(appointments) {
   return combinableLanes(appointments).slice(0, 3).map(lane => {
     const { total, biggest, fits } = laneFullness(lane, capacityFor);
-    const references = lane.rows.map(row => row.booking_reference).filter(Boolean).join(', ');
+    // The references are not in the sentence. Two of them are sixteen characters each and
+    // made this the one bullet on the card that ran to six lines, and nobody acts on a
+    // number by reading it here: the Combine button beside it opens the dialog that lists
+    // them and ticks them. What belongs here is the decision — how much, and does it fit.
     return {
       ...lane,
-      text: `${laneDescription(lane)}: ${references}${biggest > 0 ? `, ${total} of ${biggest} skids${fits ? ', they fit one truck' : ''}` : ''}.`,
+      // Short on purpose. This is a bullet in a card three across, and the long form ran to
+      // four lines of eighteen characters at every width. It says the decision and nothing
+      // else: how many, where to, how full, does it fit. The dialog behind the button
+      // lists the references and ticks them, which is where anybody acts on them.
+      text: biggest > 0
+        ? `${lane.rows.length} ${lane.direction === 'outbound' ? 'to' : 'from'} ${lane.partner}: ${total} of ${biggest} skids${fits ? ', one truck' : ', over one truck'}.`
+        : `${lane.rows.length} ${lane.direction === 'outbound' ? 'to' : 'from'} ${lane.partner}: ${total} skids.`,
     };
   });
 }

@@ -9,9 +9,10 @@
 // combine dialog, where it redraws as loads are ticked on and off, and the truck fullness
 // report, where it is the reading for the whole range.
 //
-// Drawn as inline SVG rather than divs. The shape is a shape — a cab, a box, wheels, and
-// and the load inside the box, and every one of those is a shape rather than a div with a border. It carries no text of its own: the caption underneath says the numbers,
-// so the same drawing works at 96px wide in a dialog row and 260px wide on a report.
+// Drawn as inline SVG rather than divs: a cab, a box, wheels and the load inside the box,
+// each of them a shape rather than a div with a border. It carries no text of its own, so
+// the same drawing works at 96px wide in a dialog row and 260px wide on a report, and the
+// caption underneath says the numbers.
 
 const escapeHtml = value => String(value ?? '').replace(/[&<>'"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[char]));
 
@@ -44,9 +45,11 @@ export function truckFill({ skids, capacity, label = '', note = '', wide = false
   const shown = Math.min(100, percent);
   const state = band(percent);
   const spare = holds - carried;
+  // What a loader would say standing at the doors, in as few words as it takes. Not
+  // "exactly full" or "more than it holds": full, or how many will not go on.
   const words = note || (percent > 100
-    ? `${carried - holds} skid${carried - holds === 1 ? '' : 's'} more than it holds`
-    : spare === 0 ? 'exactly full' : `room for ${spare} more`);
+    ? `${carried - holds} skid${carried - holds === 1 ? '' : 's'} will not fit`
+    : spare === 0 ? 'full' : `room for ${spare} more`);
   return `<figure class="truck truck--${state.key}${wide ? ' truck--wide' : ''}" role="img"
     aria-label="${escapeHtml(`${label ? `${label}: ` : ''}${carried} of ${holds} skids, ${percent.toFixed(0)} per cent, ${state.words}`)}">
     ${outline(shown, state.key)}
