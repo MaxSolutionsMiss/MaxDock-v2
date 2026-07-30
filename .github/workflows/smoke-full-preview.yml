@@ -67,7 +67,12 @@ jobs:
           test "$(grep -c '\.passwordReveal' /tmp/maxdock.css)" -gt 0
           test "$(grep -c '\.login-page' /tmp/maxdock.css)" -gt 0
           test "$(grep -c '\.toast-region' /tmp/maxdock.css)" -gt 0
-          grep -q "import('./pages/booking.js')" /tmp/router.js
+          # The booking page is lazily imported, which is what this asserts. The
+          # deploy stamps the commit onto asset URLs so a release invalidates the
+          # browser cache by itself, and that stamp lands on import specifiers too —
+          # so the specifier is matched with an optional ?v=, not verbatim. The
+          # assertion is unchanged in substance: no stamp, or a stamp, but an import.
+          grep -qE "import\('\./pages/booking\.js(\?v=[0-9a-f]+)?'\)" /tmp/router.js
           grep -q 'bookingPage.mount' /tmp/router.js
           grep -q 'createModal' /tmp/router.js
           grep -q 'book_appointment' /tmp/booking.js
