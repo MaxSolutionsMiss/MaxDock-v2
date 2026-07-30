@@ -58,5 +58,5 @@ export function upgradeMessage(upgrade) {
   if (fits) {
     return `${skids} skids is ${over} more than a ${name} holds (${capacity}). A ${fits.name} holds ${capacityOf(fits)} and takes the whole run.`;
   }
-  return `${skids} skids is ${over} more than a ${name} holds (${capacity}), and the largest trailer at this site holds ${capacityOf(biggest)}. This run needs more than one truck — leave a load out and book it separately.`;
+  return `${skids} skids is ${over} more than a ${name} holds (${capacity}), and the largest trailer at this site holds ${capacityOf(biggest)}. This run needs more than one truck. Leave a load out and book it separately.`;
 }

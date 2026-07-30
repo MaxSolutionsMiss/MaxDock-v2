@@ -85,7 +85,17 @@ if (!errors.length) {
     need(queue, new RegExp(`title: '${group}',\\s*\\n?\\s*mark: '${mark}'`),
       `The brief's ${group} column has no ${mark} mark, so the four columns are told apart by their headings alone.`);
   }
-  need(css, /\.briefcol\{display:grid/, 'The brief column is not laid out to hold a mark beside its points.');
+  // The mark sits on the title line. A gutter of its own cost the points width and left
+  // the column looking half empty, so the heading carries it and the points run full width
+  // directly underneath, with no gap and no rule between them.
+  need(queue, /<h4 class="briefcol__t"><span class="briefcol__m"/,
+    'The brief\'s mark is not on the title line, so it is taking a gutter the points need.');
+  need(css, /\.briefcol__t\{[^}]*color:var\(--dock-deep\)/,
+    'The brief\'s category headings are not in MaxDock blue.');
+  need(css, /\.briefcol__t\{[^}]*margin:0[;}]/,
+    'There is a gap under each category heading, pushing its points away from it.');
+  forbid(css, /\.brief__body\{[^}]*border-top/,
+    'A rule still sits above the brief\'s columns. The figures are already in cards; a second boundary costs a whole row.');
 }
 
 if (errors.length) {

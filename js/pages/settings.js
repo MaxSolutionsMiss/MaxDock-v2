@@ -257,14 +257,14 @@ function renderHolidays(canEdit) {
            without permission to apply a calendar has no third control in the row, so
            it then stopped 254px short of its own right edge. -->
       <label class="field field--md"><span class="field__label">Calendar</span><select class="select" name="holiday_calendar" ${canEdit ? '' : 'disabled'}>
-        <option value="none" ${chosen === 'none' ? 'selected' : ''}>None — set closures by hand</option>
+        <option value="none" ${chosen === 'none' ? 'selected' : ''}>None: set closures by hand</option>
         <option value="ca" ${chosen === 'ca' ? 'selected' : ''}>Canada (Ontario)</option>
         <option value="us" ${chosen === 'us' ? 'selected' : ''}>United States (federal)</option>
       </select></label>
       <div class="field field--num"><span class="field__label">Year</span><span class="inputwrap"><input class="input" type="number" min="2020" max="2100" name="holiday_year" value="${year}" ${canEdit ? '' : 'disabled'}></span></div>
       ${canEdit ? `<div class="field-action"><button class="btn btn--quiet btn--sm" type="button" data-unlocked data-apply-holidays>Block these dates</button></div>` : ''}
     </div>
-    <p class="hint hint--wide">Choosing a calendar and saving records which dates this site observes. <strong>Block these dates</strong> then closes every dock across each of them, the same way blocking dock time does — so nothing can be booked on them and the board shows why. A date that already has trucks on it is left alone and named back to you, because cancelling a booked load is your call and not MaxDock's.</p>
+    <p class="hint hint--wide">Choosing a calendar and saving records which dates this site observes. <strong>Block these dates</strong> then closes every dock across each of them, the same way blocking dock time does, so nothing can be booked on them and the board shows why. A date that already has trucks on it is left alone and named back to you, because cancelling a booked load is your call and not MaxDock's.</p>
     ${list}
     ${saveFoot(canEdit)}
   </form>`;
@@ -353,7 +353,7 @@ function renderNotice() {
 // asked for until the 20 being reserved is on the same row.
 function workingLimit(settings) {
   const total = Number(settings.skid_capacity || 0);
-  if (!total) return '—';
+  if (!total) return '–';
   return Math.max(total - Number(settings.capacity_reserve_skids || 0), 0);
 }
 
@@ -383,7 +383,7 @@ function renderCapacity() {
         <div class="field field--num"><span class="field__label">Counted</span><span class="inputwrap"><input class="input" type="number" min="0" name="current_occupied_skids" value="${s.current_occupied_skids ?? 0}" ${disabled}><span class="input__unit">skids</span></span></div>
         <div class="field field--md"><span class="field__label">As of</span><input class="input" type="datetime-local" name="inventory_as_of" value="${escapeHtml(localDateTime(s.inventory_as_of))}" ${disabled}></div>
         <div class="field field--num"><span class="field__label">Occupied now</span><span class="inputwrap"><input class="input" value="${state.capacity?.projected_before ?? s.current_occupied_skids ?? 0}" readonly tabindex="-1" aria-label="Occupied now, calculated"><span class="input__unit">skids</span></span></div>
-        <div class="field field--num"><span class="field__label">Free now</span><span class="inputwrap"><input class="input" value="${state.capacity?.available_after ?? '—'}" readonly tabindex="-1" aria-label="Free now, calculated"><span class="input__unit">skids</span></span></div>
+        <div class="field field--num"><span class="field__label">Free now</span><span class="inputwrap"><input class="input" value="${state.capacity?.available_after ?? '–'}" readonly tabindex="-1" aria-label="Free now, calculated"><span class="input__unit">skids</span></span></div>
       </div>
       <p class="hint hint--wide">Floor capacity is how many skids this site holds; the reserve is held back and never booked into, so the working limit is what MaxDock will fill. Enter a floor count and the time it was taken. MaxDock keeps it current from there: every booked inbound adds, every outbound subtracts. Occupied now and Free now are calculated${s.capacity_last_source === 'mis' ? ', last set from an MIS import' : ''}.</p>
     </fieldset>
@@ -457,24 +457,24 @@ function renderLabour() {
       <div class="frow">
         <div class="field field--sm"><span class="field__label">Crew per truck</span><span class="inputwrap"><input class="input" type="number" min="0" max="50" name="handlers_per_truck" value="${s.handlers_per_truck ?? 2}" ${disabled}><span class="input__unit">people</span></span></div>
       </div>
-      <p class="hint hint--wide">What a truck costs in people. The hours are not typed in anywhere: they come from the window MaxDock already worked out for the load under Timing &amp; duration, multiplied by this — a 75-minute truck at two people is 2.5 hours of dock labour. The operations brief and the Labour hours report both count from here.</p>
+      <p class="hint hint--wide">What a truck costs in people. The hours are not typed in anywhere: they come from the window MaxDock already worked out for the load under Timing &amp; duration, multiplied by this: a 75-minute truck at two people is 2.5 hours of dock labour. The operations brief and the Labour hours report both count from here.</p>
       ${saveFoot(canEdit)}
     </form>
     <form data-section-form="shifts">
       <h3 class="card__title">Shifts${canEdit ? '<button class="btn btn--primary btn--sm at-end" type="button" data-unlocked data-add-shift>Add shift</button>' : ''}</h3>
       ${shiftRows(canEdit)}
-      <p class="hint hint--wide">The shifts this site runs and how many people are on each. Summed for a weekday, this is the hours available for dock work — which is what the Labour hours report divides by, so it is worth being right.</p>
+      <p class="hint hint--wide">The shifts this site runs and how many people are on each. Summed for a weekday, this is the hours available for dock work, which is what the Labour hours report divides by, so it is worth being right.</p>
       ${saveFoot(canEdit)}
     </form>
     <form data-section-form="day-cap">
       <h3 class="card__title">Cap a day</h3>
       <div class="frow">
         <label class="field field--md"><span class="field__label">Date</span><input class="input" type="date" name="limit_date" value="${escapeHtml(cap.limit_date || format.todayInput(state.context?.location))}" ${disabled}></label>
-        <div class="field field--num"><span class="field__label">At once</span><span class="inputwrap"><input class="input" type="number" min="0" max="100" name="max_concurrent" value="${cap.max_concurrent_appointments ?? ''}" placeholder="—" ${disabled}><span class="input__unit">trucks</span></span></div>
-        <div class="field field--num"><span class="field__label">All day</span><span class="inputwrap"><input class="input" type="number" min="0" max="500" name="max_total" value="${cap.max_appointments ?? ''}" placeholder="—" ${disabled}><span class="input__unit">trucks</span></span></div>
+        <div class="field field--num"><span class="field__label">At once</span><span class="inputwrap"><input class="input" type="number" min="0" max="100" name="max_concurrent" value="${cap.max_concurrent_appointments ?? ''}" placeholder="–" ${disabled}><span class="input__unit">trucks</span></span></div>
+        <div class="field field--num"><span class="field__label">All day</span><span class="inputwrap"><input class="input" type="number" min="0" max="500" name="max_total" value="${cap.max_appointments ?? ''}" placeholder="–" ${disabled}><span class="input__unit">trucks</span></span></div>
       </div>
       <div class="frow">
-        <label class="field field--full"><span class="field__label">Note <span class="field__opt">optional</span></span><input class="input" name="cap_note" maxlength="120" value="${escapeHtml(cap.note || '')}" placeholder="Line rebuild — keep the docks quiet" ${disabled}></label>
+        <label class="field field--full"><span class="field__label">Note <span class="field__opt">optional</span></span><input class="input" name="cap_note" maxlength="120" value="${escapeHtml(cap.note || '')}" placeholder="Line rebuild, keep the docks quiet" ${disabled}></label>
       </div>
       <p class="hint hint--wide">Fewer trucks on one date, so a day that would otherwise fill up does not put the crew under pressure. Standing limits live under Dock assignment; this tightens them for a single date and nothing else. Leave both blank to lift the cap on that date. Zero is a real answer: it stops anything new being booked while what is already on the board still runs. ${state.dayCaps?.length ? `Capped now: ${escapeHtml(state.dayCaps.map(row => row.limit_date).join(', '))}.` : 'No dates are capped.'}</p>
       ${saveFoot(canEdit)}
@@ -487,9 +487,9 @@ function renderLabour() {
         <div class="field field--num"><span class="field__label">Hours each</span><span class="inputwrap"><input class="input" type="number" min="0.5" max="24" step="0.5" name="hours_each" value="${day.hours_each ?? 8}" ${disabled}><span class="input__unit">hours</span></span></div>
       </div>
       <div class="frow">
-        <label class="field field--full"><span class="field__label">Note <span class="field__opt">optional</span></span><input class="input" name="note" maxlength="120" value="${escapeHtml(day.note || '')}" placeholder="Civic holiday — skeleton crew" ${disabled}></label>
+        <label class="field field--full"><span class="field__label">Note <span class="field__opt">optional</span></span><input class="input" name="note" maxlength="120" value="${escapeHtml(day.note || '')}" placeholder="Civic holiday, skeleton crew" ${disabled}></label>
       </div>
-      <p class="hint hint--wide">The shifts above cover a normal week. Record a date here when it was not one — a holiday, somebody off, a Saturday with two people — and the Labour hours report uses what you recorded for that date instead of the shift roster.</p>
+      <p class="hint hint--wide">The shifts above cover a normal week. Record a date here when it was not one (a holiday, somebody off, a Saturday with two people) and the Labour hours report uses what you recorded for that date instead of the shift roster.</p>
       ${saveFoot(canEdit)}
     </form>
   </div>`;
@@ -538,7 +538,7 @@ function renderTruckCapacity(canEdit) {
       return `<div class="setrow setrow--compact" data-capacity-code="${type.code}">
         <div><div class="setrow__t">${escapeHtml(type.name)}</div></div>
         <div class="setrow__ctl"><span class="inputwrap">
-          <input class="input input--mins" type="number" min="1" name="skid_capacity" value="${row?.skid_capacity ?? ''}" placeholder="—" ${disabled} aria-label="${escapeHtml(type.name)} skid capacity">
+          <input class="input input--mins" type="number" min="1" name="skid_capacity" value="${row?.skid_capacity ?? ''}" placeholder="–" ${disabled} aria-label="${escapeHtml(type.name)} skid capacity">
           <span class="input__unit">skids</span>
         </span></div>
       </div>`;
@@ -566,7 +566,7 @@ function dockTypeCodes(dockId) {
 // site set up that way looked configured while being unbookable.
 function dockTruckLabels(dockId) {
   const codes = dockTypeCodes(dockId);
-  if (!codes.size) return 'None — nothing can be booked here';
+  if (!codes.size) return 'None: nothing can be booked here';
   const enabled = locationTypeCodes();
   if (enabled.length && enabled.every(code => codes.has(code))) return 'All types';
   return state.truckTypes.filter(type => codes.has(type.code)).map(type => type.name).join(', ');
@@ -652,7 +652,7 @@ function shortcutRoute(shortcut) {
 }
 
 function labelFor(rows, code) {
-  return rows.find(row => row.code === code)?.name || code || '—';
+  return rows.find(row => row.code === code)?.name || code || '–';
 }
 
 function shortcutDetail(shortcut) {
@@ -683,7 +683,7 @@ function renderQuickQr() {
   return `<form class="card" data-section-form="quickqr">
     <h3 class="card__title">Quick QR codes${canEdit ? '<button class="btn btn--primary btn--sm at-end" type="button" data-add-shortcut>New code</button>' : ''}</h3>
     ${rows || '<p class="hint">No quick codes yet. Make one for a run this site books over and over.</p>'}
-    <p class="hint hint--wide">A quick code is a booking saved with everything but the time. Print it, put it where the loads are made up, and scanning it opens MaxDock with the load already in — the person booking picks a time and confirms. Edit a code and every printed copy of it changes with it; the paper does not have to be replaced.</p>
+    <p class="hint hint--wide">A quick code is a booking saved with everything but the time. Print it, put it where the loads are made up, and scanning it opens MaxDock with the load already in; the person booking picks a time and confirms. Edit a code and every printed copy of it changes with it; the paper does not have to be replaced.</p>
   </form>`;
 }
 
@@ -1103,7 +1103,7 @@ function openDockModal(dockId) {
   form.querySelector('[data-dock-checks]').innerHTML = state.truckTypes
     .filter(type => offered.includes(type.code))
     .map(type => `<label class="dock-check" title="${escapeHtml(type.name)}"><input type="checkbox" name="truck_type_code" value="${type.code}" ${enabledCodes.has(type.code) ? 'checked' : ''}><span>${escapeHtml(type.name)}</span></label>`)
-    .join('') || '<p class="hint">No truck types are enabled at this location yet — enable them below before a dock can take anything.</p>';
+    .join('') || '<p class="hint">No truck types are enabled at this location yet; enable them below before a dock can take anything.</p>';
   const restricted = dockId ? dockIsRestricted(dockId) : false;
   const restrictSwitch = form.querySelector('[data-dock-restrict-switch]');
   restrictSwitch.classList.toggle('switch--off', !restricted);
@@ -1367,7 +1367,7 @@ function buildShell(root) {
             </fieldset>
             <div data-lead-row>
               <div class="frow">${durationField('No earlier than', 'lead_minutes', LEAD_DEFAULT_MINUTES, 'minutes', LEAD_UNITS, '')}</div>
-              <p class="hint hint--wide">The gap before the earliest time MaxDock will take, so there is room to make the truck up — and room for the load to be combined with something else going the same way.</p>
+              <p class="hint hint--wide">The gap before the earliest time MaxDock will take, so there is room to make the truck up, and room for the load to be combined with something else going the same way.</p>
             </div>
             <p class="hint hint--wide">Saved for everyone at this site, so any printed copy of the code works for whoever picks it up.</p>
           </div>

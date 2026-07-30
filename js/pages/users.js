@@ -163,7 +163,7 @@ function timeSignedIn(usage) {
 // step from row to row — a grid that changes shape depending on whether somebody has
 // a company against their name is the disorganisation, not the cure for it.
 function detailCell(label, value) {
-  return `<div class="confirmgrid__cell"><span class="confirmgrid__l">${escapeHtml(label)}</span><span class="confirmgrid__v">${escapeHtml(value || '—')}</span></div>`;
+  return `<div class="confirmgrid__cell"><span class="confirmgrid__l">${escapeHtml(label)}</span><span class="confirmgrid__v">${escapeHtml(value || '–')}</span></div>`;
 }
 
 function openRoleDialog(code, trigger) {
@@ -186,11 +186,11 @@ function renderTable() {
   state.elements.rows.innerHTML = users.map(user => {
     const usage = state.usage.get(user.user_id);
     const statusTag = !user.is_active ? '<span class="tag tag--quiet">Inactive</span>' : user.must_change_password ? '<span class="tag tag--pri">Invited</span>' : '<span class="tag tag--ok">Active</span>';
-    const lastSeen = usage?.last_activity_at ? format.timestamp(usage.last_activity_at, state.context.location) : (user.last_sign_in_at ? format.timestamp(user.last_sign_in_at, state.context.location) : '—');
-    const sites = (user.location_names || []).join(', ') || (user.role_code === 'system_admin' ? 'All' : '—');
+    const lastSeen = usage?.last_activity_at ? format.timestamp(usage.last_activity_at, state.context.location) : (user.last_sign_in_at ? format.timestamp(user.last_sign_in_at, state.context.location) : '–');
+    const sites = (user.location_names || []).join(', ') || (user.role_code === 'system_admin' ? 'All' : '–');
     const isSelf = user.user_id === state.context.user.id;
     const box = isSelf
-      ? '<span class="sub" title="You cannot change your own status">—</span>'
+      ? '<span class="sub" title="You cannot change your own status">–</span>'
       : `<label class="cellcheck"><input type="checkbox" data-select-user="${user.user_id}" ${state.selected.has(user.user_id) ? 'checked' : ''} aria-label="Select ${escapeHtml(user.full_name)}"></label>`;
     // Four things closed, the rest a click away. Everything about an account on one
     // line made the row as wide as the monitor and pushed Edit off the end of it;
@@ -255,7 +255,7 @@ async function applyBulkStatus(makeActive) {
   await fetchAll();
   state.selected.clear();
   renderTable();
-  if (failed.length) toast(`${failed.length} could not be updated — ${failed[0]}`, 'error');
+  if (failed.length) toast(`${failed.length} could not be updated: ${failed[0]}`, 'error');
   else toast(`${ids.length} user${ids.length === 1 ? '' : 's'} ${makeActive ? 'activated' : 'deactivated'}.`, 'success');
 }
 
@@ -347,7 +347,7 @@ async function submitAddUser(event) {
       : `<p class="form-message form-message--success">${escapeHtml(result.message || 'Temporary login created.')}</p>
          <label class="field field--full"><span class="field__label">Username</span><input class="input" readonly value="${escapeHtml(result.user?.username || body.username)}"></label>
          <label class="field field--full"><span class="field__label">Temporary password</span><input class="input" readonly value="${escapeHtml(body.password)}"></label>
-         <p class="hint">Share these with the new user directly — MaxDock does not send this automatically. They will be asked to set a new password on first sign-in.</p>`;
+         <p class="hint">Share these with the new user directly; MaxDock does not send this automatically. They will be asked to set a new password on first sign-in.</p>`;
   } catch (error) {
     toast(error.userMessage || error.message || 'The user could not be created.', 'error');
   } finally {
@@ -515,13 +515,13 @@ function templateCsv() {
   const roles = roleChoices().map(choice => choice.label).join(', ');
   const sites = state.context.locations.map(item => item.name).join('; ');
   return toCsv([
-    ['# MaxDock user import' + (location ? ` — ${location}` : '')],
+    ['# MaxDock user import' + (location ? ` · ${location}` : '')],
     ['# Fill one row per person under the headings. Lines starting with # are ignored.'],
     [`# Role must be one of: ${roles}`],
     [`# Locations: separate several with a semicolon. Valid: ${sites}`],
     ['# Temporary password: leave it blank and MaxDock makes one, which it shows you after the import.'],
     ['Full name', 'Username', 'Email', 'Role', 'Company', 'Locations', 'Temporary password'],
-    ['# EXAMPLE — delete this row', 'jsmith', 'jsmith@example.com', 'Coordinator', '', location, ''],
+    ['# EXAMPLE, delete this row', 'jsmith', 'jsmith@example.com', 'Coordinator', '', location, ''],
   ]);
 }
 
@@ -692,7 +692,7 @@ function renderImportResults(results) {
       <tbody>${results.map(result => `<tr>
         <td class="cell-cap">${escapeHtml(result.record.fullName)}</td>
         <td>${escapeHtml(result.record.username)}</td>
-        <td>${escapeHtml(result.password || '—')}</td>
+        <td>${escapeHtml(result.password || '–')}</td>
         <td class="cell-elide" title="${escapeHtml(result.message)}">${result.ok ? '<span class="tag tag--ok">Created</span>' : `<span class="tag tag--stop">Not created</span> ${escapeHtml(result.message)}`}</td>
       </tr>`).join('')}</tbody>
     </table></div>
@@ -778,7 +778,7 @@ function renderRolesSection() {
         <th>Role</th><th>Code</th><th>People</th><th>May do</th><th class="col-fill">Sees</th><th></th>
       </tr></thead><tbody>${rows}</tbody></table></div>
     </div>
-    <p class="hint hint--wide">A role applies to every site. <b>May do</b> is the real boundary — the database asks these, so removing one closes the screen and the request behind it. <b>Sees</b> is the navigation rail, and only tidiness: a screen taken off a rail still opens for an account that holds its permission, so anything that must be refused has to be refused by a permission. A System Admin holds everything and cannot be changed, or a company could lock itself out of MaxDock.</p>`;
+    <p class="hint hint--wide">A role applies to every site. <b>May do</b> is the real boundary: the database asks these, so removing one closes the screen and the request behind it. <b>Sees</b> is the navigation rail, and only tidiness: a screen taken off a rail still opens for an account that holds its permission, so anything that must be refused has to be refused by a permission. A System Admin holds everything and cannot be changed, or a company could lock itself out of MaxDock.</p>`;
 }
 
 function renderSection() {

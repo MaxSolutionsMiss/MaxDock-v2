@@ -195,9 +195,9 @@ function renderTable() {
     // the commonest thing done on this screen and it had no answer here.
     return `<tr data-open-record="${escapeHtml(record.id)}" tabindex="0">
       <td class="data data--strong">${escapeHtml(format.time(record.start_at, state.context.location))}</td>
-      <td class="data" title="${Number(record.combined_from_count || 0) ? `${record.combined_from_count} loads combined onto this truck` : ''}">${Number(record.combined_from_count || 0) ? '⧉ ' : ''}${escapeHtml(record.booking_reference || '—')}</td>
+      <td class="data" title="${Number(record.combined_from_count || 0) ? `${record.combined_from_count} loads combined onto this truck` : ''}">${Number(record.combined_from_count || 0) ? '⧉ ' : ''}${escapeHtml(record.booking_reference || '–')}</td>
       <td class="data">${escapeHtml(dockName(record.dock_id))}</td>
-      <td>${escapeHtml(record.company_name || record.display_counterpart_location_name || record.requester_name || '—')}</td>
+      <td>${escapeHtml(record.company_name || record.display_counterpart_location_name || record.requester_name || '–')}</td>
       <td class="data">${escapeHtml(record.skid_count ?? 0)} sk</td>
       <td><span class="statusdot" style="--c:${colorVar}">${escapeHtml(statusText)}</span></td>
       <td>${action}</td>
@@ -256,7 +256,7 @@ function watchItems() {
       if (dockRecords[index - 1].end_at && gap <= BACK_TO_BACK_MINUTES) {
         items.push({
           title: `Back-to-back on ${dock.name}`,
-          body: `${format.time(dockRecords[index - 1].start_at, state.context.location)} and ${format.time(dockRecords[index].start_at, state.context.location)} — tight turnaround.`,
+          body: `${format.time(dockRecords[index - 1].start_at, state.context.location)} and ${format.time(dockRecords[index].start_at, state.context.location)}: tight turnaround.`,
         });
       }
     }
@@ -382,8 +382,8 @@ function briefGroups() {
     title: 'Trucks',
     mark: 'truck',
     points: [
-      `${appointments.length} truck${appointments.length === 1 ? '' : 's'} today — ${inbound.length} in with ${skids(inbound)} skids, ${outbound.length} out with ${skids(outbound)}.`,
-      `${each(appointments)} skids a truck on average — ${inbound.length ? `${each(inbound)} in` : 'nothing in'}, ${outbound.length ? `${each(outbound)} out` : 'nothing out'}.`,
+      `${appointments.length} truck${appointments.length === 1 ? '' : 's'} today: ${inbound.length} in with ${skids(inbound)} skids, ${outbound.length} out with ${skids(outbound)}.`,
+      `${each(appointments)} skids a truck on average: ${inbound.length ? `${each(inbound)} in` : 'nothing in'}, ${outbound.length ? `${each(outbound)} out` : 'nothing out'}.`,
       remaining.length ? `${remaining.length} still to arrive.` : 'Everything booked has arrived or finished.',
     ],
   }];
@@ -404,7 +404,7 @@ function briefGroups() {
   }
 
   const attention = [];
-  if (late.length) attention.push(`${late.length} running late — ${late.slice(0, 2).map(record => record.booking_reference || 'an unreferenced booking').join(', ')}.`);
+  if (late.length) attention.push(`${late.length} running late: ${late.slice(0, 2).map(record => record.booking_reference || 'an unreferenced booking').join(', ')}.`);
   if (priority.length) attention.push(`${priority.length} marked priority.`);
   if (state.brief?.brief?.summary) attention.push(state.brief.brief.summary);
   if (attention.length) groups.push({ title: 'Attention', mark: 'warn', points: attention });
@@ -437,7 +437,7 @@ function labourPoints(appointments) {
   // than inventing a number the site never gave.
   if (!availableHours) {
     return [
-      `${bookedHours} hours of dock labour booked today — ${perTruck} people per truck across ${appointments.length} truck${appointments.length === 1 ? '' : 's'}.`,
+      `${bookedHours} hours of dock labour booked today, ${perTruck} people per truck across ${appointments.length} truck${appointments.length === 1 ? '' : 's'}.`,
       'No shift covers today. Set the roster under Settings › Labour to see this against what the day has.',
     ];
   }
@@ -446,11 +446,11 @@ function labourPoints(appointments) {
   const used = Math.round((bookedHours / availableHours) * 100);
   const perPerson = people ? availableHours / people : 0;
   const points = [
-    `${bookedHours} of ${availableHours} dock hours booked today — ${used}% of the crew's day.`,
+    `${bookedHours} of ${availableHours} dock hours booked today, ${used}% of the crew's day.`,
     `${people} on across ${running.length} shift${running.length === 1 ? '' : 's'}, ${perTruck} people per truck.`,
   ];
   if (spare < 0) points.push(`${Math.abs(spare)} hours short. The day needs ${perPerson ? Math.ceil(Math.abs(spare) / perPerson) : 1} more on the floor, or trucks moved off it.`);
-  else points.push(`${spare} hours spare — room for about ${perPerson ? Math.floor(spare / perPerson) : 0} of the crew to be off and still clear the day.`);
+  else points.push(`${spare} hours spare, room for about ${perPerson ? Math.floor(spare / perPerson) : 0} of the crew to be off and still clear the day.`);
   return points;
 }
 
@@ -468,7 +468,7 @@ function combinePoints(appointments) {
     const references = lane.rows.map(row => row.booking_reference).filter(Boolean).join(', ');
     return {
       ...lane,
-      text: `${laneDescription(lane)} — ${references}${biggest > 0 ? `, ${total} of ${biggest} skids${fits ? ' — they fit one truck' : ''}` : ''}.`,
+      text: `${laneDescription(lane)}: ${references}${biggest > 0 ? `, ${total} of ${biggest} skids${fits ? ', they fit one truck' : ''}` : ''}.`,
     };
   });
 }
@@ -487,13 +487,13 @@ function renderBriefCard() {
   // is going wrong.
   const narrative = state.briefLoading
     ? '<span class="brief__x">Generating today’s narrative…</span>'
-    // A mark down the side of each column, running the depth of its points rather than
-    // sitting on the heading like a bullet. Four columns of near-identical grey text are
-    // told apart by shape before a word of them is read, which is the whole job of the
-    // card — and the shape is the subject: a truck, a person, a load, a warning.
+    // A mark on the heading itself, in MaxDock blue, with the points directly under it.
+    // Four columns of near-identical grey text are told apart by shape before a word of
+    // them is read, which is the whole job of the card, and the shape is the subject: a
+    // truck, a person, a load, a warning. It sits on the title line rather than in a
+    // gutter of its own, which is width the points get to keep.
     : `<div class="briefcols">${briefGroups().map(group => `<section class="briefcol">
-        <span class="briefcol__m" aria-hidden="true">${icon(group.mark || 'chart')}</span>
-        <h4 class="briefcol__t">${escapeHtml(group.title)}</h4>
+        <h4 class="briefcol__t"><span class="briefcol__m" aria-hidden="true">${icon(group.mark || 'chart')}</span>${escapeHtml(group.title)}</h4>
         <ul class="briefpoints">${group.points.map((point, index) => `<li>${escapeHtml(point)}${group.action ? ` <button class="linkBtn" type="button" ${group.action.attribute}="${index}">${escapeHtml(group.action.label)}</button>` : ''}</li>`).join('')}</ul>
       </section>`).join('')}</div>`;
   host.innerHTML = `<div class="brief__head"><span class="brief__ico">AI</span><div class="brief__t">${escapeHtml(state.context.location.name)} · today at a glance</div><button class="linkBtn" type="button" data-share-brief>Share with team</button></div>
@@ -639,7 +639,7 @@ async function changeStatus(appointmentId, newStatus) {
     await db.rpc('change_appointment_status', { p_appointment_id: appointmentId, p_new_status: newStatus, p_reason: null }, { key: `queue:status:${appointmentId}:${crypto.randomUUID()}`, retry: 0 });
     db.invalidate('queue:schedule:');
     db.invalidate('board:schedule:');
-    toast({ arrived: 'Marked arrived.', completed: 'Marked complete.', no_show: 'Marked as a no-show — the dock is released.' }[newStatus] || 'Status updated.', 'success');
+    toast({ arrived: 'Marked arrived.', completed: 'Marked complete.', no_show: 'Marked as a no-show. The dock is released.' }[newStatus] || 'Status updated.', 'success');
     await refreshData();
   } catch (error) {
     toast(error.userMessage || 'The status could not be changed.', 'error');

@@ -110,7 +110,7 @@ export function createAppointmentImport({ location, locations = [], reference, o
           <label class="field field--xl"><span class="field__label">Filled-in sheet</span><input class="input" type="file" accept=".csv,.xlsx,text/csv" data-import-file></label>
           <div class="field-action field--md"><button class="btn btn--quiet" type="button" data-import-template>Download template</button></div>
         </div>
-        <p class="hint hint--wide">Every row is booked the same way the booking screen books one, so a load that would be turned down at the counter — too little notice, outside the hours, no dock that takes that truck — is turned down here and says why. Nothing is booked until you have read this list.</p>
+        <p class="hint hint--wide">Every row is booked the same way the booking screen books one, so a load that would be turned down at the counter (too little notice, outside the hours, no dock that takes that truck) is turned down here and says why. Nothing is booked until you have read this list.</p>
         <div data-import-preview></div>
       </div>
       <div class="modal__foot">
@@ -149,7 +149,7 @@ export function createAppointmentImport({ location, locations = [], reference, o
     const kinds = types();
     const today = format.addDaysInput(format.todayInput(location), 7, location);
     return toCsv([
-      [`# MaxDock appointment import — ${location?.name || ''}`],
+      [`# MaxDock appointment import · ${location?.name || ''}`],
       ['# One row per truck. Lines starting with # are ignored, and so is any column MaxDock does not recognise.'],
       ['# Date: 2026-08-11 or 11/08/2026 read as month/day. Time: 08:00, 8:00 or 8:00 AM.'],
       ['# Direction: Inbound or Outbound.'],
@@ -159,7 +159,7 @@ export function createAppointmentImport({ location, locations = [], reference, o
       [`# Truck type: ${kinds.truckTypes.map(item => item.name).join(', ') || 'none enabled at this site'}`],
       [`# Handling: ${kinds.handlingTypes.map(item => item.name).join(', ') || 'none enabled at this site'}`],
       ['Date', 'Time', 'Direction', 'Company or site', 'Company type', 'Appointment type', 'Truck type', 'Skids', 'Handling', 'PO / BOL / job', 'Carrier', 'Priority', 'Requester name', 'Requester email', 'Notes'],
-      ['# EXAMPLE — delete this row', today, '08:00', 'Outbound', locations[0]?.name || 'Acme Foods', 'Customer',
+      ['# EXAMPLE, delete this row', today, '08:00', 'Outbound', locations[0]?.name || 'Acme Foods', 'Customer',
         kinds.appointmentTypes[0]?.name || '', kinds.truckTypes[0]?.name || '', '18', kinds.handlingTypes[0]?.name || '',
         'PO-10231', 'Day & Ross', 'No', 'A. Planner', 'planner@example.com', ''],
     ]);
@@ -262,10 +262,10 @@ export function createAppointmentImport({ location, locations = [], reference, o
         <thead><tr><th>Row</th><th>When</th><th>Direction</th><th>Other end</th><th>Load</th><th class="col-fill">Check</th></tr></thead>
         <tbody>${rows.map(record => `<tr>
           <td class="data">${record.line}</td>
-          <td class="data">${escapeHtml(record.date && record.time ? `${format.shortDateInput(record.date, location)} ${record.time}` : `${record.raw.date || '—'} ${record.raw.time || ''}`)}</td>
-          <td>${escapeHtml(record.direction ? format.role(record.direction) : record.raw.direction || '—')}</td>
-          <td class="cell-cap">${escapeHtml(record.company || '—')}${record.site ? ' <span class="tag tag--quiet">Max site</span>' : ''}</td>
-          <td class="data">${escapeHtml(Number.isFinite(record.skids) ? `${record.skids} sk` : '—')}</td>
+          <td class="data">${escapeHtml(record.date && record.time ? `${format.shortDateInput(record.date, location)} ${record.time}` : `${record.raw.date || '–'} ${record.raw.time || ''}`)}</td>
+          <td>${escapeHtml(record.direction ? format.role(record.direction) : record.raw.direction || '–')}</td>
+          <td class="cell-cap">${escapeHtml(record.company || '–')}${record.site ? ' <span class="tag tag--quiet">Max site</span>' : ''}</td>
+          <td class="data">${escapeHtml(Number.isFinite(record.skids) ? `${record.skids} sk` : '–')}</td>
           <td class="cell-elide" title="${escapeHtml(record.errors.join(' · ') || 'Ready to book')}">${record.errors.length
             ? `<span class="tag tag--stop">Fix</span> ${escapeHtml(record.errors.join(' · '))}`
             : '<span class="tag tag--ok">Ready</span>'}</td>
@@ -324,14 +324,14 @@ export function createAppointmentImport({ location, locations = [], reference, o
     els.file.disabled = true;
     els.preview.innerHTML = `
       <p class="form-message ${booked.length === results.length ? 'form-message--success' : ''}">${booked.length} of ${results.length} appointment${results.length === 1 ? '' : 's'} booked.</p>
-      <p class="hint hint--wide">Whoever was named on each row has been told, the same as any other booking. A row that was refused says why — fix it in the sheet and import that sheet again; the ones already booked are not booked twice, because their references exist and the loads are on the board.</p>
+      <p class="hint hint--wide">Whoever was named on each row has been told, the same as any other booking. A row that was refused says why; fix it in the sheet and import that sheet again; the ones already booked are not booked twice, because their references exist and the loads are on the board.</p>
       <div class="tablewrap"><table class="table">
         <thead><tr><th>Row</th><th>When</th><th>Reference</th><th>Dock</th><th class="col-fill">Result</th></tr></thead>
         <tbody>${results.map(result => `<tr>
           <td class="data">${result.record.line}</td>
           <td class="data">${escapeHtml(`${format.shortDateInput(result.record.date, location)} ${result.record.time}`)}</td>
-          <td class="data">${escapeHtml(result.reference || '—')}</td>
-          <td>${escapeHtml(result.dock || '—')}</td>
+          <td class="data">${escapeHtml(result.reference || '–')}</td>
+          <td>${escapeHtml(result.dock || '–')}</td>
           <td class="cell-elide" title="${escapeHtml(result.message)}">${result.ok ? '<span class="tag tag--ok">Booked</span>' : `<span class="tag tag--stop">Not booked</span> ${escapeHtml(result.message)}`}</td>
         </tr>`).join('')}</tbody>
       </table></div>

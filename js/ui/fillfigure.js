@@ -29,40 +29,72 @@ const H = 76;
 // trailer's fills instead of declaring a second set that would have to be kept in step.
 const LOAD = { low: 'full', mid: 'part', high: 'light', over: 'over' };
 
-// Each shape is the outline of what is being measured, drawn in a 64 × 76 box standing on
-// its baseline, so a fill rising from the bottom means the same thing in all of them.
-const SHAPES = {
-  // A person. Crew hours, and the thing a shift is made of.
-  crew: '<circle cx="32" cy="15" r="11"/><path d="M9 74V56a23 23 0 0 1 46 0v18z"/>',
-  // A day off the calendar. One day's utilisation against the rest.
-  day: '<path d="M7 18h50v56H7z"/><path d="M19 8v14M45 8v14"/><path d="M7 32h50"/>',
-  // A trailer, seen from behind, standing at the door. The fleet's own reading.
-  truck: '<path d="M8 16h48v52H8z"/><path d="M32 16v52"/><path d="M14 68v6M50 68v6"/>',
-  // A dock door, roller and all. Door hours.
-  door: '<path d="M10 74V22a22 22 0 0 1 44 0v52z"/><path d="M10 36h44M10 50h44"/>',
-  // A clock face. Anything measured against the time available.
-  clock: '<circle cx="32" cy="44" r="28"/><path d="M32 26v18l12 8"/>',
+// Each shape is drawn in a 64 × 76 box standing on its baseline, so a fill rising from the
+// bottom means the same thing in all of them. They are meant to be recognisable at 76px
+// without a caption: a person with shoulders rather than a blob, a calendar with a grid on
+// it rather than a box with two prongs, a door with a platform in front of it rather than
+// an arch. Each body reaches close to the baseline, or a low reading would have nothing to
+// show — a clock whose face stopped at 62 drew empty at 20%.
+const BODY_PARTS = {
+  // A person. The shoulders are a wide flat top with small corner radii, not a sweeping
+  // arc: a big arc across a 44-wide body draws a bell, which is what two earlier attempts
+  // did. The head sits close above them, as it does in every pictogram of a person.
+  crew: '<circle cx="32" cy="20" r="13"/><path d="M8 74V50a12 12 0 0 1 12-12h24a12 12 0 0 1 12 12v24z"/>',
+  // A page off the calendar, with a grid on it. One day against the rest.
+  day: '<rect x="6" y="14" width="52" height="60" rx="3"/>',
+  // A trailer seen from behind: the two doors are the body, so a load fills the trailer.
+  truck: '<rect x="9" y="8" width="46" height="56"/>',
+  // The doorway itself, as an opening in a wall rather than an arch. What fills is the
+  // door's own time, and it reaches almost to the platform so a light day still shows.
+  door: '<rect x="12" y="16" width="40" height="52"/>',
+  // A clock face, low enough in the box that a small reading still shows inside it.
+  clock: '<circle cx="32" cy="48" r="26"/>',
 };
 
-// Which part of a shape is the body that fills, and which is detail drawn over it.
-// Filling the calendar's hangers or the trailer's legs would read as a bug.
-const BODY = {
-  crew: '<circle cx="32" cy="15" r="11"/><path d="M9 74V56a23 23 0 0 1 46 0v18z"/>',
-  day: '<path d="M7 18h50v56H7z"/>',
-  truck: '<path d="M8 16h48v52H8z"/>',
-  door: '<path d="M10 74V22a22 22 0 0 1 44 0v52z"/>',
-  clock: '<circle cx="32" cy="44" r="28"/>',
+// The detail drawn over the fill: the rings on the calendar, the hinges on the trailer,
+// the slats and platform at the door, the hands on the clock. Filling any of it would read
+// as a bug, which is why it is kept out of the body above.
+const DETAIL = {
+  crew: '',
+  day: '<path d="M20 6v12M44 6v12"/><path d="M6 30h52"/><path d="M6 46h52M6 60h52M23 30v44M41 30v44"/>',
+  // Doors meeting down the middle, three hinges a side, the two handles, and the bumper
+  // the trailer backs onto the platform with.
+  truck: '<path d="M32 8v56"/><path d="M9 18h5M9 36h5M9 54h5M50 18h5M50 36h5M50 54h5"/><path d="M28 32v10M36 32v10"/><path d="M5 64h54v6H5z"/><path d="M14 70v4M50 70v4"/>',
+  // The roller housing above, the slats it rolls down, and the platform in front.
+  door: '<path d="M7 6h50v10H7z"/><path d="M12 26h40M12 36h40M12 46h40"/><path d="M2 68h60v6H2z"/><path d="M10 74v2M54 74v2"/>',
+  clock: '<path d="M32 26v5M58 48h-5M32 70v-5M6 48h5"/><path d="M32 32v16l11 7"/>',
 };
+
+// Two shapes are a shape plus a mark, sharing the body so they fill identically to the
+// thing they are a variant of. A cancellation is a day with a line struck through it. A
+// late arrival is the same clock as on-time, with a hand that has run out past the face:
+// the pair has to read as one measurement, which is why it is not a different shape.
+const VARIANT = {
+  cancelled: { of: 'day', mark: '<path d="M12 20 52 68"/>' },
+  late: { of: 'clock', mark: '<path d="M32 32v16l17 5"/><path d="M45 50l6 3-3 6"/>' },
+};
+
+const bodyOf = shape => BODY_PARTS[VARIANT[shape]?.of || shape];
+const outlineOf = shape => {
+  const variant = VARIANT[shape];
+  if (variant) {
+    // The clock's own hands are dropped for the late variant; its mark is a second pair.
+    const base = variant.of === 'clock' ? '<path d="M32 26v5M58 48h-5M32 70v-5M6 48h5"/>' : DETAIL[variant.of];
+    return BODY_PARTS[variant.of] + base + variant.mark;
+  }
+  return BODY_PARTS[shape] + DETAIL[shape];
+};
+const known = shape => Boolean(BODY_PARTS[shape] || VARIANT[shape]);
 
 export function fillFigure({ percent, shape = 'crew', label = '', note = '', band = 'mid', words = '', value = '' } = {}) {
-  const outline = SHAPES[shape] ? shape : 'crew';
+  const outline = known(shape) ? shape : 'crew';
   // Not measured is not zero, and must not draw as an empty shape — that would read as a
   // finding when it is a missing figure. The dashed outline is the trailer's own answer
   // to the same question.
   if (percent === null || percent === undefined) {
     return `<figure class="truck truck--fig truck--unset">
       ${drawing(0, outline, 'part')}
-      <figcaption class="truck__cap"><b>—</b><span>not measured</span>${label ? `<em>${escapeHtml(label)}</em>` : ''}</figcaption>
+      <figcaption class="truck__cap"><b>–</b><span>not measured</span>${label ? `<em>${escapeHtml(label)}</em>` : ''}</figcaption>
     </figure>`;
   }
   const reading = Math.max(0, Number(percent));
@@ -83,9 +115,9 @@ function drawing(percent, shape, load) {
   // body on top of it, then the outline last with no fill of its own. An outline that
   // carries a fill and is drawn after the level simply paints the level out.
   return `<svg class="truck__svg" viewBox="0 0 64 78" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
-    <defs><clipPath id="${id}">${BODY[shape]}</clipPath></defs>
+    <defs><clipPath id="${id}">${bodyOf(shape)}</clipPath></defs>
     <g class="truck__well" clip-path="url(#${id})"><rect x="0" y="0" width="64" height="78"/></g>
     <g class="truck__load truck__load--${load}" clip-path="url(#${id})"><rect x="0" y="${(H - height + 2).toFixed(1)}" width="64" height="${height.toFixed(1)}"/></g>
-    <g class="truck__box">${SHAPES[shape]}</g>
+    <g class="truck__box">${outlineOf(shape)}</g>
   </svg>`;
 }

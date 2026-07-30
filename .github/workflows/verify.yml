@@ -90,6 +90,9 @@ jobs:
       - name: How a report reading is drawn
         run: node scripts/verify-report-readings.mjs
 
+      - name: No em dashes in anything the site renders
+        run: node scripts/verify-no-em-dashes.mjs
+
   layout:
     runs-on: ubuntu-latest
     steps:

@@ -52,7 +52,7 @@ const ACTIONS = {
   book: { icon: 'add', attribute: 'data-open-booking', label: 'Book appointment', primary: true, accent: true },
   export: { icon: 'export', attribute: 'data-export', label: 'Export CSV', iconOnly: true },
   print: { icon: 'print', attribute: 'data-print', label: 'Print', iconOnly: true },
-  fullscreen: { icon: 'fullscreen', attribute: 'data-fullscreen', label: 'Full screen', title: 'Full screen — opens the wall display' },
+  fullscreen: { icon: 'fullscreen', attribute: 'data-fullscreen', label: 'Full screen', title: 'Full screen: opens the wall display' },
   customize: { icon: 'customize', attribute: 'data-customize', label: 'Customize this page', iconOnly: true },
 };
 

@@ -42,7 +42,7 @@ const fileKind = (mime, name) => {
 };
 
 function cell(label, value) {
-  return `<div class="confirmgrid__cell"><span class="confirmgrid__l">${escapeHtml(label)}</span><span class="confirmgrid__v">${escapeHtml(value ?? '—')}</span></div>`;
+  return `<div class="confirmgrid__cell"><span class="confirmgrid__l">${escapeHtml(label)}</span><span class="confirmgrid__v">${escapeHtml(value ?? '–')}</span></div>`;
 }
 
 // A dot per event, coloured by what the event was. A scan is the one people look
@@ -69,39 +69,41 @@ export function createAppointmentDetails({ location, onEdit, laneFor, onCombine 
         <button class="modal__x" type="button" data-close aria-label="Close">×</button>
       </div>
       <div class="modal__body">
-        <!-- Two columns, because a monitor is wider than it is tall and this window used to be
-             a single column you scrolled through twice. The code and the paperwork are the two
-             things somebody *does* here, so they take one side; the booking itself is what they
-             read, so it takes the other; and the history goes underneath at full width, where a
-             long list belongs. It collapses to one column on a narrow screen. -->
+        <!-- Four quarters, because a monitor is wider than it is tall and this window used to
+             be a single column you scrolled through twice.
+
+             Down the left, the two things somebody *does* with a load: hold its code up to be
+             scanned, and deal with its paperwork. Everything about the paperwork lives in that
+             one square: the picker, the limit, and the list of what is already attached. So
+             there is one place to look for a document rather than two.
+
+             Down the right, everything about the load itself, reading from its own heading. The
+             history runs under both at full width, where a long list belongs. It collapses to
+             one column on a narrow screen. -->
         <div class="apptcols">
-          <!-- The side is what a person *does*: hold the code up to be scanned, and attach a
-               sheet of paper. The list of what is already attached is information about the
-               load, so it sits with the rest of the load's information where there is width
-               for a file name. -->
           <div class="apptcols__side">
             <div class="qrbox" data-checkin hidden>
               <div class="qr-frame" data-qr></div>
               <p class="qrbox__c" data-qr-note></p>
             </div>
             <div class="apptdocs">
-              <h3 class="watch__t">Add a document</h3>
+              <h3 class="watch__t">Documents</h3>
               <div class="docadd">
                 <input class="input" type="file" data-doc-file accept=".pdf,.jpg,.jpeg,.png,.heic,.webp,.doc,.docx,.xlsx,.csv">
                 <button class="btn btn--quiet" type="button" data-doc-upload>Upload</button>
               </div>
               <p class="hint hint--flush">PDF, image or Word · up to ${MAX_MB} MB each</p>
               <p class="form-message" data-doc-message aria-live="polite"></p>
+              <div data-docs></div>
             </div>
           </div>
           <div class="apptcols__main">
+            <h3 class="watch__t">This load</h3>
             <div class="confirmgrid" data-grid></div>
-            <h3 class="watch__t section-gap">Documents</h3>
-            <div data-docs></div>
+            <h3 class="watch__t section-gap">Activity</h3>
+            <div data-log></div>
           </div>
         </div>
-        <h3 class="watch__t section-gap">Activity</h3>
-        <div data-log></div>
       </div>
       <div class="modal__foot"><button class="btn btn--quiet" type="button" data-close>Close</button><button class="btn btn--quiet" type="button" data-combine hidden></button><button class="btn btn--primary" type="button" data-edit hidden>Edit appointment</button></div>
     </section>`;
@@ -238,15 +240,15 @@ export function createAppointmentDetails({ location, onEdit, laneFor, onCombine 
       <span class="docrow__k docrow__k--${fileKind(row.mime_type, row.file_name)}" aria-hidden="true"></span>
       <span class="docrow__n">
         <b>${escapeHtml(row.file_name)}</b>
-        <span>${escapeHtml(fileSize(Number(row.size_bytes || 0)))} · ${escapeHtml(format.timestamp(row.uploaded_at, site))}${
+        <span>${escapeHtml(fileSize(Number(row.size_bytes || 0)))} · ${escapeHtml(format.dateShort(row.uploaded_at, site))}${
           // Only after a merge. Before one it would say the number already at the top of the
           // window, which is noise.
           row.origin_reference && row.origin_reference !== record.booking_reference
             ? ` · came with ${escapeHtml(row.origin_reference)}` : ''}</span>
       </span>
       <span class="docrow__a">
-        <button class="btn btn--quiet btn--sm" type="button" data-doc-open="${escapeHtml(row.storage_path)}">View</button>
-        <button class="btn btn--quiet btn--sm" type="button" data-doc-remove="${escapeHtml(row.id)}" data-doc-path="${escapeHtml(row.storage_path)}" aria-label="${escapeHtml(`Remove ${row.file_name}`)}">Remove</button>
+        <button class="linkBtn" type="button" data-doc-open="${escapeHtml(row.storage_path)}">View</button>
+        <button class="linkBtn" type="button" data-doc-remove="${escapeHtml(row.id)}" data-doc-path="${escapeHtml(row.storage_path)}" aria-label="${escapeHtml(`Remove ${row.file_name}`)}">Remove</button>
       </span>
     </li>`).join('')}</ul>`;
   }
@@ -257,7 +259,7 @@ export function createAppointmentDetails({ location, onEdit, laneFor, onCombine 
     els.docMessage.textContent = '';
     if (!record || !file) { els.docMessage.textContent = 'Choose a file first.'; return; }
     if (file.size > MAX_BYTES) {
-      els.docMessage.textContent = `${file.name} is ${fileSize(file.size)}. The limit is ${MAX_MB} MB — send a smaller scan or split it.`;
+      els.docMessage.textContent = `${file.name} is ${fileSize(file.size)}. The limit is ${MAX_MB} MB. Send a smaller scan or split it.`;
       return;
     }
     const id = record.id || record.appointment_id;

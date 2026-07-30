@@ -88,7 +88,7 @@ export function createCombineDialog({ location, capacityFor, truckName, truckTyp
     <section class="modal modal--md" role="dialog" aria-modal="true" aria-labelledby="combine-title">
       <div class="modal__head"><div><h2 class="modal__title" id="combine-title">Combine these loads</h2><p class="modal__sub" data-combine-sub></p></div><button class="modal__x" type="button" data-combine-close aria-label="Close">×</button></div>
       <div class="modal__body">
-        <p class="hint hint--lead hint--wide">Tick the loads that are travelling together, then choose which one keeps its booking and its dock — usually the truck with the room. The rest are cancelled onto it, and whoever booked them is told which number replaced theirs.</p>
+        <p class="hint hint--lead hint--wide">Tick the loads that are travelling together, then choose which one keeps its booking and its dock, usually the truck with the room. The rest are cancelled onto it, and whoever booked them is told which number replaced theirs.</p>
         <div class="combinelist" data-combine-list></div>
         <div data-combine-summary></div>
         <p class="form-message" data-combine-message aria-live="polite"></p>
@@ -145,7 +145,7 @@ export function createCombineDialog({ location, capacityFor, truckName, truckTyp
     const capacity = capacityOf(row);
     if (!capacity) return 'no capacity set for this truck at this site';
     const total = totalSkids();
-    return total <= capacity ? `the run fits — ${total} of ${capacity}` : `${total - capacity} over this truck`;
+    return total <= capacity ? `the run fits: ${total} of ${capacity}` : `${total - capacity} over this truck`;
   }
 
   function renderList() {

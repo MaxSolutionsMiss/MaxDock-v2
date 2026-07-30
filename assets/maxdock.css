@@ -336,8 +336,13 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 /* A report's sections come from eight different render functions and none should have to
    know what is above it, so the air belongs to the container: the host had no rule at all
    and panels sat hard against each other. The strip's own bottom margin goes, or it would
-   double against the gap. */
-.reportstack{display:grid;gap:var(--s5);align-content:start}
+   double against the gap.
+
+   The gap is the same --s3 the page head, the controls bar and the metric strip already
+   use, so every band down a report is the same distance from the last. It was --s5 while
+   everything above it was --s3, which read as one wide gap and two narrow ones on a page
+   that is meant to be a single stack. */
+.reportstack{display:grid;gap:var(--s3);align-content:start}
 .reportstack>.kpis{margin-bottom:0}
 /* The head of the section that opens a report view. It carries the view's mark and name
    above that section's own title — a band of its own above the card put two headings and
@@ -351,22 +356,22 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
    how big, and the two things anybody wants to do with it. Deliberately plain — a thumbnail of
    a PDF is a lot of work to say what the file name already says. */
 .doclist{list-style:none;margin:0;padding:0;display:grid;gap:2px}
-.docrow{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:var(--s3);padding:var(--s2);border-radius:var(--radius)}
+.docrow{display:grid;grid-template-columns:auto minmax(0,1fr);align-items:start;gap:2px var(--s2);padding:var(--s2);border-radius:var(--radius)}
 /* A sheet of paper, edged in the colour of what it is. The three ruled lines that were drawn
    inside it were decoration on a 26px box — the file name says what the file is. */
-.docrow__k{width:22px;height:28px;border-radius:3px;border:1px solid var(--rule-strong);border-left-width:3px;background:var(--surface);flex:none}
+.docrow__k{grid-row:1/3;width:22px;height:28px;border-radius:3px;border:1px solid var(--rule-strong);border-left-width:3px;background:var(--surface);flex:none}
 .docrow__k--pdf{border-left-color:var(--stop)} .docrow__k--image{border-left-color:var(--dock)} .docrow__k--sheet{border-left-color:var(--ok)}
 .docrow__n{min-width:0;display:grid;gap:1px}
 .docrow__n b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}
 .docrow__n span{font-size:var(--t-micro);color:var(--ink-muted)}
-.docrow__a{display:flex;gap:var(--s2);flex:none}
+.docrow__a{grid-column:2;display:flex;gap:var(--s3)}
 /* The appointment window, landscape.
    A monitor is wider than it is tall and this window used to be one column you scrolled
    through twice — the code, the paperwork, the booking and the history in a single stack. The
    two things a person *does* here are scan and attach, so they take one side; the booking is
    what they read, so it takes the other; the history is a long list and goes underneath at
    full width. One column again below 760px, where there is no width to share. */
-.apptcols{display:grid;grid-template-columns:minmax(0,17em) minmax(0,1fr);gap:var(--s5);align-items:start}
+.apptcols{display:grid;grid-template-columns:minmax(0,20em) minmax(0,1fr);gap:var(--s4);align-items:start}
 .apptcols__side,.apptcols__main,.apptdocs{min-width:0}
 .apptcols__side{display:grid;gap:var(--s4);align-content:start}
 /* Big enough to read off a phone held at arm's length, which is the whole job of it. */
@@ -955,14 +960,13 @@ html[data-text="larger"] .frow>.field--md:not(.field-action){grid-column:span 5}
    out of this at a glance in a morning meeting. */
 /* The brief reads across the card, not down one edge of it: four named columns,
    each answering one kind of question, on a card that is as wide as the screen. */
-.briefcols{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:var(--s3) var(--s5)}
-/* The mark runs down the gutter beside its points, not on top of them: the heading keeps
-   its line, and the column is recognisable by shape from across the desk. Sized in em so
-   it grows with the text rather than shrinking against it. */
-.briefcol{display:grid;grid-template-columns:2.6em 1fr;column-gap:var(--s2)}
-.briefcol__m{grid-row:1/3;align-self:start;color:var(--dock);opacity:.55}
-.briefcol__m svg{width:2.4em;height:2.4em;fill:none;stroke:currentColor;stroke-width:1.5}
-.briefcol__t{font-size:var(--t-micro);text-transform:uppercase;letter-spacing:.07em;color:var(--ink-muted);font-weight:600;margin:0 0 var(--s1)}
+.briefcols{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:var(--s3) var(--s5)}
+/* The mark sits on the heading, in MaxDock blue, with the points directly under it. A
+   gutter of its own cost the points width and left the column looking half empty; the
+   column is just as recognisable by shape with the mark on its title line. */
+.briefcol__t{font-size:var(--t-micro);text-transform:uppercase;letter-spacing:.07em;color:var(--dock-deep);font-weight:600;margin:0;display:flex;align-items:center;gap:var(--s1)}
+.briefcol__m{display:inline-grid;color:var(--dock-deep)}
+.briefcol__m svg{width:1.5em;height:1.5em;fill:none;stroke:currentColor;stroke-width:1.7}
 .briefpoints{margin:0;padding-left:1.1em;display:grid;gap:2px}
 .briefpoints li{font-size:var(--t-small);color:var(--ink-muted)}
 .brief__ico{width:32px;height:32px;border-radius:8px;background:var(--dock);color:#fff;display:grid;place-items:center;flex:none;font-weight:700;font-size:14px}
@@ -971,11 +975,15 @@ html[data-text="larger"] .frow>.field--md:not(.field-action){grid-column:span 5}
    left to scroll — the band gives way, not the page. */
 /* The reading sits clear of the figures: run together, the first bullet read as
    a caption on the card above it. */
-.brief__body{flex:1;min-height:0;max-height:9em;overflow-y:auto;margin-top:var(--s3);padding-top:var(--s3);border-top:1px solid var(--rule)}.brief__t{font-weight:600;margin-bottom:2px}.brief__x{color:var(--ink);font-size:var(--t-base)}.brief__x b{color:var(--dock-deep)}
-.split{display:grid;grid-template-columns:repeat(var(--kpi-cols,4),minmax(0,1fr));grid-template-rows:minmax(0,1fr);gap:var(--s3);flex:1;min-height:0}
+.brief__body{flex:1;min-height:0;max-height:9em;overflow-y:auto;margin-top:var(--s2)}.brief__t{font-weight:600;margin-bottom:2px}.brief__x{color:var(--ink);font-size:var(--t-base)}.brief__x b{color:var(--dock-deep)}
+/* The queue below the strips: the day on the left, the heat map and the watch list on
+   the right. The side column was sized as one share of --kpi-cols, which tied how wide the
+   heat map is to how many metric cards happen to be switched on: turning two on took it
+   from a fifth of the page to a seventh and squeezed its caption to 53px. Those are
+   unrelated things. The side is now its own width and stops shrinking at one. */
+.split{display:grid;grid-template-columns:minmax(0,1fr) minmax(15em,20em);grid-template-rows:minmax(0,1fr);gap:var(--s3);flex:1;min-height:26em}
 .split>*{min-height:0}
-.split>*:first-child{grid-column:span calc(var(--kpi-cols,4) - 1)}
-.split>*:last-child{grid-column:span 1;min-width:0;overflow-y:auto}
+.split>*:last-child{min-width:0;overflow-y:auto}
 .heat{background:var(--surface);border:1px solid var(--rule);border-radius:var(--radius-lg);padding:var(--s3) var(--s4);display:flex;flex-direction:column}
 .heat__t{font-size:var(--t-base);font-weight:600;margin:0 0 var(--s2);display:flex;align-items:center}.heat__t .btn{margin-left:auto}
 .heatgrid{display:grid;grid-template-columns:44px repeat(10,1fr);gap:2px}.heatgrid .hh{font-family:var(--font-data);font-size:9px;color:var(--ink-faint);text-align:center}.heatgrid .hd{font-family:var(--font-data);font-size:10px;color:var(--ink-muted);display:flex;align-items:center}.hc{height:20px;border-radius:2px;background:var(--dock);opacity:calc(var(--v)/var(--peak,5))}

@@ -468,7 +468,7 @@ function wireShell(elements, context) {
     elements.pulse.classList.toggle('pulse--stale', offline);
     elements.connectedText.textContent = offline ? 'Reconnecting' : 'Connected';
     if (offline) {
-      elements.banner.textContent = `Showing the last loaded data — reconnecting. Location time ${format.time(null, context.location)}.`;
+      elements.banner.textContent = `Showing the last loaded data, reconnecting. Location time ${format.time(null, context.location)}.`;
     } else {
       toast('MaxDock is up to date.', 'success');
     }

@@ -112,7 +112,7 @@ function renderMisForm() {
         <div class="field field--md"><span class="field__label">Source table / view name</span><input class="input" name="source_name" value="${escapeHtml(s.source_name || '')}"></div>
         <div class="field field--md"><span class="field__label">Credential secret name</span><input class="input" name="credential_secret_name" value="${escapeHtml(s.credential_secret_name || '')}" placeholder="e.g. mis-db-password"></div>
       </div>
-      <p class="hint" data-bridge-fields ${isBridge ? '' : 'hidden'}>The credential itself is never entered here — this is only the name of a secret stored server-side. The secure bridge is not active until a real network route and credential are configured with a MaxDock administrator.</p>
+      <p class="hint" data-bridge-fields ${isBridge ? '' : 'hidden'}>The credential itself is never entered here; this is only the name of a secret stored server-side. The secure bridge is not active until a real network route and credential are configured with a MaxDock administrator.</p>
       <div class="form-actions"><button class="btn btn--primary" type="submit">Save</button></div>
     </form>`;
 }
@@ -133,7 +133,7 @@ function renderRuns() {
   const rows = state.runs.map(run => `<tr>
     <td class="data">#${escapeHtml(run.id)}</td>
     <td class="data">${escapeHtml(format.timestamp(run.created_at, state.context.location))}</td>
-    <td class="data">${escapeHtml(run.file_name || '—')}</td>
+    <td class="data">${escapeHtml(run.file_name || '–')}</td>
     <td class="data">${escapeHtml(run.row_count)}</td>
     <td>${run.status === 'completed' ? '<span class="tag tag--ok">Success</span>' : `<span class="tag tag--stop">${escapeHtml(run.status)}</span>`}</td>
     <td class="data">${escapeHtml(run.imported_by_name)}</td>
@@ -150,7 +150,7 @@ function renderRuns() {
 function renderAppointmentImport() {
   return `<div class="card">
     <h3 class="card__title">Appointment import</h3>
-    <p class="hint hint--wide">A spreadsheet of loads, booked one at a time through the ordinary booking — so notice periods, opening hours, capacity, direction windows and dock choice all apply, and a row that would be turned down at the counter is turned down here and says why. Nothing is booked until every row has been read back on screen with a verdict against it.</p>
+    <p class="hint hint--wide">A spreadsheet of loads, booked one at a time through the ordinary booking, so notice periods, opening hours, capacity, direction windows and dock choice all apply, and a row that would be turned down at the counter is turned down here and says why. Nothing is booked until every row has been read back on screen with a verdict against it.</p>
     <p class="hint hint--wide">Loads are booked into <b>${escapeHtml(state.context.location?.name || 'the selected site')}</b>, which is the site chosen in the top bar. A Max site named at the other end of a row books the run at both ends.</p>
     <div class="form-actions"><button class="btn btn--primary" type="button" data-open-appointment-import>Import appointments</button></div>
   </div>`;

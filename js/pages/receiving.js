@@ -62,7 +62,7 @@ function tokenFromScan(text) {
     const parsed = new URL(raw);
     const value = parsed.searchParams.get('t');
     if (/^[0-9a-f-]{36}$/i.test(String(value || ''))) return value;
-  } catch { /* not a URL — fall through */ }
+  } catch { /* not a URL, fall through */ }
   return null;
 }
 
@@ -100,14 +100,14 @@ function renderIdle(message = '') {
           <span class="field__label recv__cap">QR code</span>
           ${hasScanner()
             ? '<div class="form-actions"><button class="btn btn--primary btn--block btn--jumbo" type="button" data-scan>Open the camera</button></div>'
-            : '<p class="hint hint--flush">This browser cannot scan inside the app — use the phone’s own camera app on the code, and it will open MaxDock here.</p>'}
+            : '<p class="hint hint--flush">This browser cannot scan inside the app. Use the phone’s own camera app on the code, and it will open MaxDock here.</p>'}
           <div class="recv__stage" data-stage hidden><video class="recv__video" data-video playsinline muted></video><div class="recv__frame" aria-hidden="true"></div></div>
         </div>
         <div class="recv__or"><span class="tag tag--quiet">or</span></div>
         <div class="recv__box recv__box--type">
           <span class="recv__mark"><svg class="recv__ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="6" width="19" height="12" rx="2"></rect><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M6 14h12"></path></svg></span>
           <h3 class="card__title">Enter the booking number</h3>
-          <p class="hint">Type the number off the paperwork — the rest is already filled in.</p>
+          <p class="hint">Type the number off the paperwork; the rest is already filled in.</p>
           <label class="field__label recv__cap" for="recv-token">Booking number</label>
           <input class="input input--jumbo" id="recv-token" data-token value="${referencePrefix()}" placeholder="${referencePrefix()}000071" autocomplete="off" inputmode="text" enterkeyhint="search">
           <div class="form-actions"><button class="btn btn--quiet btn--block" type="button" data-lookup>Find the appointment</button></div>
@@ -118,7 +118,7 @@ function renderIdle(message = '') {
 }
 
 function detail(label, value) {
-  return `<div class="confirmgrid__cell"><span class="confirmgrid__l">${escapeHtml(label)}</span><span class="confirmgrid__v">${escapeHtml(value ?? '—')}</span></div>`;
+  return `<div class="confirmgrid__cell"><span class="confirmgrid__l">${escapeHtml(label)}</span><span class="confirmgrid__v">${escapeHtml(value ?? '–')}</span></div>`;
 }
 
 // More than one load can end in the same few digits. Rather than guess, the

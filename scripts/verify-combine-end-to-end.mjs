@@ -105,7 +105,7 @@ check(await keeps.nth(0).isChecked(), 'The earliest load is not suggested as the
 // Each row says whether the whole run fits that particular truck — the thing the
 // choice should be made on.
 const listText = await dialog.locator('[data-combine-list]').innerText();
-check(/the run fits — 20 of 26/.test(listText), `A row does not say whether the run fits that truck. It says: "${listText.replace(/\n/g, ' | ')}"`);
+check(/the run fits: 20 of 26/.test(listText), `A row does not say whether the run fits that truck. It says: "${listText.replace(/\n/g, ' | ')}"`);
 check(/holds 26/.test(listText), 'A row does not say what its own trailer holds.');
 check(/53 ft Trailer, holds 26/.test(listText), 'A row does not name its trailer beside what it holds.');
 

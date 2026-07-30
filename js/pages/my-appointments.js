@@ -107,7 +107,7 @@ function appointmentTime(record) {
   return `${format.dateShort(record.start_at, location)} · ${format.time(record.start_at, location)}–${format.time(record.end_at, location)}`;
 }
 
-function detailValue(value, fallback = '—') {
+function detailValue(value, fallback = '–') {
   const clean = String(value ?? '').trim();
   return clean || fallback;
 }
@@ -125,7 +125,7 @@ function renderMetrics() {
 function confirmationText(record) {
   return [
     `MaxDock appointment ${record.booking_reference}`,
-    `${record.location_name} — ${appointmentTime(record)}`,
+    `${record.location_name} · ${appointmentTime(record)}`,
     `${format.role(record.direction || '')} · ${detailValue(record.appointment_type)} · ${record.skid_count ?? 0} skids`,
     `Company: ${detailValue(record.company_name)}`,
     `Carrier: ${detailValue(record.carrier_name)}`,
@@ -436,7 +436,7 @@ function createAppointmentCard(record) {
     for (const [button, label] of [[cancel, 'Cancel appointment'], [move, 'Edit appointment']]) {
       button.disabled = Boolean(why);
       button.title = why || label;
-      button.setAttribute('aria-label', why ? `${label} — ${why.toLowerCase()}` : label);
+      button.setAttribute('aria-label', why ? `${label}: ${why.toLowerCase()}` : label);
     }
   }
 

@@ -361,7 +361,7 @@ function renderQuickRebook() {
       <button class="btn btn--primary btn--sm" type="button" data-action="use-template" data-template-id="${escapeHtml(template.id)}">Use</button>
       ${mine ? `<button class="btn btn--quiet btn--sm" type="button" data-action="delete-template" data-template-id="${escapeHtml(template.id)}">Delete</button>` : ''}</div>`;
   }).join('');
-  return `<div class="grouplabel">Quick book — saved shortcuts</div><div>${items}</div><p class="hint">Fills this booking in from a saved shortcut. Quick QR codes for the wall are made under Settings › Quick QR.</p>`;
+  return `<div class="grouplabel">Quick book: saved shortcuts</div><div>${items}</div><p class="hint">Fills this booking in from a saved shortcut. Quick QR codes for the wall are made under Settings › Quick QR.</p>`;
 }
 
 function renderLoadStep() {
@@ -679,7 +679,7 @@ function renderRepeat() {
       <p class="hint hint--wide">${dates.length
         ? `${dates.length} appointment${dates.length === 1 ? '' : 's'} at ${escapeHtml(selectedTime() || 'the chosen time')}, first on ${escapeHtml(dates[0])}, last on ${escapeHtml(dates[dates.length - 1])}. Any date with no room is skipped and reported, the rest still book.`
         : 'Pick the days and a last date to see which appointments this will book.'}</p>
-      ${windowEnd ? `<p class="inline-note${dates.some(date => date > windowEnd) ? ' inline-note--warning' : ''}">${escapeHtml(currentLocation().name)} takes bookings up to ${Number(state.reference.settings.maximum_advance_days)} days ahead — to ${escapeHtml(windowEnd)}.${dates.some(date => date > windowEnd) ? ' Dates after that will be skipped. Raise the booking window under Settings › Booking window &amp; notice to schedule further out.' : ''}</p>` : ''}` : ''}`;
+      ${windowEnd ? `<p class="inline-note${dates.some(date => date > windowEnd) ? ' inline-note--warning' : ''}">${escapeHtml(currentLocation().name)} takes bookings up to ${Number(state.reference.settings.maximum_advance_days)} days ahead, to ${escapeHtml(windowEnd)}.${dates.some(date => date > windowEnd) ? ' Dates after that will be skipped. Raise the booking window under Settings › Booking window &amp; notice to schedule further out.' : ''}</p>` : ''}` : ''}`;
 }
 
 function renderConfirmStep() {
@@ -689,10 +689,10 @@ function renderConfirmStep() {
     <div class="section-gap" data-repeat></div>
     ${state.form.after_hours ? '<div class="inline-note inline-note--warning"><strong>After-hours override</strong><span>Your acknowledgement will be recorded with the booking.</span></div>' : ''}
     <div class="frow">
-      <label class="field field--full"><span class="field__label">Notes <span class="field__opt">optional</span></span><textarea class="input" data-field="notes" maxlength="1000" rows="2" placeholder="Handling instructions only — no passwords or personal information."></textarea></label>
+      <label class="field field--full"><span class="field__label">Notes <span class="field__opt">optional</span></span><textarea class="input" data-field="notes" maxlength="1000" rows="2" placeholder="Handling instructions only. No passwords or personal information."></textarea></label>
     </div>
     <div class="frow">
-      <label class="field field--full"><span class="field__label">Save as a shortcut <span class="field__opt">optional</span></span><input class="input" data-field="template_name" maxlength="80" placeholder="Name it — “Mississauga to Guelph”, “Weekly board run”"></label>
+      <label class="field field--full"><span class="field__label">Save as a shortcut <span class="field__opt">optional</span></span><input class="input" data-field="template_name" maxlength="80" placeholder="Name it: “Mississauga to Guelph”, “Weekly board run”"></label>
     </div>`;
 
   const grid = hosts.step.querySelector('[data-confirm-grid]');
@@ -717,7 +717,7 @@ function confirmationText(result) {
   const truck = selectedName(state.reference.truckTypes, state.form.truck_type_code);
   return [
     `MaxDock appointment ${result.booking_reference}`,
-    `${currentLocation().name} — ${format.timestamp(result.start_at, receivingLocation())}`,
+    `${currentLocation().name} · ${format.timestamp(result.start_at, receivingLocation())}`,
     `${state.form.direction === 'inbound' ? 'Inbound' : 'Outbound'} · ${type} · ${truck} · ${state.form.skid_count} skids`,
     `PO / BOL / job: ${state.form.external_reference}`,
     `Requester: ${state.form.requester_name} <${state.form.requester_email}>`,
@@ -1245,7 +1245,7 @@ function combinedNotes() {
     .map(match => clean(match.booking_reference))
     .filter(Boolean);
   if (!references.length) return notes || null;
-  const line = `Combined load — travelling with ${references.join(', ')}.`;
+  const line = `Combined load, travelling with ${references.join(', ')}.`;
   return notes ? `${notes}\n${line}` : line;
 }
 
@@ -1604,7 +1604,7 @@ async function handleAction(button) {
       state.form.truck_type_code = upgrade.fits.code;
       renderAll();
       const warning = await recheckCombinedSlots();
-      setMessage(warning || `Changed to a ${upgrade.fits.name}. ${combinedSkids()} skids of ${upgrade.fits.skid_capacity} — pick a time below.`);
+      setMessage(warning || `Changed to a ${upgrade.fits.name}. ${combinedSkids()} skids of ${upgrade.fits.skid_capacity}. Pick a time below.`);
     }
   } else if (action === 'continue-separately') {
     state.sameDayAccepted = true;
