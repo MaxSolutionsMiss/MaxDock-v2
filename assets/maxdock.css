@@ -1258,6 +1258,16 @@ html[data-text="larger"] .frow>.field--md:not(.field-action){grid-column:span 5}
    are the grid items either way. */
 .dock-checks{border:1px solid var(--rule);border-radius:var(--radius);padding:var(--s3);margin:0;--check-col:130px;
   display:grid;grid-template-columns:repeat(auto-fill,minmax(var(--check-col,150px),1fr));gap:var(--s1) var(--s3)}
+/* The role editor's groups are ruled apart rather than boxed.
+   A <legend> is drawn in a notch in its fieldset's own border, and no amount of float, width or
+   grid participation reliably takes it out of there — on the role dialog every group heading sat
+   straddling the line above it. Dropping the border removes the notch, and with it the padding
+   the box needed: the same list is a third shorter, which is what makes room for more permissions
+   per role rather than a taller scroll. The rule above each heading does the separating. */
+.dock-checks--ruled{border:0;border-radius:0;padding:0;--check-col:190px;gap:0 var(--s3)}
+.dock-checks--ruled+.dock-checks--ruled{margin-top:var(--s3);padding-top:var(--s3);border-top:1px solid var(--rule)}
+.dock-checks--ruled>legend{margin-bottom:var(--s1)}
+.dock-checks--ruled .dock-check{min-height:26px}
 /* A bordered section is a bigger break than one field row after another, so it
    gets more air above it than the form's own rhythm — the boxes were reading as
    attached to the field directly above them. */

@@ -123,10 +123,10 @@ export function createRoleAccessDialog({ onSaved } = {}) {
     // and scatters the headings through the middle of the columns.
     els.body.innerHTML = `
       <h3 class="watch__t">What it sees</h3>
-      <fieldset class="dock-checks dock-checks--roomy">${screens}</fieldset>
+      <fieldset class="dock-checks dock-checks--ruled">${screens}</fieldset>
       <p class="hint hint--wide">Which links are on this role's rail. A screen greyed out is one the role has no permission for below; tick the permission and the screen becomes available. Taking a link off a rail tidies it; it does not lock the screen, so anything that must be refused has to be refused by a permission.</p>
       <h3 class="watch__t section-gap">What it may do</h3>
-      ${grouped(catalogue).map(group => `<fieldset class="dock-checks dock-checks--roomy">
+      ${grouped(catalogue).map(group => `<fieldset class="dock-checks dock-checks--ruled">
         <legend>${escapeHtml(group.title)}</legend>
         ${group.items.map(permission => {
           const fast = pinned && PINNED_PERMISSIONS.has(permission.code);

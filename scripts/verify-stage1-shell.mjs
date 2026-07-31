@@ -135,10 +135,22 @@ const cssRuleBytes = Buffer.byteLength(readFileSync(join(ROOT, 'assets/maxdock.c
 // -webkit-font-smoothing. A scan for rules whose every class is absent from js/ and app/
 // now returns only dynamically composed names, so there is nothing left to take.
 //
+// 74 -> 76 KB, for five drawings the product did not have: the hour strip on Dock hours, the
+// two-sided in-against-out chart, the partner cards on both scorecards, the percentage knocked
+// out of a loaded trailer, and the ruled groups that replaced boxed ones in the role editor.
+// Every one of those is a picture on a screen rather than a convenience rule, and the last of
+// them removed padding rather than adding it.
+//
+// The dead-rule scan was run again first, as it was for each earlier raise. It reports 33
+// class names absent from js/ and app/, and all 33 are composed at runtime — hstrip__c--${step},
+// pcard--${verd.key}, status--${status}, truck__load--${key}, vd--${verd.key}, toast--${type},
+// docrow__k--${kind}, dial--${band}, state--${kind}. There is nothing left to reclaim, so this
+// is growth and not drift.
+//
 // The point of the number is not the number. It is that growth in what a browser parses
 // stays a decision somebody has to make on purpose and justify in writing, instead of
 // arriving one convenience rule at a time.
-if (cssRuleBytes > 74 * 1024) fail('assets/maxdock.css', `CSS rule budget exceeded: ${Math.round(cssRuleBytes / 1024)} KB of declarations.`);
+if (cssRuleBytes > 76 * 1024) fail('assets/maxdock.css', `CSS rule budget exceeded: ${Math.round(cssRuleBytes / 1024)} KB of declarations.`);
 // The file figure is a sanity bound, not a second gate, and it took two raises in one day to
 // see that it had been the wrong shape all along. Sitting 2 KB above the rules content, it
 // bound on *comments* — so the thing it actually rationed was the reasoning three paragraphs

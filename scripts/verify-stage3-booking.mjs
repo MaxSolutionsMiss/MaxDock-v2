@@ -36,9 +36,13 @@ if (!errors.length) {
   requireText(page, /book_appointment/, 'Standard booking RPC is missing.');
   requireText(page, /book_routed_appointment/, 'Routed booking RPC is missing.');
   requireText(page, /booking_templates/, 'Booking template persistence is missing.');
-  requireText(page, /View existing appointment/, 'Same-day consolidation “View existing” choice is missing.');
-  requireText(page, /Choose loads to combine/, 'Same-day consolidation “Choose loads to combine” choice is missing.');
-  requireText(page, /Continue separately/, 'Same-day consolidation “Continue separately” choice is missing.');
+  requireText(page, /data-action="view-existing"/, 'Same-day consolidation offers no way to look at the appointment it is asking about, so the choice has to be made blind.');
+  // Both answers, and both reachable. The rule is that combining is offered and declining it is
+  // one press away — not the exact wording, which changed when the two buttons became a plain
+  // yes and no. What must never happen is a dialog that offers only the combine.
+  requireText(page, /data-action="combine-load"/, 'Same-day consolidation offers no way to combine.');
+  requireText(page, /data-action="continue-separately"/, 'Same-day consolidation offers no way to decline and book separately. Combining must never be the only way out of this dialog.');
+  requireText(page, /never (do it on its own|combine them automatically)/, 'The dialog does not say that MaxDock will not combine loads on its own, which is the assurance that makes the offer safe to show.');
   requireText(page, /data-combine-shelf/, 'The combine picker is missing from the time step.');
   requireText(page, /function combinedSkids/, 'Slot search does not account for combined loads.');
   requireText(page, /p_skid_count: combinedSkids\(\)/, 'The slot search still asks for this load alone, not the combined load.');

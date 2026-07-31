@@ -243,15 +243,15 @@ function buildShell() {
     <div class="modal__foot" data-booking-actions></div>
     <div class="scrim" data-consolidation-modal hidden aria-hidden="true">
       <section class="modal" role="dialog" aria-modal="true" aria-labelledby="consolidation-title">
-        <div class="modal__head"><div><h2 class="modal__title" id="consolidation-title">Another appointment already exists that day</h2></div></div>
+        <div class="modal__head"><div><h2 class="modal__title" id="consolidation-title">Combine this with a load you already have?</h2></div></div>
         <div class="modal__body">
-          <p class="modal__message">Combining loads may reduce handling and truck movements. MaxDock will never combine them automatically.</p>
+          <p class="modal__message">Combining saves a truck movement and a handling, and it is usually the right answer. It is never required, and MaxDock will never do it on its own: booking separately is one press and needs no reason.</p>
           <div data-consolidation-list></div>
         </div>
         <div class="modal__foot">
-          <button class="btn btn--quiet" type="button" data-action="view-existing">View existing appointment</button>
-          <button class="btn btn--quiet" type="button" data-action="combine-load">Choose loads to combine</button>
-          <button class="btn btn--primary" type="button" data-action="continue-separately">Continue separately</button>
+          <button class="btn btn--quiet" type="button" data-action="view-existing">View the existing one</button>
+          <button class="btn btn--quiet" type="button" data-action="continue-separately">No, book it separately</button>
+          <button class="btn btn--primary" type="button" data-action="combine-load">Yes, choose loads to combine</button>
         </div>
       </section>
     </div>
