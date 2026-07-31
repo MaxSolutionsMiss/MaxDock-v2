@@ -112,9 +112,29 @@ if (!errors.length) {
   need(queue, /const each = rows => \(rows\.length \?/,
     'The skids-per-truck average is not guarded against a direction with no trucks in it.');
   need(queue, /briefcol__m/, 'The brief\'s categories carry no mark.');
-  for (const [group, mark] of [['Trucks', 'truck'], ['Labour', 'crew'], ['Combining', 'combine'], ['Attention', 'warn']]) {
+  const FIXED = [['Trucks', 'truck'], ['Labour', 'crew'], ['Combining', 'combine']];
+  for (const [group, mark] of FIXED) {
     need(queue, new RegExp(`title: '${group}',\\s*\\n?\\s*mark: '${mark}'`),
       `The brief's ${group} column has no ${mark} mark, so the four columns are told apart by their headings alone.`);
+  }
+  // Attention is the one column whose mark depends on what is in it: a clock when the
+  // column is reporting trucks running late, the hazard triangle otherwise. So the rule
+  // is checked rather than the spelling — every mark it can take must be a real drawing,
+  // and none of them may be another column's, which is the thing this section exists to
+  // protect. Pinning one literal would have said the conditional was wrong when it is not,
+  // and would still have passed a typo that names a mark nothing draws.
+  const attention = queue.match(/title: 'Attention',\s*\n?\s*mark: ([\s\S]+?),\s*\n?\s*points:/);
+  if (!attention) {
+    errors.push('The brief\'s Attention column names no mark, so the four columns are told apart by their headings alone.');
+  } else {
+    const drawn = new Set([...read('js/ui/marks.js').matchAll(/^\s{2}([a-z_0-9]+):/gm)].map(match => match[1]));
+    const taken = new Set(FIXED.map(([, mark]) => mark));
+    const named = [...attention[1].matchAll(/'([a-z_0-9]+)'/g)].map(match => match[1]);
+    if (!named.length) errors.push('The brief\'s Attention column has a mark expression that names no mark at all.');
+    for (const name of named) {
+      if (!drawn.has(name)) errors.push(`The brief's Attention column asks for a '${name}' mark, which js/ui/marks.js does not draw. It would fall back to the bar chart and the column would be marked as a report.`);
+      if (taken.has(name)) errors.push(`The brief's Attention column uses '${name}', which is already another column's mark. Two columns wearing one mark is the fault this section exists to catch.`);
+    }
   }
   // The mark stands in a gutter of its own, big enough to tell four grey columns apart
   // from across a desk, with the heading and the points sharing one left edge beside it.
