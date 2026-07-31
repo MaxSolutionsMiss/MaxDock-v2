@@ -214,7 +214,14 @@ export function createAppointmentDetails({ location, onEdit, laneFor, onCombine 
       cell('PO / BOL / job', record.external_reference),
       cell('Driver', record.driver_name),
       cell('First scanned', record.checked_in_at ? format.timestamp(record.checked_in_at, site) : 'Not scanned yet'),
-    ].join('');
+      // The operational clock, and only the parts of it that were actually recorded. A site
+      // that has not switched these on never writes them, and a row reading "Work started: –"
+      // would be the window describing a feature rather than describing this load. cell()
+      // renders a dash for an empty value rather than nothing, so these are filtered out
+      // before they reach it instead of being passed in empty.
+      record.service_started_at ? cell('Work started', format.timestamp(record.service_started_at, site)) : '',
+      record.departed_at ? cell('Truck left', format.timestamp(record.departed_at, site)) : '',
+    ].filter(Boolean).join('');
     els.log.innerHTML = '<p class="hint">Loading activity…</p>';
     els.docs.innerHTML = '<p class="hint">Loading documents…</p>';
     els.docMessage.textContent = '';
