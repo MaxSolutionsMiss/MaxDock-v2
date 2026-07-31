@@ -51,6 +51,13 @@ const BODY_PARTS = {
   door: '<rect x="6" y="16" width="52" height="52"/>',
   // A clock face, low enough in the box that a small reading still shows inside it.
   clock: '<path clip-rule="evenodd" d="M32 22a26 26 0 1 1 0 52 26 26 0 0 1 0-52zm0 7.5a18.5 18.5 0 1 0 0 37 18.5 18.5 0 0 0 0-37z"/>',
+  // Cartons stacked on a pallet. A reading about skids drawn as skids: the fill rises through
+  // the stack, and the pallet stays under it because a pallet with nothing on it is still a
+  // pallet — a fill that swallowed the pallet too would read as half a skid at 50%.
+  skid: '<rect x="10" y="14" width="44" height="48" rx="1"/>',
+  // Two panels joined, the near one over the far one. The same ⧉ the dock board prints in
+  // front of a combined booking and the same shape the brief's Combining column wears.
+  combine: '<path d="M24 14h32v32H24z"/><path d="M8 30h32v32H8z"/>',
 };
 
 // The detail drawn over the fill: the rings on the calendar, the hinges on the trailer,
@@ -69,6 +76,12 @@ const DETAIL = {
   // The roller housing above, the slats it rolls down, and the platform in front.
   door: '<path d="M1 4h62v10H1z"/><path d="M6 26h52M6 36h52M6 46h52"/><path d="M0 68h64v6H0z"/><path d="M8 74v3M56 74v3"/>',
   clock: '<path d="M32 26v5M58 48h-5M32 70v-5M6 48h5"/><path d="M32 32v16l11 7"/>',
+  // The boards between the cartons, and the pallet they stand on with its own feet.
+  skid: '<path d="M10 30h44M10 46h44M32 14v48"/><path d="M6 64h52v6H6z"/><path d="M10 70h6v5h-6zM29 70h6v5h-6zM48 70h6v5h-6z"/>',
+  // Nothing. Both panels are body, and the outline pass strokes whatever the body is, so the
+  // seam where they meet draws itself. An extra path on top of it drew a second line beside
+  // the real one, which at this size read as a crop mark rather than as an edge.
+  combine: '',
 };
 
 // Two shapes are a shape plus a mark, sharing the body so they fill identically to the

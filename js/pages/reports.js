@@ -434,7 +434,27 @@ function renderTruckFlow() {
 function renderSkidMovement() {
   const byDay = state.data.by_day || [];
   const s = state.data.summary || {};
+  // Two readings the view was computing and only ever printing as numbers. Both are about
+  // skids, and both are drawn as skids: how full the trailers that carried them were, and how
+  // much of the range's movement landed on its heaviest single day. The second is the one that
+  // decides whether a site needs another door — a range that is level does not, and a range
+  // that piles a fifth of its movement onto one day does.
+  const fullness = state.fullness || [];
+  const capacity = fullness.reduce((sum, row) => sum + num(row.capacity_skids), 0);
+  const carried = fullness.reduce((sum, row) => sum + (row.fullness_pct === null || row.fullness_pct === undefined
+    ? 0 : num(row.fullness_pct) * num(row.capacity_skids) / 100), 0);
+  const moved = byDay.map(row => num(row.inbound_skids) + num(row.outbound_skids));
+  const total = moved.reduce((sum, value) => sum + value, 0);
+  const heaviest = moved.length ? Math.max(...moved) : 0;
   return `${kpiRow()}
+    <div class="panel">
+      <div class="panel__head"><h3 class="panel__title">How the skids moved</h3><div class="panel__actions">${formSwitch('skid-read', [{ id: 'dial', label: 'Dials' }, { id: 'shape', label: 'Fill' }])}<span class="sub">${escapeHtml(siteRange())}</span></div></div>
+      <div class="panel__body">${readings('skid-read', [
+        { percent: capacity ? (carried / capacity) * 100 : null, label: 'Trailer space used', note: 'skids carried against what those trailers hold', good: 'high', shape: 'skid' },
+        { percent: total && moved.length ? (heaviest / (total / moved.length)) * 100 : null, label: 'Heaviest day against an even one', note: `${compact(heaviest)} skids on the busiest of ${moved.length} day${moved.length === 1 ? '' : 's'}`, good: 'none', shape: 'day' },
+      ])}
+        <p class="hint">Trailer space used is the room that was paid for and filled. The second reading is the busiest day measured against what an even day of this range would be, so 100% is perfectly level and 200% is a day carrying twice its share. Measured that way because a share out of the whole range makes every well-run month look empty: thirty level days are 3% each, and 3% drawn against 100 says nothing.</p></div>
+    </div>
     <div class="panel panel--fill">
       <div class="panel__head"><h3 class="panel__title">Skid movement per day</h3><div class="panel__actions"><span class="sub">${compact(s.inbound_skids)} in · ${compact(s.outbound_skids)} out</span></div></div>
       <div class="panel__body">${byDay.length
@@ -636,7 +656,7 @@ function renderFullness() {
       ${readings('fullness-read', [
         { percent: overall, label: 'Trailer used', note: 'skids against what the trailers hold', good: 'high', shape: 'truck' },
         { percent: measured ? (fullTrucks / measured) * 100 : null, label: 'Trucks that ran full', note: '90% or more', good: 'high', shape: 'truck' },
-        { percent: savedPct, label: 'Trucks saved by combining', note: 'of what would have run', good: 'none', shape: 'truck' },
+        { percent: savedPct, label: 'Trucks saved by combining', note: 'of what would have run', good: 'none', shape: 'combine' },
       ])}
     </div>
     <div class="panel">
