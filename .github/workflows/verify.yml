@@ -102,6 +102,9 @@ jobs:
       - name: Scanning a load in at the dock
         run: node scripts/verify-qr-scan.mjs
 
+      - name: The rollback document still matches what it preserves
+        run: node scripts/verify-rollback-doc.mjs
+
   layout:
     runs-on: ubuntu-latest
     steps:

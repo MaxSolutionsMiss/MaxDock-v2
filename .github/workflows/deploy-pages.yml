@@ -69,6 +69,9 @@ jobs:
       - name: Scanning a load in at the dock
         run: node scripts/verify-qr-scan.mjs
 
+      - name: The rollback document still matches what it preserves
+        run: node scripts/verify-rollback-doc.mjs
+
       - name: Prepare static site artifact
         if: github.event_name != 'pull_request'
         shell: bash
