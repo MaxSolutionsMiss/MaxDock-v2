@@ -122,11 +122,20 @@ check(await truck.count() > 0, 'The trailer did not render, so no capacity reach
 const caption = (await dialog.locator('.truck__cap').textContent().catch(() => '')) || '';
 check(/20 of 26 skids/.test(caption), `The trailer's caption is wrong. It says: "${caption}"`);
 check(/room for 6 more/.test(caption), `The trailer should say what room is left. It says: "${caption}"`);
-// 20 of 26 is 76.9% of the trailer's 146-unit interior, so 112.3 wide. A drawing that
-// says the right number underneath while showing the wrong amount of load is worse than
-// no drawing, so the geometry is measured rather than assumed.
+// A drawing that says the right number underneath while showing the wrong amount of load is
+// worse than no drawing, so the geometry is measured rather than assumed.
+//
+// Measured as a proportion of the trailer's own interior, not against a remembered width. The
+// first version of this check carried the interior width as a constant, and redrawing the rig
+// on the owner's reference silhouette — a change to how the truck looks and to nothing else —
+// failed it twice for a reason that had nothing to do with whether the load is drawn correctly.
+// What has to be true is that the loaded part is 20/26 of the space a load goes into, at
+// whatever size that space is now.
+const wellWidth = Number(await dialog.locator('.truck__well').first().getAttribute('width'));
 const loadWidth = Number(await dialog.locator('.truck__load').first().getAttribute('width'));
-check(Math.abs(loadWidth - 112.3) < 1.5, `The loaded part of the trailer is ${loadWidth} units wide; 20 of 26 should be 112.3.`);
+const share = wellWidth ? loadWidth / wellWidth : 0;
+check(Math.abs(share - 20 / 26) < 0.012,
+  `The loaded part of the trailer is ${loadWidth} of ${wellWidth} units, which is ${(share * 100).toFixed(1)} per cent; 20 of 26 is 76.9.`);
 check(/truck__load--part/.test(await dialog.locator('.truck__load').first().getAttribute('class') || ''),
   'A trailer at 77% should be drawn in the part-loaded band.');
 
@@ -154,7 +163,14 @@ await page.waitForTimeout(1200);
 const boardText = await page.locator('[data-board-host]').innerText();
 check(!boardText.includes('MXD-2026-000147'), 'The absorbed load is still on the dock board after combining.');
 check(boardText.includes('MXD-2026-000146'), 'The surviving load left the dock board after combining.');
-check(/⧉\s*MXD-2026-000146/.test(boardText), 'The surviving load is not marked as carrying combined loads on the board.');
+// The mark is drawn on the block rather than written in front of the reference: a ⧉ character
+// is a font's opinion at whatever size the block happens to be, and it disappeared entirely for
+// a reader who had switched the reference field off. So the mark is looked for where it now
+// lives — its own slot on the surviving block — and by the thing that makes it useful, which is
+// that it says in words what it means to anybody who cannot resolve an 18px glyph on a wall.
+const survivor = page.locator('.tlb', { hasText: 'MXD-2026-000146' }).first();
+check(await survivor.locator('.tlb__f[aria-label="More than one load on this truck"]').count() > 0,
+  'The surviving load is not marked as carrying combined loads on the board.');
 check(/1 load combined in/.test(boardText), 'The surviving block does not say how many loads it took on.');
 
 // The combined skid count, read where it is always legible. The block itself may

@@ -1091,7 +1091,14 @@ html[data-text="larger"] .frow>.field--md:not(.field-action){grid-column:span 5}
    under them. Giving each group its own card made a page of nothing but metric cards,
    which is a lot of border for what is really one summary. The card is the outer box; the
    groups inside it are columns with a rule between them. */
-.brief{background:var(--surface);border:1px solid var(--dock);border-radius:var(--radius-lg);padding:var(--s3) var(--s4);margin-bottom:var(--s3);display:flex;flex-direction:column;gap:var(--s3);flex:0 1 auto;min-height:8em;overflow:visible;container-type:inline-size}
+/* The card yields height to the table below it — the queue is a fixed-height screen and the
+   rows are what it is for — but it has to yield by shrinking, not by letting its contents out.
+   overflow:visible meant everything past the card's share of the page was drawn *outside its own
+   border*, over the table underneath: at 1280px the Combine link sat beneath the table's sticky
+   header, painted on the card and impossible to press, and a third of the brief was reading as
+   loose text over the rows. The card scrolls what does not fit, the same as the panel beneath
+   it, so a border always contains what belongs to it. */
+.brief{background:var(--surface);border:1px solid var(--dock);border-radius:var(--radius-lg);padding:var(--s3) var(--s4);margin-bottom:var(--s3);display:flex;flex-direction:column;gap:var(--s3);flex:0 1 auto;min-height:8em;overflow:auto;container-type:inline-size}
 /* The mark, the site's name and Share on one line, and on a phone at Larger text they do
    not fit on one line. They wrapped nowhere and scrolled the card sideways instead, which
    is a horizontal scrollbar on the one card the page opens with. Share drops to its own
@@ -1167,6 +1174,18 @@ html[data-text="larger"] .frow>.field--md:not(.field-action){grid-column:span 5}
      between Labour and Combining went missing. */
   .briefcol:nth-child(odd),.briefcol:nth-child(even){border-left:1px solid var(--rule);padding-left:var(--s3)}
   .briefcol:first-child{border-left:none;padding-left:0}
+  /* Four across is four narrow columns, and a mark in a gutter beside them costs each one
+     about seventy of the two hundred and eighty pixels it has. That left a bullet carrying a
+     booking reference wrapping at thirteen characters a line: "3 running late:" on one line
+     and one reference on each of the next two. A fifteen-character reference is the whole
+     reason these bullets exist, so the text has to be wide enough to hold one and still say
+     something beside it. At four across the mark goes above its heading instead of beside it,
+     which gives every point the full width of its column back. It stays a mark rather than a
+     text-sized glyph, so the four columns are still told apart by shape from across a room.
+     Beside the heading is right at one and two across, where there is room for both. */
+  .briefcol{grid-template-columns:minmax(0,1fr)}
+  .briefcol__m{padding-top:0;margin-bottom:2px}
+  .briefcol__m svg{width:2.6em;height:2.6em}
 }
 .briefcol__m{color:var(--dock);display:grid;padding-top:2px}
 .briefcol__m svg{width:3.9em;height:3.9em}
@@ -1177,7 +1196,14 @@ html[data-text="larger"] .frow>.field--md:not(.field-action){grid-column:span 5}
    they answer "which loads" without competing with the decision above them. */
 /* References and the action that acts on them, on one line under the bullet. They used to take
    a line each, which on three combining lanes was six lines of chrome under three of content. */
-.briefpoint__s{display:flex;flex-wrap:wrap;align-items:baseline;gap:var(--s2);font-size:var(--t-micro);color:var(--ink-faint);word-break:break-word}
+/* overflow-wrap, not word-break. They read alike and behave nothing alike inside a flex row:
+   word-break:break-word lets this line shrink to a single character, so the browser kept the
+   references and the Combine button on one line by squeezing the references into what was left
+   and breaking them mid-token — "MXD-2026-" on one line and "000146," on the next. A booking
+   reference is a thing somebody reads out over a radio and it must never be split. With
+   overflow-wrap the narrowest this can go is its longest word, so the button drops to its own
+   line first and the references wrap between themselves, which is the order that reads. */
+.briefpoint__s{display:flex;flex-wrap:wrap;align-items:baseline;gap:var(--s2);font-size:var(--t-micro);color:var(--ink-faint);overflow-wrap:break-word}
 .linkBtn--tight{font-size:var(--t-micro);padding:0}
 .brief__ico{width:32px;height:32px;border-radius:8px;background:var(--dock);color:#fff;display:grid;place-items:center;flex:none;font-weight:700;font-size:14px}
 /* The narrative scrolls inside the band. The queue is a fixed-height page, so a
@@ -1192,6 +1218,9 @@ html[data-text="larger"] .frow>.field--md:not(.field-action){grid-column:span 5}
    reading below — when it is one card. The gap does the same job the line was doing
    and draws nothing, so it is a shade tighter than the line's padding was: the four
    blocks sit up closer to the figures without running into them. */
+/* Each part keeps its own height and the card scrolls past them, rather than the narrative being
+   crushed to a few pixels under figures that refuse to give. Scrolling the whole card keeps the
+   figures and the columns in one piece of reading. */
 .brief__body{flex:none;padding-top:8px}.brief__t{font-weight:600;margin-bottom:2px}.brief__x{color:var(--ink);font-size:var(--t-base)}.brief__x b{color:var(--dock-deep)}
 /* The queue below the strips: the day on the left, the heat map and the watch list on
    the right. The side column was sized as one share of --kpi-cols, which tied how wide the

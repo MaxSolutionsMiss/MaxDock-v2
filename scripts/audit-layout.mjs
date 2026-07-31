@@ -401,6 +401,12 @@ function collect(scope) {
   // height rule above stay quiet. That is how a settings card shrank to the
   // width of its own title and every sentence inside it stacked one word to a
   // line, all the way down the page, and still audited clean.
+  // Counted off the text's own line boxes rather than by dividing the block's height by its
+  // line-height. The arithmetic version could not tell a wrapped sentence from a control: a
+  // bullet in the operations brief carries a 36px action button under it, and 36px of hit area
+  // read as two more lines of text, which reported a perfectly ordinary bullet as wrapping at
+  // thirteen characters. A Range over each text node gives one rectangle per line the browser
+  // actually drew, which is the thing this rule has always been about.
   out.narrow = [];
   root.querySelectorAll('p,.hint,td,.setrow__t,.card__title,.integ__name,li,legend').forEach(el => {
     if (!vis(el)) return;
@@ -408,10 +414,21 @@ function collect(scope) {
     if (text.length < 40) return;
     const rect = el.getBoundingClientRect();
     if (rect.width === 0 || rect.height === 0) return;
-    const line = parseFloat(getComputedStyle(el).lineHeight) || 18;
-    const lines = Math.max(1, Math.round(rect.height / line));
-    if (lines < 4) return;
-    const perLine = text.length / lines;
+    const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+    let lines = 0;
+    let chars = 0;
+    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+      const value = (node.textContent || '').trim();
+      if (!value) continue;
+      const range = document.createRange();
+      range.selectNodeContents(node);
+      const boxes = [...range.getClientRects()].filter(box => box.width > 0 && box.height > 0);
+      if (!boxes.length) continue;
+      lines += boxes.length;
+      chars += value.length;
+    }
+    if (lines < 4 || chars < 40) return;
+    const perLine = chars / lines;
     if (perLine >= 14) return;
     out.narrow.push({ sel: el.className || el.tagName, w: Math.round(rect.width), lines, perLine: Math.round(perLine) });
   });
