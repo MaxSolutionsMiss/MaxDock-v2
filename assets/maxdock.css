@@ -1268,6 +1268,24 @@ html[data-text="larger"] .frow>.field--md:not(.field-action){grid-column:span 5}
 .dock-checks--ruled+.dock-checks--ruled{margin-top:var(--s3);padding-top:var(--s3);border-top:1px solid var(--rule)}
 .dock-checks--ruled>legend{margin-bottom:var(--s1)}
 .dock-checks--ruled .dock-check{min-height:26px}
+
+/* --- the role editor: a subject at a time
+   Twenty-seven permissions in one column was already a long window, and one permission per
+   report view took it past thirty. Past a certain length a list stops being a list and becomes
+   a search. The rail carries how much of each subject the role holds, which the old layout
+   could not say at all: "Reports and history 3 of 11" is the shape of a role in one line. */
+.rolegrid{display:grid;grid-template-columns:minmax(0,1fr);gap:var(--s3)}
+@media (min-width:44em){.rolegrid{grid-template-columns:15em minmax(0,1fr);gap:var(--s4)}}
+.rolerail{display:grid;align-content:start;gap:2px}
+.rolerail__b{display:flex;align-items:baseline;justify-content:space-between;gap:var(--s2);
+  min-height:var(--tap);padding:var(--s2) var(--s3);border:0;border-radius:var(--radius);
+  background:none;color:var(--ink);font:inherit;font-size:var(--t-small);text-align:left;cursor:pointer}
+.rolerail__b small{color:var(--ink-faint);font-size:var(--t-micro);font-variant-numeric:tabular-nums;white-space:nowrap}
+.rolerail__b:hover{background:var(--surface-sunk)}
+.rolerail__b[aria-selected="true"]{background:var(--dock-wash);color:var(--dock-deep);font-weight:600}
+.rolerail__b[aria-selected="true"] small{color:var(--dock-deep)}
+@media (min-width:44em){.rolepanel{border-left:1px solid var(--rule);padding-left:var(--s4)}}
+.rolepanel>.watch__t{margin-top:0}
 /* A bordered section is a bigger break than one field row after another, so it
    gets more air above it than the form's own rhythm — the boxes were reading as
    attached to the field directly above them. */

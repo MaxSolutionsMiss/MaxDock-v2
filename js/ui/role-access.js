@@ -105,10 +105,33 @@ export function createRoleAccessDialog({ onSaved } = {}) {
   let pinned = false;
   let busy = false;
 
-  function renderBody() {
-    // Screens first as a strip, because it is the short list and the one an
-    // administrator usually came here to change.
-    const screens = RAIL_PAGES.map(page => {
+  // Which category is open. A name rather than an index, so adding a group does not silently
+  // move somebody to a different one.
+  let section = 'screens';
+
+  // The left rail's entries: the screens strip, then one per permission group. Built fresh each
+  // render because the counts move as ticks change, and a count that lags is worse than none.
+  function sections() {
+    const permitted = RAIL_PAGES.filter(page => railPageAllowedByPermissions(held, page));
+    return [
+      {
+        id: 'screens',
+        title: 'Screens on the rail',
+        held: permitted.filter(page => !hidden.has(page.code)).length,
+        total: permitted.length,
+      },
+      ...grouped(catalogue).map(group => ({
+        id: group.title,
+        title: group.title,
+        items: group.items,
+        held: group.items.filter(item => (held.has(item.code) && !needsPage(item.code)) || (pinned && PINNED_PERMISSIONS.has(item.code))).length,
+        total: group.items.length,
+      })),
+    ];
+  }
+
+  function screenTicks() {
+    return RAIL_PAGES.map(page => {
       const permitted = railPageAllowedByPermissions(held, page);
       const heldFast = pinned && PINNED_PAGES.has(page.code);
       return `<label class="dock-check${permitted ? '' : ' is-off'}">
@@ -116,31 +139,63 @@ export function createRoleAccessDialog({ onSaved } = {}) {
         <span>${escapeHtml(page.label)}${heldFast ? ' <small class="pinnote">always on</small>' : ''}</span>
       </label>`;
     }).join('');
+  }
 
-    // One bordered, named group per subject. Not groups nested inside one big
-    // fieldset: `.dock-checks` flattens its wrapper divs with display:contents so the
-    // ticks themselves are the grid items, which turns a heading into one more cell
-    // and scatters the headings through the middle of the columns.
-    els.body.innerHTML = `
-      <h3 class="watch__t">What it sees</h3>
-      <fieldset class="dock-checks dock-checks--ruled">${screens}</fieldset>
-      <p class="hint hint--wide">Which links are on this role's rail. A screen greyed out is one the role has no permission for below; tick the permission and the screen becomes available. Taking a link off a rail tidies it; it does not lock the screen, so anything that must be refused has to be refused by a permission.</p>
-      <h3 class="watch__t section-gap">What it may do</h3>
-      ${grouped(catalogue).map(group => `<fieldset class="dock-checks dock-checks--ruled">
-        <legend>${escapeHtml(group.title)}</legend>
-        ${group.items.map(permission => {
-          const fast = pinned && PINNED_PERMISSIONS.has(permission.code);
-          return `<label class="dock-check">
-          <input type="checkbox" data-role-permission="${escapeHtml(permission.code)}" ${held.has(permission.code) || fast ? 'checked' : ''} ${fast ? 'disabled' : ''}>
-          <span title="${escapeHtml(permission.description || permission.code)}">${escapeHtml(permission.name || permission.code)}${fast ? ' <small class="pinnote">always on</small>' : ''}</span>
-        </label>`;
-        }).join('')}
-      </fieldset>`).join('')}
-      <p class="hint hint--wide">This is the real boundary: the database asks these, so removing one closes the screen and the request behind it for everybody in this role, immediately.</p>`;
+  // A report view is worth nothing without the permission that opens the Reports page, so it is
+  // greyed until that one is on — the same way a screen is greyed until the permission behind it
+  // is. Without this, ticking "Reports: Truck flow" on a role that cannot open Reports saves a
+  // permission that changes nothing and tells the person setting it up that it does.
+  const needsPage = code => code.startsWith('reports.view_') && !held.has('reports.view');
+
+  function permissionTicks(items) {
+    return items.map(permission => {
+      const fast = pinned && PINNED_PERMISSIONS.has(permission.code);
+      const blocked = !fast && needsPage(permission.code);
+      return `<label class="dock-check${blocked ? ' is-off' : ''}">
+        <input type="checkbox" data-role-permission="${escapeHtml(permission.code)}" ${(held.has(permission.code) || fast) && !blocked ? 'checked' : ''} ${fast || blocked ? 'disabled' : ''}>
+        <span title="${escapeHtml(blocked ? 'Turn on View Reports first: without it this role cannot open the Reports page at all.' : (permission.description || permission.code))}">${escapeHtml(permission.name || permission.code)}${fast ? ' <small class="pinnote">always on</small>' : ''}</span>
+      </label>`;
+    }).join('');
+  }
+
+  // One subject at a time, chosen from a rail.
+  //
+  // Every permission in one scrolling column was already a long window at twenty-seven, and
+  // splitting Reports into one per view took it to thirty-four with more to come. Past a certain
+  // length a list stops being a list and becomes a search: somebody looking for "may this role
+  // see the vendor scorecard" was scrolling past appointments and docks to find out.
+  //
+  // A rail also answers a question the old layout could not: how much of each subject this role
+  // holds. "Reports and history 3 of 11" is the shape of a role in one line, and it is visible
+  // without opening anything.
+  function renderBody() {
+    const list = sections();
+    if (!list.some(item => item.id === section)) section = list[0]?.id || 'screens';
+    const active = list.find(item => item.id === section) || list[0];
+    const rail = list.map(item => `<button class="rolerail__b" type="button" role="tab"
+      aria-selected="${item.id === section}" data-role-section="${escapeHtml(item.id)}">
+      <span>${escapeHtml(item.title)}</span><small>${item.held} of ${item.total}</small>
+    </button>`).join('');
+
+    const body = active?.id === 'screens'
+      ? `<fieldset class="dock-checks dock-checks--ruled">${screenTicks()}</fieldset>
+         <p class="hint hint--wide">Which links are on this role's rail. A screen greyed out is one the role has no permission for; tick the permission under its own heading and the screen becomes available. Taking a link off a rail tidies it, it does not lock the screen, so anything that must be refused has to be refused by a permission.</p>`
+      : `<fieldset class="dock-checks dock-checks--ruled">${permissionTicks(active?.items || [])}</fieldset>
+         <p class="hint hint--wide">This is the real boundary: the database asks these, so removing one closes the screen and the request behind it for everybody in this role, immediately.</p>`;
+
+    els.body.innerHTML = `<div class="rolegrid">
+      <div class="rolerail" role="tablist" aria-orientation="vertical" aria-label="Kinds of access">${rail}</div>
+      <div class="rolepanel" role="tabpanel" aria-label="${escapeHtml(active?.title || '')}">
+        <h3 class="watch__t">${escapeHtml(active?.title || '')}</h3>
+        ${body}
+      </div>
+    </div>`;
   }
 
   backdrop.addEventListener('click', event => {
-    if (event.target.closest('[data-role-close]')) modal.close();
+    if (event.target.closest('[data-role-close]')) { modal.close(); return; }
+    const tab = event.target.closest('[data-role-section]');
+    if (tab) { section = tab.dataset.roleSection; renderBody(); }
   });
 
   backdrop.addEventListener('change', event => {
@@ -152,6 +207,11 @@ export function createRoleAccessDialog({ onSaved } = {}) {
       // above has to say so now rather than after a save that would drop it anyway.
       for (const page of RAIL_PAGES) {
         if (!railPageAllowedByPermissions(held, page)) hidden.delete(page.code);
+      }
+      // Same rule one level down: the individual reports mean nothing once the page they live on
+      // is closed, so they go with it rather than being saved as ticks that do nothing.
+      if (!held.has('reports.view')) {
+        for (const code of [...held]) if (code.startsWith('reports.view_')) held.delete(code);
       }
       renderBody();
       return;
@@ -220,6 +280,7 @@ export function createRoleAccessDialog({ onSaved } = {}) {
       ? 'This role can be changed like any other, with two exceptions: View Users, Manage Users and the Users screen stay on. They are the way back in if a change here goes wrong, and the only role that could undo it is this one. Separately, the master administrator cannot be demoted, deactivated or deleted, so there is always somebody holding this role.'
       : '';
     els.message.textContent = '';
+    section = 'screens';
     els.save.hidden = false;
     els.save.disabled = false;
     renderBody();
