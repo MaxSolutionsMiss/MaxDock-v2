@@ -33,19 +33,64 @@ const state = {
   appointment: null,
   matches: [],
   scanner: null,
+  // Which of the optional steps this site has turned on, keyed by location. A site the
+  // receiver has not visited yet is simply not in here, and an absent answer means off.
+  clock: new Map(),
   elements: {},
 };
 
 // What a receiver can set from the dock, in the order the truck moves through
 // them. "Loading" or "Unloading" depends on which way the load is going — the
 // same word for both would be wrong half the time.
+//
+// Only Departed is gated here, and that is the point rather than an oversight. This screen
+// has always offered Loading/Unloading, so hiding it behind a switch that ships off would
+// take away something the dock uses today — the exact opposite of "with the toggles off,
+// nothing changes". The Start switch governs the places that did not have the action at all,
+// which are the queue and the appointment window, and whether the recorded time is shown.
+// Setting in_progress here stamps the service clock either way, which costs nothing and is
+// invisible until a site asks to see it.
+//
+// Departed is the odd one and deliberately so. It is not a status: the load stays complete
+// and only gains the time it pulled off the door, so nothing that reads status — the board
+// colours, the queue filters, every scorecard — sees any difference at all.
 const STATUS_STEPS = [
   { id: 'arrived', label: 'At the dock' },
   { id: 'in_progress', label: direction => (direction === 'outbound' ? 'Loading' : 'Unloading') },
   { id: 'completed', label: 'Complete' },
+  { id: 'departed', label: 'Left the yard', needs: 'track_departure', after: 'completed' },
 ];
 
 const stepLabel = (step, direction) => (typeof step.label === 'function' ? step.label(direction) : step.label);
+
+// The site's two switches, read the same way the operations queue reads its labour numbers.
+// Cached per location for a minute: a receiver stands at one dock for a shift, and this must
+// not become a second request on every scan.
+async function clockFor(locationId) {
+  if (!locationId) return {};
+  if (state.clock.has(locationId)) return state.clock.get(locationId);
+  const row = await db.select('location_settings', query => query
+    .select('track_service_start,track_departure').eq('location_id', locationId).maybeSingle(),
+  { key: `receiving:clock:${locationId}`, cache: 60000 }).catch(() => null);
+  const value = {
+    track_service_start: row?.track_service_start === true,
+    track_departure: row?.track_departure === true,
+  };
+  state.clock.set(locationId, value);
+  return value;
+}
+
+// Which steps this load can actually be put into, at this site, right now.
+function stepsFor(record) {
+  const clock = state.clock.get(record.location_id) || {};
+  return STATUS_STEPS.filter(step => {
+    if (step.needs && clock[step.needs] !== true) return false;
+    // Departed only means something once the load is finished, and the RPC refuses it
+    // otherwise. Offering a button that is guaranteed to fail is worse than not offering it.
+    if (step.after && String(record.status || '') !== step.after) return false;
+    return true;
+  });
+}
 
 const escapeHtml = value => String(value ?? '').replace(/[&<>'"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[char]));
 
@@ -153,11 +198,27 @@ function renderMatches(records) {
 // with a loaded truck and needs Complete, not a lecture about order.
 function statusButtons(record) {
   const current = String(record.status || '');
-  return STATUS_STEPS.map(step => {
+  return stepsFor(record).map(step => {
     const label = stepLabel(step, record.direction);
     const isCurrent = step.id === current;
     return `<button class="btn ${isCurrent ? 'btn--primary' : 'btn--quiet'}" type="button" data-status="${step.id}" ${isCurrent ? 'aria-current="true"' : ''}>${escapeHtml(label)}</button>`;
   }).join('');
+}
+
+// What has already been recorded on this load, in the order it happened. Only the parts the
+// site has turned on, and only once there is something to show: a line reading "started —"
+// tells a receiver nothing except that the screen has a feature they are not using.
+function clockLine(record, location) {
+  const clock = state.clock.get(record.location_id) || {};
+  const parts = [];
+  if (clock.track_service_start && record.service_started_at) {
+    parts.push(`work started ${format.timestamp(record.service_started_at, location)}`);
+  }
+  if (clock.track_departure && record.departed_at) {
+    parts.push(`left ${format.timestamp(record.departed_at, location)}`);
+  }
+  if (!parts.length) return '';
+  return `<p class="hint hint--flush">${escapeHtml(parts.join(' · '))}.</p>`;
 }
 
 function renderAppointment(record) {
@@ -180,6 +241,7 @@ function renderAppointment(record) {
       ${record.already_checked_in
         ? `<p class="form-message form-message--success">First seen ${escapeHtml(format.timestamp(record.checked_in_at, location))}${record.driver_name ? ` · driver ${escapeHtml(record.driver_name)}` : ''}.</p>`
         : ''}
+      ${clockLine(record, location)}
       <label class="field field--md"><span class="field__label">Driver <span class="field__opt">optional</span></span><input class="input" data-driver maxlength="120" autocomplete="name" value="${escapeHtml(record.driver_name || '')}"></label>
       <fieldset class="recv__steps"><legend>Where is this truck?</legend>${statusButtons(record)}</fieldset>
       <div class="form-actions"><button class="btn btn--quiet" type="button" data-again>Scan another</button></div>
@@ -191,6 +253,11 @@ function showResult(rows, emptyMessage) {
   if (!records.length) { renderIdle(emptyMessage); return; }
   if (records.length === 1) {
     state.appointment = records[0];
+    // Awaited rather than drawn twice. A set of buttons that appears and then rearranges is
+    // exactly the moment somebody presses the wrong one.
+    clockFor(records[0].location_id).then(() => {
+      if (state.appointment === records[0]) renderAppointment(records[0]);
+    });
     renderAppointment(records[0]);
     return;
   }
@@ -232,7 +299,15 @@ async function refreshCurrent() {
     key: `receiving:refresh:${record.appointment_id}:${Date.now()}`, cache: 0, retry: 1,
   }).catch(() => null);
   const fresh = (Array.isArray(rows) ? rows : []).find(row => row.appointment_id === record.appointment_id);
-  if (fresh) { state.appointment = fresh; renderAppointment(fresh); }
+  // The lookup returns the shape it always returned; extending it would have meant dropping
+  // and recreating a SECURITY DEFINER function, which also drops its grants, and the whole
+  // point of this change is that it stays easy to reverse. So the departure time, which only
+  // the status RPC hands back, is carried across the refetch rather than lost by it.
+  if (fresh) {
+    const merged = record.departed_at ? { ...fresh, departed_at: record.departed_at } : fresh;
+    state.appointment = merged;
+    renderAppointment(merged);
+  }
 }
 
 async function setStatus(status) {
@@ -250,6 +325,9 @@ async function setStatus(status) {
     db.invalidate('board:schedule:');
     const step = STATUS_STEPS.find(item => item.id === status);
     toast(`${result.booking_reference} · ${stepLabel(step, record.direction).toLowerCase()}.`, 'success');
+    // Departure is not a status, so a refetch cannot show it. The RPC hands it back and it is
+    // held on the record the panel is drawing from.
+    if (result.departed_at) state.appointment = { ...record, departed_at: result.departed_at };
     await refreshCurrent();
   } catch (error) {
     toast(error.userMessage || error.message || 'That status could not be set.', 'error');

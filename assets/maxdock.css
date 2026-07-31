@@ -1158,6 +1158,10 @@ html[data-text="larger"] .frow>.field--md:not(.field-action){grid-column:span 5}
    not as a line crammed against the rule. */
 .setrow+.frow{margin-top:var(--s4)}
 .setrow:last-of-type{border-bottom:none}
+/* A named group inside a settings card. Timing now carries two questions that are not about
+   how long a booking runs for, and dropping two switches under the duration fields with no
+   break read as though they belonged to the calculation above them. */
+.setgroup__t{font-size:var(--t-micro);text-transform:uppercase;letter-spacing:.07em;color:var(--ink-muted);font-weight:600;margin:var(--s4) 0 var(--s2);padding-top:var(--s3);border-top:1px solid var(--rule)}
 .setrow__ctl{display:flex;align-items:center;gap:var(--s3)}.setrow:last-child{border:none}.setrow__t{font-size:var(--t-base);font-weight:500;white-space:nowrap}.setrow__d{font-size:var(--t-small);color:var(--ink-muted)}
 
 /* Password reveal — approved production stylesheet */

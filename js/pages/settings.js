@@ -331,6 +331,11 @@ function renderTiming() {
   const s = state.settings || {};
   const canEdit = state.canManage;
   const disabled = canEdit ? '' : 'disabled';
+  // Both columns are nullable and were added without a backfill, so a location nobody has
+  // opened since the migration reads null. Null means off, which is the state this site was
+  // in yesterday.
+  const startOn = s.track_service_start === true;
+  const departOn = s.track_departure === true;
   return `<form class="card" data-section-form="timing">
     <h3 class="card__title">Timing & duration</h3>
     <div class="frow">
@@ -345,6 +350,16 @@ function renderTiming() {
       <div class="field field--num"><span class="field__label">Priority</span><span class="inputwrap"><input class="input" type="number" min="0" name="priority_minimum_minutes" value="${s.priority_minimum_minutes ?? 0}" ${disabled}><span class="input__unit">min</span></span></div>
     </div>
     <p class="hint hint--wide">How long a booking runs for: the base, plus the per-skid rate, plus the buffer. A load at or over the full-truck skid count never gets less than the full-truck time, and a priority load never gets less than the priority time. Slot interval is the spacing of the times offered.</p>
+    <h4 class="setgroup__t">What the dock records</h4>
+    <div class="setrow setrow--lead">
+      <div><div class="setrow__t">Record when work starts</div><div class="setrow__d">Adds a Start action between Arrived and Complete, so the time on the load can be told apart from the time at the door</div></div>
+      <button type="button" class="switch ${startOn ? '' : 'switch--off'}" data-start-switch aria-pressed="${startOn}" aria-label="Record when work starts" ${disabled}></button>
+    </div>
+    <div class="setrow">
+      <div><div class="setrow__t">Record when the truck leaves</div><div class="setrow__d">Adds a Departed action after Complete. The load stays complete; only the time it pulled off the door is kept</div></div>
+      <button type="button" class="switch ${departOn ? '' : 'switch--off'}" data-depart-switch aria-pressed="${departOn}" aria-label="Record when the truck leaves" ${disabled}></button>
+    </div>
+    <p class="hint hint--wide">Both are off to begin with, and off is exactly how this site works today: Arrived, then Complete. Turn them on one at a time, per site, once the habit is there. Nothing already booked or already finished changes either way.</p>
     ${saveFoot(canEdit)}
   </form>`;
 }
@@ -756,6 +771,8 @@ async function saveSettingsFields(fields) {
 async function saveTiming(form) {
   const data = new FormData(form);
   await saveSettingsFields({
+    track_service_start: form.querySelector('[data-start-switch]').getAttribute('aria-pressed') === 'true',
+    track_departure: form.querySelector('[data-depart-switch]').getAttribute('aria-pressed') === 'true',
     slot_interval_minutes: Number(data.get('slot_interval_minutes')),
     base_minutes: Number(data.get('base_minutes')),
     minutes_per_skid: Number(data.get('minutes_per_skid')),
