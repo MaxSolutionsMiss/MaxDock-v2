@@ -18,7 +18,8 @@ without needing anyone else, and without needing to understand anything above it
 | Branch the work happens on | `claude/maxdock-handoff-setup-h7d5nu` (mirrored to `feat/stage4-dock-board`) |
 | Production branch, untouched | `main` |
 | Supabase project | `rywzqepzramurbrpmept` (this is the live project — there is no separate dev database) |
-| Migration added | `appointment_service_and_departure_clock` |
+| Migrations added | `appointment_service_and_departure_clock`, `receive_appointment_stamps_service_and_departure`, `change_appointment_status_stamps_service_and_departure` |
+| Applied on | 2026-07-31. The columns are live; every toggle is off, so nothing behaves differently yet. |
 
 `72cfb56d3705f8207d93f4c1b594a9c578bf9f8d` is the state of the product immediately before this
 work. Everything in Section 8 restores exactly that.
@@ -98,6 +99,7 @@ columns avoids a window where a function references a column that is gone.
 ```sql
 -- Reverse of migration: appointment_service_and_departure_clock
 -- Drops only what that migration added. Touches no existing column and no data.
+-- The two RPC migrations are reversed separately, by Section 5b.
 begin;
 
 alter table public.appointments
@@ -142,6 +144,16 @@ where n.nspname = 'public'
   and p.proname in ('change_appointment_status', 'receive_appointment')
 order by 1;
 ```
+
+**What was verified after applying the change.** Both functions kept the identity they had:
+same parameter names and types, same defaults, still `SECURITY DEFINER`, still returning
+`jsonb`, and `EXECUTE` still granted to exactly `authenticated, postgres, service_role` and not
+to `anon`. The whole clock was then driven through both functions against a real appointment
+inside a transaction that was rolled back — arrived, start, start again, complete, departed,
+departed again, plus stepping backwards from each — and afterwards the live tables held zero
+rows with a service time, zero with a departure time, zero locations with a toggle on, and zero
+rows carrying a `departed` status, which is the point: departure is a timestamp and never a
+status.
 
 Two notes on exactness. The hash is taken after stripping carriage returns and trailing blank
 lines: `change_appointment_status` is stored in the database with Windows line endings and the
