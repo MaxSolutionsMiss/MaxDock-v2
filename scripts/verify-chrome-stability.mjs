@@ -59,6 +59,8 @@ const stub = readFileSync(join(ROOT, 'scripts/audit-supabase-stub.js'), 'utf8');
 const browser = await chromium.launch();
 const errors = [];
 
+const selectors = CHROME.map(item => item.sel);
+
 for (const { width, text } of CASES) {
   const measured = {};
   for (const page of PAGES) {
@@ -69,8 +71,20 @@ for (const { width, text } of CASES) {
     const reached = await tab.goto(`http://127.0.0.1:${PORT}/app/${page}.html`, { waitUntil: 'networkidle' }).then(() => true).catch(() => false);
     if (!reached) { await context.close(); continue; }
     await tab.evaluate(value => document.documentElement.setAttribute('data-text', value), text).catch(() => {});
-    await tab.waitForTimeout(900);
-    measured[page] = await tab.evaluate(selectors => {
+
+    // Measured once it has stopped moving, not after a fixed wait.
+    //
+    // The first version waited 900ms and then measured, and it reported the bell and the
+    // account block as 26px out of place on the board and My Appointments — the two heaviest
+    // pages. They were not out of place. The account name arrives with the profile, and on a
+    // slow runner those two pages had not painted it yet, so the block was still 19px narrower
+    // than it would be a moment later. A gate that reports whichever pages happened to be slow
+    // is worse than no gate, because it teaches you to ignore it.
+    //
+    // So it reads the boxes repeatedly and only accepts an answer that two consecutive reads
+    // agree on. What is being asked is whether the chrome settles in the same place, which is
+    // the actual claim, rather than whether it gets there within some number of milliseconds.
+    const read = () => tab.evaluate(selectors => {
       const out = {};
       for (const selector of selectors) {
         const element = document.querySelector(selector);
@@ -79,7 +93,19 @@ for (const { width, text } of CASES) {
         out[selector] = `${Math.round(box.left)},${Math.round(box.top)},${Math.round(box.width)},${Math.round(box.height)}`;
       }
       return out;
-    }, CHROME.map(item => item.sel)).catch(() => ({}));
+    }, selectors).catch(() => ({}));
+
+    let previous = null;
+    let settled = {};
+    for (let attempt = 0; attempt < 20; attempt += 1) {
+      await tab.waitForTimeout(250);
+      const now = await read();
+      const key = JSON.stringify(now);
+      if (previous === key) { settled = now; break; }
+      previous = key;
+      settled = now;
+    }
+    measured[page] = settled;
     await context.close();
   }
 
