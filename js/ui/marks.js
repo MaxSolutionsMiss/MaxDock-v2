@@ -21,9 +21,18 @@ const SHAPES = {
   // Overview: bars of different heights, the tallest solid and the rest behind it.
   chart: PART('M3 19h18v2H3z') + PART('M5 11h4v7H5zM16 4h4v14h-4z') + PART('M10.5 7h4v11h-4z', true),
 
-  // Truck flow: a tractor and a box trailer, side on, moving.
-  truck: PART('M2 6h11v10H2z') + PART('M14 9h3.6l3.4 4v3h-7z', true)
-    + PART('M6 15.5a2.6 2.6 0 1 1 0 5.2 2.6 2.6 0 0 1 0-5.2zm11 0a2.6 2.6 0 1 1 0 5.2 2.6 2.6 0 0 1 0-5.2z'),
+  // Truck flow: a tractor and a box trailer, side on.
+  //
+  // Redrawn. The first version was a fat box, a fat cab and two wheels the size of the cab,
+  // which at 3.9em on the brief read as a toy rather than a truck. Real proportions fix that on
+  // their own: a trailer is long and shallow against its tractor, the wheels are small against
+  // the body, and there are three of them because a tandem is what a tractor-trailer runs. Same
+  // silhouette as the 53 ft drawing the settings screens and the appointment window use, so the
+  // truck on the brief and the truck on a booking are recognisably one vehicle.
+  truck: PART('M1 5.6h14.6v8.8H1z')
+    + PART('M14.2 8.6h2.4l2.8 3.2v2.6h-5.2z', true)
+    + PART('M1 15.2h18.4v1.1H1z')
+    + PART('M4 16.8a2 2 0 1 1 0 4 2 2 0 0 1 0-4zm4.4 0a2 2 0 1 1 0 4 2 2 0 0 1 0-4zm8.6 0a2 2 0 1 1 0 4 2 2 0 0 1 0-4z'),
 
   // Skid movement: cartons stacked on a pallet, the pallet solid under them.
   skid: PART('M6 3h5.2v5.6H6zM12.8 3H18v5.6h-5.2z')

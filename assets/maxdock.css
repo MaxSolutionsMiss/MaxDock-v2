@@ -1161,7 +1161,11 @@ html[data-text="larger"] .frow>.field--md:not(.field-action){grid-column:span 5}
   .briefcol:nth-child(even){border-left:1px solid var(--rule);padding-left:var(--s3)}
 }
 @container (min-width:58em){
-  .briefcol{border-left:1px solid var(--rule);padding-left:var(--s3)}
+  /* Both nth-child selectors, not a bare .briefcol: the two-column rule above is
+     `.briefcol:nth-child(odd)` and that is more specific than `.briefcol`, so it kept winning
+     however this was ordered. Columns one and three lost their border, which is why the line
+     between Labour and Combining went missing. */
+  .briefcol:nth-child(odd),.briefcol:nth-child(even){border-left:1px solid var(--rule);padding-left:var(--s3)}
   .briefcol:first-child{border-left:none;padding-left:0}
 }
 .briefcol__m{color:var(--dock);display:grid;padding-top:2px}
