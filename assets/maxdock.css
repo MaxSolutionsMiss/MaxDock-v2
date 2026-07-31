@@ -1390,6 +1390,11 @@ body.modal-open{overflow:hidden}
    in the report head's wash and in the brief's plain blue without a second variable. */
 .mk{fill:currentColor;stroke:none}
 .mk .mk__b{opacity:.42}
+/* A mark at the size of the line it belongs to, rather than in a badge of its own. A truck
+   type is a row in a settings list and a field in the appointment window; naming it and
+   drawing it beside each other is faster to find in a list of five than reading five names. */
+.rowmark{display:inline-grid;place-items:center;vertical-align:-4px;color:var(--dock);margin-right:var(--s2)}
+.rowmark svg{width:20px;height:20px}
 .state--error .state__icon{background:var(--stop-wash);color:var(--stop)}
 .state--warning .state__icon{background:var(--signal-wash);color:var(--signal)}
 .state__title{margin:0;font-size:var(--t-lead);font-weight:600}

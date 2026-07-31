@@ -2,6 +2,7 @@ import { db } from '../db.js';
 import { createModal } from './modal.js';
 import { format } from '../format.js';
 import { renderQr } from './qr.js';
+import { mark, truckMarkName } from './marks.js';
 
 // One appointment, everything known about it, from anywhere it appears.
 //
@@ -45,6 +46,12 @@ function cell(label, value) {
   return `<div class="confirmgrid__cell"><span class="confirmgrid__l">${escapeHtml(label)}</span><span class="confirmgrid__v">${escapeHtml(value ?? '–')}</span></div>`;
 }
 
+// The same cell with the thing itself drawn beside it. Kept separate from cell() so the
+// escaping there stays absolute — this one takes a mark name and never a caller's string.
+function markCell(label, value, markName) {
+  return `<div class="confirmgrid__cell"><span class="confirmgrid__l">${escapeHtml(label)}</span><span class="confirmgrid__v"><span class="rowmark">${mark(markName)}</span>${escapeHtml(value ?? '–')}</span></div>`;
+}
+
 // A dot per event, coloured by what the event was. A scan is the one people look
 // for, so it gets the accent rather than the same grey as an edit.
 function eventTone(entry) {
@@ -57,7 +64,7 @@ function eventTone(entry) {
   return 'var(--rule-strong)';
 }
 
-export function createAppointmentDetails({ location, onEdit, laneFor, onCombine } = {}) {
+export function createAppointmentDetails({ location, onEdit, laneFor, onCombine, truckName } = {}) {
   const backdrop = document.createElement('div');
   backdrop.className = 'scrim';
   backdrop.hidden = true;
@@ -211,6 +218,19 @@ export function createAppointmentDetails({ location, onEdit, laneFor, onCombine 
       cell('Company', record.company_name || record.display_counterpart_location_name),
       cell('Carrier', record.carrier_name),
       cell('Skids', record.skid_count === null || record.skid_count === undefined ? null : `${record.skid_count} skids`),
+      // What is backing onto the door. The window named the skid count but never the truck
+      // carrying them, which is the one fact a dock hand wants before the truck arrives —
+      // a 26 ft straight truck and a 53 ft tandem are not the same job at the same door.
+      // The schedule carries the code and not the name, so the page that opened this window
+      // lends the lookup it already loaded. Without it the window would read "Trailer 53"
+      // where the whole application says "53 ft Trailer".
+      record.truck_type || record.truck_type_code
+        ? markCell(
+          'Truck type',
+          record.truck_type || truckName?.(record.truck_type_code) || format.role(record.truck_type_code),
+          truckMarkName(record.truck_type_code),
+        )
+        : '',
       cell('PO / BOL / job', record.external_reference),
       cell('Driver', record.driver_name),
       cell('First scanned', record.checked_in_at ? format.timestamp(record.checked_in_at, site) : 'Not scanned yet'),

@@ -462,7 +462,10 @@ function briefGroups() {
   if (late.length) attention.push(`${late.length} running late: ${late.slice(0, 2).map(record => record.booking_reference || 'an unreferenced booking').join(', ')}.`);
   if (priority.length) attention.push(`${priority.length} marked priority.`);
   if (state.brief?.brief?.summary) attention.push(state.brief.brief.summary);
-  if (attention.length) groups.push({ title: 'Attention', mark: 'warn', points: attention });
+  // A clock when the thing to look at is the clock. Trucks running late and a load marked
+  // priority both land in this column, but they are not the same kind of problem, and a
+  // hazard triangle over "3 running late" overstates one and understates the other.
+  if (attention.length) groups.push({ title: 'Attention', mark: late.length ? 'late' : 'warn', points: attention });
   return groups;
 }
 
@@ -824,6 +827,7 @@ const page = {
     // feature happened to be built for.
     state.detailsModal = createAppointmentDetails({
       location: context.location,
+      truckName: code => state.truckTypeNames.get(code),
       laneFor: record => (can('appointment.create') ? laneForRecord(record, state.records) : null),
       onCombine: lane => state.combineDialog.open(lane.rows, laneDescription(lane), state.elements.rows),
     });

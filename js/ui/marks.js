@@ -48,9 +48,13 @@ const SHAPES = {
   load: PART('M2 5h20v13H2zm2 2v9h16V7z') + PART('M4 11h9v5H4z')
     + PART('M13 7h7v9h-7z', true) + PART('M5 18h2v2H5zM17 18h2v2h-2z'),
 
-  // Labour: two people, the nearer one solid.
-  crew: PART('M9 3.4a3.4 3.4 0 1 1 0 6.8 3.4 3.4 0 0 1 0-6.8zM2.6 21v-1.4A6.4 6.4 0 0 1 9 13.2a6.4 6.4 0 0 1 6.4 6.4V21z')
-    + PART('M17.4 4.6a2.8 2.8 0 1 1 0 5.6 2.8 2.8 0 0 1 0-5.6zM17 12.4a5 5 0 0 1 4.4 5v3.6h-4v-2.4a7.8 7.8 0 0 0-1.6-4.8z', true),
+  // Labour: two people in hard hats, the nearer one solid. The hats are the point — this
+  // is a dock crew and not an office, and a bare head at 22px is the same silhouette as
+  // any "profile" glyph in any application. The brim is what makes it read.
+  crew: PART('M9 7.6a3 3 0 1 1 0 6 3 3 0 0 1 0-6zM2.6 21v-1.4A6.4 6.4 0 0 1 9 13.2a6.4 6.4 0 0 1 6.4 6.4V21z')
+    + PART('M9 3.2a4 4 0 0 1 4 4H5a4 4 0 0 1 4-4zM4.2 7.4h9.6v1.5H4.2z')
+    + PART('M18 9a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5zM17.6 14.6a5 5 0 0 1 3.8 4.9V21h-4v-2.2a7.8 7.8 0 0 0-1.6-4.4z', true)
+    + PART('M18 5.4a3.3 3.3 0 0 1 3.3 3.3h-6.6A3.3 3.3 0 0 1 18 5.4zM14.2 8.7h7.6v1.3h-7.6z', true),
 
   // Anything measured against time.
   clock: PART('M12 2.4A9.6 9.6 0 1 1 12 21.6 9.6 9.6 0 0 1 12 2.4zm0 2.2a7.4 7.4 0 1 0 0 14.8 7.4 7.4 0 0 0 0-14.8z')
@@ -62,7 +66,88 @@ const SHAPES = {
   // Something to look at now.
   warn: PART('M12 2.6 22.6 21H1.4zm0 4.6L5.2 19h13.6z') + PART('M11 9.6h2v5.2h-2zM11 16.2h2v2h-2z')
     + PART('M12 7.2 18.8 19H5.2z', true),
+
+  // --- the timing set
+  //
+  // `clock` above is the neutral one: a thing measured against time. These three are
+  // verdicts, and they are drawn so the verdict is the silhouette rather than the colour.
+  // A tick, a bang and a loop are three different shapes at 22px; three clock faces with
+  // the hands in different places are one shape.
+
+  // Arrived inside the window.
+  ontime: PART('M12 2.4A9.6 9.6 0 1 1 12 21.6 9.6 9.6 0 0 1 12 2.4zm0 2.2a7.4 7.4 0 1 0 0 14.8 7.4 7.4 0 0 0 0-14.8z')
+    + PART('M10.8 16.1 6.9 12.2l1.6-1.6 2.3 2.3 4.7-4.7 1.6 1.6z')
+    + PART('M12 4.6a7.4 7.4 0 0 1 7.4 7.4h-2.2A5.2 5.2 0 0 0 12 6.8z', true),
+
+  // Missed it. The bang sits where the hands would be, so late and on time are not two
+  // readings of the same picture.
+  late: PART('M12 2.4A9.6 9.6 0 1 1 12 21.6 9.6 9.6 0 0 1 12 2.4zm0 2.2a7.4 7.4 0 1 0 0 14.8 7.4 7.4 0 0 0 0-14.8z')
+    + PART('M11 7h2v6.6h-2zM11 15.2h2v2.2h-2z')
+    + PART('M12 4.6a7.4 7.4 0 0 1 7.4 7.4h-2.2A5.2 5.2 0 0 0 12 6.8z', true),
+
+  // Time on the door, start to pull-off: a loop rather than a point. Drawn as one band
+  // three quarters of the way round with the head on the open end, because two separate
+  // arrows read as two arrows and not as a cycle.
+  turnaround: PART('M12 3.6A8.4 8.4 0 0 1 12 20.4V18.2A6.2 6.2 0 0 0 12 5.8z')
+    + PART('M11.4 0.6 16 3.6l-4.6 3z')
+    + PART('M12 20.4A8.4 8.4 0 0 1 3.6 12h2.2A6.2 6.2 0 0 0 12 18.2z', true),
+
+  // How long a load runs for.
+  hourglass: PART('M5.4 2.4h13.2v2.2H5.4zM5.4 19.4h13.2v2.2H5.4z')
+    + PART('M7 5.4h10L12 12z')
+    + PART('M12 12.6 17 18.6H7z', true),
+
+  // --- the vehicle set
+  //
+  // Five silhouettes for the five truck types the company books, side on and on the same
+  // ground line so they compare. They are told apart the way they are told apart in a
+  // yard: height of the box, whether the box is one piece with the cab, and how many
+  // wheels are under the back — a 48 runs a single trailer axle where a 53 runs a tandem.
+  // Length alone would not survive 22px.
+
+  // Courier van: one low body, nose and box in a piece.
+  van_courier: PART('M2.4 8.8h9.4v7.2H2.4z')
+    + PART('M11.8 10.6h3.4l2.8 2.8V16h-6.2z', true)
+    + PART('M5.6 16.2a2.2 2.2 0 1 1 0 4.4 2.2 2.2 0 0 1 0-4.4zm9.6 0a2.2 2.2 0 1 1 0 4.4 2.2 2.2 0 0 1 0-4.4z'),
+
+  // Cube van: a tall square box sitting straight on the cab, no gap.
+  van_cube: PART('M2 5.2h11.4V16H2z')
+    + PART('M13.4 9.4h3.2l2.8 3V16h-6z', true)
+    + PART('M5.4 16.2a2.2 2.2 0 1 1 0 4.4 2.2 2.2 0 0 1 0-4.4zm11 0a2.2 2.2 0 1 1 0 4.4 2.2 2.2 0 0 1 0-4.4z'),
+
+  // Straight truck: body and cab on one continuous frame, the wheels close under it.
+  // The unbroken bar from nose to tail is what separates it from a trailer, where the
+  // underside is open between the drives and the trailer axle.
+  truck_straight: PART('M2.2 5.4h11.4v9.8H2.2z')
+    + PART('M2.2 15.2h17v1.3h-17z')
+    + PART('M13.8 8.8h2.6l2.8 3.2v3.2h-5.4z', true)
+    + PART('M5.4 16.6a2.1 2.1 0 1 1 0 4.2 2.1 2.1 0 0 1 0-4.2zm11 0a2.1 2.1 0 1 1 0 4.2 2.1 2.1 0 0 1 0-4.2z'),
+
+  // 48 ft trailer: the box carries on over the tractor, so the underside is open in the
+  // middle, and there is one axle under the back.
+  trailer_48: PART('M1.6 5.2h13.2v8.8H1.6z')
+    + PART('M13.2 8.4h2.4l2.8 3.2V14h-5.2z', true)
+    + PART('M5 14.2a2.1 2.1 0 1 1 0 4.2 2.1 2.1 0 0 1 0-4.2zm11 0a2.1 2.1 0 1 1 0 4.2 2.1 2.1 0 0 1 0-4.2z'),
+
+  // 53 ft trailer: longer, and a tandem under the back — a pair of wheels against a
+  // single is the difference you can actually see at 22px. Length alone is not.
+  trailer_53: PART('M0.8 4.8h15V14H0.8z')
+    + PART('M14 8h2.2l2.6 3.2V14H14z', true)
+    + PART('M3.6 14.2a2.1 2.1 0 1 1 0 4.2 2.1 2.1 0 0 1 0-4.2zm4.6 0a2.1 2.1 0 1 1 0 4.2 2.1 2.1 0 0 1 0-4.2zm8.2 0a2.1 2.1 0 1 1 0 4.2 2.1 2.1 0 0 1 0-4.2z'),
 };
+
+// The database's truck type codes, drawn. A code with no mark of its own falls back to the
+// generic tractor-trailer rather than to a bar chart, so a truck type added later is still a
+// truck. Sites can and do add their own codes — this is a lookup, not a constraint.
+const VEHICLES = {
+  courier_van: 'van_courier',
+  cube_van: 'van_cube',
+  straight_truck_26: 'truck_straight',
+  trailer_48: 'trailer_48',
+  trailer_53: 'trailer_53',
+};
+
+export const truckMarkName = code => VEHICLES[code] || 'truck';
 
 export function mark(name) {
   const shape = SHAPES[name] || SHAPES.chart;

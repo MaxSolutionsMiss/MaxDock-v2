@@ -138,6 +138,12 @@ derives rather than rows it stores. No dock, no token, no internal name. An upda
 touched only internal fields emits no line, so a customer cannot infer dock activity from a
 gap in the list.
 
+**The marks** — the vehicle, timing and crew silhouettes in `js/ui/marks.js`, the `.rowmark`
+rule, and the truck-type row in the appointment window — are code only and revert with the
+branch. Nothing reads them from the database and no RPC changed; `truckMarkName` maps a
+`truck_types.code` to a drawing and falls back to the generic tractor-trailer, so a truck type
+added later still gets a truck rather than an error.
+
 **The card that shows it** is code only — `js/pages/my-appointments.js` and the
 `.appointment-card` rules in `assets/maxdock.css`. It puts the chevron at the head of the row
 the way a Users row does, folds the cancellation reason into the fact line instead of giving it

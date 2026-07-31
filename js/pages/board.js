@@ -377,6 +377,7 @@ function buildShell(root) {
   // Editing is handed back to the form that already exists rather than rebuilt.
   state.detailsModal = createAppointmentDetails({
     location: state.context.location,
+    truckName: code => state.truckTypeNames.get(code),
     onEdit: record => openEditModal(record, state.elements.host),
     // Only offered to somebody who could actually carry it out: merge_appointments
     // wants appointment.create at this site, and a button certain to be refused is
