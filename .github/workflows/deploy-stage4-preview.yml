@@ -73,6 +73,9 @@ jobs:
       - name: The rollback document still matches what it preserves
         run: node scripts/verify-rollback-doc.mjs
 
+      - name: Hit areas on the compact controls
+        run: node scripts/verify-tap-targets.mjs
+
   deploy-preview:
     runs-on: ubuntu-latest
     needs: verify

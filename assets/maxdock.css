@@ -138,6 +138,40 @@ html[data-rail="mini"]{--rail-w:64px}
 .btn--sm{padding:0 10px;font-size:var(--t-small)}
 .btn--block{width:100%}
 
+/* Hit areas on the controls that are deliberately compact.
+   ------------------------------------------------------
+   The compact strip runs at --ctl-h, 36px, and a few square controls at 32. Both sit under
+   the 44 this design's own --tap token sets as the floor, and the floor is not decoration:
+   this is used on an iPad standing at a dock, sometimes by somebody wearing gloves, and a
+   receiver who has to stab twice at Complete is a receiver who stops using the screen. The
+   stylesheet has been exempt from the checker's tap-target rule since the approved
+   composition landed, which is how a whole control family sat 8px short with nothing
+   failing.
+
+   What is NOT the fix: making the controls 44px tall. The compact strip is the approved
+   visual design, the board needs its height to fit ten to fifteen doors on one screen, and
+   growing it would push the schedule off the bottom to solve something nobody can see.
+
+   So the drawn control keeps every pixel it has, and a transparent ::after centred on it
+   carries the area the finger needs. Nothing moves and nothing looks different.
+
+   Vertical only, except where the control is square. That is why there are two rules rather
+   than one: measured across the board and the queue, horizontal neighbours in a control
+   strip sit 0 to 8px apart, so widening every control would lay one control's invisible
+   area over the control beside it and hand its clicks to whichever paints last. Vertically
+   the same strips have 28px or more above and below. The square controls each sit alone in
+   a corner of the chrome rather than in a run of buttons, so they can take the width too.
+   scripts/verify-tap-targets.mjs asks the browser who actually receives a click at every
+   control's centre, and fails the build if the answer is ever a different control. */
+.btn, .iconbtn, .linkBtn, .notif__btn, .modal__x, .seg button, .tabs button,
+.rail__collapse, .searchbox__go{position:relative}
+.btn::after, .linkBtn::after, .seg button::after, .tabs button::after{
+  content:'';position:absolute;left:0;right:0;top:50%;height:var(--tap);transform:translateY(-50%)}
+.iconbtn::after, .btn--icon::after, .notif__btn::after, .modal__x::after,
+.rail__collapse::after, .searchbox__go::after{
+  content:'';position:absolute;top:50%;left:50%;width:var(--tap);height:var(--tap);transform:translate(-50%,-50%)}
+
+
 /* A wrapping flex row, not three grid columns. `auto minmax(0,1fr) auto` let the outer
    tracks take their content and handed the filters the remainder — 66px on the dock board
    at 1024px, which overflowed across the actions and left the button under them
@@ -170,6 +204,22 @@ html[data-rail="mini"]{--rail-w:64px}
 .input,.select,textarea{font-family:inherit;font-size:var(--t-base);color:var(--ink);background:var(--surface);border:1px solid var(--rule-strong);border-radius:var(--radius);padding:0 10px;min-height:var(--ctl-h)}
 textarea{padding:8px 10px;min-height:70px;resize:vertical}
 .input--date{font-family:var(--font-data)}
+/* Selects and text inputs cannot do this, and it is worth writing down why so nobody
+   spends an afternoon on it again. They are replaced elements: the browser does not
+   generate ::before or ::after for them at all. Checked rather than assumed — with the rule
+   above applied to a select, a click three pixels below the box lands on the element behind
+   it, while the same click on a button lands on the button.
+
+   So for those two the hit area only grows where there is no mouse to be precise with. On
+   any pointing device the strip is exactly as it was drawn and approved; on a touch screen,
+   which is the device this rule exists for and the one with no hover and no cursor, the
+   control-strip selects and the location selector become properly tappable. Scoped to the
+   control strips rather than every field in the product, so a booking form keeps its
+   density. */
+@media (pointer:coarse){
+  .ctrl-field .select, .ctrl-field .input, .controls .select, .controls .input,
+  .datenav .input--date, .top__loc{min-height:var(--tap);height:auto}
+}
 /* A file input sizes itself to its browser-drawn button, which grew past every
    other control once the reader turned the text size up. Pinned to the same
    height, with the button sized inside it. */
