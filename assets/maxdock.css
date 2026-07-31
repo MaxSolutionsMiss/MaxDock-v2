@@ -1415,6 +1415,55 @@ body.modal-open{overflow:hidden}
    in a paragraph underneath, because a disabled checkbox with no reason next to it reads as a
    fault in the page. */
 .pinnote{color:var(--ink-faint);font-size:var(--t-micro);font-weight:500;white-space:nowrap}
+
+/* --- the day as a strip of hours
+   One hue, five steps, light to dark: this is a magnitude, and a magnitude drawn in more than
+   one hue invites somebody to read a meaning into the colour that is not in the data. Step 0 is
+   an empty cell rather than the lightest step, because "no arrivals at all" and "one truck" are
+   different answers to the question this strip is asked. Every cell carries its count in a
+   title, and the busiest and quietest are named in words underneath, so nothing here rests on
+   colour alone. */
+.hstrip{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);gap:2px;margin:var(--s2) 0}
+.hstrip__c{height:44px;border-radius:3px;background:var(--surface-sunk);border:1px solid var(--rule)}
+.hstrip__c--1{background:var(--dock-wash);border-color:var(--dock-wash)}
+.hstrip__c--2{background:#BBD9EC;border-color:#BBD9EC}
+.hstrip__c--3{background:#7FB6DA;border-color:#7FB6DA}
+.hstrip__c--4{background:var(--dock);border-color:var(--dock)}
+.hstrip__ax{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);gap:2px;font-size:var(--t-micro);color:var(--ink-muted);font-variant-numeric:tabular-nums;text-align:center}
+
+/* --- in above the line, out below it
+   A site that ships what it takes in draws symmetrical. One that is filling up or emptying
+   leans, and the lean is the reading — which is a subtraction the reader had to do per day
+   when this was two numbers. */
+.flow{margin:0}
+.flow__plot{position:relative;display:grid;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);gap:2px;height:132px;align-items:center}
+.flow__col{display:grid;grid-template-rows:1fr 1fr;height:100%;min-width:0}
+.flow__half{display:grid;min-height:0}
+.flow__half--in{align-items:end}
+.flow__half--out{align-items:start}
+.flow__half i{display:block;width:100%;background:var(--dock);border-radius:3px 3px 0 0}
+.flow__half--out i{background:var(--ok);border-radius:0 0 3px 3px}
+.flow__zero{position:absolute;left:0;right:0;top:50%;height:1px;background:var(--rule-strong)}
+.flow__k{display:flex;flex-wrap:wrap;align-items:baseline;gap:var(--s3);margin-top:var(--s2);font-size:var(--t-small)}
+.flow__net{color:var(--ink-muted)}
+
+/* --- one card a partner, worst first
+   Twelve rows read across is not how somebody finds the two vendors to ring. The bar is how
+   far short of perfect, so the longest bar is the call — the same direction as the ranked
+   chart, because a reader should not have to work out twice on one page which way is bad. */
+.pcards{display:grid;grid-template-columns:repeat(auto-fill,minmax(11em,1fr));gap:var(--s3);margin:var(--s2) 0}
+.pcard{border:1px solid var(--rule);border-left:3px solid var(--ink-faint);border-radius:var(--radius);padding:var(--s2) var(--s3);min-width:0}
+.pcard--ok{border-left-color:var(--ok)}
+.pcard--warn{border-left-color:var(--signal)}
+.pcard--stop{border-left-color:var(--stop)}
+.pcard__t{margin:0;font-size:var(--t-small);font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pcard__n{font-size:calc(var(--t-base) * 1.5);font-weight:700;font-variant-numeric:tabular-nums;line-height:1.1}
+.pcard__n span{font-size:var(--t-micro);font-weight:600;color:var(--ink-muted);margin-left:2px}
+.pcard__bar{height:5px;border-radius:3px;background:var(--surface-sunk);overflow:hidden;margin:var(--s1) 0}
+.pcard__bar i{display:block;height:100%;background:var(--stop);border-radius:3px}
+.pcard--ok .pcard__bar i{background:var(--ok)}
+.pcard--warn .pcard__bar i{background:var(--signal)}
+.pcard__s{margin:0;font-size:var(--t-micro);color:var(--ink-muted)}
 .state--error .state__icon{background:var(--stop-wash);color:var(--stop)}
 .state--warning .state__icon{background:var(--signal-wash);color:var(--signal)}
 .state__title{margin:0;font-size:var(--t-lead);font-weight:600}

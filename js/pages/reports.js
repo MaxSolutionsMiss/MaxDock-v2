@@ -344,6 +344,93 @@ function table(headers, rows) {
   }</tbody></table>`;
 }
 
+// ── Four drawings the data was already carrying ────────────────────────────────
+
+// The day, hour by hour, as a strip of cells shaded by how busy each one was.
+//
+// The table underneath has said this all along, and a table of twenty-four rows is not how
+// anybody finds the quiet hour to move a truck into. Shaded on one hue, light to dark, because
+// this is a magnitude and not a set of categories — a rainbow here would invite somebody to
+// read meaning into hue that is not there.
+//
+// The number is in the title of every cell and in the table, so the reading never rests on
+// colour alone. The busiest hour is named in words underneath for the same reason.
+function hourStrip(rows) {
+  const busy = rows.filter(row => num(row.appointments) > 0);
+  if (!busy.length) return '<p class="hint">No arrivals in this range.</p>';
+  const max = Math.max(...rows.map(row => num(row.appointments)));
+  const peak = rows.reduce((best, row) => (num(row.appointments) > num(best.appointments) ? row : best), rows[0]);
+  const quiet = busy.reduce((least, row) => (num(row.appointments) < num(least.appointments) ? row : least), busy[0]);
+  const cells = rows.map(row => {
+    const value = num(row.appointments);
+    // Zero is drawn as empty rather than as the lightest step: an hour with nothing in it and
+    // an hour with one truck are different answers to "can I put a truck here".
+    const step = value ? Math.max(1, Math.round((value / max) * 4)) : 0;
+    return `<span class="hstrip__c hstrip__c--${step}" title="${escapeHtml(`${row.label}: ${value} truck${value === 1 ? '' : 's'}, ${num(row.skids)} skids`)}"></span>`;
+  }).join('');
+  // The hours sit under the cells rather than inside them. Inside, the label has to be legible
+  // on every step of the ramp at once, and it cannot be: white clears 4.5:1 on none of these
+  // blues at this text size and ink clears it on none of the dark ones. An axis under the plot
+  // is where an axis belongs anyway.
+  const axis = rows.map(row => `<span>${escapeHtml(String(row.label).replace(/:00$/, ''))}</span>`).join('');
+  return `<div class="hstrip" role="img" aria-label="${escapeHtml(`Arrivals by hour. Busiest ${peak.label} with ${num(peak.appointments)}. Quietest working hour ${quiet.label} with ${num(quiet.appointments)}.`)}">${cells}</div>
+    <div class="hstrip__ax" aria-hidden="true">${axis}</div>
+    <p class="hint">Darker is busier, against ${max} truck${max === 1 ? '' : 's'} in the busiest hour. Busiest is ${escapeHtml(peak.label)}; the quietest hour that had anything in it is ${escapeHtml(quiet.label)}. An empty cell is an hour with no arrivals at all, which is where a truck can be moved to.</p>`;
+}
+
+// In above the line, out below it. A site that ships what it takes in draws roughly
+// symmetrical; one that is filling up or emptying leans, and the lean is the reading. Printed
+// as two numbers it is a subtraction somebody has to do in their head for every day.
+function flowDays(rows) {
+  if (!rows.length) return '<p class="hint">No data in this range.</p>';
+  const max = Math.max(1, ...rows.map(row => Math.max(num(row.inbound_skids), num(row.outbound_skids))));
+  const day = row => String(row.date || '').slice(5);
+  const inTotal = rows.reduce((sum, row) => sum + num(row.inbound_skids), 0);
+  const outTotal = rows.reduce((sum, row) => sum + num(row.outbound_skids), 0);
+  const net = inTotal - outTotal;
+  const columns = rows.map(row => {
+    const into = num(row.inbound_skids);
+    const out = num(row.outbound_skids);
+    return `<span class="flow__col" title="${escapeHtml(`${day(row)}: ${into} in, ${out} out`)}">
+      <span class="flow__half flow__half--in"><i style="height:${(into / max * 100).toFixed(1)}%"></i></span>
+      <span class="flow__half flow__half--out"><i style="height:${(out / max * 100).toFixed(1)}%"></i></span>
+    </span>`;
+  }).join('');
+  return `<figure class="flow" role="img" aria-label="${escapeHtml(`Skids in and out by day. ${inTotal} in, ${outTotal} out, ${Math.abs(net)} ${net >= 0 ? 'more in than out' : 'more out than in'}.`)}">
+    <div class="flow__plot">${columns}<span class="flow__zero"></span></div>
+    <figcaption class="flow__k">
+      <span class="lg lg--a">In <b>${compact(inTotal)}</b></span>
+      <span class="lg lg--b">Out <b>${compact(outTotal)}</b></span>
+      <span class="flow__net">${net === 0 ? 'level over the range' : `${compact(Math.abs(net))} more ${net > 0 ? 'in than out' : 'out than in'}`}</span>
+    </figcaption>
+  </figure>`;
+}
+
+// One small card a partner, worst first, instead of twelve rows to read across. The bar is
+// how far short of perfect they are, so the longest bar is the one to ring — the same way
+// round as the ranked chart, because a reader should not have to work out which direction is
+// bad twice on one page. The table underneath is still the record.
+function partnerCards(rows, who, limit = 8) {
+  const scored = rows
+    .filter(row => row.on_time_pct !== null && row.on_time_pct !== undefined)
+    .map(row => ({ ...row, pct: Number(row.on_time_pct) }))
+    .sort((a, b) => a.pct - b.pct);
+  if (!scored.length) return '<p class="hint">No arrivals to score in this range.</p>';
+  const shown = scored.slice(0, limit);
+  const cards = shown.map(row => {
+    const verd = verdict(row.pct);
+    return `<article class="pcard pcard--${verd.key}">
+      <h4 class="pcard__t">${escapeHtml(row.partner_name || 'Not named')}</h4>
+      <div class="pcard__n">${row.pct.toFixed(0)}<span>% on time</span></div>
+      <div class="pcard__bar"><i style="width:${Math.max(2, Math.min(100, 100 - row.pct)).toFixed(1)}%"></i></div>
+      <p class="pcard__s">${escapeHtml(`${num(row.trucks)} truck${num(row.trucks) === 1 ? '' : 's'}${num(row.late) ? `, ${num(row.late)} late` : ''}${num(row.no_shows) ? `, ${num(row.no_shows)} no show` : ''}`)}</p>
+    </article>`;
+  }).join('');
+  const rest = scored.length - shown.length;
+  return `<div class="pcards">${cards}</div>
+    <p class="hint">Worst first. The bar is how far short of perfect each ${who} is, so the longest bar is the call to make.${rest > 0 ? ` ${rest} more ${rest === 1 ? 'is' : 'are'} in the table below.` : ''}</p>`;
+}
+
 function renderOverview() {
   const byDay = state.data.by_day || [];
   const s = state.data.summary || {};
@@ -367,6 +454,7 @@ function renderOverview() {
       <div class="panel__head"><h3 class="panel__title">Daily shape</h3><div class="panel__actions"><span class="sub">${escapeHtml(siteRange())}</span></div></div>
       <div class="panel__body">${trendStrip(byDay)}</div>
       <div class="panel__body"><div class="chart2">
+        <section><h4 class="chart2__t">Which way the range leaned</h4>${flowDays(byDay)}</section>
         <section><h4 class="chart2__t">In against out</h4>${ring([
           { label: 'Inbound skids', value: s.inbound_skids },
           { label: 'Outbound skids', value: s.outbound_skids },
@@ -458,10 +546,10 @@ function renderSkidMovement() {
     <div class="panel panel--fill">
       <div class="panel__head"><h3 class="panel__title">Skid movement per day</h3><div class="panel__actions"><span class="sub">${compact(s.inbound_skids)} in · ${compact(s.outbound_skids)} out</span></div></div>
       <div class="panel__body">${byDay.length
-        ? `<div class="trends">${trend('Skids per day', 'skids', byDay, ['inbound_skids', 'outbound_skids'], compact(num(s.inbound_skids) + num(s.outbound_skids)))}</div>
+        ? `${flowDays(byDay)}
            ${ring([{ label: 'Inbound skids', value: s.inbound_skids }, { label: 'Outbound skids', value: s.outbound_skids }], 'skids moved')}`
         : '<p class="hint">No data in this range.</p>'}
-        <p class="hint">A taller column is a heavier day. The ring is the balance over the whole range: a site that ships out what it takes in sits near half and half, and a site drifting off centre is either filling up or emptying.</p></div>
+        <p class="hint">Above the line is what came in that day, below it what went out. A site that ships what it takes in draws roughly symmetrical; one that leans is filling up or emptying, and the total under the chart says by how much. Identity is the side of the line as well as the colour, so the pair reads without relying on hue. The ring is the same balance over the whole range.</p></div>
       <div class="panel__body"><div class="chart2">
         <section><h4 class="chart2__t">Heaviest days in</h4>${ranked(byDay
           .map(row => ({ label: dayLabel(row.date), value: row.inbound_skids, shown: `${num(row.inbound_skids)} skids in` })), { max: 6 })}</section>
@@ -479,7 +567,11 @@ function renderDockUtilisation() {
   const warnings = [];
   if (num(compatibility.docks_without_vehicle_types) > 0) warnings.push(`${compatibility.docks_without_vehicle_types} active dock(s) accept no configured truck type.`);
   if (num(compatibility.vehicle_types_without_docks) > 0) warnings.push(`${compatibility.vehicle_types_without_docks} enabled truck type(s) have no compatible dock.`);
-  return `<div class="panel"><div class="panel__head"><h3 class="panel__title">How hard the doors worked</h3><div class="panel__actions">${formSwitch('dock-read', [{ id: 'dial', label: 'Dials' }, { id: 'shape', label: 'Fill' }])}<span class="sub">${escapeHtml(siteRange())}</span></div></div>
+  return `<div class="panel">
+      <div class="panel__head"><h3 class="panel__title">The shape of the day</h3><div class="panel__actions"><span class="sub">${escapeHtml(siteRange())}</span></div></div>
+      <div class="panel__body">${hourStrip(byHour)}</div>
+    </div>
+    <div class="panel"><div class="panel__head"><h3 class="panel__title">How hard the doors worked</h3><div class="panel__actions">${formSwitch('dock-read', [{ id: 'dial', label: 'Dials' }, { id: 'shape', label: 'Fill' }])}<span class="sub">${escapeHtml(siteRange())}</span></div></div>
       ${readings('dock-read', [
         { percent: num(s.occupied_utilization_percent), label: 'Dock time used', note: 'of the hours the doors were open', shape: 'door' },
         { percent: s.available_dock_minutes ? (num(s.blocked_minutes) / num(s.available_dock_minutes)) * 100 : null, label: 'Time blocked off', note: 'maintenance, breaks, events', shape: 'clock' },
@@ -538,9 +630,6 @@ function renderScorecard(kind) {
   // top row — a chart sorted by on-time percentage puts the partner you need to ring at
   // the bottom, which is exactly backwards. The bar is the shortfall; the label is the
   // percentage itself, because that is the number people quote.
-  const punctual = rows
-    .filter(row => row.on_time_pct !== null && row.on_time_pct !== undefined)
-    .map(row => ({ label: row.partner_name, value: Math.max(0.01, 100 - Number(row.on_time_pct)), shown: `${Number(row.on_time_pct).toFixed(0)}% of ${num(row.trucks)}` }));
   const busiest = rows.map(row => ({ label: row.partner_name, value: row.trucks, shown: `${compact(num(row.trucks))} trucks · ${compact(num(row.skids))} skids` }));
   const form = formOf(`score-${kind}`, 'bars');
   return `<div class="kpis" style="--kpi-cols:4">
@@ -566,12 +655,12 @@ function renderScorecard(kind) {
             <section><h4 class="chart2__t">Every booking</h4>${ring([{ label: 'Turned up', value: Math.max(0, trucks - noShows - cancelled) }, { label: 'No show or cancelled', value: noShows + cancelled }], 'booked')}</section>
           </div>`
         : `<div class="chart2">
-            <section><h4 class="chart2__t">Missed the window, worst first</h4>${ranked(punctual, { max: 8, outOf: 100 })}</section>
+            <section><h4 class="chart2__t">Missed the window, worst first</h4>${partnerCards(rows, who)}</section>
             <section><h4 class="chart2__t">Busiest ${who}s</h4>${ranked(busiest, { max: 8 })}</section>
           </div>`}
         <p class="hint">${form === 'ring'
           ? 'Two ways a booking can go wrong and they are not the same: a truck that came late took a door it was not booked for, and a truck that never came left a door empty.'
-          : `The left bar is how far short of perfect each ${who} is, so the longest bar is the one to act on. The right bar is how much they move. A short bar on the left next to a long one on the right is where a conversation is worth having.`}</p></div>
+          : `The cards on the left are the punctuality call, worst first. The bars on the right are how much each ${who} actually moves. A bad card next to a long bar is where a conversation is worth having; a bad card next to a short one usually is not worth the phone call.`}</p></div>
     </div>
     ${worstLate.length ? `<div class="panel">
       <div class="panel__head"><h3 class="panel__title">When they are late, how late</h3><div class="panel__actions"><span class="sub">${compact(late)} late arrivals</span></div></div>
