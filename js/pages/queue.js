@@ -449,14 +449,20 @@ function briefGroups() {
   state.combineLanes = combining;
   // The only group whose bullets are worth acting on: everything else on this card
   // is something to know, this is something to do.
-  if (combining.length) {
-    groups.push({
-      title: 'Combining',
-      mark: 'combine',
-      points: combining.map(lane => ({ text: lane.text, sub: lane.refs })),
-      action: can('appointment.create') ? { label: 'Combine', attribute: 'data-combine-lane' } : null,
-    });
-  }
+  // Always a section, even with nothing in it. The card is four quadrants and it is four
+  // whether or not today has anything to combine — a column that comes and goes moves the
+  // other three every time it does, and "nothing to combine today" is itself an answer
+  // somebody came to this card for. Silence would read as "not checked yet".
+  groups.push({
+    title: 'Combining',
+    mark: 'combine',
+    points: combining.length
+      ? combining.map(lane => ({ text: lane.text, sub: lane.refs }))
+      : ['No combining opportunity today.'],
+    action: combining.length && can('appointment.create')
+      ? { label: 'Combine', attribute: 'data-combine-lane' }
+      : null,
+  });
 
   const attention = [];
   if (late.length) attention.push(`${late.length} running late: ${late.slice(0, 2).map(record => record.booking_reference || 'an unreferenced booking').join(', ')}.`);
@@ -465,7 +471,8 @@ function briefGroups() {
   // A clock when the thing to look at is the clock. Trucks running late and a load marked
   // priority both land in this column, but they are not the same kind of problem, and a
   // hazard triangle over "3 running late" overstates one and understates the other.
-  if (attention.length) groups.push({ title: 'Attention', mark: late.length ? 'late' : 'warn', points: attention });
+  if (!attention.length) attention.push('Nothing needs watching. Nothing late, nothing marked priority.');
+  groups.push({ title: 'Attention', mark: late.length ? 'late' : 'warn', points: attention });
   return groups;
 }
 
@@ -565,7 +572,7 @@ function renderBriefCard() {
         <span class="briefcol__m" aria-hidden="true">${mark(group.mark || 'chart')}</span>
         <div class="briefcol__c">
           <h4 class="briefcol__t">${escapeHtml(group.title)}</h4>
-          <ul class="briefpoints">${group.points.map((point, index) => `<li>${escapeHtml(pointText(point))}${pointSub(point) ? `<small class="briefpoint__s">${escapeHtml(pointSub(point))}</small>` : ''}${group.action ? ` <button class="linkBtn" type="button" ${group.action.attribute}="${index}">${escapeHtml(group.action.label)}</button>` : ''}</li>`).join('')}</ul>
+          <ul class="briefpoints">${group.points.map((point, index) => `<li>${escapeHtml(pointText(point))}${pointSub(point) || group.action ? `<small class="briefpoint__s">${pointSub(point) ? escapeHtml(pointSub(point)) : ''}${group.action ? `<button class="linkBtn linkBtn--tight" type="button" ${group.action.attribute}="${index}">${escapeHtml(group.action.label)}</button>` : ''}</small>` : ''}</li>`).join('')}</ul>
         </div>
       </section>`).join('')}</div>`;
   host.innerHTML = `<div class="brief__head"><span class="brief__ico">AI</span><div class="brief__t">${escapeHtml(state.context.location.name)} · today at a glance</div><button class="linkBtn" type="button" data-share-brief>Share with team</button></div>

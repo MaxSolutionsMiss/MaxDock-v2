@@ -60,8 +60,14 @@ const SHAPES = {
   clock: PART('M12 2.4A9.6 9.6 0 1 1 12 21.6 9.6 9.6 0 0 1 12 2.4zm0 2.2a7.4 7.4 0 1 0 0 14.8 7.4 7.4 0 0 0 0-14.8z')
     + PART('M11 6.6h2V12l3.9 2.3-1 1.7L11 13.2z') + PART('M12 4.6a7.4 7.4 0 0 1 7.4 7.4h-2A5.4 5.4 0 0 0 12 6.6z', true),
 
-  // A load going onto another load.
-  combine: PART('M2 6h9v12H2z') + PART('M13 6h9v12h-9z', true) + PART('M9.6 10.2h5v1.4l3 2.1-3 2.1v-1.6h-5z'),
+  // A load going onto another load: two panels joined, the near one over the far one.
+  //
+  // This is the ⧉ the dock board prints in front of a combined booking's reference, drawn at
+  // mark size. It used to be a box with an arrow into another box, which is a different picture
+  // for the same idea — somebody who learns the mark on the board should recognise it on the
+  // brief without being told, and two shapes for one thing is two things to learn.
+  combine: PART('M8.4 2.6h12.8v12.8H8.4z', true)
+    + PART('M2.8 8.6h12.8v12.8H2.8z'),
 
   // Something to look at now.
   warn: PART('M12 2.6 22.6 21H1.4zm0 4.6L5.2 19h13.6z') + PART('M11 9.6h2v5.2h-2zM11 16.2h2v2h-2z')
