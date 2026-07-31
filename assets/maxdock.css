@@ -167,9 +167,24 @@ html[data-rail="mini"]{--rail-w:64px}
 .rail__collapse, .searchbox__go{position:relative}
 .btn::after, .linkBtn::after, .seg button::after, .tabs button::after{
   content:'';position:absolute;left:0;right:0;top:50%;height:var(--tap);transform:translateY(-50%)}
-.iconbtn::after, .btn--icon::after, .notif__btn::after, .modal__x::after,
+.iconbtn::after, .notif__btn::after, .modal__x::after,
 .rail__collapse::after, .searchbox__go::after{
   content:'';position:absolute;top:50%;left:50%;width:var(--tap);height:var(--tap);transform:translate(-50%,-50%)}
+/* The icon-only buttons in a page-head band take height and not width, and this is the one
+   place the 44 could not be had in both directions. They sit in a packed run whose column is
+   sized to its contents, so a 44px-wide area on a 36px button hangs four pixels past the band
+   and CI measures exactly that: "controls__lead needs 4px more than the 299px column".
+   The area is real even though nothing is drawn in it, and the rule is right to count it.
+   Two ways out were tried and both were worse. Padding the band and pulling it back with a
+   negative margin does keep every child in place, but margin-inline overwrites the
+   margin-left:auto that pushes these actions to the right, and the whole group jumped 668px
+   across the page. Widening the buttons themselves changes the drawn design, which is the one
+   thing this was not allowed to do. So they are 36 by 44: comfortably past the 24px floor with
+   spacing, short of the 44 square, and short of it for a stated reason rather than by
+   accident. Every square control that sits alone in the chrome still gets the full 44. */
+.btn--icon::after,
+.controls .iconbtn::after{
+  content:'';position:absolute;left:0;right:0;top:50%;width:auto;height:var(--tap);transform:translateY(-50%)}
 
 
 /* A wrapping flex row, not three grid columns. `auto minmax(0,1fr) auto` let the outer
