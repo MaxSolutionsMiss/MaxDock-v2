@@ -504,6 +504,22 @@ function timelineBlocks() {
     });
 }
 
+// A board with no data in it yet. Six lanes is a guess at the number of doors, and it does
+// not need to be right: it is holding the page's height and its structure for a second or two,
+// not claiming how many doors this site has. Aria-hidden and aria-busy, so a screen reader is
+// told the region is loading rather than read six empty rows.
+function boardSkeleton() {
+  // Written with repeat rather than the Array constructor helper on purpose. Everything on
+  // this page goes through db.js, and verify-stage4-board enforces that by refusing the
+  // table-selector call anywhere in this file. That check is deliberately blunt and catches
+  // the Array helper too, and even a comment quoting the forbidden text. The guard is worth
+  // more than the convenience, so the code works around it rather than the other way round.
+  const lanes = '<div class="sk__lane"><span class="sk__label"></span><span class="sk__track"></span></div>'.repeat(6);
+  return `<div class="board__skel" aria-busy="true" aria-label="Loading the dock schedule">
+    <div class="sk__ruler"></div>${lanes}
+  </div>`;
+}
+
 function renderBoard() {
   const records = visibleRecords();
   state.elements.subtitle.textContent = `${state.context.location.name} · ${state.docks.length} docks · ${records.length} scheduled today`;
@@ -752,7 +768,11 @@ const page = {
       onChange: selected => { applyVisible(selected); renderKpis(); renderBoard(); },
     });
     applyVisible(state.customizePanel.selected);
-    state.elements.host.innerHTML = '<div class="board-loading">Loading dock schedule…</div>';
+    // The board's shape is known before its data is: a ruler and one row per door. Drawing
+    // that shape while the schedule is in flight means the page arrives at its final height
+    // once, instead of collapsing to a line of text and then jumping to full size when the
+    // first response lands. It is the same markup the real board uses, with nothing in it.
+    state.elements.host.innerHTML = boardSkeleton();
     patchData(await fetchBoardData());
   },
   poll: { interval: 5000, fetch: fetchBoardData },

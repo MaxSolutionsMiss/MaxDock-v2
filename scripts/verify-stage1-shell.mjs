@@ -117,6 +117,17 @@ const cssRuleBytes = Buffer.byteLength(readFileSync(join(ROOT, 'assets/maxdock.c
 //   filling shapes as well as dials, and marks down the side of the day brief. Every one of
 //   those is a thing on screen he asked for by name.
 //
+//   70 → 74 KB. P0 and the VR1 refinement pass, 2.4 KB of it, and every rule is a thing the
+//   owner asked for: hit areas that reach 44px without the compact strip growing, one focus
+//   ring instead of the browser's on everything including a rail where its own was invisible,
+//   the current-time line on the board, the refresh stamp beside the date, a named group in
+//   the settings card, and the board's loading shape so the page arrives at its height once
+//   rather than twice. The dead-rule scan was run again before raising and returned nothing:
+//   the pass that cleared .spark, .qrblock and the parallel .fillfig namespace had already
+//   taken everything there was. The skeleton was rewritten twice to reuse the ruler and lane
+//   dimensions rather than restate them, which saved 560 bytes; the raise is what is left
+//   after that, not instead of it.
+//
 // Both raises were made only after reclaiming everything genuinely dead: the .spark chart,
 // .ctrl-field--grow, .cell-fine, .pickgroup--wide, .qrblock, .status--changed, a parallel
 // .fillfig namespace that the trailer's own classes already covered, the duplicate
@@ -127,7 +138,7 @@ const cssRuleBytes = Buffer.byteLength(readFileSync(join(ROOT, 'assets/maxdock.c
 // The point of the number is not the number. It is that growth in what a browser parses
 // stays a decision somebody has to make on purpose and justify in writing, instead of
 // arriving one convenience rule at a time.
-if (cssRuleBytes > 70 * 1024) fail('assets/maxdock.css', `CSS rule budget exceeded: ${Math.round(cssRuleBytes / 1024)} KB of declarations.`);
+if (cssRuleBytes > 74 * 1024) fail('assets/maxdock.css', `CSS rule budget exceeded: ${Math.round(cssRuleBytes / 1024)} KB of declarations.`);
 // The file figure is a sanity bound, not a second gate, and it took two raises in one day to
 // see that it had been the wrong shape all along. Sitting 2 KB above the rules content, it
 // bound on *comments* — so the thing it actually rationed was the reasoning three paragraphs

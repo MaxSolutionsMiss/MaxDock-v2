@@ -1227,6 +1227,18 @@ html[data-text="larger"] .frow>.field--md:not(.field-action){grid-column:span 5}
 .loading__mark img{width:100%;height:100%;object-fit:contain}
 .loading__text{text-align:center}
 .board-loading{padding:var(--s5);text-align:center;color:var(--ink-muted)}
+/* The board's shape while its data is in flight. A line of centred text collapsed the panel
+   to one row and then the real board snapped it to full height, so the page arrived twice.
+   This holds the height and the structure so it arrives once. It reuses the ruler and lane
+   dimensions rather than restating them, which is also what keeps it inside the rule budget.
+   The pulse is opacity only, slow, and off for anyone who has asked for less motion: it
+   should read as "working" and not as an effect. No shimmer, no scale, no bounce. */
+.sk__ruler,.sk__lane{animation:skpulse 1.6s ease-in-out infinite;border-bottom:1px solid var(--rule)}
+.sk__ruler{height:26px;background:var(--surface-sunk)}
+.sk__lane{display:grid;grid-template-columns:var(--tl-label) minmax(0,1fr);height:var(--tl-row,54px)}
+.sk__label{border-right:1px solid var(--rule-strong);background:var(--surface-sunk)}
+@keyframes skpulse{0%,100%{opacity:1}50%{opacity:.55}}
+@media (prefers-reduced-motion:reduce){.sk__ruler,.sk__lane{animation:none;opacity:.8}}
 /* Choice groups flow into as many columns as fit instead of one item per line.
    Seven locations used to occupy 243px of stacked rows. The wrapper div some
    callers put around the options is display:contents so the options themselves
