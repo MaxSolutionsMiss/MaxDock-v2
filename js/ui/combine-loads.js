@@ -199,6 +199,9 @@ export function createCombineDialog({ location, capacityFor, truckName, truckTyp
         skids: total,
         capacity,
         label: truckName?.(keep.truck_type_code) || keep.truck_type_code || '',
+        // The dialog already names the truck the run would go on; it draws that truck now
+        // rather than a 53 ft trailer whatever the booking says.
+        code: keep.truck_type_code,
         wide: true,
       })}
       ${over ? `<p class="form-message">${escapeHtml(upgradeMessage(upgrade))}</p>` : ''}`;

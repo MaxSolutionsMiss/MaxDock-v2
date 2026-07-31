@@ -39,7 +39,7 @@ const BODY_PARTS = {
   // A person. The shoulders are a wide flat top with small corner radii, not a sweeping
   // arc: a big arc across a 44-wide body draws a bell, which is what two earlier attempts
   // did. The head sits close above them, as it does in every pictogram of a person.
-  crew: '<circle cx="32" cy="20" r="13"/><path d="M8 74V50a12 12 0 0 1 12-12h24a12 12 0 0 1 12 12v24z"/>',
+  crew: '<circle cx="32" cy="24" r="11"/><path d="M8 74V50a12 12 0 0 1 12-12h24a12 12 0 0 1 12 12v24z"/>',
   // A page off the calendar, with a grid on it. One day against the rest.
   day: '<rect x="6" y="14" width="52" height="60" rx="3"/>',
   // A trailer seen from the side, which is the view the owner keeps asking for and the
@@ -57,7 +57,11 @@ const BODY_PARTS = {
 // the slats and platform at the door, the hands on the clock. Filling any of it would read
 // as a bug, which is why it is kept out of the body above.
 const DETAIL = {
-  crew: '',
+  // The hard hat, drawn over the fill rather than in the body. A dock crew wears one, and a
+  // bare head at this size is the same silhouette as any "profile" glyph in any application —
+  // the brim is what makes it read as this trade rather than as an account menu. It is detail
+  // and not body because a hat that fills up with the reading would look like a bug.
+  crew: '<path d="M18 16a14 14 0 0 1 28 0z"/><path d="M13 16h38"/>',
   day: '<path d="M20 6v12M44 6v12"/><path d="M6 30h52"/><path d="M6 46h52M6 60h52M23 30v44M41 30v44"/>',
   // Cab, hitch, wheels and the ground it stands on. Same anatomy as the big trailer in
   // the combine dialog, drawn small.

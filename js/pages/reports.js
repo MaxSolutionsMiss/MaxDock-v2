@@ -394,6 +394,9 @@ function renderTruckFlow() {
     return truckFill({
       skids: Math.round(perTruck),
       capacity,
+      // The row is a truck type, so it is drawn as that truck rather than as the 53 ft
+      // trailer every row used to be.
+      code: row.code,
       label: row.name,
       // The bold line above says "13 of 20 skids", which reads as one truck until this
       // line says it is an average. Without the word, "13 of 20 skids across 39 trucks" is

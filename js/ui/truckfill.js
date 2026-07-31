@@ -25,19 +25,61 @@ function band(percent) {
   return { key: 'light', words: 'mostly empty' };
 }
 
-// Geometry, in one place, in the viewBox's own units. The trailer's inside is what the
-// fill is measured against, so it is named rather than repeated.
-const BOX = { x: 46, y: 6, w: 150, h: 42 };
-const IN = { x: BOX.x + 2, y: BOX.y + 2, w: BOX.w - 4, h: BOX.h - 4 };
+// One rig per truck type the company books.
+//
+// Every row of the Truck flow report drew this same 53 ft trailer, so five truck types were
+// five identical pictures with different captions — which is the opposite of what the drawing
+// is for. A courier van and a tandem trailer are not the same shape, and the shape is the
+// thing the eye reads before the caption.
+//
+// They share a baseline: the ground is at y=44 and every wheel sits on it, so the row compares
+// as a row. What differs is the length and height of the body, whether the body is one piece
+// with the cab or a trailer over a tractor, and how many wheels are under the back — the same
+// three tells the marks use, at the size a report can afford to draw them.
+//
+// `box` is the cargo body, and the fill is measured against its inside: that is what a load
+// goes into. Everything else is furniture.
+const RIGS = {
+  trailer_53: {
+    box: { x: 46, y: 6, w: 150, h: 42 },
+    cab: 'M10 44V28l9-10h18v26z', glass: { x: 21, y: 22, w: 13, h: 9 },
+    hitch: [37, 46], wheels: [20, 148, 168], ground: [0, 200],
+  },
+  trailer_48: {
+    box: { x: 52, y: 8, w: 138, h: 40 },
+    cab: 'M16 44V29l9-10h18v25z', glass: { x: 27, y: 23, w: 13, h: 8 },
+    hitch: [43, 52], wheels: [26, 160], ground: [6, 196],
+  },
+  // Body and cab on one frame, wheels close under it. No hitch: nothing is being towed.
+  straight_truck_26: {
+    box: { x: 34, y: 10, w: 128, h: 38 },
+    cab: 'M14 44V28l8-9h12v25z', glass: { x: 23, y: 22, w: 10, h: 8 },
+    hitch: null, wheels: [28, 140], ground: [10, 176],
+  },
+  // A tall box sitting straight on the cab, no gap between them.
+  cube_van: {
+    box: { x: 48, y: 8, w: 106, h: 40 },
+    cab: 'M22 44V27l9-9h17v26z', glass: { x: 32, y: 21, w: 11, h: 8 },
+    hitch: null, wheels: [36, 138], ground: [16, 168],
+  },
+  // One low body, nose and box in a piece, the smallest silhouette in the set.
+  courier_van: {
+    box: { x: 56, y: 16, w: 86, h: 32 },
+    cab: 'M30 44V30l10-8h18v22z', glass: { x: 39, y: 24, w: 11, h: 7 },
+    hitch: null, wheels: [44, 126], ground: [24, 156],
+  },
+};
+const rigFor = code => RIGS[code] || RIGS.trailer_53;
 
-export function truckFill({ skids, capacity, label = '', note = '', wide = false } = {}) {
+export function truckFill({ skids, capacity, label = '', note = '', wide = false, code = null } = {}) {
+  const rig = rigFor(code);
   const carried = Math.max(0, Number(skids) || 0);
   const holds = Number(capacity) || 0;
   // No capacity entered for this truck type at this site is not zero and must not draw as
   // an empty trailer — that would read as a finding when it is a missing setting.
   if (!holds) {
     return `<figure class="truck truck--unset${wide ? ' truck--wide' : ''}">
-      ${outline(0, 'unset')}
+      ${outline(0, 'unset', rig)}
       <figcaption class="truck__cap">${escapeHtml(label)}<span>capacity for this truck is not set</span></figcaption>
     </figure>`;
   }
@@ -52,7 +94,7 @@ export function truckFill({ skids, capacity, label = '', note = '', wide = false
     : spare === 0 ? 'full' : `room for ${spare} more`);
   return `<figure class="truck truck--${state.key}${wide ? ' truck--wide' : ''}" role="img"
     aria-label="${escapeHtml(`${label ? `${label}: ` : ''}${carried} of ${holds} skids, ${percent.toFixed(0)} per cent, ${state.words}`)}">
-    ${outline(shown, state.key)}
+    ${outline(shown, state.key, rig)}
     <figcaption class="truck__cap"><b>${carried} of ${holds} skids</b><span>${escapeHtml(words)}</span>${label ? `<em>${escapeHtml(label)}</em>` : ''}</figcaption>
   </figure>`;
 }
@@ -60,8 +102,10 @@ export function truckFill({ skids, capacity, label = '', note = '', wide = false
 // The drawing. Loads from the front of the trailer backwards, which is how a trailer is
 // actually loaded and which puts the empty space at the doors where a person looking for
 // it would look.
-function outline(percent, key) {
-  const fill = (IN.w * percent) / 100;
+function outline(percent, key, rig = RIGS.trailer_53) {
+  const box = rig.box;
+  const inside = { x: box.x + 2, y: box.y + 2, w: box.w - 4, h: box.h - 4 };
+  const fill = (inside.w * percent) / 100;
   // The load is one solid block. It used to be ruled into skid positions, which was an
   // honest idea and the wrong one to look at: the eye reads the white lines as structure
   // in the drawing rather than as a count, and the caption already says how many skids of
@@ -72,15 +116,13 @@ function outline(percent, key) {
   // top of it, and the outline last with no fill of its own: an outline carrying a fill and
   // drawn after the load simply paints the load out, which is what the first version did.
   return `<svg class="truck__svg" viewBox="0 0 200 58" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
-    <rect class="truck__well" x="${IN.x}" y="${IN.y}" width="${IN.w}" height="${IN.h}" rx="1"></rect>
-    <rect class="truck__load truck__load--${key}" x="${IN.x}" y="${IN.y}" width="${fill.toFixed(1)}" height="${IN.h}" rx="1"></rect>
-    <rect class="truck__box" x="${BOX.x}" y="${BOX.y}" width="${BOX.w}" height="${BOX.h}" rx="2"></rect>
-    <line class="truck__hitch" x1="37" y1="42" x2="${BOX.x}" y2="42"></line>
-    <path class="truck__cabin" d="M10 44V28l9-10h18v26z"></path>
-    <rect class="truck__glass" x="21" y="22" width="13" height="9" rx="1"></rect>
-    <line class="truck__ground" x1="0" y1="44" x2="200" y2="44"></line>
-    <circle class="truck__wheel" cx="20" cy="48" r="5.5"></circle>
-    <circle class="truck__wheel" cx="148" cy="48" r="5.5"></circle>
-    <circle class="truck__wheel" cx="168" cy="48" r="5.5"></circle>
+    <rect class="truck__well" x="${inside.x}" y="${inside.y}" width="${inside.w}" height="${inside.h}" rx="1"></rect>
+    <rect class="truck__load truck__load--${key}" x="${inside.x}" y="${inside.y}" width="${fill.toFixed(1)}" height="${inside.h}" rx="1"></rect>
+    <rect class="truck__box" x="${box.x}" y="${box.y}" width="${box.w}" height="${box.h}" rx="2"></rect>
+    ${rig.hitch ? `<line class="truck__hitch" x1="${rig.hitch[0]}" y1="42" x2="${rig.hitch[1]}" y2="42"></line>` : ''}
+    <path class="truck__cabin" d="${rig.cab}"></path>
+    <rect class="truck__glass" x="${rig.glass.x}" y="${rig.glass.y}" width="${rig.glass.w}" height="${rig.glass.h}" rx="1"></rect>
+    <line class="truck__ground" x1="${rig.ground[0]}" y1="44" x2="${rig.ground[1]}" y2="44"></line>
+    ${rig.wheels.map(cx => `<circle class="truck__wheel" cx="${cx}" cy="48" r="5.5"></circle>`).join('')}
   </svg>`;
 }

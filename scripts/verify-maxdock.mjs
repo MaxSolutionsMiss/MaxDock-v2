@@ -307,6 +307,24 @@ for (const f of jsFiles) {
     warn('budget.files', '-', `${jsFiles.length} JS files.`, 'Check against the module list in the architecture doc.');
 }
 
+/* ============================================ NOTHING STRAY IN THE ROOT
+   Five screenshots from my own probe scripts were committed into the repository root and
+   deployed to the preview with it. The probes write to the working directory, the working
+   directory is the repository root, and `git add -A` swept them in — no step of that is
+   noticeable in a diff summary that already lists real changes.
+
+   The product's own images live in assets/. Anything image-shaped at the top level is
+   somebody's leftover, so this is an ERROR rather than a warning: it ships. */
+{
+  const strays = readdirSync(ROOT)
+    .filter(name => /\.(png|jpe?g|gif|webp|bmp|svg)$/i.test(name));
+  for (const name of strays) {
+    error('tree.stray-image', name,
+      'An image is sitting in the repository root.',
+      'Product images belong in assets/. This is almost always a screenshot left behind by a script; it will be deployed with the site.');
+  }
+}
+
 /* ============================================ REQUIRED DOCUMENTS PRESENT */
 for (const doc of ['docs/maxdock-design-v2.html',
                    'docs/MAXDOCK_FUNCTIONAL_SPEC.md',
