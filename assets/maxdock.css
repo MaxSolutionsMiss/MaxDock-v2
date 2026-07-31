@@ -1091,7 +1091,7 @@ html[data-text="larger"] .frow>.field--md:not(.field-action){grid-column:span 5}
    under them. Giving each group its own card made a page of nothing but metric cards,
    which is a lot of border for what is really one summary. The card is the outer box; the
    groups inside it are columns with a rule between them. */
-.brief{background:var(--surface);border:1px solid var(--dock);border-radius:var(--radius-lg);padding:var(--s3) var(--s4);margin-bottom:var(--s3);display:flex;flex-direction:column;gap:var(--s3);flex:0 1 auto;min-height:8em;max-height:34em;overflow-y:auto;container-type:inline-size}
+.brief{background:var(--surface);border:1px solid var(--dock);border-radius:var(--radius-lg);padding:var(--s3) var(--s4);margin-bottom:var(--s3);display:flex;flex-direction:column;gap:var(--s3);flex:0 1 auto;min-height:8em;overflow:visible;container-type:inline-size}
 /* The mark, the site's name and Share on one line, and on a phone at Larger text they do
    not fit on one line. They wrapped nowhere and scrolled the card sideways instead, which
    is a horizontal scrollbar on the one card the page opens with. Share drops to its own
@@ -1139,7 +1139,11 @@ html[data-text="larger"] .frow>.field--md:not(.field-action){grid-column:span 5}
    content actually has: every quadrant gets half the width, which the combining references need,
    and nothing wraps into a row that is not there. */
 .briefcols{display:grid;grid-template-columns:minmax(0,1fr);gap:var(--s3)}
-@container (min-width:46em){.briefcols{grid-template-columns:repeat(2,minmax(0,1fr));row-gap:var(--s4)}}
+@container (min-width:40em){.briefcols{grid-template-columns:repeat(2,minmax(0,1fr));row-gap:var(--s4)}}
+/* Four across, on one line. Two-by-two fixed the clipping but it is still two sections of two,
+   and the card is four things: trucks, labour, combining, attention. Side by side they compare;
+   stacked they read as two unrelated pairs. */
+@container (min-width:58em){.briefcols{grid-template-columns:repeat(4,minmax(0,1fr))}}
 /* The mark sits on the heading, in MaxDock blue, with the points directly under it. A
    gutter of its own cost the points width and left the column looking half empty; the
    column is just as recognisable by shape with the mark on its title line. */
@@ -1150,9 +1154,15 @@ html[data-text="larger"] .frow>.field--md:not(.field-action){grid-column:span 5}
 /* The rule divides the two columns, so it belongs on the right-hand one of each pair rather
    than on everything after the first. With one column there is no pair and no rule. */
 .briefcol:first-child{border-left:none;padding-left:0}
-@container (min-width:46em){
+/* The rule divides columns, so it belongs on every one after the first of its row. At two
+   columns that is the even ones; at four it is everything but the first. */
+@container (min-width:40em){
   .briefcol:nth-child(odd){border-left:none;padding-left:0}
-  .briefcol:nth-child(even){border-left:1px solid var(--rule);padding-left:var(--s4)}
+  .briefcol:nth-child(even){border-left:1px solid var(--rule);padding-left:var(--s3)}
+}
+@container (min-width:58em){
+  .briefcol{border-left:1px solid var(--rule);padding-left:var(--s3)}
+  .briefcol:first-child{border-left:none;padding-left:0}
 }
 .briefcol__m{color:var(--dock);display:grid;padding-top:2px}
 .briefcol__m svg{width:3.9em;height:3.9em}
@@ -1286,6 +1296,16 @@ html[data-text="larger"] .frow>.field--md:not(.field-action){grid-column:span 5}
 .rolerail__b[aria-selected="true"] small{color:var(--dock-deep)}
 @media (min-width:44em){.rolepanel{border-left:1px solid var(--rule);padding-left:var(--s4)}}
 .rolepanel>.watch__t{margin-top:0}
+
+/* --- the marks on an appointment block
+   Ink, not colour: the block's wash already carries inbound, outbound, priority and blocked,
+   and two more hues would read as two more kinds of load. Black on any wash is plainly a mark
+   about the load rather than a category of it, and it means the priority flag still reads for
+   somebody who cannot tell the amber from the green.
+   Sized above the block's own text, because these are meant to be caught from across a room
+   rather than read — the ⧉ character they replace was whatever the font gave at 11px. */
+.tlb__f{float:right;display:inline-grid;place-items:center;margin:0 0 2px var(--s1);color:var(--ink)}
+.tlb__f svg{width:17px;height:17px;fill:currentColor}
 /* A bordered section is a bigger break than one field row after another, so it
    gets more air above it than the form's own rhythm — the boxes were reading as
    attached to the field directly above them. */

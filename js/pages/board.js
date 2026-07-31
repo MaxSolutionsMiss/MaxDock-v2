@@ -466,7 +466,7 @@ function blockLines(record, startMin) {
   // load, and that changes what an operator expects to see back up to the door.
   const combined = Number(record.combined_from_count || 0);
   return [
-    show('reference') && `${combined ? '⧉ ' : ''}${record.booking_reference}`,
+    show('reference') && record.booking_reference,
     combined && show('combined') && `${combined} load${combined === 1 ? '' : 's'} combined in`,
     show('status') && format.role(record.status),
     show('route') && `${record.direction === 'outbound' ? 'To' : 'From'} ${record.company_name || record.display_counterpart_location_name || record.requester_name || 'unnamed'}`,
@@ -494,6 +494,14 @@ function timelineBlocks() {
         startMin,
         endMin: startMin + Math.max(5, format.minutesBetween(record.start_at, record.end_at)),
         tone: blockTone(record),
+        // Two facts that are not a field the reader can switch off: this truck carries more
+        // than one load, and this one is a priority. Both used to depend on other things being
+        // shown — the ⧉ rode on the reference and priority was only the block's amber wash —
+        // so turning a field off, or being unable to see the colour, took the fact with it.
+        flags: isBlock ? [] : [
+          Number(record.combined_from_count || 0) > 0 ? 'combined' : '',
+          record.is_priority ? 'priority' : '',
+        ].filter(Boolean),
         // One fact to a line, in the order somebody standing at the board reads
         // them. A blocked door is not an appointment and keeps its own three
         // lines; everything else is whatever the reader asked to see.

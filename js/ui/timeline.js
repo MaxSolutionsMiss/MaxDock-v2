@@ -141,6 +141,29 @@ export function watchTimelineFit(getRoot) {
 // `meta` and `note` are two separate lines on purpose. Run together they competed
 // for one narrow line and the tail — the skid count, the status — was the part
 // that got dropped, which is the part an operator is looking for.
+// What a block is, beyond its dates: two facts an operator needs before the truck arrives, and
+// neither of them fits in a line of text that has to be escaped.
+//
+// Drawn rather than written. The combined marker used to be a ⧉ character glued to the front of
+// the reference, which is a font's opinion at whatever size the block happens to be — too small
+// to catch on a wall display, and gone entirely if the reference field is switched off. These
+// are their own slot, so they survive whichever fields the reader has chosen.
+//
+// Deliberately ink and not colour. The block's own wash already carries inbound, outbound,
+// priority and blocked, and a fifth and sixth hue would be read as two more kinds of load. Black
+// on any wash is unmistakably a mark about the load rather than a category of it — and it means
+// the priority flag still reads for somebody who cannot see the amber.
+const FLAG = {
+  combined: {
+    label: 'More than one load on this truck',
+    svg: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3.5h11.5V15H9z" opacity=".45"/><path d="M3.5 9h11.5v11.5H3.5z"/></svg>',
+  },
+  priority: {
+    label: 'Priority load',
+    svg: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 2.4 8 8.4h-4.6v10.8H8.6V10.8H4z"/></svg>',
+  },
+};
+
 export function renderTimeline({ lanes, blocks, windowStart, windowEnd, granularity = 30, emptyLabel = 'Open', fit = 'window', nowMin = null }) {
   const span = Math.max(60, windowEnd - windowStart);
   const step = labelEvery(span, granularity);
@@ -206,6 +229,7 @@ export function renderTimeline({ lanes, blocks, windowStart, windowEnd, granular
         const geometry = `left:calc(${left}% + 1px);width:calc(${width}% - 2px);top:calc(${block.row * height}% + 2px);height:calc(${height}% - 4px)`;
         return `<article class="tlb ${block.tone}" style="${geometry}"
           ${block.attrs || ''} title="${escapeHtml((block.lines || []).filter(Boolean).join(' · '))}">
+          ${(block.flags || []).map(flag => FLAG[flag] ? `<span class="tlb__f" role="img" aria-label="${escapeHtml(FLAG[flag].label)}" title="${escapeHtml(FLAG[flag].label)}">${FLAG[flag].svg}</span>` : '').join('')}
           ${(block.lines || []).filter(Boolean).map((line, index) => `<span class="tlb__l${index === 0 ? ' tlb__l--key' : ''}">${escapeHtml(line)}</span>`).join('')}
         </article>`;
       }).join('')

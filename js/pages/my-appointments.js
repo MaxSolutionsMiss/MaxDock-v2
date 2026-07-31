@@ -664,20 +664,33 @@ async function loadViewPreference() {
   }
 }
 
-async function saveViewPreference() {
-  try {
-    await db.rpc('save_user_preference', {
-      p_preference_key: VIEW_PREFERENCE_KEY,
-      p_preferences: { default_view: activeView },
-    }, {
-      key: `preference:${VIEW_PREFERENCE_KEY}:save`,
-      retry: 0,
-      userMessage: 'Your appointment view preference could not be saved.',
-    });
-    db.invalidate(`preference:${VIEW_PREFERENCE_KEY}`);
-  } catch {
-    toast('The view changed, but MaxDock could not save it as your default.', 'error');
-  }
+// Remembering which tab somebody likes is not worth a round trip per press.
+//
+// Every click on Upcoming / Past / Cancelled / All sent save_user_preference and then invalidated
+// the cached copy of the very thing it had just written. Switching costs nothing locally — the
+// records are already in memory and a switch paints in about 20ms — so what the owner was seeing
+// was the network: a request per press, and then a refetch of the preference behind it.
+//
+// It is a preference. It settles after the pressing stops. Clicking through all four tabs now
+// sends one write instead of four, and nothing is invalidated: activeView in this module is
+// already the truth, and re-reading a value we just set can only tell us what we know.
+let savePreferenceTimer = null;
+function saveViewPreference() {
+  clearTimeout(savePreferenceTimer);
+  savePreferenceTimer = setTimeout(async () => {
+    try {
+      await db.rpc('save_user_preference', {
+        p_preference_key: VIEW_PREFERENCE_KEY,
+        p_preferences: { default_view: activeView },
+      }, {
+        key: `preference:${VIEW_PREFERENCE_KEY}:save`,
+        retry: 0,
+        userMessage: 'Your appointment view preference could not be saved.',
+      });
+    } catch {
+      toast('The view changed, but MaxDock could not save it as your default.', 'error');
+    }
+  }, 700);
 }
 
 async function refreshData(force = false) {
