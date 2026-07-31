@@ -63,6 +63,11 @@ for (const [pattern, what] of [
 const SAVED = {
   change_appointment_status: { md5: '38690f2ece47b9e9b3f2db69a10f9b77', chars: 2441 },
   receive_appointment: { md5: '892af0bc89b64b7b8bf48f122dc23753', chars: 2251 },
+  // The two that decide who may read a load's history and its check-in code. Captured before
+  // the either-end change, for the same reason as the others: these are the functions a
+  // rollback has to put back, and a copy nobody hashed is a copy nobody can trust.
+  get_appointment_history: { md5: '58951c308c7e8af25fdff12ab029e3c3', chars: 6571 },
+  get_appointment_check_in_token: { md5: '4c3cf60c43f1c9b40e19168eab6a6942', chars: 862 },
 };
 const blocks = [...doc.matchAll(/```sql\n(CREATE OR REPLACE FUNCTION public\.(\w+)\([\s\S]*?\$function\$)\n```/g)];
 const seen = new Set();

@@ -403,6 +403,262 @@ end;
 $function$
 ```
 
+### 5b-ii. The two access RPCs, restored word for word
+
+Added after the customer activity feed, for the opposite problem: a Max Solutions coordinator
+could see a load on their board and get nothing when they opened it. Both functions below decide
+who may read an appointment's history and its check-in code, and both asked the same question —
+"do you have access to the site in `location_id`?" A Max-to-Max load has two sites and only one
+`location_id`, so it appears on both boards and answers to one of them. **199 of 730 appointments
+carry a `requester_location_id` different from `location_id`**, which is why a coordinator saw
+history on some jobs and not on others: the ones they could not open were the ones booked from
+the other end.
+
+The change adds `or public.has_location_access(requester_location_id)` and nothing else. No
+permission was granted to any role, no column changed, and the customer path is untouched — a
+customer has neither `audit.view` nor a `user_location_access` row, so this widens nothing for
+them. It widens access from one end of a Max-to-Max lane to both ends of the same lane.
+
+| Function | MD5 of the definition | Characters |
+|---|---|---|
+| `get_appointment_history` | `58951c308c7e8af25fdff12ab029e3c3` | 6571 |
+| `get_appointment_check_in_token` | `4c3cf60c43f1c9b40e19168eab6a6942` | 862 |
+
+```sql
+CREATE OR REPLACE FUNCTION public.get_appointment_check_in_token(p_appointment_id uuid)
+ RETURNS text
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_row public.appointments%rowtype;
+begin
+  if auth.uid() is null then return null; end if;
+  select * into v_row from public.appointments where id = p_appointment_id;
+  if v_row.id is null then return null; end if;
+  if not public.has_location_access(v_row.location_id) then return null; end if;
+  if public.has_permission('appointment.view')
+     or v_row.created_by = auth.uid()
+     or lower(v_row.requester_email) = (
+       select lower(coalesce(p.contact_email, u.email))
+       from public.profiles p left join auth.users u on u.id = p.id
+       where p.id = auth.uid())
+  then
+    return v_row.check_in_token::text;
+  end if;
+  return null;
+end;
+$function$
+```
+
+```sql
+CREATE OR REPLACE FUNCTION public.get_appointment_history(p_appointment_id uuid)
+ RETURNS TABLE(event_id bigint, action text, changed_at timestamp with time zone, changed_by_name text, summary text, details jsonb)
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+declare
+  v_location_id uuid;
+begin
+  if auth.uid() is null then raise exception 'You must be signed in to view appointment history.'; end if;
+
+  select a.location_id into v_location_id
+  from public.appointments a
+  where a.id = p_appointment_id;
+
+  if v_location_id is null then
+    select l.location_id into v_location_id
+    from public.appointment_audit_log l
+    where l.appointment_id = p_appointment_id
+    order by l.changed_at desc limit 1;
+  end if;
+
+  if v_location_id is null then raise exception 'Appointment history was not found.'; end if;
+  if not public.has_location_access(v_location_id) or not public.has_permission('audit.view') then
+    raise exception 'You do not have permission to view this appointment history.';
+  end if;
+
+  return query
+  select
+    log.id,
+    log.action,
+    log.changed_at,
+    coalesce(nullif(trim(profile.full_name), ''), profile.username, 'MaxDock system') as changed_by_name,
+    case
+      -- This load took other loads onto it. Named, because "Appointment details updated" is
+      -- not an answer to "where did my load go".
+      when log.new_values ? 'combined_from' then
+        (select
+           case when count(*) = 1 then 'Combined ' || string_agg(value #>> '{}', '') || ' onto this load'
+                else 'Combined ' || string_agg(value #>> '{}', ', ') || ' onto this load' end
+         from jsonb_array_elements(log.new_values->'combined_from'))
+        || ' · one truck, ' || coalesce(log.new_values->>'skid_count', '?') || ' skids'
+        || case when coalesce((log.new_values->>'documents_moved')::int, 0) > 0
+             then ' · ' || (log.new_values->>'documents_moved') || ' document(s) came with them' else '' end
+      -- And this load went onto another one. The number of the truck its freight is on is the
+      -- whole point: somebody searching for a cancelled reference lands here and needs to be
+      -- told where to look next.
+      when log.old_values->>'merged_into_appointment_id' is null
+       and log.new_values->>'merged_into_appointment_id' is not null then
+        coalesce(nullif(trim(log.new_values->>'cancellation_reason'), ''), 'Combined onto another load')
+        || ' · this load travels on that truck'
+      -- A first scan is its own event, named as one, whatever else moved with it.
+      when log.old_values->>'checked_in_at' is null and log.new_values->>'checked_in_at' is not null then
+        'Scanned in at the dock'
+           || coalesce(' · driver ' || nullif(trim(log.new_values->>'driver_name'), ''), '')
+      when log.action = 'created' then 'Appointment created'
+      when log.action = 'status_changed' then format(
+        'Status changed from %s to %s',
+        replace(initcap(coalesce(log.old_values->>'status', 'unknown')), '_', ' '),
+        replace(initcap(coalesce(log.new_values->>'status', 'unknown')), '_', ' ')
+      )
+      when log.action = 'deleted' then 'Appointment deleted'
+      when log.old_values->>'driver_name' is distinct from log.new_values->>'driver_name' then
+        'Driver recorded as ' || coalesce(nullif(trim(log.new_values->>'driver_name'), ''), 'unknown')
+      else 'Appointment details updated'
+    end as summary,
+    jsonb_strip_nulls(jsonb_build_object(
+      'from_status', log.old_values->>'status',
+      'to_status', log.new_values->>'status',
+      'from_start_at', log.old_values->>'start_at',
+      'to_start_at', log.new_values->>'start_at',
+      'from_dock_id', log.old_values->>'dock_id',
+      'to_dock_id', log.new_values->>'dock_id',
+      'driver_name', log.new_values->>'driver_name',
+      'checked_in_at', log.new_values->>'checked_in_at',
+      -- Marked so the window can give a combine its own colour rather than the grey of an
+      -- ordinary edit.
+      'is_merge', case
+        when log.new_values ? 'combined_from' then true
+        when log.old_values->>'merged_into_appointment_id' is null
+         and log.new_values->>'merged_into_appointment_id' is not null then true
+      end,
+      'combined_from', log.new_values->'combined_from',
+      'is_check_in', case
+        when log.old_values->>'checked_in_at' is null and log.new_values->>'checked_in_at' is not null then true
+      end,
+      'changed_fields', case when log.action in ('updated', 'status_changed') and not (log.new_values ? 'combined_from') then to_jsonb(array_remove(array[
+        case when log.old_values->>'checked_in_at' is distinct from log.new_values->>'checked_in_at' then 'Check-in' end,
+        case when log.old_values->>'driver_name' is distinct from log.new_values->>'driver_name' then 'Driver' end,
+        case when log.old_values->>'start_at' is distinct from log.new_values->>'start_at'
+               or log.old_values->>'end_at' is distinct from log.new_values->>'end_at' then 'Schedule' end,
+        case when log.old_values->>'dock_id' is distinct from log.new_values->>'dock_id' then 'Dock' end,
+        case when log.old_values->>'truck_type_code' is distinct from log.new_values->>'truck_type_code' then 'Vehicle' end,
+        case when log.old_values->>'skid_count' is distinct from log.new_values->>'skid_count'
+               or log.old_values->>'handling_type_code' is distinct from log.new_values->>'handling_type_code' then 'Load' end,
+        case when log.old_values->>'company_name' is distinct from log.new_values->>'company_name'
+               or log.old_values->>'carrier_name' is distinct from log.new_values->>'carrier_name'
+               or log.old_values->>'external_reference' is distinct from log.new_values->>'external_reference' then 'Shipment details' end,
+        case when log.old_values->>'requester_name' is distinct from log.new_values->>'requester_name'
+               or log.old_values->>'requester_email' is distinct from log.new_values->>'requester_email' then 'Contact' end,
+        case when log.old_values->>'is_priority' is distinct from log.new_values->>'is_priority' then 'Priority' end,
+        case when log.old_values->>'notes' is distinct from log.new_values->>'notes' then 'Notes' end
+      ]::text[], null)) else null end
+    )) as details
+  from public.appointment_audit_log log
+  left join public.profiles profile on profile.id = log.changed_by
+  where log.appointment_id = p_appointment_id
+  order by log.changed_at desc, log.id desc;
+end;
+$function$
+```
+
+**What was verified after applying the change.** Both kept the identity they had: still
+`SECURITY DEFINER`, still `STABLE`, same `search_path` on each (`public` for the token, empty
+for the history), same return types, and `EXECUTE` still granted to exactly `authenticated,
+postgres, service_role` and not to `anon`. The behaviour was then driven against a real
+cross-site load — `MXD-2026-000019`, hosted at Guelph and booked from Mississauga — as three
+different signed-in people, inside transactions that were rolled back:
+
+| Who | Access | History | Check-in code |
+|---|---|---|---|
+| A coordinator at Mississauga only | requesting end, **not** the host site | 2 rows | issued |
+| A shipping manager at neither site | neither end | refused | refused |
+| A customer | neither end, no `audit.view` | refused | refused |
+
+"Before" is not inferred. The baseline gate was rebuilt in a temporary schema — the live functions
+untouched — and both were run for the same three people in the same transaction:
+
+| Who | Before | After |
+|---|---|---|
+| A coordinator at Mississauga only | refused | 2 rows |
+| A shipping manager at neither site | refused | refused |
+| A customer | refused | refused |
+
+The first row is the fix. The other two are the point of checking: opening the requesting end must
+not open the door to everybody, and it did not.
+
+**How much this covers.** 113 appointments become readable to 3 members of staff who could see
+them on a board and not open them — 125 person-and-load pairs in all. That is today's data; the
+proportion is what matters, and it is the 27% of loads that run between two Max Solutions sites.
+
+**What was deliberately left alone.** `lookup_appointment_by_reference` — the Receiving
+search — still asks only about the host site. Receiving a truck is an action at the dock the
+truck is backing onto, and widening that would let one site check in a load at another site's
+door. That is a write path and a different decision from reading the history of a load you are
+a party to. It is named here so a future reader knows it was considered rather than missed.
+
+### 5b-iii. A load's paperwork — and a customer isolation fault found on the way
+
+Extending the read to both ends of a lane meant looking at the row policies on
+`appointment_documents`, and they had an older problem in them. Both read:
+
+```
+has_location_access(location_id) and (has_permission('appointment.view') or has_permission('appointment.view_own'))
+```
+
+**`view_own` was doing no scoping.** It is the customer permission, and a customer account
+carries `user_location_access` rows — one of them has five sites. So a customer could read every
+document on every load at any site they were attached to, other companies' included, and attach
+a document to any of those loads. This predates all of this work; it was found because the
+either-end change would have carried it to a second site.
+
+The two audiences are separated now instead of sharing one condition:
+
+| Who | May read | May attach |
+|---|---|---|
+| Staff (`appointment.view`) | either end of the lane | the site holding the load, as before |
+| A customer (`appointment.view_own`) | loads they created | loads they created |
+
+`created_by = auth.uid()` is the same test `list_my_appointments` and
+`list_my_appointment_activity` already use, so "my load" means one thing across the product. It
+lives in `public.owns_appointment(uuid)`, next to `public.has_appointment_access(uuid)` — the
+either-end test. Neither could be written as a subquery on `public.appointments` inside a policy:
+**that table's own SELECT policy is one-ended too**, and the board only shows both ends because it
+goes through a `SECURITY DEFINER` function. A subquery would have been blind for exactly the
+people this is for.
+
+**Verified with a real document, in transactions that were rolled back** — the live table still
+holds zero rows, checked afterwards. A document was attached to `MXD-2026-000019` (hosted at
+Guelph, booked from Mississauga) and to `MXD-2026-000288` (Markham, booked by nobody the customer
+is):
+
+| | Result |
+|---|---|
+| Coordinator at the requesting end only | sees it — this is the fix |
+| Customer who did not book the load, but has access to that site | sees nothing |
+| The same customer, under the **old** policy restored temporarily | **saw it** |
+
+That last row is the fault, reproduced rather than argued.
+
+**Reversing it.** The either-end half is undone by putting `public.has_appointment_access` out of
+the `select` policy. **Do not restore the original policies**: they carry the isolation fault
+above. If it ever has to go back, the safe reverse is the staff half narrowed to the host site
+and the customer half left alone:
+
+```sql
+drop policy if exists appointment_documents_select on public.appointment_documents;
+create policy appointment_documents_select on public.appointment_documents
+for select
+using (
+  (public.has_permission('appointment.view') and public.has_location_access(location_id))
+  or
+  (public.has_permission('appointment.view_own') and public.owns_appointment(appointment_id))
+);
+```
+
 ### 5c. Functions that were NOT changed
 
 Recorded so a future reader does not go looking. These were examined and deliberately left alone:
@@ -443,6 +699,16 @@ anything.
 - `docs/ROLLBACK.md` (this file)
 - `scripts/verify-lifecycle-clock.mjs`
 - `scripts/verify-rollback-doc.mjs`
+- `scripts/verify-tap-targets.mjs`
+- `scripts/verify-chrome-stability.mjs`
+
+No verifier script covers the either-end change, and that is deliberate rather than an omission.
+Every other change in this document has a repo file a build can read; that one lives entirely in
+two function bodies in the database, and a script in this tree can prove nothing about it. It was
+checked in the database instead, against the baseline gate rebuilt in a temporary schema so the
+live functions were never disturbed — see the table in Section 5b-ii. What the build *does* hold
+is the hash of the one-ended definitions this file would restore, which is the part a rollback
+depends on.
 
 Existing files edited: `assets/maxdock.css`, `js/db.js`, `js/pages/queue.js`, `js/pages/board.js`,
 `js/pages/receiving.js`, `js/pages/settings.js`, `js/ui/appointment-details.js`,
@@ -485,10 +751,15 @@ them permanently.
 9. Open the **SQL Editor** from the left-hand menu and press **New query**.
 10. Copy the whole block from [Section 5b](#5b-the-two-rpcs-restored-word-for-word) — both
     `CREATE OR REPLACE FUNCTION` statements — paste it in, and press **Run**. Wait for "Success".
-11. Press **New query** again, copy the block from
+11. Press **New query** again, copy both blocks from Section 5b-ii — the two access RPCs — paste
+    them in, and press **Run**. This is what puts `get_appointment_history` and
+    `get_appointment_check_in_token` back to asking about the host site only. Skip this step if
+    you are happy for a coordinator to keep seeing loads booked from their own site; it is
+    independent of everything else here and there is no column or data behind it.
+12. Press **New query** again, copy the block from
     [Section 5a](#5a-the-down-migration-exactly-as-it-should-be-run), paste it in, and press
     **Run**. Wait for "Success".
-12. Confirm it worked by running the check in Section 9.
+13. Confirm it worked by running the check in Section 9.
 
 ---
 
