@@ -1415,10 +1415,6 @@ body.modal-open{overflow:hidden}
    in a paragraph underneath, because a disabled checkbox with no reason next to it reads as a
    fault in the page. */
 .pinnote{color:var(--ink-faint);font-size:var(--t-micro);font-weight:500;white-space:nowrap}
-/* On a metric tile's label and a panel heading the mark rides at label size, not row size —
-   a 20px shape beside 11px uppercase text is a badge with a caption. */
-.rowmark--kpi svg{width:15px;height:15px}
-.panel__title .rowmark svg{width:17px;height:17px}
 .state--error .state__icon{background:var(--stop-wash);color:var(--stop)}
 .state--warning .state__icon{background:var(--signal-wash);color:var(--signal)}
 .state__title{margin:0;font-size:var(--t-lead);font-weight:600}

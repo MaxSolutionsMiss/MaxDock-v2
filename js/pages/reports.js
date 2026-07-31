@@ -17,7 +17,7 @@ import { mark } from '../ui/marks.js';
 // something less dry, not for clip-art.
 const VIEWS = [
   { id: 'overview', label: 'Overview', icon: 'chart' },
-  { id: 'truck-flow', label: 'Truck flow', icon: 'trailer_53' },
+  { id: 'truck-flow', label: 'Truck flow', icon: 'truck' },
   { id: 'skid-movement', label: 'Skid movement', icon: 'skid' },
   { id: 'dock-utilisation', label: 'Dock hours', icon: 'door' },
   { id: 'scorecard-company', label: 'Vendor scorecard', icon: 'company' },
@@ -551,7 +551,7 @@ function renderScorecard(kind) {
           : `The left bar is how far short of perfect each ${who} is, so the longest bar is the one to act on. The right bar is how much they move. A short bar on the left next to a long one on the right is where a conversation is worth having.`}</p></div>
     </div>
     ${worstLate.length ? `<div class="panel">
-      <div class="panel__head"><h3 class="panel__title"><span class="rowmark">${mark('hourglass')}</span>When they are late, how late</h3><div class="panel__actions"><span class="sub">${compact(late)} late arrivals</span></div></div>
+      <div class="panel__head"><h3 class="panel__title">When they are late, how late</h3><div class="panel__actions"><span class="sub">${compact(late)} late arrivals</span></div></div>
       <div class="panel__body">${ranked(worstLate, { max: 8, outOf: 60 })}<p class="hint">Average minutes late, over the trucks that arrived late, against a full hour, so a full bar means an hour or worse. The count beside each bar is how many times.</p></div>
     </div>` : ''}
     <div class="panel panel--fill">

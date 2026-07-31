@@ -25,13 +25,13 @@ const KPI_CARDS = [
   { id: 'onsite', label: 'On site', className: 'kpi--out', suffix: '', compute: recs => recs.filter(r => ACTIVE_STATUSES.has(r.status)).length },
   { id: 'completed', label: 'Completed', className: 'kpi--ok', suffix: '', compute: recs => recs.filter(r => r.status === 'completed').length },
   {
-    id: 'avgDuration', label: 'Avg duration', className: '', suffix: 'm', mark: 'turnaround',
+    id: 'avgDuration', label: 'Avg duration', className: '', suffix: 'm',
     compute: recs => {
       const durations = recs.filter(r => r.status === 'completed' && r.completed_at).map(r => format.minutesBetween(r.start_at, r.completed_at));
       return durations.length ? Math.round(durations.reduce((sum, value) => sum + value, 0) / durations.length) : 0;
     },
   },
-  { id: 'late', label: 'Late', className: 'kpi--stop', suffix: '', mark: 'late', compute: recs => recs.filter(isLate).length },
+  { id: 'late', label: 'Late', className: 'kpi--stop', suffix: '', compute: recs => recs.filter(isLate).length },
 ];
 const DEFAULT_CARDS = KPI_CARDS.map(card => card.id);
 
@@ -175,10 +175,7 @@ function renderKpis() {
   page?.style.setProperty('--kpi-cols', String(Math.max(2, cards.length)));
   state.elements.kpis.innerHTML = cards.map(card => {
     const value = card.compute(appointments);
-    // Two of these tiles are readings about time rather than counts of things, and they are the
-    // two people misread as counts: "Avg duration" is minutes on the door and "Late" is trucks.
-    // The mark says which kind of number it is before the label is read.
-    return `<article class="kpi ${card.className}"><span class="kpi__label">${card.mark ? `<span class="rowmark rowmark--kpi">${mark(card.mark)}</span>` : ''}${card.label}</span><span class="kpi__value">${value}${card.suffix ? `<span>${card.suffix}</span>` : ''}</span></article>`;
+    return `<article class="kpi ${card.className}"><span class="kpi__label">${card.label}</span><span class="kpi__value">${value}${card.suffix ? `<span>${card.suffix}</span>` : ''}</span></article>`;
   }).join('');
 }
 
