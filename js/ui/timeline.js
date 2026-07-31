@@ -155,9 +155,15 @@ export function renderTimeline({ lanes, blocks, windowStart, windowEnd, granular
     if (minute > windowEnd) break;
     const left = ((minute - windowStart) / span) * 100;
     const major = index % step === 0;
-    const cls = `tl__tick${major ? ' tl__tick--major' : ''}`;
-    laneTicks.push(`<span class="${cls}" style="left:${left}%"></span>`);
-    if (major) scaleTicks.push(`<span class="tl__tick tl__tick--major" style="left:${left}%">${clockLabel(minute)}</span>`);
+    // Only the lines that carry a time. A rule at every subdivision turned the board into
+    // graph paper — at half-hour slots that is four verticals an hour behind every block, and
+    // none of them means anything a reader can name, because only the labelled ones have a
+    // clock above them. The labelled lines are what the eye follows from the ruler down to a
+    // truck; the rest were texture.
+    if (major) {
+      laneTicks.push(`<span class="tl__tick tl__tick--major" style="left:${left}%"></span>`);
+      scaleTicks.push(`<span class="tl__tick tl__tick--major" style="left:${left}%">${clockLabel(minute)}</span>`);
+    }
   }
 
   // Where the day has actually got to. Only drawn when the board is showing today and the
