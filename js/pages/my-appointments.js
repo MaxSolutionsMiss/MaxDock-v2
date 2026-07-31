@@ -333,6 +333,24 @@ function createCardAction(name, label, className = 'btn btn--quiet btn--icon') {
   return button;
 }
 
+// One line per event, in the site's own clock. The server already decided what a customer may
+// be told — no dock, no internal name, no token — so this only has to read well.
+function renderActivity(rows, record) {
+  const list = Array.isArray(rows) ? rows : [];
+  if (!list.length) return [createElement('p', 'hint', 'Nothing has happened to this booking yet.')];
+  const site = { timezone: record.location_timezone };
+  return list.map(row => {
+    const line = createElement('div', 'appointment-activity__row');
+    const when = createElement('span', 'appointment-activity__when', format.timestamp(row.happened_at, site));
+    const parts = [row.what];
+    if (row.moved_to) parts.push(`to ${format.timestamp(row.moved_to, site)}`);
+    if (row.detail) parts.push(`(${row.detail})`);
+    const what = createElement('span', 'appointment-activity__what', parts.join(' '));
+    line.append(when, what);
+    return line;
+  });
+}
+
 function createAppointmentCard(record) {
   let currentRecord = record;
   const element = createElement('article', 'appointment-card');
@@ -375,6 +393,31 @@ function createAppointmentCard(record) {
     ['carrier_name', 'Carrier'],
   ].map(([key, label]) => ({ key, ...createDetail(label) }));
   details.append(...detailRefs.map(detail => detail.element));
+
+  // What has happened to this load, for the person who booked it. Collapsed by default: the
+  // card exists to answer "when is my truck", and a list of events under every one of them
+  // would bury that. Fetched only when it is opened, so a page of twenty bookings makes no
+  // requests for nineteen histories nobody asked to see.
+  const activity = createElement('details', 'appointment-activity');
+  const activitySummary = createElement('summary', 'appointment-activity__t', 'Activity');
+  const activityBody = createElement('div', 'appointment-activity__body');
+  activity.append(activitySummary, activityBody);
+  let activityLoaded = false;
+  activity.addEventListener('toggle', async () => {
+    if (!activity.open || activityLoaded) return;
+    activityLoaded = true;
+    activityBody.textContent = 'Loading…';
+    try {
+      const rows = await db.rpc('list_my_appointment_activity', { p_appointment_id: currentRecord.appointment_id }, {
+        key: `mine:activity:${currentRecord.appointment_id}`, cache: 15000, retry: 1,
+        userMessage: 'That activity could not be loaded.',
+      });
+      activityBody.replaceChildren(...renderActivity(rows, currentRecord));
+    } catch (error) {
+      activityLoaded = false;
+      activityBody.textContent = error.userMessage || 'That activity could not be loaded.';
+    }
+  });
 
   copy.addEventListener('click', () => copyConfirmation(currentRecord));
   move.addEventListener('click', () => openMoveModal(currentRecord, move));
@@ -445,7 +488,7 @@ function createAppointmentCard(record) {
   // beside it would be the first thing a customer sees and the first phone call.
   const note = createElement('p', 'hint hint--wide hint--flush');
   note.hidden = true;
-  element.append(head, details, note);
+  element.append(head, details, note, activity);
   update(record);
   return Object.freeze({ element, update, destroy: () => element.remove() });
 }

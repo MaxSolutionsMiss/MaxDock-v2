@@ -1447,6 +1447,16 @@ body.modal-open{overflow:hidden}
    controls beside it. */
 .controls>.appointment-toolbar__meta{align-self:stretch}
 .appointment-toolbar__count,.page-updated{white-space:nowrap;font-size:var(--t-small);color:var(--ink-muted)}
+/* What happened to a booking, on the customer's own card. Closed by default and quiet when
+   open: this answers a question somebody occasionally asks, and the card is there to answer
+   "when is my truck". The rule above it separates it from the facts of the booking without
+   making it a second card. */
+.appointment-activity{border-top:1px solid var(--rule);margin:var(--s2) var(--s3) 0;padding:var(--s2) 0 var(--s3)}
+.appointment-activity__t{font-size:var(--t-small);color:var(--ink-muted);cursor:pointer;min-height:var(--tap);display:flex;align-items:center}
+.appointment-activity__body{display:grid;gap:2px;padding-top:var(--s2)}
+.appointment-activity__row{display:grid;grid-template-columns:auto minmax(0,1fr);gap:var(--s3);font-size:var(--t-small)}
+.appointment-activity__when{color:var(--ink-faint);font-family:var(--font-data);white-space:nowrap}
+.appointment-activity__what{color:var(--ink-muted)}
 .appointment-list{display:grid;grid-template-columns:minmax(0,1fr);gap:var(--s2);padding:var(--s2) var(--s3)}
 /* A card is a row of an operational list, not a page: two lines rather than six,
    so more of the list is on screen. The border carries its own weight — a card

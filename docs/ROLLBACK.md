@@ -103,6 +103,43 @@ no code change at all. VR1 and Layer 3 both cover it, and either is enough.
 
 ---
 
+## 3b. The customer activity feed
+
+Added after P1 at the owner's request: a customer could see their booking but not what had
+happened to it. This is the cheapest thing in the whole document to undo, because it adds a
+function and changes nothing that existed.
+
+| | |
+|---|---|
+| Migration | `customer_visible_appointment_activity` |
+| Adds | `public.list_my_appointment_activity(uuid)` |
+| Changes | nothing. No column, no table, no existing function, no permission, no grant to a role |
+
+To remove it:
+
+```sql
+drop function if exists public.list_my_appointment_activity(uuid);
+```
+
+That is the whole rollback. Nothing else reads it, and the screen that calls it degrades to
+what it showed before — the booking without its history.
+
+**Why it is a new function rather than a permission.** The obvious fix was to grant
+`audit.view` to the customer role. That would have been a serious mistake:
+`get_appointment_history` is gated on that one permission and is not scoped to the caller, so
+granting it hands every customer the audit trail of every appointment at the site, including
+other companies'. Worse, the audit table stores the whole appointment row on every event —
+the recorded keys include `check_in_token`, `counterpart_dock_id` and `checked_in_by` — so it
+cannot be exposed to a customer in raw form under any permission at all.
+
+The new function therefore authorises on ownership rather than on `audit.view`, using the same
+`created_by = auth.uid()` test `list_my_appointments` already uses, and returns sentences it
+derives rather than rows it stores. No dock, no token, no internal name. An update that
+touched only internal fields emits no line, so a customer cannot infer dock activity from a
+gap in the list.
+
+---
+
 ## 4. Layer 1 — Code
 
 All work is on `claude/maxdock-handoff-setup-h7d5nu` with a **draft** pull request that is not
