@@ -72,18 +72,25 @@ for (const { width, text } of CASES) {
     if (!reached) { await context.close(); continue; }
     await tab.evaluate(value => document.documentElement.setAttribute('data-text', value), text).catch(() => {});
 
-    // Measured once it has stopped moving, not after a fixed wait.
+    // Wait for the webfont before measuring anything.
     //
-    // The first version waited 900ms and then measured, and it reported the bell and the
-    // account block as 26px out of place on the board and My Appointments — the two heaviest
-    // pages. They were not out of place. The account name arrives with the profile, and on a
-    // slow runner those two pages had not painted it yet, so the block was still 19px narrower
-    // than it would be a moment later. A gate that reports whichever pages happened to be slow
-    // is worse than no gate, because it teaches you to ignore it.
+    // This took two wrong diagnoses to find, and both were mine. The check reported the
+    // notification bell 26px out of place on the board and My Appointments and correct on the
+    // other six. I called it a slow-runner artifact and made it poll until two reads agreed.
+    // The next run produced byte-identical numbers, which is exactly what a timing flake does
+    // not do.
     //
-    // So it reads the boxes repeatedly and only accepts an answer that two consecutive reads
-    // agree on. What is being asked is whether the chrome settles in the same place, which is
-    // the actual claim, rather than whether it gets there within some number of milliseconds.
+    // The cause is the font. These pages load IBM Plex from Google with display=swap, so text
+    // is laid out in the fallback and relaid when the real font arrives, and the account block
+    // is 19px wider in one than the other. Every page reaches that point at its own speed, so
+    // whichever were still mid-swap when they were read disagreed with the rest — reproducibly,
+    // because the pages are reproducibly different weights. It never showed up here because
+    // this container cannot reach Google Fonts at all, so everything rendered in the fallback
+    // and agreed with itself.
+    //
+    // document.fonts.ready is the actual signal. The settle loop stays underneath it for
+    // anything else that lands late, but the font is what was moving.
+    await tab.evaluate(() => document.fonts.ready).catch(() => {});
     const read = () => tab.evaluate(selectors => {
       const out = {};
       for (const selector of selectors) {
