@@ -4,6 +4,7 @@ import { toast } from '../ui/toast.js';
 import { pageHead } from '../ui/pagehead.js';
 import { format } from '../format.js';
 import { canScan, createReader } from '../ui/qr-scan.js';
+import { createAppointmentDetails } from '../ui/appointment-details.js';
 
 // Receiving.
 //
@@ -36,6 +37,7 @@ const state = {
   // Which of the optional steps this site has turned on, keyed by location. A site the
   // receiver has not visited yet is simply not in here, and an absent answer means off.
   clock: new Map(),
+  details: null,
   elements: {},
 };
 
@@ -244,7 +246,7 @@ function renderAppointment(record) {
       ${clockLine(record, location)}
       <label class="field field--md"><span class="field__label">Driver <span class="field__opt">optional</span></span><input class="input" data-driver maxlength="120" autocomplete="name" value="${escapeHtml(record.driver_name || '')}"></label>
       <fieldset class="recv__steps"><legend>Where is this truck?</legend>${statusButtons(record)}</fieldset>
-      <div class="form-actions"><button class="btn btn--quiet" type="button" data-again>Scan another</button></div>
+      <div class="form-actions"><button class="btn btn--quiet" type="button" data-details>Full details</button><button class="btn btn--quiet" type="button" data-again>Scan another</button></div>
     </section>`;
 }
 
@@ -400,6 +402,16 @@ function wireEvents(root) {
     if (event.target.closest('[data-lookup]')) { submitCode(root); return; }
     const status = event.target.closest('[data-status]');
     if (status) { setStatus(status.dataset.status); return; }
+    // The same window the board and the queue open, rather than a fourth idea of what an
+    // appointment looks like. Documents, the activity log and the combining trail are all
+    // there already; duplicating a thinner version of them here is how four screens end up
+    // disagreeing about one load.
+    const details = event.target.closest('[data-details]');
+    if (details && state.appointment) {
+      state.details = state.details || createAppointmentDetails({ location: state.context.location });
+      state.details.open(state.appointment, { trigger: details, canEdit: false });
+      return;
+    }
     const pick = event.target.closest('[data-pick]');
     if (pick) {
       state.appointment = state.matches[Number(pick.dataset.pick)];
@@ -438,6 +450,8 @@ const page = {
   // camera light on is the fastest way to lose the trust of somebody holding it.
   destroy() {
     stopScanner();
+    state.details?.destroy();
+    state.details = null;
   },
 };
 

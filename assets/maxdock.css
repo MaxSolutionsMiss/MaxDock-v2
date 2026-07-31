@@ -761,6 +761,23 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 /* The field being edited is visible at a glance — the owner asked for the outline
    v1 had. Applied once here rather than per control. */
 .input:focus-visible,.select:focus-visible,textarea:focus-visible{outline:2px solid var(--dock);outline-offset:1px;border-color:var(--dock)}
+/* Keyboard focus: one ring, and a visible one on the rail.
+   Measured before writing this, and it corrected what the change was for. Buttons and links
+   were not unfocusable — the browser was drawing its own ring on all of them, a 1px near-black
+   outline. Two things were wrong with that rather than one thing missing. It did not match the
+   ring the fields, timeline blocks and queue rows already used, so focus looked like two
+   different ideas depending on what you had landed on. And on the dark rail a near-black 1px
+   outline on navy is effectively no ring at all, which is the one place it genuinely could not
+   be seen. So this is the fields' own treatment applied everywhere, and the rail's own ink on
+   the rail. The offset is outside the control: these sit on white, and an inset ring on a
+   filled primary button reads as a border on the button rather than as focus. */
+.btn:focus-visible,.iconbtn:focus-visible,.linkBtn:focus-visible,.notif__btn:focus-visible,
+.modal__x:focus-visible,.seg button:focus-visible,.tabs button:focus-visible,
+.setnav button:focus-visible,.switch:focus-visible,.choice button:focus-visible,
+.slotpick button:focus-visible,a:focus-visible{outline:2px solid var(--dock);outline-offset:2px;border-radius:var(--radius)}
+/* On the dark rail the blue sinks into the navy. The ring there is the rail's own ink, and
+   inset so it cannot be clipped by the rail's edge. */
+.rail a:focus-visible,.rail button:focus-visible{outline:2px solid var(--rail-ink);outline-offset:-2px}
 .field .input,.field .select,.field textarea{width:100%;min-width:0}
 .input[type="file"]{padding:6px 8px;min-width:0}
 .field--xs{max-width:120px} .field--sm{max-width:180px} .field--md{max-width:280px} .field--lg{max-width:420px}
