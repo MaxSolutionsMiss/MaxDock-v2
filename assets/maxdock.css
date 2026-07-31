@@ -1715,8 +1715,17 @@ body.modal-open{overflow:hidden}
 .truck__wheel{fill:var(--ink-muted);stroke:none}
 .truck__ground,.truck__hitch{stroke:var(--rule-strong);stroke-width:1.4}
 .truck__well{fill:var(--chart-track)}
-.truck__load--light{fill:var(--signal)} .truck__load--part{fill:var(--chart-a)}
+/* Three bands. Blue is a truck with room, green is one worth sending, red will not go on.
+   The amber "mostly empty" step this replaces read as a warning about a lightly loaded truck,
+   and a truck at 40% is not a fault — it is the room this drawing exists to show. */
+.truck__load--light{fill:var(--chart-a)} .truck__load--part{fill:var(--chart-a)}
 .truck__load--full{fill:var(--ok)} .truck__load--over{fill:var(--stop)}
+/* How full it is, in the middle of the body, knocked out of the load. Sized in the viewBox's
+   own units so it scales with the drawing — a 96px trailer in a dialog row and a 260px one on
+   a report get the same proportion rather than the same pixels. */
+.truck__pct{fill:#fff;font-weight:700;font-size:22px;font-variant-numeric:tabular-nums;pointer-events:none}
+.truck__pct--ink{fill:var(--ink-muted)}
+.truck--fig .truck__pct{font-size:18px}
 .truck--unset .truck__box{stroke-dasharray:3 3}
 /* The punctuality badge. Its disc takes the fill of whichever load class the verdict put on
    the group, so the badge cannot be a colour the reading is not; the ring behind it is the

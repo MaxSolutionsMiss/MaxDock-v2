@@ -316,12 +316,25 @@ for (const f of jsFiles) {
    The product's own images live in assets/. Anything image-shaped at the top level is
    somebody's leftover, so this is an ERROR rather than a warning: it ships. */
 {
-  const strays = readdirSync(ROOT)
-    .filter(name => /\.(png|jpe?g|gif|webp|bmp|svg)$/i.test(name));
-  for (const name of strays) {
-    error('tree.stray-image', name,
-      'An image is sitting in the repository root.',
-      'Product images belong in assets/. This is almost always a screenshot left behind by a script; it will be deployed with the site.');
+  // The root's real contents, named. Anything else at this level is somebody's leftover.
+  //
+  // First written for images, after five screenshots were committed and deployed. It caught a
+  // stray .html on its next outing — a probe page my own script had written beside index.html,
+  // which a different verifier found first because it had an inline style in it. Same mistake,
+  // different extension, so the rule is the whitelist rather than a list of extensions to fear.
+  // Taken from what the repository actually tracks at this level, not from what a root file
+  // usually looks like — guessing the list failed on DEPLOYMENT.md the first time it ran.
+  const BELONGS = new Set([
+    'index.html', 'README.md', 'DEPLOYMENT.md',
+    // Not present today, and named so adding one is not reported as a fault.
+    'CLAUDE.md', 'LICENSE', 'package.json', 'package-lock.json', 'CNAME', '.nojekyll',
+  ]);
+  const strays = readdirSync(ROOT, { withFileTypes: true })
+    .filter(entry => entry.isFile() && !BELONGS.has(entry.name) && !entry.name.startsWith('.'));
+  for (const entry of strays) {
+    error('tree.stray-file', entry.name,
+      'A file is sitting in the repository root that does not belong to the product.',
+      'The root holds index.html and the project files; everything else lives in a directory. This is almost always output left behind by a script, and it will be deployed with the site.');
   }
 }
 
