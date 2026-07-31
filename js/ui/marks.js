@@ -21,23 +21,36 @@ const SHAPES = {
   // Overview: bars of different heights, the tallest solid and the rest behind it.
   chart: PART('M3 19h18v2H3z') + PART('M5 11h4v7H5zM16 4h4v14h-4z') + PART('M10.5 7h4v11h-4z', true),
 
-  // Truck flow: a tractor and a box trailer, side on.
+  // Truck flow: a conventional tractor and a box trailer, side on, nose to the left.
   //
-  // Redrawn. The first version was a fat box, a fat cab and two wheels the size of the cab,
-  // which at 3.9em on the brief read as a toy rather than a truck. Real proportions fix that on
-  // their own: a trailer is long and shallow against its tractor, the wheels are small against
-  // the body, and there are three of them because a tandem is what a tractor-trailer runs. Same
-  // silhouette as the 53 ft drawing the settings screens and the appointment window use, so the
-  // truck on the brief and the truck on a booking are recognisably one vehicle.
-  truck: PART('M1 5.6h14.6v8.8H1z')
-    + PART('M14.2 8.6h2.4l2.8 3.2v2.6h-5.2z', true)
-    + PART('M1 15.2h18.4v1.1H1z')
-    + PART('M4 16.8a2 2 0 1 1 0 4 2 2 0 0 1 0-4zm4.4 0a2 2 0 1 1 0 4 2 2 0 0 1 0-4zm8.6 0a2 2 0 1 1 0 4 2 2 0 0 1 0-4z'),
+  // Drawn from the silhouette the owner supplied. Two things in it are the whole difference
+  // from what was here before: the tractor is a long-nose conventional — bumper, sloped hood,
+  // then the cab set back behind it — and it faces left, so the trailer runs away to the right
+  // with its doors at the far end. Everything else on this screen already reads left to right,
+  // and the trailer is the part a percentage gets written on, so it wants the long side of the
+  // frame. Five wheels: a steer, a drive tandem under the nose of the trailer, and a trailer
+  // tandem near the doors. That count is the tell that says tractor-trailer rather than truck.
+  // Two details are doing the work at 22px and are worth naming, because without them this
+  // draws as one black lump with a notch: the cab roof sits well below the trailer roof, and
+  // there is a hair of daylight between the back of the cab and the front of the trailer.
+  // Same ink for both shapes means anywhere they touch they stop being two shapes.
+  truck: PART('M0.6 16.4V13.2l.8-1.2h3.2l1.1-3.6h2.4v8z')
+    + PART('M8.6 5.4h14.8v9.6H8.6z')
+    + PART('M8.6 15h14.8v.9H8.6z', true)
+    + PART('M2.6 16.8a1.6 1.6 0 1 1 0 3.2 1.6 1.6 0 0 1 0-3.2zm4.2 0a1.6 1.6 0 1 1 0 3.2 1.6 1.6 0 0 1 0-3.2zm3.4 0a1.6 1.6 0 1 1 0 3.2 1.6 1.6 0 0 1 0-3.2zm8.2 0a1.6 1.6 0 1 1 0 3.2 1.6 1.6 0 0 1 0-3.2zm3.4 0a1.6 1.6 0 1 1 0 3.2 1.6 1.6 0 0 1 0-3.2z'),
 
-  // Skid movement: cartons stacked on a pallet, the pallet solid under them.
-  skid: PART('M6 3h5.2v5.6H6zM12.8 3H18v5.6h-5.2z')
-    + PART('M6 9.4h5.2V15H6zM12.8 9.4H18V15h-5.2z', true)
-    + PART('M3 16.4h18v2H3zM3 19.6h18v1.8H3zM5 18.4h1.8v1.2H5zM11.1 18.4h1.8v1.2h-1.8zM17.2 18.4H19v1.2h-1.8z'),
+  // Skid movement: cartons stacked on a pallet.
+  //
+  // A pyramid, not a block. The supplied drawing stacks them three, two and one, and that is
+  // worth copying rather than smoothing out: a 2 × 2 block of squares at 22px is a window, a
+  // grid or a set of tiles depending on who is looking, whereas a stepped stack on a pallet is
+  // only ever one thing. The pallet keeps its deck, blocks and bottom board, because a stack
+  // of cartons with nothing under it is a warehouse shelf.
+  skid: PART('M8.6 3.2h6.8v4.6H8.6z')
+    + PART('M5.2 8.4h6.8V13H5.2zM12.6 8.4h6.8V13h-6.8z')
+    + PART('M1.8 13.6h6.8v4.6H1.8zM9.2 13.6H16v4.6H9.2zM16.6 13.6h6.8v4.6h-6.8z')
+    + PART('M1.2 18.8h21.6v1.6H1.2zM2.6 20.4h3v1.6h-3zM10.5 20.4h3v1.6h-3zM18.4 20.4h3v1.6h-3z')
+    + PART('M1.2 22h21.6v1.2H1.2z', true),
 
   // Dock hours: a roll-up shipping door, wide, with the shutter part raised and the
   // platform and bumpers in front of it. The owner asked for this one twice.
@@ -89,16 +102,33 @@ const SHAPES = {
   // A tick, a bang and a loop are three different shapes at 22px; three clock faces with
   // the hands in different places are one shape.
 
-  // Arrived inside the window.
-  ontime: PART('M12 2.4A9.6 9.6 0 1 1 12 21.6 9.6 9.6 0 0 1 12 2.4zm0 2.2a7.4 7.4 0 1 0 0 14.8 7.4 7.4 0 0 0 0-14.8z')
-    + PART('M10.8 16.1 6.9 12.2l1.6-1.6 2.3 2.3 4.7-4.7 1.6 1.6z')
-    + PART('M12 4.6a7.4 7.4 0 0 1 7.4 7.4h-2.2A5.2 5.2 0 0 0 12 6.8z', true),
+  // Arrived inside the window, and missed it.
+  //
+  // Both redrawn from the owner's pair: a clock with the verdict on a disc at its shoulder,
+  // rather than a clock with the verdict inside the face where the hands are. The badge is a
+  // stronger tell — it is a whole extra shape at the same size, and it does not have to
+  // compete with the hands for the middle of the face. Two details make it work in one colour:
+  // the ring is an arc with a bite taken out of the upper left, so there is a clear gap
+  // between it and the disc instead of the two merging into one blob, and the tick and the
+  // bang are cut out of the disc rather than painted over it, which the same ink over the
+  // same ink cannot do. The hands are left where the drawing has them, at ten past four, so
+  // the two marks are one clock reading one time and only the badge tells them apart.
+  //
+  // The bite is sized, not guessed: it is where a circle of the badge's radius plus a unit of
+  // daylight crosses the band, which works out at 38 degrees either side of the badge. Eyeing
+  // it took out a whole quadrant and left a broken C with a disc floating beside it.
+  // The hands stop short of the ring on purpose. The first pair ran the full radius and were
+  // a fifth of the face wide, and where a hand met the ring the two merged: what you saw was
+  // not two hands but a solid pie slice from twelve round to four.
+  ontime: PART('M12.7 4.7a9 9 0 1 1-7.65 8.05l2.09.2a6.9 6.9 0 1 0 5.86-6.18z')
+    + PART('M14 7.4a1 1 0 0 1 1 1v5.2a1 1 0 0 1-2 0V8.4a1 1 0 0 1 1-1z')
+    + PART('M14.13 12.5 18.43 15.2a1 1 0 0 1-1.06 1.7l-4.3-2.7a1 1 0 0 1 1.06-1.7z')
+    + CUT('M0.9 6.4a5.5 5.5 0 1 0 11 0 5.5 5.5 0 1 0-11 0zM5.7 9.4 3.1 6.8l1.3-1.3 1.3 1.3 3.1-3.1 1.3 1.3z'),
 
-  // Missed it. The bang sits where the hands would be, so late and on time are not two
-  // readings of the same picture.
-  late: PART('M12 2.4A9.6 9.6 0 1 1 12 21.6 9.6 9.6 0 0 1 12 2.4zm0 2.2a7.4 7.4 0 1 0 0 14.8 7.4 7.4 0 0 0 0-14.8z')
-    + PART('M11 7h2v6.6h-2zM11 15.2h2v2.2h-2z')
-    + PART('M12 4.6a7.4 7.4 0 0 1 7.4 7.4h-2.2A5.2 5.2 0 0 0 12 6.8z', true),
+  late: PART('M12.7 4.7a9 9 0 1 1-7.65 8.05l2.09.2a6.9 6.9 0 1 0 5.86-6.18z')
+    + PART('M14 7.4a1 1 0 0 1 1 1v5.2a1 1 0 0 1-2 0V8.4a1 1 0 0 1 1-1z')
+    + PART('M14.13 12.5 18.43 15.2a1 1 0 0 1-1.06 1.7l-4.3-2.7a1 1 0 0 1 1.06-1.7z')
+    + CUT('M0.9 6.4a5.5 5.5 0 1 0 11 0 5.5 5.5 0 1 0-11 0zM5.3 2.6h2.2v4.8H5.3zM5.3 8.4h2.2v2.2H5.3z'),
 
   // Time on the door, start to pull-off: a loop rather than a point. Drawn as one band
   // three quarters of the way round with the head on the open end, because two separate
@@ -120,35 +150,41 @@ const SHAPES = {
   // wheels are under the back — a 48 runs a single trailer axle where a 53 runs a tandem.
   // Length alone would not survive 22px.
 
+  // All five redrawn nose-to-the-left on the supplied silhouette's cab: bumper, sloped hood,
+  // cab set back behind it. They used to face right, which was fine on its own and wrong
+  // beside the generic `truck` above once that faced left — a truck type that points the other
+  // way from the truck reads as a different subject, not a variant.
+
   // Courier van: one low body, nose and box in a piece.
-  van_courier: PART('M2.4 8.8h9.4v7.2H2.4z')
-    + PART('M11.8 10.6h3.4l2.8 2.8V16h-6.2z', true)
-    + PART('M5.6 16.2a2.2 2.2 0 1 1 0 4.4 2.2 2.2 0 0 1 0-4.4zm9.6 0a2.2 2.2 0 1 1 0 4.4 2.2 2.2 0 0 1 0-4.4z'),
+  van_courier: PART('M2.4 16.4v-3.2l1.4-1.8h2.6l1-2.4H21v7.4z')
+    + PART('M5.8 16.8a1.6 1.6 0 1 1 0 3.2 1.6 1.6 0 0 1 0-3.2zm11.6 0a1.6 1.6 0 1 1 0 3.2 1.6 1.6 0 0 1 0-3.2z'),
 
   // Cube van: a tall square box sitting straight on the cab, no gap.
-  van_cube: PART('M2 5.2h11.4V16H2z')
-    + PART('M13.4 9.4h3.2l2.8 3V16h-6z', true)
-    + PART('M5.4 16.2a2.2 2.2 0 1 1 0 4.4 2.2 2.2 0 0 1 0-4.4zm11 0a2.2 2.2 0 1 1 0 4.4 2.2 2.2 0 0 1 0-4.4z'),
+  van_cube: PART('M2 16.4v-3l.8-1.2h2.6l1-3.2h2v7.4z')
+    + PART('M8.4 5.6H22v10.8H8.4z')
+    + PART('M4.6 16.8a1.6 1.6 0 1 1 0 3.2 1.6 1.6 0 0 1 0-3.2zm13.4 0a1.6 1.6 0 1 1 0 3.2 1.6 1.6 0 0 1 0-3.2z'),
 
   // Straight truck: body and cab on one continuous frame, the wheels close under it.
   // The unbroken bar from nose to tail is what separates it from a trailer, where the
   // underside is open between the drives and the trailer axle.
-  truck_straight: PART('M2.2 5.4h11.4v9.8H2.2z')
-    + PART('M2.2 15.2h17v1.3h-17z')
-    + PART('M13.8 8.8h2.6l2.8 3.2v3.2h-5.4z', true)
-    + PART('M5.4 16.6a2.1 2.1 0 1 1 0 4.2 2.1 2.1 0 0 1 0-4.2zm11 0a2.1 2.1 0 1 1 0 4.2 2.1 2.1 0 0 1 0-4.2z'),
+  truck_straight: PART('M0.6 16.4V13.2l.8-1.2h3.2l1.1-3.6h2.4v8z')
+    + PART('M8.1 6.4H22v10H8.1z')
+    + PART('M0.6 16.4H22v.9H0.6z', true)
+    + PART('M3 16.8a1.6 1.6 0 1 1 0 3.2 1.6 1.6 0 0 1 0-3.2zm15 0a1.6 1.6 0 1 1 0 3.2 1.6 1.6 0 0 1 0-3.2z'),
 
-  // 48 ft trailer: the box carries on over the tractor, so the underside is open in the
-  // middle, and there is one axle under the back.
-  trailer_48: PART('M1.6 5.2h13.2v8.8H1.6z')
-    + PART('M13.2 8.4h2.4l2.8 3.2V14h-5.2z', true)
-    + PART('M5 14.2a2.1 2.1 0 1 1 0 4.2 2.1 2.1 0 0 1 0-4.2zm11 0a2.1 2.1 0 1 1 0 4.2 2.1 2.1 0 0 1 0-4.2z'),
+  // 48 ft trailer: a tractor with a trailer over it, so the underside is open between the
+  // drives and the back, and there is one axle under the back rather than a tandem.
+  trailer_48: PART('M0.6 16.4V13.2l.8-1.2h3.2l1.1-3.6h2.4v8z')
+    + PART('M8.6 5.8H22v9.2H8.6z')
+    + PART('M8.6 15H22v.9H8.6z', true)
+    + PART('M2.6 16.8a1.6 1.6 0 1 1 0 3.2 1.6 1.6 0 0 1 0-3.2zm4.2 0a1.6 1.6 0 1 1 0 3.2 1.6 1.6 0 0 1 0-3.2zm3.4 0a1.6 1.6 0 1 1 0 3.2 1.6 1.6 0 0 1 0-3.2zm8.8 0a1.6 1.6 0 1 1 0 3.2 1.6 1.6 0 0 1 0-3.2z'),
 
   // 53 ft trailer: longer, and a tandem under the back — a pair of wheels against a
   // single is the difference you can actually see at 22px. Length alone is not.
-  trailer_53: PART('M0.8 4.8h15V14H0.8z')
-    + PART('M14 8h2.2l2.6 3.2V14H14z', true)
-    + PART('M3.6 14.2a2.1 2.1 0 1 1 0 4.2 2.1 2.1 0 0 1 0-4.2zm4.6 0a2.1 2.1 0 1 1 0 4.2 2.1 2.1 0 0 1 0-4.2zm8.2 0a2.1 2.1 0 1 1 0 4.2 2.1 2.1 0 0 1 0-4.2z'),
+  trailer_53: PART('M0.6 16.4V13.2l.8-1.2h3.2l1.1-3.6h2.4v8z')
+    + PART('M8.6 5.4h14.8v9.6H8.6z')
+    + PART('M8.6 15h14.8v.9H8.6z', true)
+    + PART('M2.6 16.8a1.6 1.6 0 1 1 0 3.2 1.6 1.6 0 0 1 0-3.2zm4.2 0a1.6 1.6 0 1 1 0 3.2 1.6 1.6 0 0 1 0-3.2zm3.4 0a1.6 1.6 0 1 1 0 3.2 1.6 1.6 0 0 1 0-3.2zm8.2 0a1.6 1.6 0 1 1 0 3.2 1.6 1.6 0 0 1 0-3.2zm3.4 0a1.6 1.6 0 1 1 0 3.2 1.6 1.6 0 0 1 0-3.2z'),
 };
 
 // The database's truck type codes, drawn. A code with no mark of its own falls back to the

@@ -162,8 +162,15 @@ if (!errors.length) {
     'The brief\'s column count is chosen by window width rather than by whether the card has room for the text, so Larger text keeps three columns on a window that has not grown.');
   forbid(css, /\.brief__body\{[^}]*max-height/,
     'The brief\'s body is bounded rather than the card. That is what crushed it to zero height and made the Combine action unclickable.');
-  need(css, /\.brief__body\{[^}]*border-top/,
-    'The figures and the groups run together. Inside one outline they are two bands and need a rule between them.');
+  // Space, not a rule. This guard used to demand a border-top, and the owner struck the line:
+  // a horizontal rule the full width of the card, above four columns that are already ruled
+  // off from each other by their own verticals, cut one card into two boxes. The requirement
+  // it was protecting is still real — the first bullet must not read as a caption on the
+  // figure above it — so the guard now asks for the separation and refuses the line.
+  need(css, /\.brief__body\{[^}]*padding-top:\s*\d/,
+    'The figures and the groups run together. Inside one outline they are two bands and need clear air between them.');
+  forbid(css, /\.brief__body\{[^}]*border-top/,
+    'The band between the figures and the groups is drawn as a rule across the whole card. The owner struck that line: the gap separates them, and the columns carry the only rules on the card.');
 }
 
 if (errors.length) {

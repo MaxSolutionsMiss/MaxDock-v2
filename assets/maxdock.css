@@ -1184,8 +1184,15 @@ html[data-text="larger"] .frow>.field--md:not(.field-action){grid-column:span 5}
    band that grows without limit pushes the schedule off the bottom with nothing
    left to scroll — the band gives way, not the page. */
 /* The reading sits clear of the figures: run together, the first bullet read as
-   a caption on the card above it. */
-.brief__body{flex:none;border-top:1px solid var(--rule);padding-top:var(--s3)}.brief__t{font-weight:600;margin-bottom:2px}.brief__x{color:var(--ink);font-size:var(--t-base)}.brief__x b{color:var(--dock-deep)}
+   a caption on the card above it.
+
+   Space, not a rule. The separation was a border across the full width of the card,
+   and with the four columns underneath already ruled off from each other by their own
+   verticals, that horizontal cut the card into two boxes — the figures above, the
+   reading below — when it is one card. The gap does the same job the line was doing
+   and draws nothing, so it is a shade tighter than the line's padding was: the four
+   blocks sit up closer to the figures without running into them. */
+.brief__body{flex:none;padding-top:8px}.brief__t{font-weight:600;margin-bottom:2px}.brief__x{color:var(--ink);font-size:var(--t-base)}.brief__x b{color:var(--dock-deep)}
 /* The queue below the strips: the day on the left, the heat map and the watch list on
    the right. The side column was sized as one share of --kpi-cols, which tied how wide the
    heat map is to how many metric cards happen to be switched on: turning two on took it
@@ -1308,8 +1315,14 @@ html[data-text="larger"] .frow>.field--md:not(.field-action){grid-column:span 5}
    somebody who cannot tell the amber from the green.
    Sized above the block's own text, because these are meant to be caught from across a room
    rather than read — the ⧉ character they replace was whatever the font gave at 11px. */
-.tlb__f{float:right;display:inline-grid;place-items:center;margin:0 0 2px var(--s1);color:var(--ink)}
-.tlb__f svg{width:17px;height:17px;fill:currentColor}
+/* The marks are their own row above the reference, hard against the left edge.
+   They used to float right, which put them at the far end of whatever line the text
+   happened to start on — a different place on every block, and on a narrow block
+   sitting on top of the reference itself. A row of their own, left aligned, means the
+   eye finds them in the same corner on every block on the board. */
+.tlb__fs{display:flex;justify-content:flex-start;align-items:center;gap:var(--s1);margin-bottom:2px}
+.tlb__f{display:inline-grid;place-items:center;color:var(--ink)}
+.tlb__f svg{width:18px;height:18px;fill:currentColor;display:block}
 /* A bordered section is a bigger break than one field row after another, so it
    gets more air above it than the form's own rhythm — the boxes were reading as
    attached to the field directly above them. */

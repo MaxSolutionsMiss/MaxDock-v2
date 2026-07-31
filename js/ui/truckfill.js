@@ -47,34 +47,46 @@ function band(percent) {
 //
 // `box` is the cargo body, and the fill is measured against its inside: that is what a load
 // goes into. Everything else is furniture.
+//
+// The tractors are conventionals, drawn from the silhouette the owner supplied: a bumper, a
+// long sloped hood, then the cab set back behind it, with the stack up the back of the cab on
+// the two that pull trailers. The earlier cab was a cab-over — a plain wedge sitting straight
+// over the front axle — which is a European truck and not what runs into these docks. The nose
+// costs about forty units of the two hundred, so the trailer is shorter than it was; that is
+// the right trade, because the nose is what makes the drawing read as a truck at 76px on a
+// report card, where before it read as a box with a wedge on it.
 const RIGS = {
   trailer_53: {
-    box: { x: 46, y: 6, w: 150, h: 42 },
-    cab: 'M10 44V28l9-10h18v26z', glass: { x: 21, y: 22, w: 13, h: 9 },
-    hitch: [37, 46], wheels: [20, 148, 168], ground: [0, 200],
+    box: { x: 62, y: 4, w: 134, h: 38 },
+    cab: 'M4 42V30l4-4h22l6-13h18v29z', glass: 'M38 15.5h13V25H34z',
+    stack: { x: 55, y: 7, w: 3.5, h: 20 },
+    gear: 100, wheels: [20, 58, 72, 160, 174], ground: [62, 196],
   },
+  // Shorter box, and one axle under the back where the 53 runs a tandem.
   trailer_48: {
-    box: { x: 52, y: 8, w: 138, h: 40 },
-    cab: 'M16 44V29l9-10h18v25z', glass: { x: 27, y: 23, w: 13, h: 8 },
-    hitch: [43, 52], wheels: [26, 160], ground: [6, 196],
+    box: { x: 62, y: 6, w: 122, h: 36 },
+    cab: 'M8 42V31l4-4h20l6-13h17v28z', glass: 'M41 16.5h12V26H37z',
+    stack: { x: 55, y: 9, w: 3.5, h: 18 },
+    gear: 98, wheels: [23, 57, 71, 158], ground: [62, 184],
   },
-  // Body and cab on one frame, wheels close under it. No hitch: nothing is being towed.
+  // Body and cab on one frame, wheels close under it. No landing gear and no stack: nothing
+  // is being towed, and the unbroken rail from nose to tail is the tell.
   straight_truck_26: {
-    box: { x: 34, y: 10, w: 128, h: 38 },
-    cab: 'M14 44V28l8-9h12v25z', glass: { x: 23, y: 22, w: 10, h: 8 },
-    hitch: null, wheels: [28, 140], ground: [10, 176],
+    box: { x: 52, y: 8, w: 122, h: 34 },
+    cab: 'M8 42V31l4-4h18l5-12h17v27z', glass: 'M39 17.5h11V26H35z',
+    stack: null, gear: null, wheels: [24, 146], ground: [14, 174],
   },
   // A tall box sitting straight on the cab, no gap between them.
   cube_van: {
-    box: { x: 48, y: 8, w: 106, h: 40 },
-    cab: 'M22 44V27l9-9h17v26z', glass: { x: 32, y: 21, w: 11, h: 8 },
-    hitch: null, wheels: [36, 138], ground: [16, 168],
+    box: { x: 46, y: 8, w: 102, h: 34 },
+    cab: 'M12 42V32l4-4h13l4-10h13v24z', glass: 'M35 20.5h9V28H31z',
+    stack: null, gear: null, wheels: [28, 128], ground: [16, 148],
   },
   // One low body, nose and box in a piece, the smallest silhouette in the set.
   courier_van: {
-    box: { x: 56, y: 16, w: 86, h: 32 },
-    cab: 'M30 44V30l10-8h18v22z', glass: { x: 39, y: 24, w: 11, h: 7 },
-    hitch: null, wheels: [44, 126], ground: [24, 156],
+    box: { x: 52, y: 16, w: 84, h: 26 },
+    cab: 'M20 42V33l5-5h12l3-7h12v21z', glass: 'M41 22.5h8V28H37z',
+    stack: null, gear: null, wheels: [34, 118], ground: [22, 136],
   },
 };
 const rigFor = code => RIGS[code] || RIGS.trailer_53;
@@ -155,9 +167,10 @@ function outline(percent, key, rig = RIGS.trailer_53, reading = null) {
     <rect class="truck__well" x="${inside.x}" y="${inside.y}" width="${inside.w}" height="${inside.h}" rx="1"></rect>
     <rect class="truck__load truck__load--${key}" x="${inside.x}" y="${inside.y}" width="${fill.toFixed(1)}" height="${inside.h}" rx="1"></rect>
     <rect class="truck__box" x="${box.x}" y="${box.y}" width="${box.w}" height="${box.h}" rx="2"></rect>
-    ${rig.hitch ? `<line class="truck__hitch" x1="${rig.hitch[0]}" y1="42" x2="${rig.hitch[1]}" y2="42"></line>` : ''}
+    ${rig.stack ? `<rect class="truck__cabin" x="${rig.stack.x}" y="${rig.stack.y}" width="${rig.stack.w}" height="${rig.stack.h}" rx="1"></rect>` : ''}
     <path class="truck__cabin" d="${rig.cab}"></path>
-    <rect class="truck__glass" x="${rig.glass.x}" y="${rig.glass.y}" width="${rig.glass.w}" height="${rig.glass.h}" rx="1"></rect>
+    <path class="truck__glass" d="${rig.glass}"></path>
+    ${rig.gear ? `<line class="truck__hitch" x1="${rig.gear}" y1="44" x2="${rig.gear}" y2="50"></line>` : ''}
     <line class="truck__ground" x1="${rig.ground[0]}" y1="44" x2="${rig.ground[1]}" y2="44"></line>
     ${rig.wheels.map(cx => `<circle class="truck__wheel" cx="${cx}" cy="48" r="5.5"></circle>`).join('')}
     ${pctLabel(box, `tf${++seq}`, fill, reading)}

@@ -153,14 +153,23 @@ export function watchTimelineFit(getRoot) {
 // priority and blocked, and a fifth and sixth hue would be read as two more kinds of load. Black
 // on any wash is unmistakably a mark about the load rather than a category of it — and it means
 // the priority flag still reads for somebody who cannot see the amber.
+// Both are drawn as outlines rather than solids, which is what they were before a
+// well-meant pass filled them in. Two solid squares at 18px on a coloured wash is a blob
+// with a notch; two hollow squares are unmistakably one panel behind another, which is the
+// whole idea the mark carries. The back panel is a bracket rather than a full square so it
+// stops where the front panel starts — a complete square behind a hollow one shows its own
+// edges through the hole and reads as a grid.
 const FLAG = {
   combined: {
     label: 'More than one load on this truck',
-    svg: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3.5h11.5V15H9z" opacity=".45"/><path d="M3.5 9h11.5v11.5H3.5z"/></svg>',
+    svg: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3h13v5h-2V5H5v11h3v2H3z"/><path fill-rule="evenodd" d="M8 8h13v13H8zm2 2v9h9v-9z"/></svg>',
   },
+  // A caution plate: a square with the bang knocked out of it. The old one was an up
+  // arrow, which on a schedule reads as "earlier" or "move up" rather than "this one first".
+  // An exclamation in a plate is the sign this trade already uses for it.
   priority: {
     label: 'Priority load',
-    svg: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 2.4 8 8.4h-4.6v10.8H8.6V10.8H4z"/></svg>',
+    svg: '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill-rule="evenodd" d="M4.6 3h14.8A1.6 1.6 0 0 1 21 4.6v14.8a1.6 1.6 0 0 1-1.6 1.6H4.6A1.6 1.6 0 0 1 3 19.4V4.6A1.6 1.6 0 0 1 4.6 3zm6.2 3.6v7.6h2.4V6.6zm0 9.4v2.4h2.4V16z"/></svg>',
   },
 };
 
@@ -227,9 +236,15 @@ export function renderTimeline({ lanes, blocks, windowStart, windowEnd, granular
         // percentage-sized box pushes it past its row, which is how appointment
         // details were being cut off at the bottom of a lane.
         const geometry = `left:calc(${left}% + 1px);width:calc(${width}% - 2px);top:calc(${block.row * height}% + 2px);height:calc(${height}% - 4px)`;
+        // One row for the marks, and it only exists when there is a mark to put in it —
+        // an empty flex row would still take its margin and push every unflagged block's
+        // text down by two pixels against its flagged neighbour.
+        const flags = (block.flags || [])
+          .map(flag => FLAG[flag] ? `<span class="tlb__f" role="img" aria-label="${escapeHtml(FLAG[flag].label)}" title="${escapeHtml(FLAG[flag].label)}">${FLAG[flag].svg}</span>` : '')
+          .join('');
         return `<article class="tlb ${block.tone}" style="${geometry}"
           ${block.attrs || ''} title="${escapeHtml((block.lines || []).filter(Boolean).join(' · '))}">
-          ${(block.flags || []).map(flag => FLAG[flag] ? `<span class="tlb__f" role="img" aria-label="${escapeHtml(FLAG[flag].label)}" title="${escapeHtml(FLAG[flag].label)}">${FLAG[flag].svg}</span>` : '').join('')}
+          ${flags ? `<span class="tlb__fs">${flags}</span>` : ''}
           ${(block.lines || []).filter(Boolean).map((line, index) => `<span class="tlb__l${index === 0 ? ' tlb__l--key' : ''}">${escapeHtml(line)}</span>`).join('')}
         </article>`;
       }).join('')
