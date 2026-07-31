@@ -41,6 +41,14 @@ export const format = Object.freeze({
     return `${values.year}-${values.month}-${values.day}`;
   },
 
+  // Minutes since midnight at the site, which is what the board's timeline is measured in.
+  // Derived from inputTime rather than from getHours so it follows the site's timezone: a
+  // coordinator in Ontario looking at Langley must see Langley's "now", not their own.
+  minutesOfDay(value, location) {
+    const [hours, minutes] = this.inputTime(value, location).split(':').map(Number);
+    return (Number.isFinite(hours) ? hours : 0) * 60 + (Number.isFinite(minutes) ? minutes : 0);
+  },
+
   inputTime(value, location) {
     const parts = new Intl.DateTimeFormat('en-CA', {
       hour: '2-digit',

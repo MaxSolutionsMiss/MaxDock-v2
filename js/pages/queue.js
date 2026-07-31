@@ -102,7 +102,7 @@ async function fetchQueueData() {
     // a list of appointments into "you need six people and there are two trucks
     // going to the same place".
     db.select('location_truck_types', q => q.select('truck_type_code,skid_capacity').eq('location_id', locationId), { key: `queue:truck-capacity:${locationId}`, cache: 60000 }).catch(() => []),
-    db.select('location_settings', q => q.select('handlers_per_truck,max_concurrent_appointments').eq('location_id', locationId).maybeSingle(), { key: `queue:labour:${locationId}`, cache: 60000 }).catch(() => null),
+    db.select('location_settings', q => q.select('handlers_per_truck,max_concurrent_appointments,track_service_start,track_departure').eq('location_id', locationId).maybeSingle(), { key: `queue:labour:${locationId}`, cache: 60000 }).catch(() => null),
     // The shifts this site runs. The brief divides by the same roster the
     // Labour hours report divides by, so the two cannot disagree about what today
     // had to spend.
@@ -155,7 +155,14 @@ function visibleRecords() {
     if (state.view === 'completed') return record.status === 'completed';
     return true;
   });
-  return byTab.sort((a, b) => format.compareChronologically(a.start_at, b.start_at));
+  // Late first, then the clock. A queue sorted purely by time buries the truck that needed
+  // somebody twenty minutes ago underneath eight that are not due yet, and the whole reason
+  // to look at this screen is to find the one that is going wrong. Within each group the
+  // order is still chronological, so it never becomes a list nobody can predict.
+  return byTab.sort((a, b) => {
+    const urgency = Number(isLate(b)) - Number(isLate(a));
+    return urgency || format.compareChronologically(a.start_at, b.start_at);
+  });
 }
 
 function renderKpis() {
@@ -176,9 +183,43 @@ function dockName(dockId) {
   return state.docks.find(dock => dock.id === dockId)?.name || 'Unassigned';
 }
 
+// The next permitted step for a load, or nothing when it is somebody else's turn.
+//
+// Start and Departed appear only where the site asked for them. Both are off everywhere until
+// somebody turns them on, and with them off this returns exactly the two answers it returned
+// before any of it existed: Arrive for a load that has not turned up, Complete for one at the
+// door. That is the whole guarantee, expressed in one function rather than scattered through
+// the markup.
+function nextAction(record) {
+  const clock = state.labour || {};
+  const status = String(record.status || '');
+  if (EXPECTED_STATUSES.has(status)) {
+    return can('appointment.update') ? { to: 'arrived', label: 'Arrive' } : null;
+  }
+  if (status === 'arrived') {
+    if (clock.track_service_start === true) {
+      return can('appointment.update') ? { to: 'in_progress', label: 'Start' } : null;
+    }
+    return can('appointment.complete') ? { to: 'completed', label: 'Complete' } : null;
+  }
+  if (status === 'in_progress') {
+    return can('appointment.complete') ? { to: 'completed', label: 'Complete' } : null;
+  }
+  if (status === 'completed' && clock.track_departure === true) {
+    // Not a status. The load stays complete; this only records when the truck pulled off.
+    return can('appointment.update') ? { to: 'departed', label: 'Departed' } : null;
+  }
+  return null;
+}
+
 function renderTable() {
   const records = visibleRecords();
-  state.elements.tabSummary.textContent = `${state.records.filter(r => r.entry_kind !== 'block').length} movements · updated ${format.currentTimeLabel()}`;
+  // What is on screen against what there is. "24 movements" beside a filtered list of six is
+  // a number about a different thing than the one being looked at.
+  const total = state.records.filter(r => r.entry_kind !== 'block' && !r.merged_into_appointment_id).length;
+  state.elements.tabSummary.textContent = records.length === total
+    ? `${total} movement${total === 1 ? '' : 's'} · updated ${format.currentTimeLabel()}`
+    : `Showing ${records.length} of ${total} movements · updated ${format.currentTimeLabel()}`;
   state.elements.rows.innerHTML = records.map(record => {
     const late = isLate(record);
     const statusText = late ? 'Late' : format.role(record.status);
@@ -187,9 +228,13 @@ function renderTable() {
     // it stays "Late" for the rest of the day, keeps a dock nominally reserved,
     // and counts against every figure on the page — the status existed in the
     // database and there was no way in the application to set it.
+    // One button: the next thing this load is waiting for. Which rung that is depends on the
+    // status and on what the site has switched on, so a site running Arrived then Complete
+    // sees exactly the two it saw before, and a site recording work and departures sees four
+    // rungs across the day rather than four buttons at once.
     const actions = [];
-    if (EXPECTED_STATUSES.has(record.status) && can('appointment.update')) actions.push(`<button class="btn btn--quiet btn--sm" type="button" data-arrive="${record.id}">Arrive</button>`);
-    else if (ACTIVE_STATUSES.has(record.status) && can('appointment.complete')) actions.push(`<button class="btn btn--quiet btn--sm" type="button" data-complete="${record.id}">Complete</button>`);
+    const next = nextAction(record);
+    if (next) actions.push(`<button class="btn btn--quiet btn--sm" type="button" data-step="${record.id}" data-to="${next.to}">${escapeHtml(next.label)}</button>`);
     if (late && can('appointment.cancel')) actions.push(`<button class="btn btn--danger btn--sm" type="button" data-no-show="${record.id}" data-reference="${escapeHtml(record.booking_reference || '')}">No show</button>`);
     const action = `<div class="rowactions">${actions.join('')}</div>`;
     // The whole row opens the movement. Somebody asking "where is this one" is
@@ -731,10 +776,8 @@ function wireEvents(root) {
       for (const item of root.querySelectorAll('[data-tabs] button')) item.setAttribute('aria-pressed', String(item === tab));
       renderTable();
     }
-    const arrive = event.target.closest('[data-arrive]');
-    if (arrive) changeStatus(arrive.dataset.arrive, 'arrived');
-    const complete = event.target.closest('[data-complete]');
-    if (complete) changeStatus(complete.dataset.complete, 'completed');
+    const step = event.target.closest('[data-step]');
+    if (step) changeStatus(step.dataset.step, step.dataset.to);
     // A row click opens the movement, but not when the click was on one of the
     // row's own action buttons — those act, they do not navigate.
     const row = event.target.closest('[data-open-record]');

@@ -525,6 +525,11 @@ function renderBoard() {
     windowEnd: window.end,
     granularity: state.granularity,
     fit: state.fit,
+    // Only on today's board. The line answers "where has the day got to", and on any other
+    // date that question has no answer, so it is not drawn rather than drawn misleadingly.
+    nowMin: format.sameLocalDate(new Date(), state.date, state.context.location)
+      ? format.minutesOfDay(new Date(), state.context.location)
+      : null,
   });
   state.elements.host.innerHTML = `<div class="board__head">
       <span class="board__title">${format.longDateInput(state.date, state.context.location)}</span>

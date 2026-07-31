@@ -62,6 +62,47 @@ The migration was built so that leaving it in place is a supported end state, no
 
 ---
 
+## 3a. VR1 — the refinement pass, revertible on its own
+
+The refinement work is tracked separately from P0 and P1 so it can be dropped without touching
+either. Every VR1 commit is prefixed `VR1:` and **changes only CSS and JavaScript** — no
+migration, no RPC, no settings column, nothing in Supabase at all. That is what makes it the
+cheapest thing here to undo: it needs no SQL editor and no downtime, and dropping it cannot
+affect a single row of data.
+
+To list exactly what is in it:
+
+```bash
+git log --oneline --grep='^VR1:' 72cfb56d3705f8207d93f4c1b594a9c578bf9f8d..HEAD
+```
+
+To take all of it out and keep P0 and P1:
+
+```bash
+git revert --no-commit $(git log --format=%H --grep='^VR1:' 72cfb56d3705f8207d93f4c1b594a9c578bf9f8d..HEAD | tr '\n' ' ')
+git commit -m "Drop VR1"
+git push origin HEAD
+```
+
+Or, to take out one piece and keep the rest, revert that single commit: each VR1 commit is one
+idea, so `git revert <sha>` on any of them is a complete removal of that idea alone.
+
+What VR1 contains, and what each part touches:
+
+| Piece | Files | Reverting it means |
+|---|---|---|
+| Current-time line on the board | `js/ui/timeline.js`, `js/pages/board.js`, `js/format.js`, CSS | The board stops showing where the day has got to |
+| Queue next-action ladder | `js/pages/queue.js` | Rows go back to Arrive / Complete only, with no Start or Departed rung |
+| Urgent-first ordering | `js/pages/queue.js` | The queue returns to pure clock order |
+| "Showing X of Y" | `js/pages/queue.js` | The count goes back to the unfiltered total |
+| Chrome stability check | `scripts/verify-chrome-stability.mjs`, workflows | CI stops proving the header and rail do not move between pages |
+
+The queue ladder is the one place VR1 and P1 meet: the Start and Departed rungs read the same
+two per-location switches P1 added, so **turning those switches off also removes them**, with
+no code change at all. VR1 and Layer 3 both cover it, and either is enough.
+
+---
+
 ## 4. Layer 1 — Code
 
 All work is on `claude/maxdock-handoff-setup-h7d5nu` with a **draft** pull request that is not

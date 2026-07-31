@@ -559,6 +559,21 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 .tl[data-fit="window"] .tl__lanes{overflow-y:hidden}
 .tl[data-fit="window"] .tl__lane{flex:var(--rows,1) 1 0;min-height:0;max-height:none}
 .tl__lane:last-child{border-bottom:none}
+/* Where the day has got to. A hairline down every lane and the word in the ruler, so it does
+   not rest on colour: the board's washes already mean inbound, outbound, priority and blocked,
+   and a fifth hue would read as a fifth kind of load. Ink is unmistakably not a status.
+   It sits above the ticks and below nothing that can be clicked, and takes no pointer events
+   so a block underneath it is still one target rather than two. */
+.tl__now{position:absolute;top:0;bottom:0;width:2px;background:var(--ink);opacity:.55;z-index:2;pointer-events:none}
+/* A caret at the foot of the ruler rather than a pill on it. The pill was centred in a 26px
+   ruler, which is exactly where the hour labels are, so it sat on top of one of them and left
+   ":00" showing beside it — a defect where a refinement was intended. The caret is ten pixels
+   wide, points at the line, and obscures nothing. It carries its own label for anyone not
+   reading the shape. */
+.tl__nowlab{position:absolute;bottom:0;transform:translateX(-50%);z-index:3;pointer-events:none;
+  width:0;height:0;border-left:5px solid transparent;border-right:5px solid transparent;
+  border-top:6px solid var(--ink);opacity:.75}
+
 .tl__label{padding:6px var(--s3);border-right:1px solid var(--rule-strong);background:var(--surface-sunk);display:flex;flex-direction:column;justify-content:center;min-width:0}
 .tl__label strong{font-size:calc(var(--tl-type) * 1.05);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .tl__label small{font-size:calc(var(--tl-type) * .85);color:var(--ink-faint)}

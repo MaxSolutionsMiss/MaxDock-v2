@@ -141,7 +141,7 @@ export function watchTimelineFit(getRoot) {
 // `meta` and `note` are two separate lines on purpose. Run together they competed
 // for one narrow line and the tail — the skid count, the status — was the part
 // that got dropped, which is the part an operator is looking for.
-export function renderTimeline({ lanes, blocks, windowStart, windowEnd, granularity = 30, emptyLabel = 'Open', fit = 'window' }) {
+export function renderTimeline({ lanes, blocks, windowStart, windowEnd, granularity = 30, emptyLabel = 'Open', fit = 'window', nowMin = null }) {
   const span = Math.max(60, windowEnd - windowStart);
   const step = labelEvery(span, granularity);
   const tickCount = Math.ceil(span / granularity);
@@ -158,6 +158,21 @@ export function renderTimeline({ lanes, blocks, windowStart, windowEnd, granular
     const cls = `tl__tick${major ? ' tl__tick--major' : ''}`;
     laneTicks.push(`<span class="${cls}" style="left:${left}%"></span>`);
     if (major) scaleTicks.push(`<span class="tl__tick tl__tick--major" style="left:${left}%">${clockLabel(minute)}</span>`);
+  }
+
+  // Where the day has actually got to. Only drawn when the board is showing today and the
+  // moment falls inside the window it is showing — on tomorrow's board, or at seven in the
+  // evening on a board that closes at five, a "now" line would be a line pointing at nothing.
+  //
+  // It is deliberately not a status colour. The board's washes already carry inbound,
+  // outbound, priority and blocked, and a fifth hue competing with them would be read as a
+  // fifth kind of load. Ink is unmistakably not a status, and the ruler carries the word as
+  // well as the mark, so the line does not rest on colour alone.
+  const showNow = Number.isFinite(nowMin) && nowMin > windowStart && nowMin < windowEnd;
+  const nowLeft = showNow ? ((nowMin - windowStart) / span) * 100 : 0;
+  if (showNow) {
+    laneTicks.push(`<span class="tl__now" style="left:${nowLeft}%" aria-hidden="true"></span>`);
+    scaleTicks.push(`<span class="tl__nowlab" style="left:${nowLeft}%" role="img" aria-label="Current time"></span>`);
   }
 
   const laneMarkup = lanes.map(lane => {
