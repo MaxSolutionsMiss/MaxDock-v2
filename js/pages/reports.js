@@ -547,7 +547,7 @@ function renderSkidMovement() {
     <div class="panel">
       <div class="panel__head"><h3 class="panel__title">How the skids moved</h3><div class="panel__actions">${formSwitch('skid-read', [{ id: 'dial', label: 'Dials' }, { id: 'shape', label: 'Fill' }])}<span class="sub">${escapeHtml(siteRange())}</span></div></div>
       <div class="panel__body">${readings('skid-read', [
-        { percent: capacity ? (carried / capacity) * 100 : null, label: 'Trailer space used', note: 'skids carried against what those trailers hold', good: 'high', shape: 'skid' },
+        { percent: capacity ? (carried / capacity) * 100 : null, label: 'Trailer space used', note: 'skids carried against what those trailers hold', good: 'high', shape: 'truck' },
         { percent: total && moved.length ? (heaviest / (total / moved.length)) * 100 : null, label: 'Heaviest day against an even one', note: `${compact(heaviest)} skids on the busiest of ${moved.length} day${moved.length === 1 ? '' : 's'}`, good: 'none', shape: 'day' },
       ])}
         <p class="hint">Trailer space used is the room that was paid for and filled. The second reading is the busiest day measured against what an even day of this range would be, so 100% is perfectly level and 200% is a day carrying twice its share. Measured that way because a share out of the whole range makes every well-run month look empty: thirty level days are 3% each, and 3% drawn against 100 says nothing.</p></div>

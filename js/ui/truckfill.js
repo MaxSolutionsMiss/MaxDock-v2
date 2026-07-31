@@ -40,53 +40,58 @@ function band(percent) {
 // is for. A courier van and a tandem trailer are not the same shape, and the shape is the
 // thing the eye reads before the caption.
 //
-// They share a baseline: the ground is at y=44 and every wheel sits on it, so the row compares
-// as a row. What differs is the length and height of the body, whether the body is one piece
-// with the cab or a trailer over a tractor, and how many wheels are under the back — the same
-// three tells the marks use, at the size a report can afford to draw them.
+// Traced off the reference silhouette the owner supplied rather than sketched, because two
+// sketched attempts came back "childish" and they were right both times. What was wrong was
+// never the idea, it was the proportions and the weight:
+//
+//   * The frame is 200 x 72, not 200 x 58. The supplied truck is 2.8 wide to 1 tall. Forcing
+//     it into a 3.4:1 frame is what squashed the tractor into a stub with a notch on it.
+//   * The tractor is a quarter of the length. It was an eighth, which is why it read as a
+//     wedge glued to the front of a box rather than as the thing pulling it.
+//   * The tractor is a solid silhouette. It was a white shape with a thin outline, which
+//     against the trailer's outline made it look like a hole in the drawing. The reference is
+//     solid, the window is the only white in it, and that is what gives it any weight at all.
+//   * The nose is long, the windshield is steep and the roof is well below the trailer roof.
+//     That set of three is what says "conventional tractor" instead of "van".
+//
+// Every rig shares the ground at y=70, wheels of r=8 and the same cab, so a row of five
+// compares as a row: what differs is body length and height, axle count, and whether the body
+// is one piece with the cab or a trailer over a tractor.
 //
 // `box` is the cargo body, and the fill is measured against its inside: that is what a load
 // goes into. Everything else is furniture.
-//
-// The tractors are conventionals, drawn from the silhouette the owner supplied: a bumper, a
-// long sloped hood, then the cab set back behind it, with the stack up the back of the cab on
-// the two that pull trailers. The earlier cab was a cab-over — a plain wedge sitting straight
-// over the front axle — which is a European truck and not what runs into these docks. The nose
-// costs about forty units of the two hundred, so the trailer is shorter than it was; that is
-// the right trade, because the nose is what makes the drawing read as a truck at 76px on a
-// report card, where before it read as a box with a wedge on it.
 const RIGS = {
   trailer_53: {
-    box: { x: 62, y: 4, w: 134, h: 38 },
-    cab: 'M4 42V30l4-4h22l6-13h18v29z', glass: 'M38 15.5h13V25H34z',
-    stack: { x: 55, y: 7, w: 3.5, h: 20 },
-    gear: 100, wheels: [20, 58, 72, 160, 174], ground: [62, 196],
+    box: { x: 51.4, y: 3, w: 139, h: 47 },
+    cab: 'M3 55V36l6-4.6h19.2L33.2 13.4H48V55z', glass: 'M34.9 16.4H45V28.5H31.5z',
+    stack: { x: 48.6, y: 7, w: 2.4, h: 33 },
+    gear: 100, tail: 189, wheels: [21, 68, 85.5, 149, 166.5], rail: [51.4, 190.4], span: [3, 190.4],
   },
   // Shorter box, and one axle under the back where the 53 runs a tandem.
   trailer_48: {
-    box: { x: 62, y: 6, w: 122, h: 36 },
-    cab: 'M8 42V31l4-4h20l6-13h17v28z', glass: 'M41 16.5h12V26H37z',
-    stack: { x: 55, y: 9, w: 3.5, h: 18 },
-    gear: 98, wheels: [23, 57, 71, 158], ground: [62, 184],
+    box: { x: 51.4, y: 5, w: 125, h: 45 },
+    cab: 'M3 55V36l6-4.6h19.2L33.2 13.4H48V55z', glass: 'M34.9 16.4H45V28.5H31.5z',
+    stack: { x: 48.6, y: 7, w: 2.4, h: 33 },
+    gear: 98, tail: 175, wheels: [21, 68, 85.5, 152], rail: [51.4, 176.4], span: [3, 176.4],
   },
   // Body and cab on one frame, wheels close under it. No landing gear and no stack: nothing
   // is being towed, and the unbroken rail from nose to tail is the tell.
   straight_truck_26: {
-    box: { x: 52, y: 8, w: 122, h: 34 },
-    cab: 'M8 42V31l4-4h18l5-12h17v27z', glass: 'M39 17.5h11V26H35z',
-    stack: null, gear: null, wheels: [24, 146], ground: [14, 174],
+    box: { x: 44, y: 8, w: 126, h: 42 },
+    cab: 'M3 55V38l6-4.4h17L31 17.5h13V55z', glass: 'M32.6 20.5H41V31H29.3z',
+    stack: null, gear: null, tail: null, wheels: [21, 148], rail: [3, 170], span: [3, 170],
   },
   // A tall box sitting straight on the cab, no gap between them.
   cube_van: {
-    box: { x: 46, y: 8, w: 102, h: 34 },
-    cab: 'M12 42V32l4-4h13l4-10h13v24z', glass: 'M35 20.5h9V28H31z',
-    stack: null, gear: null, wheels: [28, 128], ground: [16, 148],
+    box: { x: 41, y: 8, w: 110, h: 42 },
+    cab: 'M6 55V40l5.4-4h14.4L30 22h11v33z', glass: 'M31.6 25H38V33.5H29.1z',
+    stack: null, gear: null, tail: null, wheels: [22, 132], rail: [6, 151], span: [6, 151],
   },
   // One low body, nose and box in a piece, the smallest silhouette in the set.
   courier_van: {
-    box: { x: 52, y: 16, w: 84, h: 26 },
-    cab: 'M20 42V33l5-5h12l3-7h12v21z', glass: 'M41 22.5h8V28H37z',
-    stack: null, gear: null, wheels: [34, 118], ground: [22, 136],
+    box: { x: 39, y: 20, w: 92, h: 30 },
+    cab: 'M8 55V42l5-3.6h12.6L29 27h10v28z', glass: 'M30.3 30H36.5V36.5H28.4z',
+    stack: null, gear: null, tail: null, wheels: [22, 114], rail: [8, 131], span: [8, 131],
   },
 };
 const rigFor = code => RIGS[code] || RIGS.trailer_53;
@@ -163,16 +168,27 @@ function outline(percent, key, rig = RIGS.trailer_53, reading = null) {
   // Painting order is the whole trick. The empty trailer goes down first, then the load on
   // top of it, and the outline last with no fill of its own: an outline carrying a fill and
   // drawn after the load simply paints the load out, which is what the first version did.
-  return `<svg class="truck__svg" viewBox="0 0 200 58" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+  // Centred in the frame, not left-aligned against it. Every rig is drawn at the same scale in
+  // the same 200-wide box, so a courier van — which really is shorter than a 53 ft — was left
+  // sitting against the left edge with forty units of nothing after it, under a caption that
+  // centres. The figure looked smaller and misaligned rather than shorter. Shifting each rig to
+  // the middle of its own frame puts every drawing under its own label while leaving the scale
+  // shared, so the row still compares.
+  const [from, to] = rig.span;
+  const dx = ((200 - (to - from)) / 2 - from).toFixed(1);
+  return `<svg class="truck__svg" viewBox="0 0 200 72" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+    <g transform="translate(${dx} 0)">
     <rect class="truck__well" x="${inside.x}" y="${inside.y}" width="${inside.w}" height="${inside.h}" rx="1"></rect>
     <rect class="truck__load truck__load--${key}" x="${inside.x}" y="${inside.y}" width="${fill.toFixed(1)}" height="${inside.h}" rx="1"></rect>
     <rect class="truck__box" x="${box.x}" y="${box.y}" width="${box.w}" height="${box.h}" rx="2"></rect>
     ${rig.stack ? `<rect class="truck__cabin" x="${rig.stack.x}" y="${rig.stack.y}" width="${rig.stack.w}" height="${rig.stack.h}" rx="1"></rect>` : ''}
     <path class="truck__cabin" d="${rig.cab}"></path>
     <path class="truck__glass" d="${rig.glass}"></path>
-    ${rig.gear ? `<line class="truck__hitch" x1="${rig.gear}" y1="44" x2="${rig.gear}" y2="50"></line>` : ''}
-    <line class="truck__ground" x1="${rig.ground[0]}" y1="44" x2="${rig.ground[1]}" y2="44"></line>
-    ${rig.wheels.map(cx => `<circle class="truck__wheel" cx="${cx}" cy="48" r="5.5"></circle>`).join('')}
+    <line class="truck__ground" x1="${rig.rail[0]}" y1="52" x2="${rig.rail[1]}" y2="52"></line>
+    ${rig.gear ? `<line class="truck__hitch" x1="${rig.gear}" y1="52" x2="${rig.gear}" y2="63"></line>` : ''}
+    ${rig.tail ? `<line class="truck__hitch" x1="${rig.tail}" y1="52" x2="${rig.tail}" y2="62"></line>` : ''}
+    ${rig.wheels.map(cx => `<circle class="truck__wheel" cx="${cx}" cy="62" r="8"></circle>`).join('')}
     ${pctLabel(box, `tf${++seq}`, fill, reading)}
+    </g>
   </svg>`;
 }

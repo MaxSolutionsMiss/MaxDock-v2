@@ -1774,11 +1774,16 @@ body.modal-open{overflow:hidden}
 /* The same drawing standing up: a reading filling the outline of what it measures.
    Everything else about it — well, level, outline, caption — is the trailer's. */
 .truck--fig .truck__svg{width:76px}
+/* The tractor is solid and the trailer is an outline, which is not a style choice: the
+   trailer has to stay hollow because the load is drawn inside it, and a hollow tractor beside
+   a hollow trailer read as a hole in the drawing rather than as a truck. Solid is also what
+   the reference silhouette is. The window is the only white in the tractor, which is what
+   stops the cab being a black lump. */
 .truck__box{fill:none;stroke:var(--ink-muted);stroke-width:1.6}
-.truck__cabin{fill:var(--surface);stroke:var(--ink-muted);stroke-width:1.6}
-.truck__glass{fill:var(--chart-track);stroke:var(--ink-muted);stroke-width:1}
+.truck__cabin{fill:var(--ink-muted);stroke:none}
+.truck__glass{fill:var(--surface);stroke:none}
 .truck__wheel{fill:var(--ink-muted);stroke:none}
-.truck__ground,.truck__hitch{stroke:var(--rule-strong);stroke-width:1.4}
+.truck__ground,.truck__hitch{stroke:var(--ink-muted);stroke-width:2;stroke-linecap:round}
 .truck__well{fill:var(--chart-track)}
 /* Three bands. Blue is a truck with room, green is one worth sending, red will not go on.
    The amber "mostly empty" step this replaces read as a warning about a lightly loaded truck,
