@@ -517,6 +517,9 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
    the same centre line as the Timeline control instead of crowding it. */
 .board__head{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;gap:var(--s2) var(--s3);padding:var(--s2) var(--s4);border-bottom:1px solid var(--rule);flex:none;min-height:calc(var(--ctl-h) + var(--s4))}
 .board__title{font-weight:600;font-size:var(--t-lead);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* Title and stamp in one cell, so the head stays the three columns it has always been and
+   the legend and timeline controls do not move. */
+.board__lead{display:flex;align-items:baseline;gap:var(--s3);min-width:0}
 .board__legend{display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:var(--s1) var(--s3);font-size:var(--t-small);color:var(--ink-muted)}
 /* Both view controls sit together at the right of the band, so the head is one
    title, one legend, one group of controls rather than three things wrapping. */

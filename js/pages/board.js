@@ -532,7 +532,17 @@ function renderBoard() {
       : null,
   });
   state.elements.host.innerHTML = `<div class="board__head">
-      <span class="board__title">${format.longDateInput(state.date, state.context.location)}</span>
+      <!-- Title and refresh stamp share the first grid column. The head is three columns and
+           a fourth child would push the legend and the timeline controls out of the places
+           they hold on every other board, so the stamp goes inside the cell rather than
+           beside it.
+           The board repaints every five seconds; without a stamp there is no way to tell a
+           quiet morning from a page that stopped talking to the server twenty minutes ago,
+           and the two look identical. -->
+      <div class="board__lead">
+        <span class="board__title">${format.longDateInput(state.date, state.context.location)}</span>
+        <span class="page-updated" data-board-updated>updated ${escapeHtml(format.currentTimeLabel())}</span>
+      </div>
       <div class="board__legend"><span class="lg" style="--c:var(--dock)">Inbound</span><span class="lg" style="--c:var(--ok)">Outbound</span><span class="lg" style="--c:var(--signal)">Priority</span><span class="lg" style="--c:var(--rule-strong)">Blocked</span></div>
       <div class="board__gran">
         <label class="ctrl-field ctrl-field--inline"><span>Timeline</span><select class="select" data-granularity>${GRANULARITIES.map(option => `<option value="${option.minutes}" ${state.granularity === option.minutes ? 'selected' : ''}>${option.label}</option>`).join('')}</select></label>
