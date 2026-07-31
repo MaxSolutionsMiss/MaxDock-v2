@@ -659,6 +659,132 @@ using (
 );
 ```
 
+### 5b-iv. The System Admin role, and the master admin
+
+Until now the role editor refused to touch `system_admin` at all — both save functions raised
+rather than write. The reasoning was sound and the remedy was too blunt: a company that took
+Manage Users off the only role that can put it back would have no way into MaxDock, so nothing
+could be changed. The owner wants the role editable, and the lockout guarantee kept.
+
+What replaces the blanket refusal:
+
+| | |
+|---|---|
+| Editable | every permission on `system_admin` except the two below, and every page except Users |
+| Pinned | `user.view` and `user.manage` — between them these are the way back in |
+| Pinned page | Users, which cannot be hidden from the rail for this role |
+| Master admin | one account, flagged on `profiles.is_master_admin`, that cannot be demoted, deactivated or deleted |
+
+`user.view` opens the Users screen and `user.manage` changes what is on it. Keep those two and a
+System Admin can always walk back any other mistake through the interface. That is a much smaller
+restriction than "nothing may change", and it is the whole of what the old guard was protecting.
+
+The master admin is the second belt. The permissions above stop the *role* being stranded; the
+master flag stops the last *person* being removed from it — a company with an editable role and
+no System Admin left is locked out just as thoroughly.
+
+| Migration | `master_admin_and_editable_system_admin` |
+|---|---|
+| Adds | `profiles.is_master_admin` boolean, nullable, default false |
+| Changes | `save_role_permissions`, `save_role_page_visibility` — the `system_admin` refusal becomes a pinned-set check |
+| Grants | nothing. No new permission, no new role |
+
+| Function | MD5 of the definition | Characters |
+|---|---|---|
+| `save_role_permissions` | `0a111f654a458f01b4f655aecbda26f6` | 1604 |
+| `save_role_page_visibility` | `9733737e45d1ba27cc4f127568605d03` | 1336 |
+
+```sql
+CREATE OR REPLACE FUNCTION public.save_role_permissions(p_role_code text, p_permission_codes text[])
+ RETURNS integer
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+declare
+  v_codes text[] := coalesce(p_permission_codes, '{}'::text[]);
+  v_unknown text;
+begin
+  if auth.uid() is null then raise exception 'You must be signed in to change role access.'; end if;
+  if not public.is_system_admin() then
+    raise exception 'Only a System Admin can change what a role may do.';
+  end if;
+  if p_role_code = 'system_admin' then
+    raise exception 'A System Admin holds every permission. That cannot be changed, or a company could lock itself out of MaxDock.';
+  end if;
+  if not exists (select 1 from public.roles r where r.code = p_role_code) then
+    raise exception 'There is no role called %.', p_role_code;
+  end if;
+
+  -- A permission that does not exist would sit in the table doing nothing and read on
+  -- screen as though it granted something.
+  select string_agg(code, ', ') into v_unknown
+    from unnest(v_codes) as code
+   where code not in (select p.code from public.permissions p);
+  if v_unknown is not null then
+    raise exception 'MaxDock has no permission called %.', v_unknown;
+  end if;
+
+  delete from public.role_permissions rp
+   where rp.role_code = p_role_code
+     and not (rp.permission_code = any(v_codes));
+
+  insert into public.role_permissions (role_code, permission_code)
+  select p_role_code, code from unnest(v_codes) as code
+  on conflict (role_code, permission_code) do nothing;
+
+  return coalesce(array_length(v_codes, 1), 0);
+end;
+$function$
+```
+
+```sql
+CREATE OR REPLACE FUNCTION public.save_role_page_visibility(p_role_code text, p_hidden_page_codes text[])
+ RETURNS integer
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+declare v_hidden text[] := coalesce(p_hidden_page_codes, '{}'::text[]);
+begin
+  if auth.uid() is null then raise exception 'You must be signed in to change MaxDock navigation.'; end if;
+  if not public.is_system_admin() then
+    raise exception 'Only a System Admin can change what a role sees.';
+  end if;
+  if p_role_code = 'system_admin' then
+    raise exception 'A System Admin sees every screen. That cannot be changed, or a company could lock itself out of Settings.';
+  end if;
+  if not exists (select 1 from public.roles r where r.code = p_role_code) then
+    raise exception 'There is no role called %.', p_role_code;
+  end if;
+
+  delete from public.role_visible_pages v
+   where v.role_code = p_role_code
+     and not (v.page_code = any(v_hidden));
+
+  insert into public.role_visible_pages (role_code, page_code, is_visible, updated_by)
+  select p_role_code, code, false, auth.uid()
+    from unnest(v_hidden) as code
+   where code is not null and code <> ''
+  on conflict (role_code, page_code)
+    do update set is_visible = false, updated_by = auth.uid(), updated_at = now();
+
+  return array_length(v_hidden, 1);
+end;
+$function$
+```
+
+**Reversing it.** Run both blocks above to put the refusal back, then, if you also want the column
+gone:
+
+```sql
+alter table public.profiles drop column if exists is_master_admin;
+```
+
+Dropping the column loses only which account was marked master. It is one boolean and no other
+table refers to it. **Restore the two functions before dropping the column**, or the running
+functions will reference a column that is gone.
+
 ### 5c. Functions that were NOT changed
 
 Recorded so a future reader does not go looking. These were examined and deliberately left alone:

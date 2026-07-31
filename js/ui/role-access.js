@@ -21,8 +21,11 @@ import { RAIL_PAGES, railPageAllowedByPermissions } from '../router.js';
 // permission takes its screen with it on the spot. That is the honest order of the
 // two ideas, and it stops the pair being set to something that cannot be true.
 //
-// A System Admin is read-only here. A company that took `user.manage` away from the
-// only role that can put it back would have no way in, and the database refuses it.
+// A System Admin used to be read-only here, on the reasoning that a company which took
+// `user.manage` away from the only role that can put it back would have no way in. That is
+// true, and refusing every change was too broad a remedy for it. The role is editable now
+// except for the two permissions and the one screen that are the way back in, and the master
+// administrator cannot be demoted, deactivated or deleted, so somebody always holds it.
 
 const escapeHtml = value => String(value ?? '').replace(/[&<>'"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[char]));
 
@@ -48,6 +51,18 @@ function grouped(catalogue) {
   return rest.length ? [...groups, { title: 'Other', items: rest }] : groups;
 }
 
+// What a System Admin may not give away. Between them these two are the way back in: View Users
+// opens the screen this dialog lives on, and Manage Users is what changes anything on it. Keep
+// them and any other mistake made here can be undone from inside MaxDock; lose them and the only
+// role that can put them back cannot reach the page that would.
+//
+// The same two names are checked in save_role_permissions, and the Users page in
+// save_role_page_visibility and in a check constraint on role_visible_pages. This copy is the
+// courtesy — it draws the tick as fixed instead of letting somebody untick it and be refused on
+// save. It is not the enforcement, and it is not where the rule lives.
+const PINNED_PERMISSIONS = new Set(['user.view', 'user.manage']);
+const PINNED_PAGES = new Set(['users']);
+
 export function createRoleAccessDialog({ onSaved } = {}) {
   const backdrop = document.createElement('div');
   backdrop.className = 'scrim';
@@ -61,7 +76,7 @@ export function createRoleAccessDialog({ onSaved } = {}) {
       </div>
       <form data-role-form>
         <div class="modal__body">
-          <p class="form-message" data-role-locked hidden></p>
+          <p class="form-message form-message--note" data-role-locked hidden></p>
           <div data-role-body></div>
           <p class="form-message" data-role-message aria-live="polite"></p>
         </div>
@@ -87,24 +102,18 @@ export function createRoleAccessDialog({ onSaved } = {}) {
   let catalogue = [];
   let held = new Set();
   let hidden = new Set();
-  let readOnly = false;
+  let pinned = false;
   let busy = false;
 
   function renderBody() {
-    if (readOnly) {
-      els.body.innerHTML = `<div class="tablewrap"><table class="table">
-        <thead><tr><th class="col-fill">Every screen and every permission</th></tr></thead>
-        <tbody>${RAIL_PAGES.map(page => `<tr><td class="data data--strong">${escapeHtml(page.label)}</td></tr>`).join('')}</tbody>
-      </table></div>`;
-      return;
-    }
     // Screens first as a strip, because it is the short list and the one an
     // administrator usually came here to change.
     const screens = RAIL_PAGES.map(page => {
       const permitted = railPageAllowedByPermissions(held, page);
+      const heldFast = pinned && PINNED_PAGES.has(page.code);
       return `<label class="dock-check${permitted ? '' : ' is-off'}">
-        <input type="checkbox" data-role-screen="${escapeHtml(page.code)}" ${permitted && !hidden.has(page.code) ? 'checked' : ''} ${permitted ? '' : 'disabled'}>
-        <span>${escapeHtml(page.label)}</span>
+        <input type="checkbox" data-role-screen="${escapeHtml(page.code)}" ${permitted && !hidden.has(page.code) ? 'checked' : ''} ${permitted && !heldFast ? '' : 'disabled'}>
+        <span>${escapeHtml(page.label)}${heldFast ? ' <small class="pinnote">always on</small>' : ''}</span>
       </label>`;
     }).join('');
 
@@ -119,10 +128,13 @@ export function createRoleAccessDialog({ onSaved } = {}) {
       <h3 class="watch__t section-gap">What it may do</h3>
       ${grouped(catalogue).map(group => `<fieldset class="dock-checks dock-checks--roomy">
         <legend>${escapeHtml(group.title)}</legend>
-        ${group.items.map(permission => `<label class="dock-check">
-          <input type="checkbox" data-role-permission="${escapeHtml(permission.code)}" ${held.has(permission.code) ? 'checked' : ''}>
-          <span title="${escapeHtml(permission.description || permission.code)}">${escapeHtml(permission.name || permission.code)}</span>
-        </label>`).join('')}
+        ${group.items.map(permission => {
+          const fast = pinned && PINNED_PERMISSIONS.has(permission.code);
+          return `<label class="dock-check">
+          <input type="checkbox" data-role-permission="${escapeHtml(permission.code)}" ${held.has(permission.code) || fast ? 'checked' : ''} ${fast ? 'disabled' : ''}>
+          <span title="${escapeHtml(permission.description || permission.code)}">${escapeHtml(permission.name || permission.code)}${fast ? ' <small class="pinnote">always on</small>' : ''}</span>
+        </label>`;
+        }).join('')}
       </fieldset>`).join('')}
       <p class="hint hint--wide">This is the real boundary: the database asks these, so removing one closes the screen and the request behind it for everybody in this role, immediately.</p>`;
   }
@@ -153,20 +165,27 @@ export function createRoleAccessDialog({ onSaved } = {}) {
 
   els.form.addEventListener('submit', async event => {
     event.preventDefault();
-    if (readOnly || busy || !role) return;
+    if (busy || !role) return;
     busy = true;
     els.save.disabled = true;
     els.message.textContent = '';
     try {
       // Permissions first: the screens are only meaningful against them, and a
       // failure here must not leave a rail arranged for access the role does not have.
+      // The pinned codes are forced in rather than trusted to be in `held`. They always are
+      // today; if a future load ever arrived without them this would quietly ask the database
+      // to remove them, and be refused, and the message would be about a tick nobody touched.
+      const codes = new Set(held);
+      if (pinned) for (const code of PINNED_PERMISSIONS) codes.add(code);
+      const screens = new Set(hidden);
+      if (pinned) for (const page of PINNED_PAGES) screens.delete(page);
       await db.rpc('save_role_permissions', {
         p_role_code: role.code,
-        p_permission_codes: [...held],
+        p_permission_codes: [...codes],
       }, { key: `roles:permissions:${crypto.randomUUID()}`, retry: 0, userMessage: 'The role\'s permissions could not be saved.' });
       await db.rpc('save_role_page_visibility', {
         p_role_code: role.code,
-        p_hidden_page_codes: [...hidden],
+        p_hidden_page_codes: [...screens],
       }, { key: `roles:visibility:${crypto.randomUUID()}`, retry: 0, userMessage: 'What the role sees could not be saved.' });
       db.invalidate('settings:role-permissions');
       db.invalidate('settings:role-visibility');
@@ -181,7 +200,7 @@ export function createRoleAccessDialog({ onSaved } = {}) {
       els.message.textContent = error.userMessage || 'This could not be saved.';
     } finally {
       busy = false;
-      els.save.disabled = readOnly;
+      els.save.disabled = false;
     }
   });
 
@@ -190,19 +209,19 @@ export function createRoleAccessDialog({ onSaved } = {}) {
     catalogue = permissionCatalogue || [];
     held = new Set(permissions || []);
     hidden = new Set(hiddenPages || []);
-    readOnly = target.code === 'system_admin';
+    pinned = target.code === 'system_admin';
     els.title.textContent = target.name || target.code;
     els.sub.textContent = [
       `${people ?? 0} ${people === 1 ? 'person' : 'people'}`,
       'applies to every site',
     ].join(' · ');
-    els.locked.hidden = !readOnly;
-    els.locked.textContent = readOnly
-      ? 'A System Admin holds every permission and sees every screen. That cannot be changed here: a company that took Manage Users away from the only role which can put it back would have no way into MaxDock.'
+    els.locked.hidden = !pinned;
+    els.locked.textContent = pinned
+      ? 'This role can be changed like any other, with two exceptions: View Users, Manage Users and the Users screen stay on. They are the way back in if a change here goes wrong, and the only role that could undo it is this one. Separately, the master administrator cannot be demoted, deactivated or deleted, so there is always somebody holding this role.'
       : '';
     els.message.textContent = '';
-    els.save.hidden = readOnly;
-    els.save.disabled = readOnly;
+    els.save.hidden = false;
+    els.save.disabled = false;
     renderBody();
     modal.open({ trigger });
   }

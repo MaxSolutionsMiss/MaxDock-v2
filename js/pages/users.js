@@ -24,6 +24,9 @@ const state = {
   roleDialog: null,
   roles: [],
   users: [],
+  // The account that cannot be demoted, deactivated or deleted. Null until the first load, and
+  // null forever if the lookup fails, which only costs the badge.
+  masterAdminId: null,
   usage: new Map(),
   filters: { role: 'all', location: 'all', search: '' },
   selected: new Set(),
@@ -56,7 +59,7 @@ function generatePassword() {
 }
 
 async function fetchAll() {
-  const [users, usage, roles, permissions, rolePermissions, hidden] = await Promise.all([
+  const [users, usage, roles, permissions, rolePermissions, hidden, master] = await Promise.all([
     db.rpc('admin_list_users_with_identity', {}, { key: 'users:list', cache: 0 }),
     db.rpc('admin_list_user_usage', {}, { key: 'users:usage', cache: 0 }),
     // Ranked high to low, so the roles read down the screen the way authority does.
@@ -64,7 +67,12 @@ async function fetchAll() {
     db.select('permissions', q => q.select('code,name,description').order('code'), { key: 'users:permissions', cache: 300000 }).catch(() => []),
     db.select('role_permissions', q => q.select('role_code,permission_code'), { key: 'users:role-access', cache: 0 }).catch(() => []),
     db.rpc('list_role_page_visibility', {}, { key: 'users:role-visibility', cache: 0, retry: 1 }).catch(() => []),
+    // Who cannot be demoted, deactivated or deleted. Falls back to nobody rather than failing
+    // the screen: not knowing the master means the row is not marked, which is a missing badge
+    // and not a missing page. The database refuses those three things either way.
+    db.rpc('get_master_admin_id', {}, { key: 'users:master', cache: 30000, retry: 1 }).catch(() => null),
   ]);
+  state.masterAdminId = master || null;
   state.users = users || [];
   state.usage = new Map((usage || []).map(row => [row.user_id, row]));
   state.roles = roles || [];
@@ -130,7 +138,11 @@ function filteredUsers() {
 // Your own account is never selectable — admin_update_user rejects deactivating
 // yourself, so offering it would only produce a guaranteed error.
 function selectableUsers() {
-  return filteredUsers().filter(user => user.user_id !== state.context.user.id);
+  // Yourself and the master administrator are both out: every bulk action here either changes a
+  // role or deactivates, and the database refuses both for the master. Leaving the row in would
+  // make Select all tick something whose save is certain to fail.
+  return filteredUsers().filter(user => user.user_id !== state.context.user.id
+    && !(state.masterAdminId && user.user_id === state.masterAdminId));
 }
 
 function renderBulkBar() {
@@ -189,16 +201,23 @@ function renderTable() {
     const lastSeen = usage?.last_activity_at ? format.timestamp(usage.last_activity_at, state.context.location) : (user.last_sign_in_at ? format.timestamp(user.last_sign_in_at, state.context.location) : '–');
     const sites = (user.location_names || []).join(', ') || (user.role_code === 'system_admin' ? 'All' : '–');
     const isSelf = user.user_id === state.context.user.id;
+    // The master administrator is out of the bulk selection for the same reason they are out of
+    // the trigger's reach: every bulk action on this screen deactivates or changes a role, and
+    // both are refused for this row. Offering the tick and failing the save is worse than not
+    // offering it.
+    const isMaster = state.masterAdminId && user.user_id === state.masterAdminId;
     const box = isSelf
       ? '<span class="sub" title="You cannot change your own status">–</span>'
-      : `<label class="cellcheck"><input type="checkbox" data-select-user="${user.user_id}" ${state.selected.has(user.user_id) ? 'checked' : ''} aria-label="Select ${escapeHtml(user.full_name)}"></label>`;
+      : isMaster
+        ? '<span class="sub" title="The master administrator cannot be deactivated or have their role changed">–</span>'
+        : `<label class="cellcheck"><input type="checkbox" data-select-user="${user.user_id}" ${state.selected.has(user.user_id) ? 'checked' : ''} aria-label="Select ${escapeHtml(user.full_name)}"></label>`;
     // Four things closed, the rest a click away. Everything about an account on one
     // line made the row as wide as the monitor and pushed Edit off the end of it;
     // and most of the time the answer wanted is "who is this and are they active".
     const open = state.expanded.has(user.user_id);
     return `<tr class="userrow${open ? ' is-open' : ''}">
       <td>${box}</td>
-      <td class="data--strong">${escapeHtml(user.full_name)}</td>
+      <td class="data--strong">${escapeHtml(user.full_name)}${isMaster ? ' <span class="tag tag--pri" title="Cannot be demoted, deactivated or deleted. Mark another System Admin as master to move it.">Master</span>' : ''}</td>
       <td class="data">${escapeHtml(user.username)}</td>
       <td><span class="tag tag--quiet">${escapeHtml(roleLabel(user))}</span></td>
       <td class="cell-elide" title="${escapeHtml(sites)}">${escapeHtml(sites)}</td>
@@ -761,15 +780,14 @@ function renderRolesSection() {
     const hidden = state.hiddenPages.get(role.code) || new Set();
     const permitted = RAIL_PAGES.filter(page => railPageAllowedByPermissions(held, page));
     const seen = permitted.filter(page => !hidden.has(page.code));
-    const fixed = role.code === 'system_admin';
     const people = state.roleCounts.get(role.code) || 0;
     return `<tr>
       <td class="data data--strong">${escapeHtml(role.name || role.code)}</td>
       <td class="data">${escapeHtml(role.code)}</td>
       <td class="data">${people}</td>
-      <td class="data">${fixed ? 'Everything' : `${held.size} of ${state.permissionCatalogue.length}`}</td>
-      <td class="cell-elide" title="${escapeHtml(fixed ? 'Every screen' : seen.map(page => page.label).join(', ') || 'None')}">${escapeHtml(fixed ? 'Every screen' : `${seen.length} of ${permitted.length} available`)}</td>
-      <td class="userrow__end"><button class="btn btn--quiet btn--sm" type="button" data-edit-role="${escapeHtml(role.code)}">${fixed ? 'View' : 'Edit'}</button></td>
+      <td class="data">${held.size} of ${state.permissionCatalogue.length}</td>
+      <td class="cell-elide" title="${escapeHtml(seen.map(page => page.label).join(', ') || 'None')}">${escapeHtml(`${seen.length} of ${permitted.length} available`)}</td>
+      <td class="userrow__end"><button class="btn btn--quiet btn--sm" type="button" data-edit-role="${escapeHtml(role.code)}">Edit</button></td>
     </tr>`;
   }).join('');
   return `<div class="panel panel--fill">
@@ -778,7 +796,7 @@ function renderRolesSection() {
         <th>Role</th><th>Code</th><th>People</th><th>May do</th><th class="col-fill">Sees</th><th></th>
       </tr></thead><tbody>${rows}</tbody></table></div>
     </div>
-    <p class="hint hint--wide">A role applies to every site. <b>May do</b> is the real boundary: the database asks these, so removing one closes the screen and the request behind it. <b>Sees</b> is the navigation rail, and only tidiness: a screen taken off a rail still opens for an account that holds its permission, so anything that must be refused has to be refused by a permission. A System Admin holds everything and cannot be changed, or a company could lock itself out of MaxDock.</p>`;
+    <p class="hint hint--wide">A role applies to every site. <b>May do</b> is the real boundary: the database asks these, so removing one closes the screen and the request behind it. <b>Sees</b> is the navigation rail, and only tidiness: a screen taken off a rail still opens for an account that holds its permission, so anything that must be refused has to be refused by a permission. A System Admin can be changed like any other role, except that View Users, Manage Users and the Users screen stay on: they are the way back if a change here goes wrong, and this is the only role that could undo it.</p>`;
 }
 
 function renderSection() {

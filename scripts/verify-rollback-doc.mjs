@@ -50,13 +50,25 @@ if (/alter table public\.appointments\s*\n\s*drop column (?!if exists)/i.test(do
 }
 
 // ── Nothing destructive may hide in a document about safety ────────────────────
+//
+// Scanned over the instructions, not over the saved function bodies. A restored definition is
+// whatever the function actually was, and some of these functions legitimately delete their own
+// rows — save_role_permissions clears the permissions a role no longer holds, which is how
+// saving works. Refusing that text would mean the document could not record the function it
+// exists to restore, and the way people "fix" a check like that is to reword the copy, which is
+// exactly what the hashes above are there to prevent.
+//
+// So the saved blocks are cut out first. Everything else — the down-migration, the numbered
+// procedure, every line a reader is told to paste and run — is still scanned, which is where a
+// destructive statement would actually do harm.
+const instructions = doc.replace(/```sql\nCREATE OR REPLACE FUNCTION public\.\w+\([\s\S]*?\$function\$\n```/g, '');
 for (const [pattern, what] of [
   [/drop table/i, 'a DROP TABLE'],
   [/truncate/i, 'a TRUNCATE'],
   [/delete from public\./i, 'a DELETE'],
   [/drop column if exists (checked_in_at|completed_at|cancelled_at|status)\b/i, 'a drop of a pre-existing column'],
 ]) {
-  if (pattern.test(doc)) errors.push(`The rollback document contains ${what}. Rolling back must not destroy anything that existed at the baseline.`);
+  if (pattern.test(instructions)) errors.push(`The rollback document contains ${what} in the SQL it tells somebody to run. Rolling back must not destroy anything that existed at the baseline.`);
 }
 
 // ── The saved definitions, hashed rather than eyeballed ────────────────────────
@@ -68,6 +80,11 @@ const SAVED = {
   // rollback has to put back, and a copy nobody hashed is a copy nobody can trust.
   get_appointment_history: { md5: '58951c308c7e8af25fdff12ab029e3c3', chars: 6571 },
   get_appointment_check_in_token: { md5: '4c3cf60c43f1c9b40e19168eab6a6942', chars: 862 },
+  // The two the role editor writes through. Captured before System Admin became editable —
+  // these are the definitions that refuse to touch it at all, which is what a rollback puts
+  // back.
+  save_role_permissions: { md5: '0a111f654a458f01b4f655aecbda26f6', chars: 1604 },
+  save_role_page_visibility: { md5: '9733737e45d1ba27cc4f127568605d03', chars: 1336 },
 };
 const blocks = [...doc.matchAll(/```sql\n(CREATE OR REPLACE FUNCTION public\.(\w+)\([\s\S]*?\$function\$)\n```/g)];
 const seen = new Set();

@@ -23,6 +23,9 @@ import { readFileSync, existsSync } from 'node:fs';
 const errors = [];
 const read = path => readFileSync(path, 'utf8');
 const require_ = (text, pattern, message) => { if (!pattern.test(text)) errors.push(message); };
+// The other half. Some of these rules are about what must no longer be there — a guard that was
+// correct until the rule under it changed reads exactly like a guard that is still correct.
+const forbid = (text, pattern, message) => { if (pattern.test(text)) errors.push(message); };
 
 for (const file of ['js/router.js', 'js/session.js', 'js/pages/users.js', 'js/ui/role-access.js']) {
   if (!existsSync(file)) errors.push(`Missing ${file}`);
@@ -55,13 +58,26 @@ if (!errors.length) {
     errors.push('pageAllowed consults rail visibility. Hiding a link must never refuse a screen; only a permission may.');
   }
 
-  // A System Admin always sees everything, in the client as well as the database.
-  require_(session, /role_code === 'system_admin' \|\| !hiddenPages\.has\(pageCode\)/,
-    'A System Admin\'s rail must be exempt from hiding, or a company can lock itself out of Settings.');
-  // A System Admin's row is shown and never editable, and the dialog says why rather
-  // than greying a control and leaving somebody guessing.
-  require_(dialog, /readOnly = target\.code === 'system_admin'/, 'A System Admin must be read-only in the role dialog.');
-  require_(dialog, /els\.save\.hidden = readOnly/, 'The save action must not be offered for a role that cannot be changed.');
+  // A System Admin's rail obeys hiding like every other role, except for the one screen that is
+  // the way back in. The blanket exemption this replaced would defeat the whole feature
+  // silently: the database would store the hidden page and the link would still be drawn.
+  require_(session, /role_code === 'system_admin' && pageCode === 'users'/,
+    'A System Admin\'s rail must keep Users whatever else is hidden, or a company can hide the screen that undoes a role change from the only role that could undo it.');
+  forbid(session, /role_code === 'system_admin' \|\| !hiddenPages\.has\(pageCode\)/,
+    'The client exempts a System Admin\'s whole rail from hiding, so hiding a page for that role would be stored and ignored.');
+
+  // The role is editable now. What must not be editable is the way back in, and the dialog has
+  // to draw those as fixed rather than let somebody untick them and be refused on save.
+  forbid(dialog, /readOnly/,
+    'The role dialog still has a read-only mode. A System Admin is editable; what is fixed is the pinned set, not the whole role.');
+  require_(dialog, /PINNED_PERMISSIONS = new Set\(\['user\.view', 'user\.manage'\]\)/,
+    'The dialog does not pin View Users and Manage Users, which are the two permissions that are the way back into MaxDock.');
+  require_(dialog, /PINNED_PAGES = new Set\(\['users'\]\)/,
+    'The dialog does not pin the Users screen for a System Admin.');
+  require_(dialog, /for \(const code of PINNED_PERMISSIONS\) codes\.add\(code\)/,
+    'The dialog does not force the pinned permissions into the save, so a stale load could ask the database to remove them and be refused for a tick nobody touched.');
+  require_(dialog, /for \(const page of PINNED_PAGES\) screens\.delete\(page\)/,
+    'The dialog does not force the pinned screen out of the hidden list on save.');
 
   // Loaded with the shell, advisory, and cleared when it changes.
   require_(session, /list_role_page_visibility/, 'The shell never loads what this role is shown.');

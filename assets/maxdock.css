@@ -1347,6 +1347,9 @@ body.modal-open{overflow:hidden}
    anything to say — a visible dead band between the last field and the button. */
 .form-message:empty{display:none}
 .form-message--success{color:var(--ok)}
+/* Not everything in this slot is a refusal. The System Admin note explains which two ticks are
+   fixed and why; in the stop colour it read as an error on a dialog that is working normally. */
+.form-message--note{color:var(--ink-muted)}
 .text-link{min-height:var(--ctl-h);border:0;background:transparent;color:var(--dock-deep);padding:0 var(--s2);display:inline-flex;align-items:center;justify-content:center;cursor:pointer;text-decoration:underline;text-underline-offset:2px}
 .btn--danger{color:var(--stop);border-color:var(--rule-strong);background:var(--surface)}
 .field--full{max-width:none}
@@ -1395,6 +1398,10 @@ body.modal-open{overflow:hidden}
    drawing it beside each other is faster to find in a list of five than reading five names. */
 .rowmark{display:inline-grid;place-items:center;vertical-align:-4px;color:var(--dock);margin-right:var(--s2)}
 .rowmark svg{width:20px;height:20px}
+/* A tick that is fixed on rather than one nobody may touch. Said beside the thing rather than
+   in a paragraph underneath, because a disabled checkbox with no reason next to it reads as a
+   fault in the page. */
+.pinnote{color:var(--ink-faint);font-size:var(--t-micro);font-weight:500;white-space:nowrap}
 .state--error .state__icon{background:var(--stop-wash);color:var(--stop)}
 .state--warning .state__icon{background:var(--signal-wash);color:var(--signal)}
 .state__title{margin:0;font-size:var(--t-lead);font-weight:600}

@@ -131,7 +131,13 @@ function buildContext(authSession, profile, role, permissions, locations, prefer
   // A System Admin's rail is never configurable — hiding Settings from the only
   // role that can put it back would lock a company out of its own administration.
   // The database refuses to store such a row; this refuses to act on one.
-  context.showsPage = pageCode => profile.role_code === 'system_admin' || !hiddenPages.has(pageCode);
+  // A System Admin's rail obeys the same hiding as everybody else's now, with one exception:
+  // Users stays, because it is where role access is edited and where a mistake there is undone.
+  // The blanket exemption that used to be here would have quietly defeated the change — an
+  // administrator could hide Reports from this role, the database would store it, and the link
+  // would still be on their own rail.
+  context.showsPage = pageCode => (profile.role_code === 'system_admin' && pageCode === 'users')
+    || !hiddenPages.has(pageCode);
   context.hasLocation = locationId => locations.some(item => item.id === locationId);
   context.customerShell = context.can('appointment.view_own')
     && !context.can('dock.view')
