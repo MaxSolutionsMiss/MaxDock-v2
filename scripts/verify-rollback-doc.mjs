@@ -85,6 +85,8 @@ const SAVED = {
   // back.
   save_role_permissions: { md5: '0a111f654a458f01b4f655aecbda26f6', chars: 1604 },
   save_role_page_visibility: { md5: '9733737e45d1ba27cc4f127568605d03', chars: 1336 },
+  // The truck-change RPC, captured before its two dead-end refusals became answers.
+  set_appointment_truck_type: { md5: 'd5270119fcc62e96e92caac64034a5fb', chars: 5385 },
 };
 const blocks = [...doc.matchAll(/```sql\n(CREATE OR REPLACE FUNCTION public\.(\w+)\([\s\S]*?\$function\$)\n```/g)];
 const seen = new Set();

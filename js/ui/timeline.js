@@ -160,10 +160,14 @@ export function renderTimeline({ lanes, blocks, windowStart, windowEnd, granular
     // none of them means anything a reader can name, because only the labelled ones have a
     // clock above them. The labelled lines are what the eye follows from the ruler down to a
     // truck; the rest were texture.
-    if (major) {
-      laneTicks.push(`<span class="tl__tick tl__tick--major" style="left:${left}%"></span>`);
-      scaleTicks.push(`<span class="tl__tick tl__tick--major" style="left:${left}%">${clockLabel(minute)}</span>`);
-    }
+    // The ruler keeps its hours; the lanes keep none of them.
+    //
+    // Dropping the unlabelled sub-ticks left eleven verticals a lane, one under each hour on
+    // the ruler, and the owner still read the board as a grid. They were right to: a schedule
+    // is read along a row, and a line every hour cuts every row into twelve cells whether or
+    // not a truck starts there. The ruler above already says where the hours are, and the
+    // now line still marks the only moment on the board that moves.
+    if (major) scaleTicks.push(`<span class="tl__tick tl__tick--major" style="left:${left}%">${clockLabel(minute)}</span>`);
   }
 
   // Where the day has actually got to. Only drawn when the board is showing today and the

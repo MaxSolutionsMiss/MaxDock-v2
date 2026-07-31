@@ -922,3 +922,173 @@ where n.nspname = 'public' and p.proname = 'change_appointment_status'
 Then open the live site at `https://maxsolutionsmiss.github.io/MaxDock-v2/`, sign in, and check the
 dock board, the operations queue and the receiving screen still load and still show today's loads.
 Production was never changed, so this is a confirmation rather than a repair.
+
+---
+
+## 5b-v. The truck-change RPC, restored word for word
+
+`set_appointment_truck_type` is what the combine dialog calls when a merged run will not fit
+and the answer is a bigger truck. Two of its refusals were dead ends rather than answers:
+
+| Refusal | What it did | What it does now |
+|---|---|---|
+| The dock does not accept that truck type | stopped | looks for a door at the same site that does accept it and is free for the window, moves the load there, and says which |
+| The longer window clashes, or runs past closing | stopped | retries on the window the booking already has, and only refuses if that clashes too |
+
+The second is the owner's rule: a combined run a few skids over should keep its slot rather than
+be pushed longer. Keeping the existing window is the safe half of that — nothing else at the
+door is displaced and nothing runs past closing, because the window does not grow.
+
+| Function | MD5 of the definition | Characters |
+|---|---|---|
+| `set_appointment_truck_type` | `d5270119fcc62e96e92caac64034a5fb` | 5385 |
+
+**A bug found while testing this, older than any of it.** The closing-time check in the saved
+definition below reads `public.location_hours`. That table does not exist; it is
+`public.location_operating_hours`. In plpgsql a missing relation raises when the line runs, not
+when the function is created, so it sat there through every review until an appointment reached
+it — and the screenshot that prompted this work never did, because the dock refusal fires four
+checks earlier.
+
+Two consequences, both live until now: any truck change on a booking whose dock already accepted
+the bigger truck failed with a raw `relation "public.location_hours" does not exist` instead of
+working or saying why not; and the rule that line exists to enforce, that a longer truck must
+still finish by closing, was not being enforced at all. The table name is corrected in the
+migration `truck_change_closing_check_reads_the_real_table`.
+
+**If you restore the block below you restore that bug with it.** That is what the block is for —
+it is the definition as it actually was, not as it should have been — but it is worth knowing
+before running it. To keep the fix and drop only the two new behaviours, change
+`public.location_hours` to `public.location_operating_hours` and `lh.` to `loh.` in the restored
+copy before running it.
+
+To restore the refusals, run the block below. Nothing else has to be undone: no column changed
+and no permission was granted.
+
+```sql
+CREATE OR REPLACE FUNCTION public.set_appointment_truck_type(p_appointment_id uuid, p_truck_type_code text)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+declare
+  v_appointment public.appointments%rowtype;
+  v_timezone text;
+  v_capacity integer;
+  v_duration integer;
+  v_end_at timestamptz;
+  v_close_time time;
+  v_close_at timestamptz;
+  v_clash text;
+begin
+  if auth.uid() is null then raise exception 'You must be signed in to change a truck.'; end if;
+
+  select * into v_appointment from public.appointments a where a.id = p_appointment_id for update;
+  if not found then raise exception 'Appointment not found.'; end if;
+
+  -- The same permission that merges loads, because this exists to serve merging and a
+  -- coordinator who may cancel one load onto another may certainly change its trailer.
+  if not (public.has_location_access(v_appointment.location_id)
+          and public.has_permission('appointment.create')) then
+    raise exception 'You do not have permission to change the truck on this appointment.';
+  end if;
+  if v_appointment.entry_kind <> 'appointment' then
+    raise exception 'Dock blocks do not have a truck.';
+  end if;
+  if v_appointment.status in ('completed', 'cancelled', 'no_show') then
+    raise exception 'A completed, cancelled or no-show appointment cannot change truck.';
+  end if;
+  if v_appointment.merged_into_appointment_id is not null then
+    raise exception 'This load has already been combined onto another truck.';
+  end if;
+  if v_appointment.truck_type_code = p_truck_type_code then
+    return jsonb_build_object('id', v_appointment.id, 'truck_type_code', p_truck_type_code, 'changed', false);
+  end if;
+
+  -- Enabled at this site, and with a capacity entered — a truck type whose capacity is
+  -- unknown is not something to move a load onto in the name of making it fit.
+  select ltt.skid_capacity into v_capacity
+  from public.location_truck_types ltt
+  where ltt.location_id = v_appointment.location_id
+    and ltt.truck_type_code = p_truck_type_code
+    and ltt.is_active;
+  if not found then
+    raise exception 'That truck type is not enabled at this location.';
+  end if;
+  if coalesce(v_capacity, 0) <= 0 then
+    raise exception 'That truck type has no skid capacity set for this location.';
+  end if;
+  if v_appointment.skid_count > v_capacity then
+    raise exception 'This load carries % skids and that truck holds %.', v_appointment.skid_count, v_capacity;
+  end if;
+
+  -- The door has to take it. A 53 ft trailer at a dock configured for straight trucks is a
+  -- truck that arrives and cannot back in.
+  if v_appointment.dock_id is not null
+     and not exists (
+       select 1 from public.dock_truck_types dtt
+       where dtt.dock_id = v_appointment.dock_id and dtt.truck_type_code = p_truck_type_code
+     ) then
+    raise exception 'The dock this load is booked at does not accept that truck type.';
+  end if;
+
+  select l.timezone into v_timezone from public.locations l where l.id = v_appointment.location_id;
+
+  -- The window, worked out by the same function every booking uses, so an upgraded truck
+  -- gets exactly the window it would have had if it had been booked this way.
+  v_duration := public.calculate_appointment_duration_internal(
+    v_appointment.location_id,
+    v_appointment.appointment_type_code,
+    p_truck_type_code,
+    v_appointment.skid_count,
+    v_appointment.handling_type_code,
+    coalesce(v_appointment.is_priority, false)
+  );
+  v_end_at := v_appointment.start_at + make_interval(mins => v_duration);
+
+  -- Nothing else may be standing at that door while this one is.
+  select string_agg(other.booking_reference, ', ') into v_clash
+  from public.appointments other
+  where other.dock_id = v_appointment.dock_id
+    and other.id <> v_appointment.id
+    and other.status not in ('cancelled', 'no_show')
+    and other.merged_into_appointment_id is null
+    and tstzrange(other.start_at, other.end_at, '[)') && tstzrange(v_appointment.start_at, v_end_at, '[)');
+  if v_clash is not null then
+    raise exception 'A % needs % minutes at that dock and would run into %.', p_truck_type_code, v_duration, v_clash;
+  end if;
+
+  -- And it has to be finished by closing, unless this booking was already an approved
+  -- after-hours one — in which case the exception it was granted still stands.
+  if not coalesce(v_appointment.is_after_hours_override, false) then
+    select lh.close_time into v_close_time
+    from public.location_hours lh
+    where lh.location_id = v_appointment.location_id
+      and lh.day_of_week = extract(dow from (v_appointment.start_at at time zone v_timezone))::smallint
+      and lh.is_open;
+    if v_close_time is not null then
+      v_close_at := ((v_appointment.start_at at time zone v_timezone)::date + v_close_time) at time zone v_timezone;
+      if v_end_at > v_close_at then
+        raise exception 'A % needs % minutes and would run past closing.', p_truck_type_code, v_duration;
+      end if;
+    end if;
+  end if;
+
+  update public.appointments
+  set truck_type_code = p_truck_type_code,
+      end_at = v_end_at,
+      updated_by = auth.uid(),
+      updated_at = now()
+  where id = p_appointment_id;
+
+  return jsonb_build_object(
+    'id', v_appointment.id,
+    'truck_type_code', p_truck_type_code,
+    'skid_capacity', v_capacity,
+    'duration_minutes', v_duration,
+    'changed', true
+  );
+end;
+$function$
+```

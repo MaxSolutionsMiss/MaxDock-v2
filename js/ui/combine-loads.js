@@ -258,7 +258,7 @@ export function createCombineDialog({ location, capacityFor, truckName, truckTyp
     renderAll();
     els.message.textContent = '';
     try {
-      await db.rpc('set_appointment_truck_type', {
+      const result = await db.rpc('set_appointment_truck_type', {
         p_appointment_id: keep.id,
         p_truck_type_code: upgrade.fits.code,
       }, { key: `combine:truck:${crypto.randomUUID()}`, retry: 0, userMessage: 'The truck could not be changed.' });
@@ -266,7 +266,15 @@ export function createCombineDialog({ location, capacityFor, truckName, truckTyp
       // as well as fetched again — otherwise the dialog would still be refusing a run that
       // now fits.
       keep.truck_type_code = upgrade.fits.code;
-      els.message.textContent = '';
+      // A bigger truck sometimes cannot use the door the load was booked at, and the database
+      // moves it to one that takes it rather than refusing. That is a real change to where a
+      // driver is being sent, so it is said here and not left to be noticed on the board.
+      const moved = [];
+      if (result?.moved_dock && result?.dock_name) moved.push(`moved to ${result.dock_name}, which takes that truck`);
+      if (result?.kept_window) moved.push('kept its original time slot');
+      els.message.textContent = moved.length
+        ? `Changed to a ${upgrade.fits.name}: ${moved.join(', and ')}.`
+        : '';
       await onDone?.();
     } catch (error) {
       els.message.textContent = error.userMessage || 'The truck could not be changed.';
