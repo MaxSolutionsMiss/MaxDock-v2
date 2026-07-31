@@ -15,10 +15,11 @@
 //
 //   Run with a browser available. It is part of the layout job for that reason.
 import { createServer } from 'node:http';
-import { readFileSync, existsSync, statSync } from 'node:fs';
+import { readFileSync, existsSync, statSync, readdirSync } from 'node:fs';
 import { join, extname } from 'node:path';
 
 const ROOT = process.cwd();
+const errors = [];
 const PORT = Number(process.env.CHROME_PORT || 8991);
 const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.png': 'image/png', '.svg': 'image/svg+xml' };
 
@@ -45,6 +46,29 @@ const CASES = [
   { width: 1024, text: 'normal' },
 ];
 
+// Before a single page is rendered: every page must ask for the same fonts.
+//
+// This is what the browser check was failing on for three runs, and it is a real fault rather
+// than an artefact of measuring. Only the board, booking, My Appointments and the sign-in page
+// carried the IBM Plex link; the queue, receiving, reports, settings, users and data pages did
+// not. So moving from the Dock board to the Operations queue changed the typeface of the whole
+// application, and every piece of chrome measured in a different place because every piece of
+// chrome was set in a different face. Checked here as text rather than in the browser because
+// the answer is in the markup and a missing link is cheaper to catch than a moved pixel.
+{
+  const pages = [...readdirSync(join(ROOT, 'app')).filter(name => name.endsWith('.html')).map(name => `app/${name}`), 'index.html'];
+  const withFont = pages.filter(page => readFileSync(join(ROOT, page), 'utf8').includes('fonts.googleapis.com'));
+  if (withFont.length && withFont.length !== pages.length) {
+    const missing = pages.filter(page => !withFont.includes(page));
+    // Reported here and not at the end. This is a text check and it takes milliseconds; making
+    // somebody wait four minutes for a browser sweep to tell them a link tag is missing is a
+    // good way to have the sweep skipped.
+    console.error('Chrome stability verification failed');
+    console.error(`- These pages do not load the typeface the rest of the product uses, so the whole application changes font when you open one of them: ${missing.join(', ')}`);
+    process.exit(1);
+  }
+}
+
 const { chromium } = await import('playwright').catch(() => import('/opt/node22/lib/node_modules/playwright/index.mjs'));
 
 const server = createServer((request, response) => {
@@ -57,7 +81,6 @@ await new Promise(resolve => server.listen(PORT, resolve));
 
 const stub = readFileSync(join(ROOT, 'scripts/audit-supabase-stub.js'), 'utf8');
 const browser = await chromium.launch();
-const errors = [];
 
 const selectors = CHROME.map(item => item.sel);
 
