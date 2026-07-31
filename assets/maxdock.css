@@ -1451,12 +1451,21 @@ body.modal-open{overflow:hidden}
    open: this answers a question somebody occasionally asks, and the card is there to answer
    "when is my truck". The rule above it separates it from the facts of the booking without
    making it a second card. */
-.appointment-activity{border-top:1px solid var(--rule);margin:var(--s2) var(--s3) 0;padding:var(--s2) 0 var(--s3)}
-.appointment-activity__t{font-size:var(--t-small);color:var(--ink-muted);cursor:pointer;min-height:var(--tap);display:flex;align-items:center}
-.appointment-activity__body{display:grid;gap:2px;padding-top:var(--s2)}
+/* What happened to a booking, opened by the chevron at the head. No heading of its own: the
+   chevron is the label, the way it is on a Users row, and a second "Activity" caption would be
+   a line of chrome above four lines of content. */
+.appointment-activity{display:grid;gap:2px;margin-top:var(--s2);padding-top:var(--s2);border-top:1px solid var(--rule)}
 .appointment-activity__row{display:grid;grid-template-columns:auto minmax(0,1fr);gap:var(--s3);font-size:var(--t-small)}
 .appointment-activity__when{color:var(--ink-faint);font-family:var(--font-data);white-space:nowrap}
 .appointment-activity__what{color:var(--ink-muted)}
+/* The chevron leads the head and turns when it opens, exactly as the Users row does. */
+.appointment-card__toggle{flex:none}
+.appointment-card__toggle svg{transition:transform var(--motion)}
+.appointment-card.is-open .appointment-card__toggle svg{transform:rotate(180deg)}
+/* The note joins the end of the detail row. It wraps where that row does not, because a
+   cancellation reason is a sentence rather than a field. */
+.appointment-card__note{color:var(--ink-muted);white-space:normal;flex:0 1 auto;min-width:18em}
+@media (prefers-reduced-motion:reduce){.appointment-card__toggle svg{transition:none}}
 .appointment-list{display:grid;grid-template-columns:minmax(0,1fr);gap:var(--s2);padding:var(--s2) var(--s3)}
 /* A card is a row of an operational list, not a page: two lines rather than six,
    so more of the list is on screen. The border carries its own weight — a card
@@ -1467,14 +1476,21 @@ body.modal-open{overflow:hidden}
 .appointment-card{background:var(--surface);border:1px solid var(--rule-strong);border-radius:var(--radius);padding:var(--s2) var(--s3);min-width:0}
 .appointment-list>.appointment-card:nth-child(even){background:var(--surface-sunk)}
 .appointment-card__head{display:flex;align-items:center;gap:var(--s2);min-width:0}
-.appointment-card__identity{display:flex;align-items:baseline;gap:var(--s2);min-width:0;flex:1;overflow:hidden}
+/* The three parts of the head line wrap rather than crush. The reference and the
+   window are fixed-width text; the route is the only elastic thing, so when the
+   card is narrow it used to be the only thing that gave — at 1280px it had 122px
+   for 150px of names and read "P… → G..". Wrapping means the route drops under
+   the reference with the full width of the card instead, which is where it is
+   readable. No breakpoint decides this: the route claims a floor and the line
+   breaks when the floor cannot be met. */
+.appointment-card__identity{display:flex;flex-wrap:wrap;align-items:baseline;gap:2px var(--s2);min-width:0;flex:1;overflow:hidden}
 /* The reference is what somebody is scanning the list for, so it is the largest
    thing on the row rather than the smallest. */
 .appointment-card__reference{color:var(--dock-deep);font-size:calc(var(--t-base) * 1.08);font-weight:700;white-space:nowrap;font-variant-numeric:tabular-nums}
 /* Origin, arrow, destination — the movement in three parts, taking the width the
    row has rather than leaving it empty. Either end elides before the arrow does,
    so the shape of the line survives a long company name. */
-.appointment-card__title{margin:0;font-size:var(--t-base);font-weight:600;display:flex;align-items:baseline;gap:var(--s2);min-width:0;flex:1}
+.appointment-card__title{margin:0;font-size:var(--t-base);font-weight:600;display:flex;align-items:baseline;gap:var(--s2);min-width:14em;flex:1 1 auto}
 .appointment-card__place{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
 .appointment-card__arrow{color:var(--ink-faint);font-weight:400;flex:none}
 .appointment-card__time{color:var(--ink-muted);font-size:var(--t-small);white-space:nowrap}
@@ -1515,7 +1531,6 @@ body.modal-open{overflow:hidden}
   .appointment-views{width:100%}
   .appointment-views button{flex:1}
   .appointment-card__details{overflow-x:auto}
-  .appointment-card__identity{flex-wrap:wrap}
 }
 
 /* --- narrow screens

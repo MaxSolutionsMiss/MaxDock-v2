@@ -138,6 +138,12 @@ derives rather than rows it stores. No dock, no token, no internal name. An upda
 touched only internal fields emits no line, so a customer cannot infer dock activity from a
 gap in the list.
 
+**The card that shows it** is code only — `js/pages/my-appointments.js` and the
+`.appointment-card` rules in `assets/maxdock.css`. It puts the chevron at the head of the row
+the way a Users row does, folds the cancellation reason into the fact line instead of giving it
+a line of its own, and lets the head line wrap so the route is not crushed. Dropping the branch
+drops all of it; there is nothing to undo in the database for this part.
+
 ---
 
 ## 4. Layer 1 — Code

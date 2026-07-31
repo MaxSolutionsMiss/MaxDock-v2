@@ -357,6 +357,18 @@ function createAppointmentCard(record) {
   element.dataset.appointmentId = record.appointment_id;
 
   const head = createElement('div', 'appointment-card__head');
+  // The same control the Users list uses to open a row: a quiet chevron at the far left that
+  // turns when it opens. It leads the head rather than trailing the card, so the way in is in
+  // the place the eye already starts.
+  const expand = createElement('button', 'btn btn--quiet btn--icon appointment-card__toggle');
+  expand.type = 'button';
+  expand.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg>';
+  expand.setAttribute('aria-expanded', 'false');
+  // Named here and not only in the click handler. The chevron is an icon-only button whose
+  // only child is aria-hidden, so until it was pressed once a screen reader read it as
+  // "button" and nothing else — and the whole point of the control is to be pressed first.
+  expand.title = 'Show activity';
+  expand.setAttribute('aria-label', `Show activity for ${record.booking_reference}`);
   const identity = createElement('div', 'appointment-card__identity');
   const reference = createElement('span', 'appointment-card__reference data');
   // The line reads as the movement itself: which booking, from where, to where.
@@ -379,7 +391,7 @@ function createAppointmentCard(record) {
   move.dataset.moveAppointment = '';
   const cancel = createCardAction('cancel', 'Cancel appointment', 'btn btn--danger btn--icon');
   actions.append(copy, move, cancel);
-  head.append(identity, status, actions);
+  head.append(expand, identity, status, actions);
 
   const details = createElement('div', 'appointment-card__details');
   const detailRefs = [
@@ -394,28 +406,30 @@ function createAppointmentCard(record) {
   ].map(([key, label]) => ({ key, ...createDetail(label) }));
   details.append(...detailRefs.map(detail => detail.element));
 
-  // What has happened to this load, for the person who booked it. Collapsed by default: the
-  // card exists to answer "when is my truck", and a list of events under every one of them
-  // would bury that. Fetched only when it is opened, so a page of twenty bookings makes no
-  // requests for nineteen histories nobody asked to see.
-  const activity = createElement('details', 'appointment-activity');
-  const activitySummary = createElement('summary', 'appointment-activity__t', 'Activity');
-  const activityBody = createElement('div', 'appointment-activity__body');
-  activity.append(activitySummary, activityBody);
+  // What has happened to this load. Closed until asked for, and fetched only then: a page of
+  // twenty bookings makes no requests for nineteen histories nobody opened.
+  const activity = createElement('div', 'appointment-activity');
+  activity.hidden = true;
   let activityLoaded = false;
-  activity.addEventListener('toggle', async () => {
-    if (!activity.open || activityLoaded) return;
+  expand.addEventListener('click', async () => {
+    const open = expand.getAttribute('aria-expanded') !== 'true';
+    expand.setAttribute('aria-expanded', String(open));
+    expand.title = open ? 'Hide activity' : 'Show activity';
+    expand.setAttribute('aria-label', `${open ? 'Hide' : 'Show'} activity for ${currentRecord.booking_reference}`);
+    element.classList.toggle('is-open', open);
+    activity.hidden = !open;
+    if (!open || activityLoaded) return;
     activityLoaded = true;
-    activityBody.textContent = 'Loading…';
+    activity.textContent = 'Loading…';
     try {
       const rows = await db.rpc('list_my_appointment_activity', { p_appointment_id: currentRecord.appointment_id }, {
         key: `mine:activity:${currentRecord.appointment_id}`, cache: 15000, retry: 1,
         userMessage: 'That activity could not be loaded.',
       });
-      activityBody.replaceChildren(...renderActivity(rows, currentRecord));
+      activity.replaceChildren(...renderActivity(rows, currentRecord));
     } catch (error) {
       activityLoaded = false;
-      activityBody.textContent = error.userMessage || 'That activity could not be loaded.';
+      activity.textContent = error.userMessage || 'That activity could not be loaded.';
     }
   });
 
@@ -486,9 +500,18 @@ function createAppointmentCard(record) {
   // Why an appointment was cancelled, on the appointment. MaxDock cancels loads
   // itself now when they are combined onto one truck, so "Cancelled" with nothing
   // beside it would be the first thing a customer sees and the first phone call.
-  const note = createElement('p', 'hint hint--wide hint--flush');
+  // Joined to the end of the detail row rather than given a line of its own. "Cancelled by a
+  // MaxDock administrator." is eight words, and a whole line plus its margins for eight words
+  // is most of the empty space on the card.
+  const note = createElement('span', 'appointment-card__note');
   note.hidden = true;
-  element.append(head, details, note, activity);
+  // The note rides inside the detail row, so a card without one is exactly one line shorter
+  // rather than carrying an empty paragraph's worth of margin. It goes at the *front* of that
+  // row: the row runs off its own right edge by design — what does not fit is not drawn — so a
+  // reason appended to the end would have been written and never seen. On a cancelled load the
+  // reason outranks the handling type.
+  details.prepend(note);
+  element.append(head, details, activity);
   update(record);
   return Object.freeze({ element, update, destroy: () => element.remove() });
 }
