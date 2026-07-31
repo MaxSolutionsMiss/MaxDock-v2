@@ -423,7 +423,12 @@ function collect(scope) {
       const range = document.createRange();
       range.selectNodeContents(node);
       const boxes = [...range.getClientRects()].filter(box => box.width > 0 && box.height > 0);
-      if (!boxes.length) continue;
+      // Only text that actually wrapped. A run that fits on one line is not evidence of
+      // anything: an expanded user row is fifteen little labelled values, each its own text
+      // node on its own line, and counting those as fifteen lines of eleven characters called
+      // a 953px row a narrow column. What this rule is looking for is a sentence broken into
+      // stubs, and a sentence broken into stubs has more than one line box.
+      if (boxes.length < 2) continue;
       lines += boxes.length;
       chars += value.length;
     }
