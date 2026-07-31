@@ -16,16 +16,25 @@ import { mark } from '../ui/marks.js';
 // Drawn from the same grid and stroke as every other glyph in the product — the ask was for
 // something less dry, not for clip-art.
 const VIEWS = [
-  { id: 'overview', label: 'Overview', icon: 'chart' },
-  { id: 'truck-flow', label: 'Truck flow', icon: 'truck' },
-  { id: 'skid-movement', label: 'Skid movement', icon: 'skid' },
-  { id: 'dock-utilisation', label: 'Dock hours', icon: 'door' },
-  { id: 'scorecard-company', label: 'Vendor scorecard', icon: 'company' },
-  { id: 'scorecard-location', label: 'Site scorecard', icon: 'site' },
-  { id: 'fullness', label: 'Truck fullness', icon: 'load' },
+  // One permission per view, not one for the whole page. A coordinator is a floor job and does
+  // not need eight reports; a shipping supervisor needs most of them. With a single permission
+  // the only choices were all or nothing, so it was nothing, and the reports were closed to the
+  // floor entirely. Every role that could open Reports before holds all eight, so this changes
+  // nothing until somebody unticks one.
+  { id: 'overview', label: 'Overview', icon: 'chart', permission: 'reports.view_overview' },
+  { id: 'truck-flow', label: 'Truck flow', icon: 'truck', permission: 'reports.view_truck_flow' },
+  { id: 'skid-movement', label: 'Skid movement', icon: 'skid', permission: 'reports.view_skid_movement' },
+  { id: 'dock-utilisation', label: 'Dock hours', icon: 'door', permission: 'reports.view_dock_hours' },
+  { id: 'scorecard-company', label: 'Vendor scorecard', icon: 'company', permission: 'reports.view_scorecard_company' },
+  { id: 'scorecard-location', label: 'Site scorecard', icon: 'site', permission: 'reports.view_scorecard_location' },
+  { id: 'fullness', label: 'Truck fullness', icon: 'load', permission: 'reports.view_fullness' },
   { id: 'labour', label: 'Labour hours', icon: 'crew', permission: 'reports.view_labour' },
 ];
 const viewIcon = () => VIEWS.find(view => view.id === state.view)?.icon || 'chart';
+// Which views this account may open. Asked in three places — the picker, the landing view and
+// the renderer — and they must agree: a picker that omits a view while the page still renders it
+// is a restriction that only looks like one.
+const permittedViews = () => VIEWS.filter(view => !view.permission || state.context.can(view.permission));
 
 const PRESETS = [
   { id: 'last7', label: 'Past 7 days', days: 7 },
@@ -855,6 +864,16 @@ function labourCell(row) {
 
 function renderView() {
   if (!state.data) return;
+  // Land on something this account may actually open. The default is Overview, and a role that
+  // has every report but that one would otherwise arrive at a blank page with its own view
+  // missing from the picker. Checked here rather than only at startup, because a role's
+  // permissions can change under an open tab.
+  const allowed = permittedViews();
+  if (allowed.length && !allowed.some(view => view.id === state.view)) state.view = allowed[0].id;
+  if (!allowed.length) {
+    state.elements.host.innerHTML = '<p class="hint">No report has been made available to your role. A System Admin can grant them one at a time under Users, Role access.</p>';
+    return;
+  }
   const renderers = {
     overview: renderOverview, 'truck-flow': renderTruckFlow, 'skid-movement': renderSkidMovement,
     'dock-utilisation': renderDockUtilisation,
@@ -1068,7 +1087,7 @@ function buildShell(root) {
     ${controlsBar({
       label: 'Report controls',
       filters: `<div class="ctrl-field"><label for="report-sites">Sites</label>${sitePicker()}</div>
-      <div class="ctrl-field"><label for="report-view">View</label><select class="select" id="report-view" data-view>${VIEWS.filter(view => !view.permission || state.context.can(view.permission)).map(view => `<option value="${view.id}">${view.label}</option>`).join('')}</select></div>
+      <div class="ctrl-field"><label for="report-view">View</label><select class="select" id="report-view" data-view>${permittedViews().map(view => `<option value="${view.id}"${view.id === state.view ? ' selected' : ''}>${view.label}</option>`).join('')}</select></div>
       <div class="ctrl-field"><label for="report-preset">Range</label><select class="select" id="report-preset" data-preset>${PRESETS.map(preset => `<option value="${preset.id}">${preset.label}</option>`).join('')}</select></div>
       <div class="ctrl-field"><label for="report-from">From</label><input class="input input--date" type="date" id="report-from" data-from></div>
       <div class="ctrl-field"><label for="report-to">To</label><input class="input input--date" type="date" id="report-to" data-to></div>
