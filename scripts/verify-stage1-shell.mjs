@@ -165,10 +165,20 @@ const cssRuleBytes = Buffer.byteLength(readFileSync(join(ROOT, 'assets/maxdock.c
 // class names absent from js/ and app/, and all 35 are composed at runtime — the nine
 // families listed above plus stat--${tone}. There is nothing left to reclaim.
 //
+// 77 -> 78 KB, for MaxDock Receiving installed on a phone. Two buttons, a number field and a
+// camera stage, plus the two rules that drop the office rail and its padding when the page was
+// opened from the home screen icon. It is a screen the product did not have, and there is no
+// existing block it could have borrowed: the office's buttons are 36px controls beside labels,
+// and this one is a third of a viewport tall because it is aimed at with a gloved thumb by
+// somebody standing next to a running truck.
+//
+// The dead-rule scan was run again first, as it was for each earlier raise, and reports only
+// names composed at runtime. Nothing to reclaim.
+//
 // The point of the number is not the number. It is that growth in what a browser parses
 // stays a decision somebody has to make on purpose and justify in writing, instead of
 // arriving one convenience rule at a time.
-if (cssRuleBytes > 77 * 1024) fail('assets/maxdock.css', `CSS rule budget exceeded: ${Math.round(cssRuleBytes / 1024)} KB of declarations.`);
+if (cssRuleBytes > 78 * 1024) fail('assets/maxdock.css', `CSS rule budget exceeded: ${Math.round(cssRuleBytes / 1024)} KB of declarations.`);
 // The file figure is a sanity bound, not a second gate, and it took two raises in one day to
 // see that it had been the wrong shape all along. Sitting 2 KB above the rules content, it
 // bound on *comments* — so the thing it actually rationed was the reasoning three paragraphs

@@ -1,0 +1,16 @@
+{
+  "name": "MaxDock Receiving",
+  "short_name": "Receiving",
+  "description": "Scan or find a load at the dock and move its status.",
+  "start_url": "./receiving.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#FFFFFF",
+  "theme_color": "#0082CB",
+  "icons": [
+    { "src": "../assets/apple-touch-icon.png", "sizes": "180x180", "type": "image/png", "purpose": "any" },
+    { "src": "../assets/logo-color.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "../assets/logo-color.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

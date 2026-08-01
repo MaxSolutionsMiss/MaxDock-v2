@@ -139,7 +139,61 @@ function referenceFromInput(text) {
 // same job, so they are halves of one thing with a rule and the word between
 // them rather than two cards that could be mistaken for two steps. On a phone
 // they stack and the rule turns with them.
+// Opened from the home screen icon rather than from a browser tab. The manifest asks for
+// standalone, so this is true exactly when somebody installed it and tapped the icon —
+// which is the one context where the office's rail and top bar are in the way.
+const isApp = () => Boolean(globalThis.matchMedia?.('(display-mode: standalone)')?.matches)
+  || globalThis.navigator?.standalone === true;
+
+// The app's whole first screen: two buttons and nothing else. No list, no counts, no menu.
+// Somebody opening this has already decided which one they want before the phone is out of
+// their pocket, and every pixel spent on anything else is a pixel they have to look past.
+//
+// Neither button does the work. Scan opens the camera, Find reveals the number field — the
+// same two routes the desk screen shows side by side, one at a time because a phone held in
+// one hand has room for one.
+function renderHome(message = '') {
+  state.elements.host.className = 'rapp rapp--home';
+  state.elements.host.innerHTML = `
+      <button class="rapp__btn" type="button" data-scan${canScan() ? '' : ' disabled'}>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3h7v2.2H5.2V10H3zM14 3h7v7h-2.2V5.2H14zM3 14h2.2v4.8H10V21H3zM18.8 14H21v7h-7v-2.2h4.8z"/><path d="M6.6 6.6h4v4h-4zM13.4 6.6h4v4h-4zM6.6 13.4h4v4h-4zM13.4 13.4h4v4h-4z" class="rapp__dim"/></svg>
+        <b>Scan</b>
+        <small>${canScan() ? 'Point at the QR on the paperwork' : 'This browser cannot open a camera here'}</small>
+      </button>
+      <button class="rapp__btn rapp__btn--alt" type="button" data-find>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10.6 2.4a8.2 8.2 0 1 1 0 16.4 8.2 8.2 0 0 1 0-16.4zm0 2.4a5.8 5.8 0 1 0 0 11.6 5.8 5.8 0 0 0 0-11.6z"/><path d="M16.3 15.1 22 20.8l-1.7 1.7-5.7-5.7z"/></svg>
+        <b>Find</b>
+        <small>Type the booking number</small>
+      </button>
+      <div class="recv__stage" data-stage hidden><video class="recv__video" data-video playsinline muted></video><div class="recv__frame" aria-hidden="true"></div></div>
+      ${message ? `<p class="form-message">${escapeHtml(message)}</p>` : ''}`;
+}
+
+// The number pad, reached from Find. The prefix is furniture — it is filled in and the caret
+// sits after it, so the first key pressed is the first digit that matters.
+function renderFind(message = '') {
+  state.elements.host.className = '';
+  state.elements.host.innerHTML = `
+    <div class="rapp">
+      <label class="field__label rapp__cap" for="recv-token">Booking number</label>
+      <input class="input input--jumbo rapp__in" id="recv-token" data-token value="${referencePrefix()}" placeholder="${referencePrefix()}000071" autocomplete="off" inputmode="text" enterkeyhint="search">
+      <p class="hint hint--flush">Just the digits after the last dash. The year is filled in and can be changed for an older load.</p>
+      <button class="rapp__btn" type="button" data-lookup><b>Find this load</b></button>
+      <button class="btn btn--quiet btn--block" type="button" data-home>Back</button>
+      ${message ? `<p class="form-message">${escapeHtml(message)}</p>` : ''}
+    </div>`;
+  const box = state.elements.host.querySelector('[data-token]');
+  if (box) { box.focus(); box.setSelectionRange(box.value.length, box.value.length); }
+}
+
+// One door onto the first screen, so the app and the desk cannot drift into two idle states.
+function renderStart(message = '') {
+  if (state.mode === 'app') renderHome(message);
+  else renderIdle(message);
+}
+
 function renderIdle(message = '') {
+  state.elements.host.className = '';
   state.elements.host.innerHTML = `
     <div class="recv">
       <section class="card recv__panel">
@@ -175,6 +229,7 @@ function detail(label, value) {
 // receiver is shown the candidates and picks — reference, time and company are
 // enough to tell them apart at a glance.
 function renderMatches(records) {
+  state.elements.host.className = '';
   state.matches = records;
   state.elements.host.innerHTML = `
     <section class="card recv">
@@ -224,6 +279,7 @@ function clockLine(record, location) {
 }
 
 function renderAppointment(record) {
+  state.elements.host.className = '';
   const location = { timezone: record.location_timezone };
   const when = `${format.time(record.start_at, location)}–${format.time(record.end_at, location)}`;
   state.elements.host.innerHTML = `
@@ -275,7 +331,7 @@ async function lookup(token) {
     });
     showResult(rows, 'That code does not match an appointment at a location you can receive for.');
   } catch (error) {
-    renderIdle(error.userMessage || error.message || 'That appointment could not be looked up.');
+    renderStart(error.userMessage || error.message || 'That appointment could not be looked up.');
   }
 }
 
@@ -288,7 +344,7 @@ async function lookupByReference(code) {
     });
     showResult(rows, 'No load with that number is booked around today at a location you can receive for.');
   } catch (error) {
-    renderIdle(error.userMessage || error.message || 'That booking number could not be looked up.');
+    renderStart(error.userMessage || error.message || 'That booking number could not be looked up.');
   }
 }
 
@@ -399,6 +455,8 @@ function submitCode(root) {
 function wireEvents(root) {
   root.addEventListener('click', event => {
     if (event.target.closest('[data-scan]')) { startScanner(); return; }
+    if (event.target.closest('[data-find]')) { renderFind(); return; }
+    if (event.target.closest('[data-home]')) { renderStart(); return; }
     if (event.target.closest('[data-lookup]')) { submitCode(root); return; }
     const status = event.target.closest('[data-status]');
     if (status) { setStatus(status.dataset.status); return; }
@@ -418,7 +476,7 @@ function wireEvents(root) {
       if (state.appointment) renderAppointment(state.appointment);
       return;
     }
-    if (event.target.closest('[data-again]')) { state.appointment = null; state.matches = []; renderIdle(); }
+    if (event.target.closest('[data-again]')) { state.appointment = null; state.matches = []; renderStart(); }
   });
   // A phone keyboard offers Go, not a button press. Typing a number and hitting
   // it is the whole interaction for a receiver who is not scanning.
@@ -432,15 +490,21 @@ function wireEvents(root) {
 const page = {
   code: 'receiving',
   permission: 'appointment.check_in',
+  // Read by the router before the shell is built, so an installed app never draws the rail.
+  get chrome() { return isApp() ? 'app' : 'desk'; },
   async mount(context) {
     state.context = context;
-    document.title = 'Receiving · MaxDock';
-    context.pageRoot.innerHTML = `${pageHead('Receiving', { subtitle: 'Scan a truck in at the dock' })}<div data-receiving-host></div>`;
+    state.mode = isApp() ? 'app' : 'desk';
+    document.title = state.mode === 'app' ? 'Receiving' : 'Receiving · MaxDock';
+    // The app has no page head either. The title bar of a one-screen app is the screen.
+    context.pageRoot.innerHTML = state.mode === 'app'
+      ? '<div data-receiving-host></div>'
+      : `${pageHead('Receiving', { subtitle: 'Scan a truck in at the dock' })}<div data-receiving-host></div>`;
     state.elements = { host: context.pageRoot.querySelector('[data-receiving-host]') };
     wireEvents(context.pageRoot);
     const token = tokenFromUrl();
     if (token) { await lookup(token); return; }
-    renderIdle();
+    renderStart();
     // Caret after the prefix, so the first key they press is the first digit
     // that matters rather than a correction to text MaxDock filled in.
     const box = state.elements.host.querySelector('[data-token]');

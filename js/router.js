@@ -336,7 +336,13 @@ function createShell(context, page) {
   pageRoot.tabIndex = -1;
 
   main.append(top, banner, pageRoot);
-  root.append(rail, main);
+  // An installed app has no rail. Receiving is one screen with two buttons on it, and a
+  // navigation column listing nine others is the office's furniture carried onto a phone
+  // somebody is holding one-handed beside a running truck. The page asks for this rather
+  // than the router guessing, and only Receiving asks — and only when it was opened from
+  // the home screen icon rather than from a browser tab.
+  if (page.chrome === 'app') { root.dataset.chrome = 'app'; root.append(main); }
+  else root.append(rail, main);
 
   rail.addEventListener('click', event => {
     const trigger = event.target.closest('[data-open-booking]');

@@ -96,6 +96,41 @@ if (!errors.length) {
     'Stopping the scanner leaves its next read scheduled.');
   need(recv, /catch \(error\) \{\s*\n\s*stopScanner\(\);/,
     'A camera that opened and then failed is not shut down, so the light stays on after an error.');
+
+  // ── MaxDock Receiving, installed on a phone ────────────────────────────────
+  // Two buttons and nothing else. The rules here are the ones that make it an app rather
+  // than a web page somebody bookmarked, and the one that keeps it honest offline.
+  const manifest = existsSync('app/manifest.webmanifest') ? JSON.parse(read('app/manifest.webmanifest')) : null;
+  if (!manifest) errors.push('There is no manifest, so the app cannot be installed to a home screen.');
+  else {
+    if (manifest.display !== 'standalone') errors.push('The manifest does not ask for standalone, so the installed app still draws browser chrome — and the page decides its own chrome from that same signal, so the rail would come back with it.');
+    if (!String(manifest.start_url || '').includes('receiving')) errors.push('The installed app does not start on Receiving.');
+  }
+  const html = read('app/receiving.html');
+  need(html, /rel="manifest"/, 'The page never links the manifest, so nothing can be installed.');
+  need(html, /serviceWorker[\s\S]{0,200}register\('\.\/sw\.js'\)/, 'The service worker is never registered, so the icon opens to a white screen on a weak signal.');
+
+  // Comments stripped: this worker explains at length why it does not go near Supabase, and
+  // the guard below would read that explanation as the thing it forbids.
+  const sw = existsSync('app/sw.js') ? read('app/sw.js').replace(/\/\/[^\n]*/g, '') : '';
+  if (!sw) errors.push('There is no service worker.');
+  // The owner\'s own answer to a dead signal is the station computer. A worker that queued a
+  // status change would land it twenty minutes later, and the board would have been wrong for
+  // twenty minutes with nobody knowing.
+  forbid(sw, /supabase|BackgroundSync|sync\.register/i,
+    'The service worker touches Supabase. Nothing about a load may be cached or queued: a status that arrives late is worse than one that visibly failed.');
+  need(sw, /url\.origin !== self\.location\.origin/,
+    'The worker does not let other origins straight through, so it can end up serving a stale answer about a truck.');
+  need(sw, /fetch\(request\)[\s\S]{0,400}catch\(\(\) => caches\.match/,
+    'The worker serves the cache first, so a deployed fix would not reach a phone until the cache version changed.');
+
+  // The router builds the shell before mount, so the page has to declare its chrome up front.
+  const router = read('js/router.js');
+  need(router, /page\.chrome === 'app'/, 'The router has no way to build a shell without the rail.');
+  need(recv, /get chrome\(\) \{ return isApp\(\)/, 'Receiving never asks for app chrome, so an installed app draws the office rail.');
+  need(recv, /display-mode: standalone/, 'Nothing tells the app it was opened from the home screen.');
+  need(recv, /function renderHome/, 'There is no two-button home screen.');
+  need(recv, /function renderStart/, 'The app and the desk each pick their own idle screen, so the two can drift.');
 }
 
 if (errors.length) {
