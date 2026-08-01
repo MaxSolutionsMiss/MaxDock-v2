@@ -7,7 +7,7 @@ import { createCustomizePanel } from '../ui/customize.js';
 import { format } from '../format.js';
 import { mergeContext, mergeScorecard, mergeFullness, mergeLabour } from '../reports-merge.js';
 import { truckFill } from '../ui/truckfill.js';
-import { fillFigure } from '../ui/fillfigure.js';
+import { readingTile } from '../ui/reading-tile.js';
 import { mark } from '../ui/marks.js';
 
 // Each view carries a mark as well as a name. A report that opens with a heading and a
@@ -221,6 +221,18 @@ const siteRange = () => `${siteName()} · ${rangeLabel()}`;
 //         have no comfortable middle, so 10% is already slipping and 30% is a problem.
 //         Running these on the capacity scale called 62% of arrivals late "healthy".
 //   none  no good end at all: one neutral colour, no verdict word, no badge.
+// The single judge. Every drawing on this page — dial, tile, badge — takes its band, its
+// wording, its verdict and now its colour from here, so two renderings of one number can
+// never reach different conclusions about it.
+//
+// `tone` is the fix for a real defect: the filled shapes used to colour themselves from the
+// trailer's load bands, so "Crew used 62%" printed green because 62% of a trailer is a
+// healthy load. That asserted a verdict the metric had never defined. Colour is now earned:
+// it appears only where a target exists to be met or missed, and everywhere else the reading
+// is drawn in the neutral accent and says only how big it is.
+//
+// `target` is where the line is. Drawn on the track, it turns "77%" into "77 against the 90
+// this has to clear", which is the question somebody actually has.
 function readingBand(percent, good = 'low') {
   const value = Math.max(0, Number(percent));
   const band = good === 'none' ? 'mid'
@@ -234,7 +246,16 @@ function readingBand(percent, good = 'low') {
   const ok = good === 'none' ? undefined
     : good === 'high' || good === 'zero' ? band === 'low'
       : band === 'low' || band === 'mid';
-  return { value, band, words, ok };
+  // A capacity reading has no good end short of the ceiling: a lightly used dock is not a
+  // pass and a busy one is not a fail, so both draw flat and only the ceiling colours.
+  const tone = good === 'none' ? 'flat'
+    : good === 'high' || good === 'zero' ? { low: 'good', mid: 'warn', high: 'bad' }[band]
+      : { low: 'flat', mid: 'flat', high: 'warn', over: 'bad' }[band];
+  const target = good === 'high' ? 90 : good === 'zero' ? 10 : good === 'none' ? null : 100;
+  // Past the ceiling is decided here too, not by the drawing. A tile that worked it out from
+  // the number would be a second judge, and the whole point of this function is that there
+  // is only one.
+  return { value, band, words, ok, tone, target, over: value > 100 };
 }
 
 function dial(percent, label, note, { good = 'low' } = {}) {
@@ -249,12 +270,12 @@ function dial(percent, label, note, { good = 'low' } = {}) {
   </figure>`;
 }
 
-// The same reading as the shape it is about, filling up. Same band, same words — this
-// chooses only the outline, because that is the only thing that differs.
-function shapeOf(percent, label, note, { good = 'low', shape = 'crew' } = {}) {
-  if (percent === null || percent === undefined) return fillFigure({ percent: null, shape, label });
-  const { value, band, words, ok } = readingBand(percent, good);
-  return fillFigure({ percent: value, shape, label, note, band, words, ok });
+// The same reading as a number with a bar under it. Same band, same words, same judge —
+// this chooses nothing, which is why a tile and a dial of one figure always agree.
+function tileOf(percent, label, note, { good = 'low' } = {}) {
+  if (percent === null || percent === undefined) return readingTile({ percent: null, label });
+  const { value, words, tone, target, over } = readingBand(percent, good);
+  return readingTile({ percent: value, label, note, words, tone, target, over });
 }
 
 // Three readings, drawn whichever way the reader picked. The switch is per panel and
@@ -262,9 +283,9 @@ function shapeOf(percent, label, note, { good = 'low', shape = 'crew' } = {}) {
 function readings(key, cards) {
   const form = formOf(key, 'dial');
   const drawn = cards.map(card => (form === 'shape'
-    ? shapeOf(card.percent, card.label, card.note, { good: card.good, shape: card.shape })
+    ? tileOf(card.percent, card.label, card.note, { good: card.good })
     : dial(card.percent, card.label, card.note, { good: card.good })));
-  return `<div class="dials">${drawn.join('')}</div>`;
+  return `<div class="dials${form === 'shape' ? ' dials--tile' : ''}">${drawn.join('')}</div>`;
 }
 
 // A ring for a part-to-whole with two parts — in and out. Two slices, both named and

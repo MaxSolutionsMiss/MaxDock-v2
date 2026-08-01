@@ -25,71 +25,72 @@ const read = path => readFileSync(path, 'utf8');
 const need = (text, pattern, message) => { if (!pattern.test(text)) errors.push(message); };
 const forbid = (text, pattern, message) => { if (pattern.test(text)) errors.push(message); };
 
-const FILES = ['js/pages/reports.js', 'js/ui/fillfigure.js', 'js/pages/queue.js', 'assets/maxdock.css'];
+const FILES = ['js/pages/reports.js', 'js/ui/reading-tile.js', 'js/pages/queue.js', 'assets/maxdock.css'];
 for (const file of FILES) if (!existsSync(file)) errors.push(`Missing ${file}`);
 
 if (!errors.length) {
   const reports = read('js/pages/reports.js');
-  const fig = read('js/ui/fillfigure.js');
+  const fig = read('js/ui/reading-tile.js');
   const queue = read('js/pages/queue.js');
   const css = read('assets/maxdock.css');
 
   // ── One verdict, whichever way it is drawn ──────────────────────────────────
   need(reports, /function readingBand\(/, 'There is no single place deciding which band a reading falls in.');
-  const dialFn = reports.slice(reports.indexOf('function dial('), reports.indexOf('function shapeOf('));
+  const dialFn = reports.slice(reports.indexOf('function dial('), reports.indexOf('function tileOf('));
   need(dialFn, /readingBand\(/, 'The dial decides its own bands instead of asking readingBand.');
-  const shapeFn = reports.slice(reports.indexOf('function shapeOf('), reports.indexOf('function readings('));
-  need(shapeFn, /readingBand\(/, 'The filled shape decides its own bands instead of asking readingBand.');
+  const tileFn = reports.slice(reports.indexOf('function tileOf('), reports.indexOf('function readings('));
+  need(tileFn, /readingBand\(/, 'The reading tile decides its own bands instead of asking readingBand.');
   // A second band table anywhere is the drift this is guarding against.
   forbid(fig, /over capacity|near capacity|not acceptable|on target/,
     'The drawing module carries verdict wording of its own. It draws; readingBand judges.');
   forbid(fig, /value >= 90|value > 100/, 'The drawing module decides bands from the number. That belongs to readingBand.');
 
-  // ── The filled shape is the trailer, standing up ────────────────────────────
-  need(fig, /class="truck truck--fig/, 'The filled shape does not wear the trailer\'s classes.');
-  need(fig, /truck__well/, 'The filled shape draws no empty body behind the level.');
-  need(fig, /truck__load truck__load--/, 'The level is not drawn with the trailer\'s load fills.');
-  forbid(css, /\.fillfig/, 'A second drawing namespace exists in the stylesheet. The filled shape is the trailer\'s own vocabulary.');
-  // The four reading bands and the four load fills are the same four colours in the same
-  // order. Mapping them is what makes reusing the trailer's fills correct rather than lucky.
-  need(fig, /const LOAD = \{ low: 'full', mid: 'part', high: 'light', over: 'over' \}/,
-    'The reading bands are not mapped onto the trailer\'s load fills, so a green reading could draw amber.');
+  // ── The Fill view is a chart, not a pictogram ───────────────────────────────
+  // The owner retired the filled outlines: a silhouette filling up is a worse encoding of a
+  // percentage than a bar, because three of them in a row have three different area-to-value
+  // curves and so cannot be compared with each other at all. What replaced them has to stay a
+  // chart, and these guards are what stop a pictogram creeping back in.
+  need(fig, /class="stat stat--/, 'The Fill view does not draw the reading tile.');
+  need(fig, /class="stat__track"/, 'There is no track behind the fill, so nothing says what the bar is measured against and a low reading looks like a missing one.');
+  need(fig, /class="stat__fill" style="width:/, 'The reading is not drawn as a length against that track.');
+  forbid(fig, /clipPath|clip-path|<path|viewBox/,
+    'The tile has gone back to drawing outlines. A percentage is drawn as a length, not as a shape filling up.');
+  forbid(css, /\.fillfig|\.truck--fig/, 'The retired pictogram vocabulary is still in the stylesheet.');
 
-  // ── Painting order, and an outline that carries no fill ─────────────────────
-  const draw = fig.slice(fig.indexOf('function drawing('));
-  const well = draw.indexOf('truck__well');
-  const load = draw.indexOf('truck__load');
-  const box = draw.indexOf('truck__box');
-  if (!(well >= 0 && load > well && box > load)) {
-    errors.push('The filled shape is painted out of order. Empty body, then the level, then the outline last — an outline drawn before the level is hidden by it, and one carrying a fill paints the level out.');
-  }
-  need(css, /\.truck__box\{fill:none/, 'The outline has a fill of its own. Drawn last, it paints the level out.');
-  // Two figures on one page must not share a clip path.
-  need(fig, /let seq = 0/, 'Clip path ids are not unique per figure; the second figure would be clipped by the first\'s shape.');
-  need(fig, /`ff\$\{\+\+seq\}`/, 'Clip path ids do not advance, so every figure on the page shares one.');
+  // ── Colour is earned, and never rests on hue ───────────────────────────────
+  // The defect this replaced: the filled shapes coloured themselves from the trailer's load
+  // bands, so "Crew used 62%" printed green because 62% of a trailer is a healthy load. That
+  // asserted a verdict the metric had never defined.
+  need(reports, /const tone = good === 'none' \? 'flat'/,
+    'readingBand reaches no tone, so each drawing has to pick its own colour and two renderings of one number can disagree.');
+  need(reports, /\{ low: 'flat', mid: 'flat', high: 'warn', over: 'bad' \}\[band\]/,
+    'A capacity reading colours its lower bands. A lightly used dock is not a pass and a busy one is not a fail; only the ceiling is a verdict.');
+  need(css, /\.stat\{--c:var\(--chart-a\)/,
+    'The tile has no neutral default, so a reading with no target still draws in a status colour.');
+  forbid(fig, /tone === |'good'|'warn'|'bad'/,
+    'The drawing module decides its own tone. It draws; readingBand judges.');
+  need(fig, /note \|\| words/,
+    'The verdict never reaches the caption, so a red bar would be the only thing saying a reading failed.');
 
-  // ── The punctuality badge says what the verdict says ────────────────────────
-  // A tick beside a figure whose caption reads "not acceptable" is worse than no badge, so
-  // the badge takes its glyph and its colour from the verdict rather than from the number.
-  need(reports, /const ok = good === 'none' \? undefined/,
-    'readingBand reaches no yes-or-no verdict, so a badge would have to decide for itself whether a reading is fine.');
-  need(reports, /fillFigure\(\{ percent: value, shape, label, note, band, words, ok \}\)/,
-    'The verdict is decided but never reaches the drawing, so the badge cannot follow it.');
-  need(fig, /const badgeOf = /, 'Nothing draws the punctuality badge.');
-  need(fig, /\$\{badgeOf\(shape, load, ok\)\}/, 'The badge is defined but never drawn.');
-  forbid(fig, /badgeOf[\s\S]{0,400}percent/, 'The badge reads the percentage. It must follow the verdict, or the two can disagree.');
-  // Drawn after the outline, or the outline's stroke would run through it.
-  const drawTail = fig.slice(fig.indexOf('function drawing('));
-  if (!(drawTail.indexOf('badgeOf(') > drawTail.indexOf('truck__box'))) {
-    errors.push('The badge is painted before the outline, so the clock\'s own strokes cross it.');
-  }
-  need(fig, /\(VARIANT\[shape\]\?\.of \|\| shape\) !== 'clock'/, 'Every shape carries a badge. A trailer or a crew is a quantity with no target, so a tick on one asserts something that was never measured.');
-  need(fig, /ok !== true && ok !== false/,
-    'A reading with no verdict, or one that was never measured, still draws a badge and so invents a finding.');
-  need(fig, /truck__load--\$\{ok \? 'full' : load\}/,
-    'The badge picks its own colour rather than the band\'s, so it can be red beside a green reading.');
-  need(css, /\.truck__badge \.truck__bc\{fill:var\(--surface\)/,
-    'The badge has no cut-out behind it, so at 76px it merges into the clock ring it sits on.');
+  // ── The target is on the track ─────────────────────────────────────────────
+  need(reports, /const target = good === 'high' \? 90 : good === 'zero' \? 10 : good === 'none' \? null : 100/,
+    'No target is worked out, so a reading is drawn against nothing.');
+  need(fig, /target !== null && target > 0 && target < 100/,
+    'A target off the scale still draws a mark, which puts a line on the end cap pretending to be a threshold.');
+  need(css, /\.stat__mark\{position:absolute/, 'The target mark is not drawn on the track.');
+
+  // ── Over a hundred is not the same as full ─────────────────────────────────
+  need(reports, /over: value > 100/,
+    'Nothing works out that a reading is past its ceiling, so the drawing would have to decide it and become a second judge.');
+  need(fig, /over = false/, 'The tile cannot be told a reading is over its ceiling.');
+  need(fig, /\$\{over \? ' stat--over' : ''\}/, 'The tile is told, and draws it no differently.');
+  need(css, /\.stat--over \.stat__track::after/,
+    'A reading past 100 draws a full bar and nothing else, so 108% and exactly 100% are the same picture.');
+
+  // ── Never measured is not zero ─────────────────────────────────────────────
+  need(fig, /not measured/,
+    'A reading that was never taken draws as an empty bar, which reads as a finding when it is a gap in the data.');
+
   // A target of none is not a capacity. On the capacity scale, 62% of arrivals late read
   // "healthy" — and with a badge on it, that verdict became a green tick.
   need(reports, /good === 'zero' \? \(value <= 10 \? 'low' : value <= 25 \? 'mid' : 'high'\)/,

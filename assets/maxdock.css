@@ -1779,8 +1779,39 @@ body.modal-open{overflow:hidden}
 .dial__v i{font-style:normal;font-size:var(--t-small);color:var(--ink-muted)}
 .dial--low{--c:var(--ok)} .dial--mid{--c:var(--chart-a)} .dial--high{--c:var(--signal)} .dial--over{--c:var(--stop)}
 .dial--empty .dial__face::before{background:var(--chart-track)}
-.dial__l{font-size:var(--t-small);font-weight:600;text-align:center;display:grid;gap:1px}
-.dial__l span{font-weight:400;font-size:var(--t-micro);color:var(--ink-muted);text-transform:none}
+/* One caption, two drawings. The dial centres under its face and the tile ranges left under
+   its bar; everything else about a reading's label is the same thing and is declared once. */
+.dial__l,.stat__l{font-size:var(--t-small);font-weight:600;display:grid;gap:1px}
+.dial__l span,.stat__l span{font-weight:400;font-size:var(--t-micro);color:var(--ink-muted);text-transform:none}
+.dial__l{text-align:center}
+
+/* The Fill view: a number with a bar under it, not an outline filling up.
+   Three in a row share one baseline and one scale, which is the whole reason a bar beats a
+   silhouette here — three silhouettes have three different area-to-value curves and cannot
+   be compared against each other at all.
+   Colour is earned. --c defaults to the neutral accent, and a tone only overrides it where
+   readingBand found a target to be met or missed; a metric with no target stays neutral and
+   says only how big it is. The verdict is printed in words underneath in every case, so the
+   reading never rests on hue. */
+.dials--tile{grid-template-columns:repeat(auto-fit,minmax(200px,1fr));align-items:start}
+.stat{--c:var(--chart-a);margin:0;display:grid;gap:var(--s2);justify-items:stretch}
+.stat--good{--c:var(--ok)} .stat--warn{--c:var(--signal)} .stat--bad{--c:var(--stop)}
+.stat__v{font-family:var(--font-data);font-size:var(--t-metric);font-weight:600;line-height:1;
+  color:var(--ink);font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.stat__v i{font-style:normal;font-size:var(--t-lead);font-weight:500;color:var(--ink-muted);margin-left:1px}
+.stat__track{position:relative;height:8px;border-radius:99px;background:var(--chart-track);overflow:visible}
+.stat__fill{display:block;height:100%;border-radius:99px;background:var(--c);max-width:100%}
+/* Where the reading has to get to. Overhangs the track top and bottom so it reads as a line
+   across the bar rather than as a gap in the fill. */
+.stat__mark{position:absolute;top:-3px;bottom:-3px;width:2px;border-radius:1px;
+  background:var(--ink-faint);transform:translateX(-1px)}
+/* Past the end. The bar cannot draw 108% inside a track that is 100% wide, so the overflow
+   is a cap on the end rather than a fill that silently stops at full and reads as exactly
+   full — which is the one wrong answer. */
+.stat--over .stat__track::after{content:'';position:absolute;right:-6px;top:-1px;bottom:-1px;
+  width:4px;border-radius:99px;background:var(--stop)}
+.stat--none{--c:var(--rule-strong)}
+.stat--none .stat__v{color:var(--ink-faint)}
 .ring{margin:0;display:grid;justify-items:center;gap:var(--s3);padding:var(--s4)}
 .ring__face{position:relative;width:132px;aspect-ratio:1;display:grid;place-items:center}
 .ring__face::before{content:'';position:absolute;inset:0;border-radius:50%;
@@ -1805,7 +1836,6 @@ body.modal-open{overflow:hidden}
 .truck--wide .truck__svg{max-width:420px}
 /* The same drawing standing up: a reading filling the outline of what it measures.
    Everything else about it — well, level, outline, caption — is the trailer's. */
-.truck--fig .truck__svg{width:76px}
 /* The tractor is solid and the trailer is an outline, which is not a style choice: the
    trailer has to stay hollow because the load is drawn inside it, and a hollow tractor beside
    a hollow trailer read as a hole in the drawing rather than as a truck. Solid is also what
@@ -1820,22 +1850,18 @@ body.modal-open{overflow:hidden}
 /* Three bands. Blue is a truck with room, green is one worth sending, red will not go on.
    The amber "mostly empty" step this replaces read as a warning about a lightly loaded truck,
    and a truck at 40% is not a fault — it is the room this drawing exists to show. */
-.truck__load--light{fill:var(--chart-a)} .truck__load--part{fill:var(--chart-a)}
+.truck__load--part{fill:var(--chart-a)}
 .truck__load--full{fill:var(--ok)} .truck__load--over{fill:var(--stop)}
 /* How full it is, in the middle of the body, knocked out of the load. Sized in the viewBox's
    own units so it scales with the drawing — a 96px trailer in a dialog row and a 260px one on
    a report get the same proportion rather than the same pixels. */
 .truck__pct{fill:#fff;font-weight:700;font-size:13px;font-variant-numeric:tabular-nums;pointer-events:none}
 .truck__pct--ink{fill:var(--ink-muted)}
-.truck--fig .truck__pct{font-size:11px}
 .truck--unset .truck__box{stroke-dasharray:3 3}
 /* The punctuality badge. Its disc takes the fill of whichever load class the verdict put on
    the group, so the badge cannot be a colour the reading is not; the ring behind it is the
    page's own surface, punched out so the badge separates from the clock rather than merging
    into it. The two selectors carry the group class as well, to beat the load fill above. */
-.truck__badge .truck__bc{fill:var(--surface)}
-.truck__badge .truck__bg{fill:none;stroke:var(--surface);stroke-width:2.6;stroke-linecap:round;stroke-linejoin:round}
-.truck__badge .truck__bd{fill:var(--surface)}
 .truck__cap{display:grid;justify-items:center;gap:1px;text-align:center;font-size:var(--t-small)}
 .truck__cap b{font-family:var(--font-data);font-size:var(--t-base)}
 .truck__cap span{color:var(--ink-muted);font-size:var(--t-micro)}

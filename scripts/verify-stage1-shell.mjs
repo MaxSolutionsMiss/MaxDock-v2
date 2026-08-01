@@ -147,10 +147,28 @@ const cssRuleBytes = Buffer.byteLength(readFileSync(join(ROOT, 'assets/maxdock.c
 // docrow__k--${kind}, dial--${band}, state--${kind}. There is nothing left to reclaim, so this
 // is growth and not drift.
 //
+// 76 -> 77 KB, for the reading tile that replaced the filled pictograms on every report's
+// Fill view. This raise is smaller than it looks and is close to a wash: it retired six rules
+// with it — .truck--fig at two sizes, the three .truck__badge cut-out rules and
+// .truck__load--light, all of which existed only for the pictograms — and merged .dial__l and
+// .stat__l into one caption rule, since a dial and a tile label a reading identically apart
+// from where the text ranges. What is left is the track, the fill, the target mark, the
+// over-ceiling cap and four tones, which is a chart the product did not have.
+//
+// It buys a correctness fix rather than a picture. The pictograms coloured themselves from
+// the trailer's load bands, so "Crew used 62%" printed green because 62% of a trailer is a
+// healthy load — a verdict that metric had never defined. Colour is now earned: it appears
+// only where readingBand found a target to be met or missed, and a reading with no target
+// draws in the neutral accent and says only how big it is.
+//
+// The dead-rule scan was run again first, as it was for each earlier raise. It reports 35
+// class names absent from js/ and app/, and all 35 are composed at runtime — the nine
+// families listed above plus stat--${tone}. There is nothing left to reclaim.
+//
 // The point of the number is not the number. It is that growth in what a browser parses
 // stays a decision somebody has to make on purpose and justify in writing, instead of
 // arriving one convenience rule at a time.
-if (cssRuleBytes > 76 * 1024) fail('assets/maxdock.css', `CSS rule budget exceeded: ${Math.round(cssRuleBytes / 1024)} KB of declarations.`);
+if (cssRuleBytes > 77 * 1024) fail('assets/maxdock.css', `CSS rule budget exceeded: ${Math.round(cssRuleBytes / 1024)} KB of declarations.`);
 // The file figure is a sanity bound, not a second gate, and it took two raises in one day to
 // see that it had been the wrong shape all along. Sitting 2 KB above the rules content, it
 // bound on *comments* — so the thing it actually rationed was the reasoning three paragraphs

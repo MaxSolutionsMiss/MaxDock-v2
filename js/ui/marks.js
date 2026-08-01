@@ -17,6 +17,47 @@ const PART = (d, dim = false) => `<path d="${d}"${dim ? ' class="mk__b"' : ''}/>
 // to be cut, which is what the even-odd rule is for.
 const CUT = d => `<path fill-rule="evenodd" d="${d}"/>`;
 
+// Geometry, not decoration. The set was drawn entirely from axis-aligned rectangles with
+// square corners, and that is what made it read as assembled rather than designed — the
+// tractor was the only mark carrying an arc and the only one that looked drawn. These two
+// helpers put a radius on everything and keep the path data readable: an inlined rounded
+// rectangle is forty characters of arc commands nobody can check by eye.
+const n = v => Number(v.toFixed(2));
+const R = (x, y, w, h, r = 1) => {
+  r = Math.min(r, w / 2, h / 2);
+  return `M${n(x + r)} ${n(y)}h${n(w - 2 * r)}a${r} ${r} 0 0 1 ${r} ${r}`
+    + `v${n(h - 2 * r)}a${r} ${r} 0 0 1 ${-r} ${r}h${n(-(w - 2 * r))}`
+    + `a${r} ${r} 0 0 1 ${-r} ${-r}v${n(-(h - 2 * r))}a${r} ${r} 0 0 1 ${r} ${-r}z`;
+};
+const Pill = (x, y, w, h) => R(x, y, w, h, Math.min(w, h) / 2);
+
+// A carton: soft corners, a lid band and a tape seam. Without those last two a carton is a
+// tile, which is what six plain rectangles on a plinth read as.
+const carton = (x, y, w = 6.2, h = 5.2) => PART(R(x, y, w, h, 0.75))
+  + PART(`M${n(x + 0.5)} ${n(y + 1.5)}h${n(w - 1)}v.85h${n(-(w - 1))}z`, true)
+  + PART(Pill(n(x + w / 2 - 0.42), n(y + 2.6), 0.84, n(h - 3.2)), true);
+
+// A hard hat, head on. The brim is a lens that sags at the centre and sweeps up at the
+// sides; drawn as a flat bar it is a plank, and drawn wide with a deep sag it is a sun hat.
+// The crown is a flattened dome — a semicircle is a bowler.
+const hat = (cx, cy, s = 1, dim = false) => {
+  const rx = 4.4 * s, ry = 3.9 * s, bw = 5 * s, sag = 0.45 * s, th = 1.4 * s;
+  return PART(`M${n(cx - rx)} ${n(cy)}a${n(rx)} ${n(ry)} 0 0 1 ${n(rx * 2)} 0z`, dim)
+    + PART(`M${n(cx - bw)} ${n(cy - 0.15 * s)}q${n(bw)} ${n(sag)} ${n(bw * 2)} 0`
+      + `v${n(th)}q${n(-bw)} ${n(sag)} ${n(-bw * 2)} 0z`, dim)
+    + PART(Pill(n(cx - 0.5 * s), n(cy - ry + 0.45 * s), n(s), n(ry - 0.6 * s)), true);
+};
+// Where the face starts, so the brim never hangs over it.
+const chinTop = (cy, s = 1) => n(cy + 0.22 * s + 1.4 * s + 0.15 * s);
+const face = (cx, top, w, h, dim = false) =>
+  PART(`M${n(cx - w / 2)} ${n(top)}h${n(w)}v${n(h - w / 2)}a${n(w / 2)} ${n(w / 2)} 0 0 1 ${n(-w)} 0z`, dim);
+// A shoulder line: rises at the outer edge, then flattens. One arc across a body this wide
+// draws a bell.
+const torso = (cx, top, halfW, bottom, dim = false) =>
+  PART(`M${n(cx - halfW)} ${n(bottom)}v${n(-(bottom - top - 3.4))}`
+    + `c0-2 1.3-3.2 2.9-3.8a${n(halfW)} ${n(halfW)} 0 0 1 ${n(2 * (halfW - 2.9))} 0`
+    + `c1.6.6 2.9 1.8 2.9 3.8v${n(bottom - top - 3.4)}z`, dim);
+
 const SHAPES = {
   // Overview: bars of different heights, the tallest solid and the rest behind it.
   chart: PART('M3 19h18v2H3z') + PART('M5 11h4v7H5zM16 4h4v14h-4z') + PART('M10.5 7h4v11h-4z', true),
@@ -39,57 +80,72 @@ const SHAPES = {
     + PART('M8.6 15h14.8v.9H8.6z', true)
     + PART('M2.6 16.8a1.6 1.6 0 1 1 0 3.2 1.6 1.6 0 0 1 0-3.2zm4.2 0a1.6 1.6 0 1 1 0 3.2 1.6 1.6 0 0 1 0-3.2zm3.4 0a1.6 1.6 0 1 1 0 3.2 1.6 1.6 0 0 1 0-3.2zm8.2 0a1.6 1.6 0 1 1 0 3.2 1.6 1.6 0 0 1 0-3.2zm3.4 0a1.6 1.6 0 1 1 0 3.2 1.6 1.6 0 0 1 0-3.2z'),
 
-  // Skid movement: cartons stacked on a pallet.
+  // Skid movement: cartons stacked on a pallet, three, two and one.
   //
-  // A pyramid, not a block. The supplied drawing stacks them three, two and one, and that is
-  // worth copying rather than smoothing out: a 2 × 2 block of squares at 22px is a window, a
-  // grid or a set of tiles depending on who is looking, whereas a stepped stack on a pallet is
-  // only ever one thing. The pallet keeps its deck, blocks and bottom board, because a stack
-  // of cartons with nothing under it is a warehouse shelf.
-  skid: PART('M8.6 3.2h6.8v4.6H8.6z')
-    + PART('M5.2 8.4h6.8V13H5.2zM12.6 8.4h6.8V13h-6.8z')
-    + PART('M1.8 13.6h6.8v4.6H1.8zM9.2 13.6H16v4.6H9.2zM16.6 13.6h6.8v4.6h-6.8z')
-    + PART('M1.2 18.8h21.6v1.6H1.2zM2.6 20.4h3v1.6h-3zM10.5 20.4h3v1.6h-3zM18.4 20.4h3v1.6h-3z')
-    + PART('M1.2 22h21.6v1.2H1.2z', true),
+  // A stepped stack is only ever one thing; a 2 x 2 block of squares is a window, a grid or a
+  // set of tiles depending on who is looking. The pallet keeps its deck, its blocks and its
+  // bottom board, because cartons with nothing under them are a shelf.
+  skid: carton(8.9, 1.9) + carton(5.15, 7.5) + carton(12.65, 7.5)
+    + carton(1.4, 13.1) + carton(8.9, 13.1) + carton(16.4, 13.1)
+    + PART(R(0.7, 18.7, 22.6, 1.7, 0.55))
+    + PART(R(2.1, 20.4, 3.3, 1.5, 0.45) + R(10.35, 20.4, 3.3, 1.5, 0.45) + R(18.6, 20.4, 3.3, 1.5, 0.45))
+    + PART(R(0.7, 21.9, 22.6, 1.4, 0.5), true),
 
-  // Dock hours: a roll-up shipping door, wide, with the shutter part raised and the
-  // platform and bumpers in front of it. The owner asked for this one twice.
-  door: PART('M1 2.2h22v3.2H1z')
-    + PART('M3 6.2h18v1.5H3zM3 8.5h18V10H3zM3 10.8h18v1.5H3z', true)
-    + PART('M3 13.4h18v5.4H3z') + PART('M0.6 19.4h22.8v2.4H0.6z')
-    + PART('M3.4 21.8h2.6V23H3.4zM18 21.8h2.6V23H18z', true),
+  // Dock hours: a roll-up door. What separates one from a window is the drum it rolls into
+  // and the tracks it runs in — take those away and horizontal bars in a box is a blind. The
+  // section seams stop short of the edges so they read as joints rather than as cuts.
+  door: PART(R(1.1, 1.5, 21.8, 3.3, 1))
+    + PART(R(1.1, 4.8, 2.1, 13.4, 0.5) + R(20.8, 4.8, 2.1, 13.4, 0.5))
+    + PART(R(3.5, 5.3, 17, 12.9, 0.8))
+    + PART(R(4.4, 9.5, 15.2, 0.95, 0.4) + R(4.4, 13.4, 15.2, 0.95, 0.4), true)
+    + PART(R(0.6, 18.7, 22.8, 2.6, 0.85))
+    + PART(R(3, 21.3, 3.4, 1.9, 0.6) + R(17.6, 21.3, 3.4, 1.9, 0.6)),
 
-  // Vendor scorecard: a supplier's building, windows cut out of it, with a lower wing.
-  company: CUT('M2.6 2.6h11.8v18.8H2.6zM5 5.4h2.6V8H5zM9.4 5.4H12V8H9.4zM5 10.2h2.6v2.6H5zM9.4 10.2H12v2.6H9.4zM6.6 15.6h3.8v5.8H6.6z') + PART('M15.6 9.4h5.8v12H15.6z', true),
+  // Vendor scorecard: a carrier's building. The doorway is a loading bay with its own doors,
+  // which is what distinguishes it from the plant above without repeating it, and everything
+  // stands on a ground line rather than floating.
+  company: CUT(R(2.3, 2.9, 11.2, 18.4, 1.1) + R(4.5, 5.5, 2.5, 2.7, 0.5) + R(8.7, 5.5, 2.5, 2.7, 0.5)
+    + R(4.5, 10.3, 2.5, 2.7, 0.5) + R(8.7, 10.3, 2.5, 2.7, 0.5) + R(4.5, 15.1, 6.7, 6.2, 0.6))
+    + PART('M6 17.1h1.8v4.2H6zM8 17.1h1.8v4.2H8z')
+    + PART(R(14.5, 9.9, 7.1, 11.4, 1), true)
+    + PART(Pill(0.6, 21.3, 22.8, 1.7)),
 
-  // Site scorecard: a plant with a stack, solid, and its yard behind.
-  site: PART('M2 21h20v1.6H2z') + PART('M4 10h7v11H4z') + PART('M12.6 6h3v15h-3z', true)
-    + PART('M16.6 12h5v9h-5z'),
+  // Site scorecard: a plant. A saw-tooth roof is the oldest shorthand there is for one, and
+  // it is what stops this being three bars of different heights — which on a page full of
+  // bar charts is the one thing it must not be. The peaks carry a small fillet.
+  site: PART('M1.3 10.6c0-.5.2-.7.5-1l3.3-2.8c.4-.3.8-.1.8.4v3.4z'
+    + 'M6.7 10.6c0-.5.2-.7.5-1l3.3-2.8c.4-.3.8-.1.8.4v3.4z'
+    + 'M12.1 10.6c0-.5.2-.7.5-1l3.3-2.8c.4-.3.8-.1.8.4v3.4z')
+    + CUT(R(1.3, 10.2, 15.2, 11, 0.9) + R(3.4, 12.9, 2.7, 2.7, 0.5) + R(7.7, 12.9, 2.7, 2.7, 0.5)
+      + R(12, 12.9, 2.7, 2.7, 0.5) + R(6, 17.3, 4.2, 3.9, 0.5))
+    + PART(R(18, 2.5, 3.4, 18.7, 0.9), true)
+    + PART(Pill(0.6, 21.2, 22.8, 1.7)),
 
-  // Truck fullness: a trailer end-on, part filled, so the mark is the reading.
-  load: PART('M2 5h20v13H2zm2 2v9h16V7z') + PART('M4 11h9v5H4z')
-    + PART('M13 7h7v9h-7z', true) + PART('M5 18h2v2H5zM17 18h2v2h-2z'),
+  // Truck fullness: the trailer seen from behind, load on the left and room at the right.
+  // The hinges sitting outside the frame are what stop this reading as a cupboard.
+  load: CUT(R(1.6, 3.3, 20.8, 15.3, 1.4) + R(3.8, 5.5, 16.4, 10.9, 0.8))
+    + PART(R(3.8, 8.3, 9.2, 8.1, 0.6))
+    + PART(R(13.4, 5.5, 6.8, 10.9, 0.6), true)
+    + PART(Pill(0.5, 5.1, 1.6, 2.8) + Pill(0.5, 14, 1.6, 2.8) + Pill(21.9, 5.1, 1.6, 2.8) + Pill(21.9, 14, 1.6, 2.8))
+    + PART(Pill(3.2, 19.3, 17.6, 1.4), true)
+    + PART(R(4.8, 20.6, 2.7, 2.3, 0.55) + R(16.5, 20.6, 2.7, 2.3, 0.55)),
 
-  // Labour: two people in hard hats, the nearer one solid. The hats are the point — this
-  // is a dock crew and not an office, and a bare head at 22px is the same silhouette as
-  // any "profile" glyph in any application. The brim is what makes it read.
-  crew: PART('M9 7.6a3 3 0 1 1 0 6 3 3 0 0 1 0-6zM2.6 21v-1.4A6.4 6.4 0 0 1 9 13.2a6.4 6.4 0 0 1 6.4 6.4V21z')
-    + PART('M9 3.2a4 4 0 0 1 4 4H5a4 4 0 0 1 4-4zM4.2 7.4h9.6v1.5H4.2z')
-    + PART('M18 9a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5zM17.6 14.6a5 5 0 0 1 3.8 4.9V21h-4v-2.2a7.8 7.8 0 0 0-1.6-4.4z', true)
-    + PART('M18 5.4a3.3 3.3 0 0 1 3.3 3.3h-6.6A3.3 3.3 0 0 1 18 5.4zM14.2 8.7h7.6v1.3h-7.6z', true),
+  // Labour: two dock workers. The hat is what makes a figure this trade rather than an
+  // account menu, and it only works if it sits on the head the way a hat does — brim across,
+  // face underneath. A dome floating above a full circle is two shapes that never meet.
+  crew: hat(17.9, 11.4, 0.62, true) + face(17.9, chinTop(11.4, 0.62), 3.3, 3.1, true)
+    + torso(18.4, 15.9, 4.4, 21.6, true)
+    + hat(9.1, 8.1) + face(9.1, chinTop(8.1), 5.7, 3.8) + torso(9.1, 14.6, 7, 21.6),
 
   // Anything measured against time.
   clock: PART('M12 2.4A9.6 9.6 0 1 1 12 21.6 9.6 9.6 0 0 1 12 2.4zm0 2.2a7.4 7.4 0 1 0 0 14.8 7.4 7.4 0 0 0 0-14.8z')
     + PART('M11 6.6h2V12l3.9 2.3-1 1.7L11 13.2z') + PART('M12 4.6a7.4 7.4 0 0 1 7.4 7.4h-2A5.4 5.4 0 0 0 12 6.6z', true),
 
-  // A load going onto another load: two panels joined, the near one over the far one.
-  //
-  // This is the ⧉ the dock board prints in front of a combined booking's reference, drawn at
-  // mark size. It used to be a box with an arrow into another box, which is a different picture
-  // for the same idea — somebody who learns the mark on the board should recognise it on the
-  // brief without being told, and two shapes for one thing is two things to learn.
-  combine: PART('M8.4 2.6h12.8v12.8H8.4z', true)
-    + PART('M2.8 8.6h12.8v12.8H2.8z'),
+  // A load going onto another load: the panel pair the dock board prints in front of a
+  // combined booking, drawn at mark size. Hollow, because two solid panels merge into one
+  // notched blob at 22px, and the back panel is a bracket so it stops where the front starts.
+  combine: PART('M3.4 3h11.3v2.2h-9.1v9.1H3.4a1.4 1.4 0 0 1-1.4-1.4V4.4A1.4 1.4 0 0 1 3.4 3z')
+    + CUT(R(7.6, 7.6, 13.4, 13.4, 1.5) + R(9.8, 9.8, 9, 9, 0.7)),
 
   // Something to look at now.
   warn: PART('M12 2.6 22.6 21H1.4zm0 4.6L5.2 19h13.6z') + PART('M11 9.6h2v5.2h-2zM11 16.2h2v2h-2z')
