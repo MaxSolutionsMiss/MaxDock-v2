@@ -147,13 +147,21 @@ if (!errors.length) {
   need(recv, /class="rbar"/, 'The load screen has no pinned action bar, so its buttons sink under whatever is above them.');
   need(css, /\.rbar\{position:sticky;bottom:0/, 'The bar is not pinned, so it scrolls away like everything else.');
   need(css, /env\(safe-area-inset-bottom/, 'The bar ignores the home indicator, so its bottom row sits under it on an iPhone.');
-  need(recv, /function nextStep\(record\)/,
-    'Nothing works out the single next step, so the phone offers the whole ladder — four targets where one is right and three are wrong and equally close to the thumb.');
-  need(recv, /state\.showAllSteps \? null : nextStep\(record\)/, 'The next step is worked out and not used.');
-  need(recv, /data-more/, 'There is no way to reach the other steps to correct a mis-tap.');
-  // Leaving it open would hand the next truck a screen with four buttons on it.
-  need(recv, /function showResult[\s\S]{0,120}state\.showAllSteps = false/,
-    'Opening the full ladder on one load leaves it open for the next one.');
+  // Every step is offered. An earlier pass showed only the next one behind a big button and
+  // hid the rest, on the reasoning that three wrong targets sit as close to a thumb as the
+  // right one. The owner overruled it: a receiver arriving at a truck already knows which of
+  // the three it is, and making them tap twice to say so is slower than the mis-tap it
+  // guards against. What survives is which one is filled.
+  need(recv, /function nextStep\(record\)/, 'Nothing works out which step comes next, so nothing can point at it.');
+  need(recv, /statusButtons\(record, \{ lead: 'next' \}\)/,
+    'The phone fills the button for where the truck already is, which highlights the one step nobody needs to press.');
+  need(recv, /lead === 'next' \? step\.id === next\?\.id : isCurrent/,
+    'The desk and the phone do not choose the filled step differently, so one of them is wrong.');
+  need(recv, /class="rbar__steps"/, 'The steps are not in the pinned bar, so they sink under the load detail again.');
+  need(recv, /class="rbar"[\s\S]{0,400}data-again/, 'There is no way back out of a load from the bar.');
+  // Two columns, or the card runs to twice the screen and the bar is all anybody sees.
+  need(css, /\[data-chrome="app"\] \.confirmgrid\{grid-template-columns:repeat\(auto-fit,minmax\(1[0-2]\d/,
+    'The app uses the shared 160px column, which two of do not fit a 375px phone, so every fact becomes its own row.');
 
   // The router builds the shell before mount, so the page has to declare its chrome up front.
   const router = read('js/router.js');

@@ -421,6 +421,17 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
   padding-bottom:calc(var(--s3) + env(safe-area-inset-bottom,0px));
   background:var(--surface);border-top:1px solid var(--rule);touch-action:manipulation}
 .rbar__row{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;gap:var(--s2)}
+.rbar__steps{display:grid;gap:var(--s2)}
+.rbar .btn{min-height:52px;font-size:var(--t-lead)}
+/* Two columns on a phone. The shared grid asks 160px a column, which two of do not fit a
+   375px screen, so every fact became its own row and the card ran to twice the viewport. */
+[data-chrome="app"] .confirmgrid{grid-template-columns:repeat(auto-fit,minmax(118px,1fr));padding:var(--s2) var(--s3)}
+/* The reference and the one line that says what the load is, over the facts that need a label. */
+.rload__top{padding:var(--s3);background:var(--dock-wash);border-bottom:1px solid var(--rule)}
+.rload__ref{display:flex;align-items:center;gap:var(--s2);flex-wrap:wrap;
+  font-family:var(--font-data);font-size:var(--t-lead);font-weight:700;letter-spacing:.01em}
+.rload__sum{margin-top:2px;font-size:var(--t-small);color:var(--ink-muted)}
+.rload>.card__title{display:none}
 
 .recv__stage{position:relative;margin-top:var(--s2);border-radius:var(--radius-lg);overflow:hidden;background:#000;aspect-ratio:1}
 .recv__video{width:100%;height:100%;object-fit:cover;display:block}

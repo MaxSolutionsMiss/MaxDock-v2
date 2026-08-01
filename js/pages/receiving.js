@@ -38,10 +38,6 @@ const state = {
   // receiver has not visited yet is simply not in here, and an absent answer means off.
   clock: new Map(),
   details: null,
-  // Set only by "Something else", and cleared the moment a different load is shown: opening
-  // the full ladder to correct a mis-tap on one truck must not leave the next truck's screen
-  // offering four buttons where one is correct.
-  showAllSteps: false,
   mode: 'desk',
   elements: {},
 };
@@ -274,12 +270,17 @@ function nextStep(record) {
   return steps[at + 1] || null;
 }
 
-function statusButtons(record) {
+function statusButtons(record, { lead = 'current' } = {}) {
   const current = String(record.status || '');
+  const next = nextStep(record);
   return stepsFor(record).map(step => {
     const label = stepLabel(step, record.direction);
     const isCurrent = step.id === current;
-    return `<button class="btn ${isCurrent ? 'btn--primary' : 'btn--quiet'}" type="button" data-status="${step.id}" ${isCurrent ? 'aria-current="true"' : ''}>${escapeHtml(label)}</button>`;
+    // On the desk the filled button says where the truck is. On a phone that highlights the
+    // one button nobody needs to press, so there the filled one is the step to reach for —
+    // every step is still offered and still one tap away.
+    const filled = lead === 'next' ? step.id === next?.id : isCurrent;
+    return `<button class="btn ${filled ? 'btn--primary' : 'btn--quiet'}" type="button" data-status="${step.id}" ${isCurrent ? 'aria-current="true"' : ''}>${escapeHtml(label)}</button>`;
   }).join('');
 }
 
@@ -310,20 +311,21 @@ function renderAppointment(record) {
   const driver = `<label class="field field--md"><span class="field__label">Driver <span class="field__opt">optional</span></span><input class="input" data-driver maxlength="120" autocomplete="name" value="${escapeHtml(record.driver_name || '')}"></label>`;
 
   if (state.mode === 'app') {
-    // Six facts, not nine. These are the ones somebody standing at the truck checks against
-    // the paperwork in their other hand; the carrier, the site and the PO are things they look
-    // up when something is wrong, which is what Full details is for.
-    const next = state.showAllSteps ? null : nextStep(record);
+    // The reference and the one line that says what this load is, then the facts that need a
+    // label to make sense. Two columns rather than one: the shared grid asks for 160px a
+    // column, which two of will not fit a 375px phone, so every fact became its own row and
+    // the card ran to twice the screen.
     state.elements.host.innerHTML = `
-      <section class="card recv">
-        <h3 class="card__title">${escapeHtml(record.booking_reference || 'Appointment')}<span class="status status--${escapeHtml(String(record.status || ''))}">${escapeHtml(format.role(record.status))}</span></h3>
+      <section class="card rload">
+        <div class="rload__top">
+          <div class="rload__ref">${escapeHtml(record.booking_reference || 'Appointment')}<span class="status status--${escapeHtml(String(record.status || ''))}">${escapeHtml(format.role(record.status))}</span></div>
+          <div class="rload__sum">${escapeHtml([record.company_name, format.role(record.direction), `${record.skid_count ?? '–'} skids`].filter(Boolean).join(' · '))}</div>
+        </div>
         <div class="confirmgrid">
-          ${detail('Company', record.company_name)}
-          ${detail('Direction', format.role(record.direction))}
-          ${detail('Skids', record.skid_count)}
           ${detail('Dock', record.dock_name)}
           ${detail('Booked', booked)}
           ${detail('Truck', record.truck_type)}
+          ${detail('Carrier', record.carrier_name)}
         </div>
         ${seen}
         ${clockLine(record, location)}
@@ -331,13 +333,8 @@ function renderAppointment(record) {
         <div class="form-actions"><button class="btn btn--quiet" type="button" data-details>Full details</button></div>
       </section>
       <div class="rbar">
-        ${next
-          ? `<button class="btn btn--primary btn--block btn--jumbo" type="button" data-status="${next.id}">${escapeHtml(stepLabel(next, record.direction))}</button>`
-          : `<fieldset class="recv__steps"><legend>Where is this truck?</legend>${statusButtons(record)}</fieldset>`}
-        <div class="rbar__row">
-          ${next ? '<button class="btn btn--quiet" type="button" data-more>Something else</button>' : ''}
-          <button class="btn btn--quiet" type="button" data-again>Back</button>
-        </div>
+        <div class="rbar__steps">${statusButtons(record, { lead: 'next' })}</div>
+        <button class="btn btn--quiet btn--block" type="button" data-again>Back</button>
       </div>`;
     return;
   }
@@ -365,7 +362,6 @@ function renderAppointment(record) {
 }
 
 function showResult(rows, emptyMessage) {
-  state.showAllSteps = false;
   const records = Array.isArray(rows) ? rows : [rows].filter(Boolean);
   if (!records.length) { renderIdle(emptyMessage); return; }
   if (records.length === 1) {
@@ -537,8 +533,6 @@ function wireEvents(root) {
     if (event.target.closest('[data-scan]')) { if (state.scanner && !state.scanner.stopped) stopScanner(); else startScanner(); return; }
     if (event.target.closest('[data-find]')) { renderFind(); return; }
     if (event.target.closest('[data-home]')) { renderStart(); return; }
-    // A mis-tap is the reason this exists, so it opens the whole ladder rather than undoing.
-    if (event.target.closest('[data-more]')) { state.showAllSteps = true; renderAppointment(state.appointment); return; }
     if (event.target.closest('[data-lookup]')) { submitCode(root); return; }
     const status = event.target.closest('[data-status]');
     if (status) { setStatus(status.dataset.status); return; }
@@ -558,7 +552,7 @@ function wireEvents(root) {
       if (state.appointment) renderAppointment(state.appointment);
       return;
     }
-    if (event.target.closest('[data-again]')) { state.appointment = null; state.matches = []; state.showAllSteps = false; renderStart(); }
+    if (event.target.closest('[data-again]')) { state.appointment = null; state.matches = []; renderStart(); }
   });
   // A phone keyboard offers Go, not a button press. Typing a number and hitting
   // it is the whole interaction for a receiver who is not scanning.
