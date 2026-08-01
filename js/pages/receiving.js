@@ -154,7 +154,11 @@ const isApp = () => Boolean(globalThis.matchMedia?.('(display-mode: standalone)'
 // one hand has room for one.
 function renderHome(message = '') {
   state.elements.host.className = 'rapp rapp--home';
+  // The camera sits above the buttons. Underneath them it opened below the fold, so the one
+  // thing somebody is aiming was the one thing they had to scroll to find — and the bottom of
+  // it was cut off. It is first in the source and first on the screen.
   state.elements.host.innerHTML = `
+      <div class="recv__stage rapp__stage" data-stage hidden><video class="recv__video" data-video playsinline muted></video><div class="recv__frame" aria-hidden="true"></div></div>
       <button class="rapp__btn" type="button" data-scan${canScan() ? '' : ' disabled'}>
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3h7v2.2H5.2V10H3zM14 3h7v7h-2.2V5.2H14zM3 14h2.2v4.8H10V21H3zM18.8 14H21v7h-7v-2.2h4.8z"/><path d="M6.6 6.6h4v4h-4zM13.4 6.6h4v4h-4zM6.6 13.4h4v4h-4zM13.4 13.4h4v4h-4z" class="rapp__dim"/></svg>
         <b>Scan</b>
@@ -165,7 +169,6 @@ function renderHome(message = '') {
         <b>Find</b>
         <small>Type the booking number</small>
       </button>
-      <div class="recv__stage" data-stage hidden><video class="recv__video" data-video playsinline muted></video><div class="recv__frame" aria-hidden="true"></div></div>
       ${message ? `<p class="form-message">${escapeHtml(message)}</p>` : ''}`;
 }
 

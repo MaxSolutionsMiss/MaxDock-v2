@@ -376,19 +376,30 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 .rapp{display:grid;gap:var(--s3);max-width:30em;margin-inline:auto;align-content:start}
 /* Only the two-button screen stretches. The number pad below it has five children and would
    share the screen between them, which is a keypad the size of a wall. */
+/* The camera is a third row of the same grid, so nothing has to be told what to do when it
+   opens: two rows share the screen, three rows share the screen. Hidden it is not a row at
+   all. That is why there is no scanning state here — the layout was already the answer.
+   The min-height floor goes because a row that cannot shrink is a row that pushes the last
+   button off the bottom, which is the whole complaint. */
 .rapp--home{flex:1;grid-auto-rows:minmax(0,1fr);align-content:stretch;max-height:46em}
+.rapp--home .rapp__btn{min-height:0}
+/* Two classes, not one. .recv__stage sets aspect-ratio:1 and is declared later in this file,
+   so a single-class override loses to it and the stage kept its square height — overflowing
+   its grid row and sitting on top of the Scan button. Here the row decides the height. */
+.rapp--home .rapp__stage{aspect-ratio:auto;min-height:0}
 .rapp__btn{display:grid;justify-items:center;gap:4px;padding:var(--s5) var(--s4);
   min-height:clamp(116px,22vh,168px);border:2px solid var(--dock);
   border-radius:var(--radius-lg);background:var(--dock);color:#fff;font:inherit;cursor:pointer;
   text-align:center;transition:background var(--motion),border-color var(--motion)}
-.rapp__btn b{font-size:var(--t-title);font-weight:660;letter-spacing:-.01em}
-.rapp__btn small{font-size:var(--t-small);opacity:.88}
+.rapp__btn b{font-size:calc(27px*var(--scale));font-weight:660;letter-spacing:-.015em;line-height:1.1}
+.rapp__btn small{font-size:var(--t-lead);opacity:.9;line-height:1.25}
 .rapp__btn svg{width:38px;height:38px;fill:currentColor}
 .rapp__btn .rapp__dim{opacity:.55}
-.rapp__btn:hover{background:var(--dock-hover);border-color:var(--dock-hover)}
+/* No hover state. On a touch screen :hover sticks after the tap, so the button somebody just
+   pressed sits in its pressed colour as though it were still selected — on the primary device
+   for this app that is a defect, not a nicety. The cursor and the focus ring carry it on a Mac. */
 .rapp__btn--alt{background:var(--surface);color:var(--dock)}
 .rapp__btn--alt small{color:var(--ink-muted);opacity:1}
-.rapp__btn--alt:hover{background:var(--dock-wash);border-color:var(--dock)}
 .rapp__btn:disabled{background:var(--surface-sunk);border-color:var(--rule-strong);
   color:var(--ink-faint);cursor:default}
 .rapp__btn:focus-visible{outline:3px solid var(--dock-deep);outline-offset:2px}
