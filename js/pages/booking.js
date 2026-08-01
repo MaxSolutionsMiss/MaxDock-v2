@@ -798,7 +798,6 @@ function renderConfirmation() {
       <h3 class="booked__ref">${result.booking_reference}</h3>
       <p class="hint">${currentLocation().name} · ${format.timestamp(result.start_at, receivingLocation())}</p>
       ${state.merged ? `<p class="hint hint--wide">${state.merged.absorbed_count} load${state.merged.absorbed_count === 1 ? '' : 's'} combined onto this one and cancelled: ${escapeHtml((state.merged.absorbed || []).map(row => row.booking_reference).join(', '))}. One truck now carries ${state.merged.skid_count} skids.</p>` : ''}
-      ${fullnessFigure()}
     </div>
     <div class="frow">
       <div class="card field--xl" data-confirmation-details></div>

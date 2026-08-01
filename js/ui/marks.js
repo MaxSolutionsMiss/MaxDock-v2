@@ -197,68 +197,9 @@ const SHAPES = {
   hourglass: PART('M5.4 2.4h13.2v2.2H5.4zM5.4 19.4h13.2v2.2H5.4z')
     + PART('M7 5.4h10L12 12z')
     + PART('M12 12.6 17 18.6H7z', true),
-
-  // --- the vehicle set
-  //
-  // Five silhouettes for the five truck types the company books, side on and on the same
-  // ground line so they compare. They are told apart the way they are told apart in a
-  // yard: height of the box, whether the box is one piece with the cab, and how many
-  // wheels are under the back — a 48 runs a single trailer axle where a 53 runs a tandem.
-  // Length alone would not survive 22px.
-
-  // All five redrawn nose-to-the-left on the supplied silhouette's cab: bumper, sloped hood,
-  // cab set back behind it. They used to face right, which was fine on its own and wrong
-  // beside the generic `truck` above once that faced left — a truck type that points the other
-  // way from the truck reads as a different subject, not a variant.
-
-  // Courier van: one low body, nose and box in a piece.
-  van_courier: PART('M2.4 16.4v-3.2l1.4-1.8h2.6l1-2.4H21v7.4z')
-    + PART('M5.8 16.8a1.6 1.6 0 1 1 0 3.2 1.6 1.6 0 0 1 0-3.2zm11.6 0a1.6 1.6 0 1 1 0 3.2 1.6 1.6 0 0 1 0-3.2z'),
-
-  // Cube van: a tall square box sitting straight on the cab, no gap.
-  van_cube: PART('M2 16.4v-3l.8-1.2h2.6l1-3.2h2v7.4z')
-    + PART('M8.4 5.6H22v10.8H8.4z')
-    + PART('M4.6 16.8a1.6 1.6 0 1 1 0 3.2 1.6 1.6 0 0 1 0-3.2zm13.4 0a1.6 1.6 0 1 1 0 3.2 1.6 1.6 0 0 1 0-3.2z'),
-
-  // Straight truck: body and cab on one continuous frame, the wheels close under it.
-  // The unbroken bar from nose to tail is what separates it from a trailer, where the
-  // underside is open between the drives and the trailer axle.
-  truck_straight: PART('M0.6 16.4V13.2l.8-1.2h3.2l1.1-3.6h2.4v8z')
-    + PART('M8.1 6.4H22v10H8.1z')
-    + PART('M0.6 16.4H22v.9H0.6z', true)
-    + PART('M3 16.8a1.6 1.6 0 1 1 0 3.2 1.6 1.6 0 0 1 0-3.2zm15 0a1.6 1.6 0 1 1 0 3.2 1.6 1.6 0 0 1 0-3.2z'),
-
-  // 48 ft trailer: a tractor with a trailer over it, so the underside is open between the
-  // drives and the back, and there is one axle under the back rather than a tandem.
-  trailer_48: PART('M0.6 16.4V13.2l.8-1.2h3.2l1.1-3.6h2.4v8z')
-    + PART('M8.6 5.8H22v9.2H8.6z')
-    + PART('M8.6 15H22v.9H8.6z', true)
-    + PART('M2.6 16.8a1.6 1.6 0 1 1 0 3.2 1.6 1.6 0 0 1 0-3.2zm4.2 0a1.6 1.6 0 1 1 0 3.2 1.6 1.6 0 0 1 0-3.2zm3.4 0a1.6 1.6 0 1 1 0 3.2 1.6 1.6 0 0 1 0-3.2zm8.8 0a1.6 1.6 0 1 1 0 3.2 1.6 1.6 0 0 1 0-3.2z'),
-
-  // 53 ft trailer: longer, and a tandem under the back — a pair of wheels against a
-  // single is the difference you can actually see at 22px. Length alone is not.
-  trailer_53: PART('M0.6 16.4V13.2l.8-1.2h3.2l1.1-3.6h2.4v8z')
-    + PART('M8.6 5.4h14.8v9.6H8.6z')
-    + PART('M8.6 15h14.8v.9H8.6z', true)
-    + PART('M2.6 16.8a1.6 1.6 0 1 1 0 3.2 1.6 1.6 0 0 1 0-3.2zm4.2 0a1.6 1.6 0 1 1 0 3.2 1.6 1.6 0 0 1 0-3.2zm3.4 0a1.6 1.6 0 1 1 0 3.2 1.6 1.6 0 0 1 0-3.2zm8.2 0a1.6 1.6 0 1 1 0 3.2 1.6 1.6 0 0 1 0-3.2zm3.4 0a1.6 1.6 0 1 1 0 3.2 1.6 1.6 0 0 1 0-3.2z'),
 };
-
-// The database's truck type codes, drawn. A code with no mark of its own falls back to the
-// generic tractor-trailer rather than to a bar chart, so a truck type added later is still a
-// truck. Sites can and do add their own codes — this is a lookup, not a constraint.
-const VEHICLES = {
-  courier_van: 'van_courier',
-  cube_van: 'van_cube',
-  straight_truck_26: 'truck_straight',
-  trailer_48: 'trailer_48',
-  trailer_53: 'trailer_53',
-};
-
-export const truckMarkName = code => VEHICLES[code] || 'truck';
 
 export function mark(name) {
   const shape = SHAPES[name] || SHAPES.chart;
   return `<svg class="mk" viewBox="0 0 24 24" aria-hidden="true">${shape}</svg>`;
 }
-
-export const hasMark = name => Object.hasOwn(SHAPES, name);

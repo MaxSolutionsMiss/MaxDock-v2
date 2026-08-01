@@ -5,7 +5,6 @@ import { createModal } from '../ui/modal.js';
 import { pageHead } from '../ui/pagehead.js';
 import { format } from '../format.js';
 import { createShortcutCard } from '../ui/shortcut-card.js';
-import { mark, truckMarkName } from '../ui/marks.js';
 
 const DAY_LABELS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const DAY_ORDER = [1, 2, 3, 4, 5, 6, 0];
@@ -568,7 +567,7 @@ function renderTruckCapacity(canEdit) {
     .map(type => {
       const row = enabled.find(item => item.truck_type_code === type.code);
       return `<div class="setrow setrow--compact" data-capacity-code="${type.code}">
-        <div><div class="setrow__t"><span class="rowmark">${mark(truckMarkName(type.code))}</span>${escapeHtml(type.name)}</div></div>
+        <div><div class="setrow__t">${escapeHtml(type.name)}</div></div>
         <div class="setrow__ctl"><span class="inputwrap">
           <input class="input input--mins" type="number" min="1" name="skid_capacity" value="${row?.skid_capacity ?? ''}" placeholder="–" ${disabled} aria-label="${escapeHtml(type.name)} skid capacity">
           <span class="input__unit">skids</span>
@@ -650,7 +649,7 @@ function renderTruckTypes() {
   const truckRows = state.truckTypes.map(type => {
     const enabled = locationTypes.find(row => row.truck_type_code === type.code);
     return `<div class="setrow setrow--compact" data-truck-code="${type.code}">
-      <div><div class="setrow__t"><span class="rowmark">${mark(truckMarkName(type.code))}</span>${escapeHtml(type.name)}</div></div>
+      <div><div class="setrow__t">${escapeHtml(type.name)}</div></div>
       <div class="setrow__ctl">
         <span class="inputwrap"><input class="input input--mins" type="number" min="0" name="setup_minutes" value="${enabled ? enabled.setup_minutes : 0}" ${state.canManage ? '' : 'disabled'} aria-label="${escapeHtml(type.name)} setup minutes"><span class="input__unit">min setup</span></span>
         <button type="button" class="switch ${enabled?.is_active !== false && enabled ? '' : 'switch--off'}" data-truck-switch aria-pressed="${Boolean(enabled)}" aria-label="Enable ${escapeHtml(type.name)}" ${state.canManage ? '' : 'disabled'}></button>

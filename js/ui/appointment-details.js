@@ -2,7 +2,6 @@ import { db } from '../db.js';
 import { createModal } from './modal.js';
 import { format } from '../format.js';
 import { renderQr } from './qr.js';
-import { mark, truckMarkName } from './marks.js';
 
 // One appointment, everything known about it, from anywhere it appears.
 //
@@ -46,11 +45,6 @@ function cell(label, value) {
   return `<div class="confirmgrid__cell"><span class="confirmgrid__l">${escapeHtml(label)}</span><span class="confirmgrid__v">${escapeHtml(value ?? '–')}</span></div>`;
 }
 
-// The same cell with the thing itself drawn beside it. Kept separate from cell() so the
-// escaping there stays absolute — this one takes a mark name and never a caller's string.
-function markCell(label, value, markName) {
-  return `<div class="confirmgrid__cell"><span class="confirmgrid__l">${escapeHtml(label)}</span><span class="confirmgrid__v"><span class="rowmark">${mark(markName)}</span>${escapeHtml(value ?? '–')}</span></div>`;
-}
 
 // A dot per event, coloured by what the event was. A scan is the one people look
 // for, so it gets the accent rather than the same grey as an edit.
@@ -224,13 +218,10 @@ export function createAppointmentDetails({ location, onEdit, laneFor, onCombine,
       // The schedule carries the code and not the name, so the page that opened this window
       // lends the lookup it already loaded. Without it the window would read "Trailer 53"
       // where the whole application says "53 ft Trailer".
-      record.truck_type || record.truck_type_code
-        ? markCell(
-          'Truck type',
-          record.truck_type || truckName?.(record.truck_type_code) || format.role(record.truck_type_code),
-          truckMarkName(record.truck_type_code),
-        )
-        : '',
+      // A name, not a picture. The truck drawing is reserved for the two places it answers a
+      // question — how full a load ended up when combining, and the report about it. Beside a
+      // label reading "53 ft Trailer" it added nothing the words did not already say.
+      cell('Truck type', record.truck_type || truckName?.(record.truck_type_code) || format.role(record.truck_type_code)),
       cell('PO / BOL / job', record.external_reference),
       cell('Driver', record.driver_name),
       cell('First scanned', record.checked_in_at ? format.timestamp(record.checked_in_at, site) : 'Not scanned yet'),
