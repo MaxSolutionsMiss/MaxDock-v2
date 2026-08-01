@@ -368,6 +368,10 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 [data-chrome="app"]{grid-template-columns:1fr}
 [data-chrome="app"] .top{padding-inline:var(--s3)}
 [data-chrome="app"] .page{padding:var(--s3);flex:1 1 auto}
+/* The phone rules hide the site and the name to buy room in a bar carrying nine other things.
+   This bar carries three, and they are the three the app is supposed to show: who you are,
+   where you are, and a way out. */
+[data-chrome="app"] .top__date,[data-chrome="app"] .who__name{display:inline}
 /* The router focuses the page after mount so a screen reader lands on the content, and the
    browser draws its own ring for that. On a phone the page is the whole screen, so the app
    opened inside what looked like an error box. Suppressed here only: every control inside
@@ -394,7 +398,6 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 .rapp__btn b{font-size:calc(27px*var(--scale));font-weight:660;letter-spacing:-.015em;line-height:1.1}
 .rapp__btn small{font-size:var(--t-lead);opacity:.9;line-height:1.25}
 .rapp__btn svg{width:38px;height:38px;fill:currentColor}
-.rapp__btn .rapp__dim{opacity:.55}
 /* No hover state. On a touch screen :hover sticks after the tap, so the button somebody just
    pressed sits in its pressed colour as though it were still selected — on the primary device
    for this app that is a defect, not a nicety. The cursor and the focus ring carry it on a Mac. */
@@ -403,7 +406,6 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 .rapp__btn:disabled{background:var(--surface-sunk);border-color:var(--rule-strong);
   color:var(--ink-faint);cursor:default}
 .rapp__btn:focus-visible{outline:3px solid var(--dock-deep);outline-offset:2px}
-.rapp__cap{margin-bottom:-8px}
 .rapp__in{font-variant-numeric:tabular-nums;letter-spacing:.04em}
 
 .recv__stage{position:relative;margin-top:var(--s2);border-radius:var(--radius-lg);overflow:hidden;background:#000;aspect-ratio:1}

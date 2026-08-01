@@ -318,7 +318,18 @@ function createShell(context, page) {
   // The bell returns null for roles without notifications.view, so it simply is not
   // rendered rather than appearing and failing on click.
   const notifications = createNotificationBell(context);
-  if (notifications) top.append(locationSelect, date, spacer, notifications.element, connected, profile);
+  if (page.chrome === 'app') {
+    // A receiver stands at a dock, not across a company. The site is a fact about where they
+    // are, not a choice they make every morning, so it is printed rather than offered — and
+    // the picker only earns its place back on an account that genuinely covers more than one.
+    // The date goes too: the phone already has one at the top of the screen.
+    const site = document.createElement('span');
+    site.className = 'top__date';
+    site.textContent = context.location?.name || '';
+    const lead = context.locations.length > 1 ? locationSelect : site;
+    if (notifications) top.append(lead, spacer, notifications.element, connected, profile);
+    else top.append(lead, spacer, connected, profile);
+  } else if (notifications) top.append(locationSelect, date, spacer, notifications.element, connected, profile);
   else top.append(locationSelect, date, spacer, connected, profile);
 
   const banner = document.createElement('div');

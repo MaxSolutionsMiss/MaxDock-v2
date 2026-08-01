@@ -181,8 +181,8 @@ function renderFind(message = '') {
       <label class="field__label rapp__cap" for="recv-token">Booking number</label>
       <input class="input input--jumbo rapp__in" id="recv-token" data-token value="${referencePrefix()}" placeholder="${referencePrefix()}000071" autocomplete="off" inputmode="text" enterkeyhint="search">
       <p class="hint hint--flush">Just the digits after the last dash. The year is filled in and can be changed for an older load.</p>
-      <button class="rapp__btn" type="button" data-lookup><b>Find this load</b></button>
-      <button class="btn btn--quiet btn--block" type="button" data-home>Back</button>
+      <button class="btn btn--primary btn--block btn--jumbo" type="button" data-lookup>Find this load</button>
+      <button class="btn btn--quiet btn--block btn--jumbo" type="button" data-home>Back</button>
       ${message ? `<p class="form-message">${escapeHtml(message)}</p>` : ''}
     </div>`;
   const box = state.elements.host.querySelector('[data-token]');
@@ -305,7 +305,7 @@ function renderAppointment(record) {
       ${clockLine(record, location)}
       <label class="field field--md"><span class="field__label">Driver <span class="field__opt">optional</span></span><input class="input" data-driver maxlength="120" autocomplete="name" value="${escapeHtml(record.driver_name || '')}"></label>
       <fieldset class="recv__steps"><legend>Where is this truck?</legend>${statusButtons(record)}</fieldset>
-      <div class="form-actions"><button class="btn btn--quiet" type="button" data-details>Full details</button><button class="btn btn--quiet" type="button" data-again>Scan another</button></div>
+      <div class="form-actions"><button class="btn btn--quiet" type="button" data-details>Full details</button><button class="btn btn--quiet" type="button" data-again>${state.mode === 'app' ? 'Back' : 'Scan another'}</button></div>
     </section>`;
 }
 
@@ -399,6 +399,18 @@ async function setStatus(status) {
 // Camera scanning, where the browser can do it. Stopped on every exit path — a
 // page that walks away leaving the camera light on is the fastest way to lose an
 // operator's trust in an app they are holding.
+// The Scan button is the stop control while the camera is up. There is nowhere else on this
+// screen to put one, and a camera somebody cannot close is the fastest way to lose their
+// trust in an app that asked for it.
+function scanLabel(title, note) {
+  const button = state.elements?.host?.querySelector('[data-scan]');
+  if (!button) return;
+  const strong = button.querySelector('b');
+  const small = button.querySelector('small');
+  if (strong) strong.textContent = title;
+  if (small) small.textContent = note;
+}
+
 async function startScanner() {
   const stage = state.elements.host.querySelector('[data-stage]');
   const video = state.elements.host.querySelector('[data-video]');
@@ -410,6 +422,7 @@ async function startScanner() {
     // decoder is still being fetched has something to stop and the camera cannot be left on.
     state.scanner = { stream, stopped: false, timer: 0 };
     stage.hidden = false;
+    scanLabel('Stop', 'Close the camera');
     video.srcObject = stream;
     await video.play();
     // Where the browser has no detector this fetches the decoder, which is why it is here
@@ -439,6 +452,14 @@ async function startScanner() {
 }
 
 function stopScanner() {
+  scanLabel('Scan', 'Point at the QR on the paperwork');
+  // The picture goes with the camera. This only ever ran on a successful read, which navigated
+  // away in the same breath, so a dead stage on screen never showed; now that Stop is something
+  // somebody presses, leaving it up is a frozen last frame of a camera they just turned off.
+  const stage = state.elements?.host?.querySelector('[data-stage]');
+  const video = state.elements?.host?.querySelector('[data-video]');
+  if (stage) stage.hidden = true;
+  if (video) video.srcObject = null;
   if (!state.scanner) return;
   state.scanner.stopped = true;
   if (state.scanner.timer) globalThis.clearTimeout(state.scanner.timer);
@@ -457,7 +478,7 @@ function submitCode(root) {
 
 function wireEvents(root) {
   root.addEventListener('click', event => {
-    if (event.target.closest('[data-scan]')) { startScanner(); return; }
+    if (event.target.closest('[data-scan]')) { if (state.scanner && !state.scanner.stopped) stopScanner(); else startScanner(); return; }
     if (event.target.closest('[data-find]')) { renderFind(); return; }
     if (event.target.closest('[data-home]')) { renderStart(); return; }
     if (event.target.closest('[data-lookup]')) { submitCode(root); return; }
