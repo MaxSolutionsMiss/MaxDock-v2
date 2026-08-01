@@ -84,6 +84,20 @@ function normalizeRecord(row) {
   };
 }
 
+// The day being looked at, against the day it is. The queue opens on today and mostly stays
+// there, but a coordinator who can only ever see today finds out about two loads going to the
+// same place on the morning they go — which is the one morning it is too late to combine them.
+// Everything on this page already keys off state.date; all that was missing was a way to move
+// it.
+const isToday = () => state.date === format.todayInput(state.context.location);
+const dayWord = () => (isToday() ? 'today' : format.longDateInput(state.date, state.context.location));
+// For a sentence rather than a heading. The card's own title already names the day, and a
+// long date dropped into the middle of a bullet — "2 trucks Monday, August 3, 2026: 1 in" —
+// reads worse than no date at all. On today it says today; on any other day it says nothing
+// and lets the heading carry it.
+const today = () => (isToday() ? ' today' : '');
+const thatDay = () => (isToday() ? 'today' : 'that day');
+
 async function fetchQueueData() {
   const locationId = state.context.location.id;
   const day = format.dayOfWeek(state.date);
@@ -191,6 +205,10 @@ function dockName(dockId) {
 // door. That is the whole guarantee, expressed in one function rather than scattered through
 // the markup.
 function nextAction(record) {
+  // Nothing to do to a load on a day that is not today. Arriving a truck due on Thursday, or
+  // completing one that ran last Tuesday, are both writes somebody would have to undo — and
+  // the row is still clickable, so the load itself is still reachable.
+  if (!isToday()) return null;
   const clock = state.labour || {};
   const status = String(record.status || '');
   if (EXPECTED_STATUSES.has(status)) {
@@ -354,7 +372,7 @@ function briefFigures() {
   // The same accents the metric cards above carry, so "Completed" is the same
   // green in the brief as it is on the card strip and on the board.
   return [
-    { id: 'trucks', label: 'Trucks today', value: appointments.length },
+    { id: 'trucks', label: 'Trucks', value: appointments.length },
     { id: 'inboundTrucks', label: 'Inbound trucks', value: inbound.length, className: 'kpi--out' },
     { id: 'outboundTrucks', label: 'Outbound trucks', value: outbound.length, className: 'kpi--ok' },
     { id: 'inbound', label: 'Inbound skids', value: skids(inbound), className: 'kpi--out' },
@@ -373,7 +391,7 @@ function briefFigures() {
 // Every figure the brief can show, listed independently of today's data so the
 // picker offers all of them even on a quiet day.
 const BRIEF_FIGURES = [
-  { id: 'trucks', label: 'Trucks today' },
+  { id: 'trucks', label: 'Trucks' },
   { id: 'inboundTrucks', label: 'Inbound trucks' },
   { id: 'outboundTrucks', label: 'Outbound trucks' },
   { id: 'inbound', label: 'Inbound skids' },
@@ -421,7 +439,7 @@ const pointSub = point => (typeof point === 'string' ? '' : point.sub || '');
 
 function briefGroups() {
   const appointments = state.records.filter(record => record.entry_kind !== 'block' && !record.merged_into_appointment_id);
-  if (!appointments.length) return [{ title: 'Trucks', points: ['Nothing is scheduled at this location today.'] }];
+  if (!appointments.length) return [{ title: 'Trucks', points: [`Nothing is scheduled at this location${today()}.`] }];
   const skids = rows => rows.reduce((sum, row) => sum + Number(row.skid_count || 0), 0);
   const inbound = appointments.filter(record => record.direction === 'inbound');
   const outbound = appointments.filter(record => record.direction === 'outbound');
@@ -437,7 +455,7 @@ function briefGroups() {
     title: 'Trucks',
     mark: 'truck',
     points: [
-      `${appointments.length} truck${appointments.length === 1 ? '' : 's'} today: ${inbound.length} in with ${skids(inbound)} skids, ${outbound.length} out with ${skids(outbound)}.`,
+      `${appointments.length} truck${appointments.length === 1 ? '' : 's'}${today()}: ${inbound.length} in with ${skids(inbound)} skids, ${outbound.length} out with ${skids(outbound)}.`,
       `${each(appointments)} skids a truck on average: ${inbound.length ? `${each(inbound)} in` : 'nothing in'}, ${outbound.length ? `${each(outbound)} out` : 'nothing out'}.`,
       remaining.length ? `${remaining.length} still to arrive.` : 'Everything booked has arrived or finished.',
     ],
@@ -458,7 +476,7 @@ function briefGroups() {
     mark: 'combine',
     points: combining.length
       ? combining.map(lane => ({ text: lane.text, sub: lane.refs }))
-      : ['No combining opportunity today.'],
+      : [`No combining opportunity ${thatDay()}.`],
     action: combining.length && can('appointment.create')
       ? { label: 'Combine', attribute: 'data-combine-lane' }
       : null,
@@ -493,8 +511,8 @@ function labourPoints(appointments) {
   if (!perTruck) return [];
   const minutes = appointments.reduce((sum, record) => sum + format.minutesBetween(record.start_at, record.end_at), 0);
   const bookedHours = Math.round((minutes * perTruck) / 60 * 10) / 10;
-  const today = format.dayOfWeek(state.date);
-  const running = (state.shifts || []).filter(shift => (shift.days_of_week || []).map(Number).includes(today));
+  const weekday = format.dayOfWeek(state.date);
+  const running = (state.shifts || []).filter(shift => (shift.days_of_week || []).map(Number).includes(weekday));
   const availableHours = Math.round(running.reduce((sum, shift) => sum + Number(shift.people || 0) * format.shiftHours(shift.start_time, shift.end_time), 0) * 10) / 10;
   const people = running.reduce((sum, shift) => sum + Number(shift.people || 0), 0);
 
@@ -502,8 +520,8 @@ function labourPoints(appointments) {
   // than inventing a number the site never gave.
   if (!availableHours) {
     return [
-      `${bookedHours} hours of dock labour booked today, ${perTruck} people per truck across ${appointments.length} truck${appointments.length === 1 ? '' : 's'}.`,
-      'No shift covers today. Set the roster under Settings › Labour to see this against what the day has.',
+      `${bookedHours} hours of dock labour booked${today()}, ${perTruck} people per truck across ${appointments.length} truck${appointments.length === 1 ? '' : 's'}.`,
+      `No shift covers ${thatDay()}. Set the roster under Settings › Labour to see this against what the day has.`,
     ];
   }
 
@@ -511,7 +529,7 @@ function labourPoints(appointments) {
   const used = Math.round((bookedHours / availableHours) * 100);
   const perPerson = people ? availableHours / people : 0;
   const points = [
-    `${bookedHours} of ${availableHours} dock hours booked today, ${used}% of the crew's day.`,
+    `${bookedHours} of ${availableHours} dock hours booked${today()}, ${used}% of the crew's day.`,
     `${people} on across ${running.length} shift${running.length === 1 ? '' : 's'}, ${perTruck} people per truck.`,
   ];
   if (spare < 0) points.push(`${Math.abs(spare)} hours short. The day needs ${perPerson ? Math.ceil(Math.abs(spare) / perPerson) : 1} more on the floor, or trucks moved off it.`);
@@ -575,7 +593,15 @@ function renderBriefCard() {
           <ul class="briefpoints">${group.points.map((point, index) => `<li>${escapeHtml(pointText(point))}${pointSub(point) || group.action ? `<small class="briefpoint__s">${pointSub(point) ? escapeHtml(pointSub(point)) : ''}${group.action ? `<button class="linkBtn linkBtn--tight" type="button" ${group.action.attribute}="${index}">${escapeHtml(group.action.label)}</button>` : ''}</small>` : ''}</li>`).join('')}</ul>
         </div>
       </section>`).join('')}</div>`;
-  host.innerHTML = `<div class="brief__head"><span class="brief__ico">AI</span><div class="brief__t">${escapeHtml(state.context.location.name)} · today at a glance</div><button class="linkBtn" type="button" data-share-brief>Share with team</button></div>
+  host.innerHTML = `<div class="brief__head"><span class="brief__ico">AI</span>
+    <div class="brief__t">${escapeHtml(state.context.location.name)} · ${escapeHtml(dayWord())} at a glance</div>
+    <div class="datenav">
+      <button class="iconbtn" type="button" data-day="-1" aria-label="Previous day">‹</button>
+      <button class="btn btn--quiet btn--sm" type="button" data-today${isToday() ? ' disabled' : ''}>Today</button>
+      <input class="input input--date" type="date" value="${escapeHtml(state.date)}" data-queue-date aria-label="Day to read">
+      <button class="iconbtn" type="button" data-day="1" aria-label="Next day">›</button>
+    </div>
+    <button class="linkBtn" type="button" data-share-brief>Share with team</button></div>
     <div class="brieffigs">${figures}</div>
     <div class="brief__body">${narrative}</div>`;
 }
@@ -700,6 +726,17 @@ function openBroadcastWindow() {
   });
 }
 
+// One door onto changing the day. The brief is asked for again rather than left showing the
+// day before it: a narrative about Tuesday under a queue showing Thursday is worse than no
+// narrative, and the edge call is cached per location and date so stepping back is free.
+async function goToDate(next) {
+  if (!next || next === state.date) return;
+  state.date = next;
+  state.elements.subtitle.textContent = `${state.context.location.name} · ${dayWord()}${isToday() ? ' · live' : ''}`;
+  await refreshData();
+  if (can('ai.insights')) fetchBrief();
+}
+
 async function refreshData() {
   const data = await fetchQueueData();
   state.docks = data.docks;
@@ -745,7 +782,7 @@ function buildShell(root) {
         <div class="panel__scroll"><table class="table"><thead><tr><th>Time</th><th>Reference</th><th>Dock</th><th>Company</th><th>Load</th><th>Status</th><th></th></tr></thead><tbody data-rows></tbody></table></div>
       </div>
       <div>
-        <div class="heat"><h3 class="heat__t">Dock heatmap</h3><div class="heatgrid" data-heat></div><p class="hint">Darker = busier, against the busiest hour on this board today.</p></div>
+        <div class="heat"><h3 class="heat__t">Dock heatmap</h3><div class="heatgrid" data-heat></div><p class="hint">Darker = busier, against the busiest hour on the day being read.</p></div>
         <div class="watch"><h3 class="watch__t">Watch for</h3><div data-watch></div></div>
       </div>
     </div>`;
@@ -763,18 +800,24 @@ function buildShell(root) {
 }
 
 function wireEvents(root) {
+  root.addEventListener('change', async event => {
+    if (event.target.matches('[data-queue-date]') && event.target.value) await goToDate(event.target.value);
+  });
   root.addEventListener('click', async event => {
     if (event.target.closest('[data-open-booking]')) globalThis.dispatchEvent(new CustomEvent('maxdock:open-booking', { detail: { trigger: event.target } }));
     if (event.target.closest('[data-export]')) exportCsv();
     if (event.target.closest('[data-print]')) globalThis.print();
     if (event.target.closest('[data-fullscreen]')) openBroadcastWindow();
     if (event.target.closest('[data-share-brief]')) shareBrief();
+    const day = event.target.closest('[data-day]');
+    if (day) { await goToDate(format.addDaysInput(state.date, Number(day.dataset.day), state.context.location)); return; }
+    if (event.target.closest('[data-today]')) { await goToDate(format.todayInput(state.context.location)); return; }
     const lane = event.target.closest('[data-combine-lane]');
     if (lane) {
       const found = state.combineLanes[Number(lane.dataset.combineLane)];
       if (found) {
         state.combineDialog.open(found.rows,
-          `${found.rows.length} ${found.direction} loads ${found.direction === 'outbound' ? 'to' : 'from'} ${found.partner} today`,
+          `${found.rows.length} ${found.direction} loads ${found.direction === 'outbound' ? 'to' : 'from'} ${found.partner}${today() || ` on ${format.shortDateInput(state.date, state.context.location)}`}`,
           lane);
       }
       return;
@@ -815,6 +858,8 @@ const page = {
     buildShell(context.pageRoot);
     wireEvents(context.pageRoot);
     state.elements.subtitle.textContent = `${context.location.name} · today · live`;
+    // A day away from today is not live, and the poll must not quietly write over it.
+
     // One gear, both rows: the brief's figures at a glance and the metric cards
     // under it. They were two strips of numbers with only one of them adjustable.
     state.combineDialog = createCombineDialog({

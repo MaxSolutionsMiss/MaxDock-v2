@@ -107,6 +107,22 @@ if (!errors.length) {
   need(reports, /innerHTML = withViewMark\(/, 'The view mark is defined but never applied.');
   need(reports, /panel__head--lead/, 'The lead section head has no marker class, so it cannot be laid out differently from the rest.');
 
+  // ── The brief can be read for a day that is not today ──────────────────────
+  // A coordinator who can only see today finds out about two loads going to the same place on
+  // the morning they go, which is the one morning it is too late to combine them. The whole
+  // page already keyed off state.date; what was missing was a way to move it.
+  need(queue, /data-queue-date/, 'The brief has no day picker, so the queue can only ever be read for today.');
+  need(queue, /async function goToDate\(/, 'Nothing changes the day.');
+  need(queue, /const isToday = \(\) =>/,
+    'Nothing works out whether the day being read is today, so every screen that has to say "today" has to decide for itself.');
+  // The brief is cached per location and date. Left unasked, the narrative under a Thursday
+  // queue would still be Tuesday's, which is worse than no narrative.
+  need(queue, /goToDate[\s\S]{0,400}fetchBrief\(\)/,
+    'Changing the day reloads the queue but never asks for that day\'s brief, so the narrative and the numbers under it describe different days.');
+  // Arriving a truck due on Thursday is a write somebody has to undo.
+  need(queue, /function nextAction\(record\) \{[\s\S]{0,400}if \(!isToday\(\)\) return null;/,
+    'A load on a day that is not today still offers Arrive and Complete, so one tap writes a status onto a truck that has not turned up.');
+
   // ── The day brief: what is on each truck, and a mark per category ───────────
   need(queue, /skids a truck on average/,
     'The brief counts trucks but never says what is on them. Twelve trucks at four skids and twelve at twenty read the same otherwise.');

@@ -1108,7 +1108,11 @@ html[data-text="larger"] .frow>.field--md:not(.field-action){grid-column:span 5}
    line, and the title is allowed to shrink so it wraps rather than pushing. */
 .brief__head{display:flex;align-items:center;gap:var(--s2);flex-wrap:wrap}
 .brief__head .brief__t{min-width:0;flex:1 1 8em}
-.brief__head .linkBtn{margin-left:auto}
+/* The day picker sits between the title and the share link, sized to its content: the title
+   takes the slack, so the control stays the same width whatever the site is called. */
+.brief__head .datenav{flex:none}
+.brief__head .datenav .input--date{flex:0 0 9.5em}
+.brief__head .linkBtn{margin-left:0}
 /* Nothing but the grid the cards sit on: the cards themselves are .kpi, the same
    element the strip above uses. They had their own type scale and their own bar
    width, so two rows of numbers on one screen looked like two applications. */
