@@ -367,7 +367,7 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
    buttons stacked at the top of an empty screen. */
 [data-chrome="app"]{grid-template-columns:1fr}
 [data-chrome="app"] .top{padding-inline:var(--s3)}
-[data-chrome="app"] .page{padding:var(--s3);flex:1 1 auto}
+[data-chrome="app"] .page{padding:var(--s3);flex:1 1 0}
 /* The phone rules hide the site and the name to buy room in a bar carrying nine other things.
    This bar carries three, and they are the three the app is supposed to show: who you are,
    where you are, and a way out. */
@@ -407,6 +407,20 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
   color:var(--ink-faint);cursor:default}
 .rapp__btn:focus-visible{outline:3px solid var(--dock-deep);outline-offset:2px}
 .rapp__in{font-variant-numeric:tabular-nums;letter-spacing:.04em}
+/* The action bar on a load, pinned to the bottom of the app.
+   Measured before it was written: on an iPhone SE the first status button sat 6px below the
+   fold, so on the smallest phone anybody at a dock is holding, the one thing a receiver came
+   to do was just off screen — and it looked like there was nothing more to do. Trimming the
+   detail above it would have cleared the fold by about ninety pixels and been undone by the
+   next field somebody added. Pinned, the action does not move whatever grows above it, and it
+   sits where a thumb already rests on a hand that is also holding paperwork.
+   Sticky rather than fixed: .page is the scroller, so this stays part of the layout and cannot
+   cover the content it is measured against. The inset keeps it clear of the home indicator. */
+.rbar{position:sticky;bottom:0;z-index:2;display:grid;gap:var(--s2);
+  margin:var(--s3) calc(var(--s3) * -1) calc(var(--s3) * -1);padding:var(--s3);
+  padding-bottom:calc(var(--s3) + env(safe-area-inset-bottom,0px));
+  background:var(--surface);border-top:1px solid var(--rule);touch-action:manipulation}
+.rbar__row{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;gap:var(--s2)}
 
 .recv__stage{position:relative;margin-top:var(--s2);border-radius:var(--radius-lg);overflow:hidden;background:#000;aspect-ratio:1}
 .recv__video{width:100%;height:100%;object-fit:cover;display:block}

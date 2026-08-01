@@ -38,6 +38,11 @@ const state = {
   // receiver has not visited yet is simply not in here, and an absent answer means off.
   clock: new Map(),
   details: null,
+  // Set only by "Something else", and cleared the moment a different load is shown: opening
+  // the full ladder to correct a mis-tap on one truck must not leave the next truck's screen
+  // offering four buttons where one is correct.
+  showAllSteps: false,
+  mode: 'desk',
   elements: {},
 };
 
@@ -256,6 +261,19 @@ function renderMatches(records) {
 // receiver says so in one tap. Every step stays available rather than only the
 // next one, because a receiver who forgot to scan on arrival is standing there
 // with a loaded truck and needs Complete, not a lecture about order.
+// The one thing to do to this load next, rather than every thing that could be done to it.
+//
+// The desk screen offers the whole ladder and marks where the truck is, which is right at a
+// desk. On a phone held in one hand beside a running truck it is four targets where there is
+// only ever one correct answer, and three of them are wrong answers sitting the same distance
+// from the thumb. This returns the step after the current one, and the rest stay one tap away
+// behind "Something else" for the case where a receiver has to correct a mis-tap.
+function nextStep(record) {
+  const steps = stepsFor(record);
+  const at = steps.findIndex(step => step.id === String(record.status || ''));
+  return steps[at + 1] || null;
+}
+
 function statusButtons(record) {
   const current = String(record.status || '');
   return stepsFor(record).map(step => {
@@ -285,13 +303,52 @@ function renderAppointment(record) {
   state.elements.host.className = '';
   const location = { timezone: record.location_timezone };
   const when = `${format.time(record.start_at, location)}–${format.time(record.end_at, location)}`;
+  const booked = `${format.shortDateInput(format.inputDate(record.start_at, location), location)} · ${when}`;
+  const seen = record.already_checked_in
+    ? `<p class="form-message form-message--success">First seen ${escapeHtml(format.timestamp(record.checked_in_at, location))}${record.driver_name ? ` · driver ${escapeHtml(record.driver_name)}` : ''}.</p>`
+    : '';
+  const driver = `<label class="field field--md"><span class="field__label">Driver <span class="field__opt">optional</span></span><input class="input" data-driver maxlength="120" autocomplete="name" value="${escapeHtml(record.driver_name || '')}"></label>`;
+
+  if (state.mode === 'app') {
+    // Six facts, not nine. These are the ones somebody standing at the truck checks against
+    // the paperwork in their other hand; the carrier, the site and the PO are things they look
+    // up when something is wrong, which is what Full details is for.
+    const next = state.showAllSteps ? null : nextStep(record);
+    state.elements.host.innerHTML = `
+      <section class="card recv">
+        <h3 class="card__title">${escapeHtml(record.booking_reference || 'Appointment')}<span class="status status--${escapeHtml(String(record.status || ''))}">${escapeHtml(format.role(record.status))}</span></h3>
+        <div class="confirmgrid">
+          ${detail('Company', record.company_name)}
+          ${detail('Direction', format.role(record.direction))}
+          ${detail('Skids', record.skid_count)}
+          ${detail('Dock', record.dock_name)}
+          ${detail('Booked', booked)}
+          ${detail('Truck', record.truck_type)}
+        </div>
+        ${seen}
+        ${clockLine(record, location)}
+        ${driver}
+        <div class="form-actions"><button class="btn btn--quiet" type="button" data-details>Full details</button></div>
+      </section>
+      <div class="rbar">
+        ${next
+          ? `<button class="btn btn--primary btn--block btn--jumbo" type="button" data-status="${next.id}">${escapeHtml(stepLabel(next, record.direction))}</button>`
+          : `<fieldset class="recv__steps"><legend>Where is this truck?</legend>${statusButtons(record)}</fieldset>`}
+        <div class="rbar__row">
+          ${next ? '<button class="btn btn--quiet" type="button" data-more>Something else</button>' : ''}
+          <button class="btn btn--quiet" type="button" data-again>Back</button>
+        </div>
+      </div>`;
+    return;
+  }
+
   state.elements.host.innerHTML = `
     <section class="card recv">
       <h3 class="card__title">${escapeHtml(record.booking_reference || 'Appointment')}<span class="status status--${escapeHtml(String(record.status || ''))}">${escapeHtml(format.role(record.status))}</span></h3>
       <div class="confirmgrid">
         ${detail('Location', record.location_name)}
         ${detail('Dock', record.dock_name)}
-        ${detail('Booked', `${format.shortDateInput(format.inputDate(record.start_at, location), location)} · ${when}`)}
+        ${detail('Booked', booked)}
         ${detail('Direction', format.role(record.direction))}
         ${detail('Company', record.company_name)}
         ${detail('Carrier', record.carrier_name)}
@@ -299,17 +356,16 @@ function renderAppointment(record) {
         ${detail('Skids', record.skid_count)}
         ${detail('PO / BOL / job', record.external_reference)}
       </div>
-      ${record.already_checked_in
-        ? `<p class="form-message form-message--success">First seen ${escapeHtml(format.timestamp(record.checked_in_at, location))}${record.driver_name ? ` · driver ${escapeHtml(record.driver_name)}` : ''}.</p>`
-        : ''}
+      ${seen}
       ${clockLine(record, location)}
-      <label class="field field--md"><span class="field__label">Driver <span class="field__opt">optional</span></span><input class="input" data-driver maxlength="120" autocomplete="name" value="${escapeHtml(record.driver_name || '')}"></label>
+      ${driver}
       <fieldset class="recv__steps"><legend>Where is this truck?</legend>${statusButtons(record)}</fieldset>
-      <div class="form-actions"><button class="btn btn--quiet" type="button" data-details>Full details</button><button class="btn btn--quiet" type="button" data-again>${state.mode === 'app' ? 'Back' : 'Scan another'}</button></div>
+      <div class="form-actions"><button class="btn btn--quiet" type="button" data-details>Full details</button><button class="btn btn--quiet" type="button" data-again>Scan another</button></div>
     </section>`;
 }
 
 function showResult(rows, emptyMessage) {
+  state.showAllSteps = false;
   const records = Array.isArray(rows) ? rows : [rows].filter(Boolean);
   if (!records.length) { renderIdle(emptyMessage); return; }
   if (records.length === 1) {
@@ -481,6 +537,8 @@ function wireEvents(root) {
     if (event.target.closest('[data-scan]')) { if (state.scanner && !state.scanner.stopped) stopScanner(); else startScanner(); return; }
     if (event.target.closest('[data-find]')) { renderFind(); return; }
     if (event.target.closest('[data-home]')) { renderStart(); return; }
+    // A mis-tap is the reason this exists, so it opens the whole ladder rather than undoing.
+    if (event.target.closest('[data-more]')) { state.showAllSteps = true; renderAppointment(state.appointment); return; }
     if (event.target.closest('[data-lookup]')) { submitCode(root); return; }
     const status = event.target.closest('[data-status]');
     if (status) { setStatus(status.dataset.status); return; }
@@ -500,7 +558,7 @@ function wireEvents(root) {
       if (state.appointment) renderAppointment(state.appointment);
       return;
     }
-    if (event.target.closest('[data-again]')) { state.appointment = null; state.matches = []; renderStart(); }
+    if (event.target.closest('[data-again]')) { state.appointment = null; state.matches = []; state.showAllSteps = false; renderStart(); }
   });
   // A phone keyboard offers Go, not a button press. Typing a number and hitting
   // it is the whole interaction for a receiver who is not scanning.

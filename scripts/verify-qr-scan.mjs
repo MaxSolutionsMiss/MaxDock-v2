@@ -34,6 +34,7 @@ for (const file of FILES) if (!existsSync(file)) errors.push(`Missing ${file}`);
 
 if (!errors.length) {
   const recv = read('js/pages/receiving.js');
+  const css = read('assets/maxdock.css');
   const scan = read('js/ui/qr-scan.js');
   const decode = read('js/ui/qr-decode.js');
   const vendor = read('js/vendor/jsQR.js');
@@ -138,6 +139,21 @@ if (!errors.length) {
     'The worker does not let other origins straight through, so it can end up serving a stale answer about a truck.');
   need(sw, /fetch\(request\)[\s\S]{0,400}catch\(\(\) => caches\.match/,
     'The worker serves the cache first, so a deployed fix would not reach a phone until the cache version changed.');
+
+  // ── The action sits under the thumb, on the smallest phone anybody is holding ──────
+  // Measured before it was built: on a 375 x 667 screen the first status button sat six
+  // pixels below the fold, so the one thing a receiver came to do was off screen and looked
+  // like nothing more to do. These guard the shape of the answer, not the pixels.
+  need(recv, /class="rbar"/, 'The load screen has no pinned action bar, so its buttons sink under whatever is above them.');
+  need(css, /\.rbar\{position:sticky;bottom:0/, 'The bar is not pinned, so it scrolls away like everything else.');
+  need(css, /env\(safe-area-inset-bottom/, 'The bar ignores the home indicator, so its bottom row sits under it on an iPhone.');
+  need(recv, /function nextStep\(record\)/,
+    'Nothing works out the single next step, so the phone offers the whole ladder — four targets where one is right and three are wrong and equally close to the thumb.');
+  need(recv, /state\.showAllSteps \? null : nextStep\(record\)/, 'The next step is worked out and not used.');
+  need(recv, /data-more/, 'There is no way to reach the other steps to correct a mis-tap.');
+  // Leaving it open would hand the next truck a screen with four buttons on it.
+  need(recv, /function showResult[\s\S]{0,120}state\.showAllSteps = false/,
+    'Opening the full ladder on one load leaves it open for the next one.');
 
   // The router builds the shell before mount, so the page has to declare its chrome up front.
   const router = read('js/router.js');

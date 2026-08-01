@@ -175,10 +175,26 @@ const cssRuleBytes = Buffer.byteLength(readFileSync(join(ROOT, 'assets/maxdock.c
 // The dead-rule scan was run again first, as it was for each earlier raise, and reports only
 // names composed at runtime. Nothing to reclaim.
 //
+// 78 -> 79 KB, for the action bar pinned to the bottom of a load in MaxDock Receiving. Two
+// rules, and they were written after a measurement rather than before one: on an iPhone SE the
+// first status button sat six pixels below the fold, so on the smallest phone anybody at a dock
+// is realistically holding, the one thing a receiver came to do was just off screen and looked
+// like nothing more to do. On a 390 x 844 phone the same screen was fine, which means it worked
+// or did not by coincidence of hardware.
+//
+// The cheaper fix was considered and rejected in writing: trimming the nine detail cells to six
+// clears the fold by about ninety pixels and is undone by the next field anybody adds. Pinning
+// is invariant to whatever grows above it. The trim was done anyway, because once the action is
+// pinned it is a small edit rather than a rescue.
+//
+// The dead-rule scan was run again first, as it was for each earlier raise, and this pass also
+// gave two rules back rather than only taking: the QR mark's inner squares and the Find label's
+// negative margin. What is left is a sticky bar and its button row.
+//
 // The point of the number is not the number. It is that growth in what a browser parses
 // stays a decision somebody has to make on purpose and justify in writing, instead of
 // arriving one convenience rule at a time.
-if (cssRuleBytes > 78 * 1024) fail('assets/maxdock.css', `CSS rule budget exceeded: ${Math.round(cssRuleBytes / 1024)} KB of declarations.`);
+if (cssRuleBytes > 79 * 1024) fail('assets/maxdock.css', `CSS rule budget exceeded: ${Math.round(cssRuleBytes / 1024)} KB of declarations.`);
 // The file figure is a sanity bound, not a second gate, and it took two raises in one day to
 // see that it had been the wrong shape all along. Sitting 2 KB above the rules content, it
 // bound on *comments* — so the thing it actually rationed was the reasoning three paragraphs
