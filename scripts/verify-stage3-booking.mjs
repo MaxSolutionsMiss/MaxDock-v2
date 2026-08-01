@@ -52,7 +52,11 @@ if (!errors.length) {
   // is the whole point of combining — a picker that only annotates leaves exactly
   // the duplicate trucks the owner is trying to stop.
   requireText(page, /merge_appointments/, 'Ticked loads are never merged — combining only annotates the booking.');
-  requireText(page, /function fullnessBar/, 'A combined truck must say how full it ended up.');
+  // Drawn as the trailer, not as a bar. The guard names the drawing rather than the bar it
+  // replaced, because what has to survive is that the booking shows how full the truck ended
+  // up in the same picture the report will show it in — not that it uses any one widget.
+  requireText(page, /function fullnessFigure/, 'A combined truck must say how full it ended up.');
+  requireText(page, /truckFill\(\{/, 'The booking draws fullness as its own widget rather than as the trailer every other screen draws.');
   // Two places offer combining — the booking wizard, and the operations brief for
   // loads already on the board — and they must be two doors onto one function.
   // A second implementation would be a second set of rules about who may cancel

@@ -689,6 +689,9 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 /* How full the truck ended up. The count alone does not tell a planner whether one
    more load would have fitted; the bar does, without being read. */
 .fullness{display:grid;gap:3px;margin-top:var(--s3)}
+/* The booking dialog draws the trailer here rather than a bar; report tables still draw
+   the bar, so the block stays and the figure gets its own centring. */
+.fullness--fig{justify-items:center;gap:0}
 .fullness__bar{height:9px;border-radius:99px;background:var(--surface-sunk);border:1px solid var(--rule-strong);overflow:hidden}
 .fullness__bar>span{display:block;height:100%;background:var(--ok)}
 .fullness__t{font-size:var(--t-small);color:var(--ink-muted);font-variant-numeric:tabular-nums}

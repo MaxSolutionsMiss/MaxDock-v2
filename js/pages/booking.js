@@ -6,6 +6,7 @@ import { createModal } from '../ui/modal.js';
 import { renderQr } from '../ui/qr.js';
 import { toast } from '../ui/toast.js';
 import { truckUpgrade, upgradeMessage } from '../truck-ladder.js';
+import { truckFill } from '../ui/truckfill.js';
 
 const STEPS = Object.freeze(['Load', 'Vehicle', 'Time', 'Contact', 'Confirm']);
 const TERMINAL_STATUSES = new Set(['completed', 'cancelled', 'no_show']);
@@ -762,20 +763,29 @@ function renderSeriesConfirmation() {
   }
 }
 
-// How full the truck ended up, as a bar. The number alone does not tell a planner
-// whether a second load would have fitted; the bar does, at a glance, and it is
-// the same figure a truck-fullness report will be built from.
-function fullnessBar(skidsWanted = null, capacityWanted = null) {
+// How full the truck ended up, drawn as the truck.
+//
+// This was a progress bar, and a bar is the wrong picture for this question. A planner
+// deciding whether one more load would fit is not asking "what percentage"; they are asking
+// whether there is room at the doors, and a trailer with two skids of space left answers
+// that before the caption is read. It is the same drawing the combine dialog and the truck
+// fullness report use, from the same module, so a booking and the report about it cannot
+// show the load two different ways.
+//
+// It draws for everybody who can reach this step, staff or customer. The room left in a
+// truck is not privileged information — it is the thing the person booking most needs to
+// know, and it is the whole argument for combining.
+function fullnessFigure(skidsWanted = null, capacityWanted = null) {
   const merged = state.merged;
   const capacity = Number(capacityWanted ?? merged?.truck_capacity ?? truckCapacity() ?? 0);
   if (!capacity) return '';
   const skids = Number(skidsWanted ?? merged?.skid_count ?? combinedSkids());
-  const percent = Math.round((skids / capacity) * 100);
-  const over = skids > capacity;
-  return `<div class="fullness${over ? ' fullness--over' : ''}">
-    <div class="fullness__bar"><span style="width:${Math.min(100, percent)}%"></span></div>
-    <div class="fullness__t">${percent}% full · ${skids} of ${capacity} skids${over ? ` · ${skids - capacity} over` : ` · room for ${capacity - skids}`}</div>
-  </div>`;
+  return `<div class="fullness fullness--fig">${truckFill({
+    skids,
+    capacity,
+    code: state.form.truck_type_code,
+    label: selectedName(state.reference.truckTypes, state.form.truck_type_code) || '',
+  })}</div>`;
 }
 
 function renderConfirmation() {
@@ -788,7 +798,7 @@ function renderConfirmation() {
       <h3 class="booked__ref">${result.booking_reference}</h3>
       <p class="hint">${currentLocation().name} · ${format.timestamp(result.start_at, receivingLocation())}</p>
       ${state.merged ? `<p class="hint hint--wide">${state.merged.absorbed_count} load${state.merged.absorbed_count === 1 ? '' : 's'} combined onto this one and cancelled: ${escapeHtml((state.merged.absorbed || []).map(row => row.booking_reference).join(', '))}. One truck now carries ${state.merged.skid_count} skids.</p>` : ''}
-      ${fullnessBar()}
+      ${fullnessFigure()}
     </div>
     <div class="frow">
       <div class="card field--xl" data-confirmation-details></div>
@@ -1165,7 +1175,7 @@ function renderCombinePicker() {
         return `<label class="check-row"><input type="checkbox" data-combine="${escapeHtml(key)}"${checked ? ' checked' : ''}><span><strong>${escapeHtml(match.booking_reference || 'Existing appointment')} · ${escapeHtml(format.time(match.start_at, currentLocation()))}</strong><small>${Number(match.skid_count || 0)} skids · ${escapeHtml(clean(match.carrier_name) || 'Carrier not listed')}${match.company_name ? ` · ${escapeHtml(match.company_name)}` : ''}</small></span></label>`;
       }).join('')}
     </div>
-    ${selectedMatches().length ? `${fullnessBar(combinedSkids(), truckCapacity())}
+    ${selectedMatches().length ? `${fullnessFigure(combinedSkids(), truckCapacity())}
       <p class="inline-note${upgrade ? ' inline-note--warning' : ''}">${escapeHtml(upgrade ? upgradeMessage(upgrade) : combineSummary())}</p>
       ${upgrade && upgrade.fits ? `<div class="form-actions">
         <button class="btn btn--primary" type="button" data-action="upgrade-truck">Change to a ${escapeHtml(upgrade.fits.name)}</button>
