@@ -18,6 +18,7 @@
 //   The camera is released on every exit path. A page that walks away with the light still
 //   on is the fastest way to lose the trust of somebody holding the device.
 import { readFileSync, existsSync } from 'node:fs';
+import { join } from 'node:path';
 import { createHash } from 'node:crypto';
 
 const errors = [];
@@ -105,6 +106,20 @@ if (!errors.length) {
   else {
     if (manifest.display !== 'standalone') errors.push('The manifest does not ask for standalone, so the installed app still draws browser chrome — and the page decides its own chrome from that same signal, so the rail would come back with it.');
     if (!String(manifest.start_url || '').includes('receiving')) errors.push('The installed app does not start on Receiving.');
+    // Measured, not declared. The first version of this manifest pointed at the wide logo and
+    // called it 512x512; it is 2732x941, and Android will not offer to install an app whose
+    // icons do not exist at the size claimed for them. A manifest is a promise to a browser
+    // that never checks it until a phone is in somebody's hand.
+    for (const icon of manifest.icons || []) {
+      const file = join('app', icon.src);
+      if (!existsSync(file)) { errors.push(`The manifest names an icon that is not in the tree: ${icon.src}`); continue; }
+      const head = readFileSync(file);
+      if (head.subarray(0, 8).toString('hex') !== '89504e470d0a1a0a') { errors.push(`${icon.src} is not a PNG.`); continue; }
+      const size = `${head.readUInt32BE(16)}x${head.readUInt32BE(20)}`;
+      if (size !== icon.sizes) errors.push(`${icon.src} is declared ${icon.sizes} and is actually ${size}.`);
+    }
+    if (!(manifest.icons || []).some(icon => icon.sizes === '192x192')) errors.push('There is no 192px icon, which is the size a browser needs before it will offer to install anything.');
+    if (!(manifest.icons || []).some(icon => icon.purpose === 'maskable')) errors.push('There is no maskable icon, so Android crops the rounded square to a circle and cuts the corners off the mark.');
   }
   const html = read('app/receiving.html');
   need(html, /rel="manifest"/, 'The page never links the manifest, so nothing can be installed.');
