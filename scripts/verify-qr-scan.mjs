@@ -163,6 +163,18 @@ if (!errors.length) {
   need(css, /\[data-chrome="app"\] \.confirmgrid\{grid-template-columns:repeat\(auto-fit,minmax\(1[0-2]\d/,
     'The app uses the shared 160px column, which two of do not fit a 375px phone, so every fact becomes its own row.');
 
+  // ── An installed app must not sit on an old build ──────────────────────────
+  // A phone resumes the copy that was already running rather than reloading, so somebody can
+  // be looking at last week's app with no way to tell. A new worker taking over is the signal
+  // that a deploy landed, and it is the only one the page gets.
+  need(html, /controllerchange/,
+    'Nothing listens for a new worker taking over, so an installed app keeps showing the build it was opened on.');
+  need(html, /if \(controlled\) location\.reload\(\)/,
+    'The page hears a new worker and does nothing about it.');
+  // Unguarded, the worker claiming the page on the very first visit reloads it for no reason.
+  need(html, /let controlled = Boolean\(navigator\.serviceWorker\.controller\)/,
+    'The reload is not guarded on there having been a controller, so a first install reloads itself.');
+
   // The router builds the shell before mount, so the page has to declare its chrome up front.
   const router = read('js/router.js');
   need(router, /page\.chrome === 'app'/, 'The router has no way to build a shell without the rail.');

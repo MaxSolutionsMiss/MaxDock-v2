@@ -26,6 +26,18 @@
     // instantly on a dock's wifi; it never caches anything about a load.
     if ('serviceWorker' in navigator) {
       addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(() => {}));
+      // An installed app resumes rather than reloads. Tapping the icon after a deploy brings
+      // back the copy that was already running, so somebody can be looking at last week's
+      // build and have no way to tell. A new worker takes over as soon as it activates, and
+      // that is the moment to pick the new one up.
+      //
+      // Guarded on there having been a controller already: on the very first visit the worker
+      // claims the page and this would fire once for no reason.
+      let controlled = Boolean(navigator.serviceWorker.controller);
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        if (controlled) location.reload();
+        controlled = true;
+      });
     }
   </script>
 </body>

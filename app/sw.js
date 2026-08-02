@@ -13,7 +13,10 @@
 // worker at the root would control every office screen, which is a much larger promise than
 // this one is making.
 
-const SHELL = 'maxdock-receiving-shell-v1';
+// Bumped whenever the worker itself has to change. The browser only looks for a new worker
+// when this file's bytes differ, and a new worker taking over is what tells an installed app
+// to pick up a deploy — so a change that only touches the page needs this moved as well.
+const SHELL = 'maxdock-receiving-shell-v2';
 const FILES = [
   './receiving.html',
   '../assets/maxdock.css',
