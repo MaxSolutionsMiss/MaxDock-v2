@@ -1188,3 +1188,151 @@ lookup, correctly, and is still standing at the wrong door. That case is caught 
 comparing the load's `location_id` against the site in the top bar, which the page already holds.
 It needs no function, no column and no grant, so rolling back the SQL above leaves that half
 working on its own.
+
+---
+
+## 5b-vii. Closing the anonymous surface — eleven revokes and three pinned search paths
+
+Found by the pre-release audit (`docs/PRE_RELEASE_AUDIT.md` §1.3 and §1.4). This entry is
+different from the others again: **no function body changes.** Only who may call them, and where
+three of them look up the names they use. The definitions are untouched, so there is nothing to
+restore word for word and no checksum to pin.
+
+### What was wrong
+
+Of 89 functions in `public`, 83 are `SECURITY DEFINER`. Eleven were also granted to `anon` — the
+unauthenticated role whose key is published in the page source — so they answered at
+`/rest/v1/rpc/<name>` to anyone on the internet.
+
+Each was read rather than counted. **Nothing could be written anonymously.** The three that write
+all raise before touching a row: `save_role_permissions` checks `auth.uid()` then
+`is_system_admin()`, `save_role_page_visibility` checks it is signed in, and
+`set_appointment_truck_type` checks signed-in plus permission. `protect_master_admin` is a trigger
+function and cannot run outside a trigger at all.
+
+What was real is five read helpers with no auth check of their own — `owns_appointment` and
+`has_appointment_access`, which confirm whether an appointment id exists, and
+`location_day_caps_internal`, `location_shift_hours_internal` and `select_policy_dock_internal`,
+which return a site's day caps, its shift hours and its dock selection policy. Three of those are
+named `_internal`, which is the whole argument: they were never meant to be a public API.
+
+None of it is customer data. It is a surface nobody intended, and it is the first thing an
+enterprise security review will ask about.
+
+### The reverse
+
+Sixteen functions carried the grant, not the eleven the advisor named. The advisor lists only
+`SECURITY DEFINER` ones; the other five are trigger helpers that were handed the same grant by
+the same default and have no business answering a web request either. All sixteen are revoked and
+all sixteen are restored here, so this block and the change match exactly.
+
+```sql
+-- Reverse of migration: revoke_anon_execute_and_pin_search_paths
+-- Restores the grants exactly as they were. Run only if something turns out to have
+-- depended on anonymous access, which nothing in MaxDock does: every one of these is
+-- called by the browser as `authenticated`, or by a trigger, which does not consult
+-- EXECUTE at all — Postgres checks that when the trigger is created, not when it fires.
+grant execute on function public.get_master_admin_id() to anon;
+grant execute on function public.has_appointment_access(p_appointment_id uuid) to anon;
+grant execute on function public.list_role_page_visibility() to anon;
+grant execute on function public.location_day_caps_internal(p_location_id uuid, p_date date) to anon;
+grant execute on function public.location_shift_hours_internal(p_location_id uuid, p_date date) to anon;
+grant execute on function public.owns_appointment(p_appointment_id uuid) to anon;
+grant execute on function public.protect_master_admin() to anon;
+grant execute on function public.save_role_page_visibility(p_role_code text, p_hidden_page_codes text[]) to anon;
+grant execute on function public.save_role_permissions(p_role_code text, p_permission_codes text[]) to anon;
+grant execute on function public.select_policy_dock_internal(p_location_id uuid, p_truck_type_code text, p_start_at timestamptz, p_end_at timestamptz, p_exclude_appointment_id uuid, p_direction text) to anon;
+grant execute on function public.set_appointment_truck_type(p_appointment_id uuid, p_truck_type_code text) to anon;
+-- The five trigger helpers, restored with the rest.
+grant execute on function public.enforce_appointment_dock_compatibility() to anon;
+grant execute on function public.protect_active_dock_compatibility() to anon;
+grant execute on function public.set_updated_at() to anon;
+grant execute on function public.easter_sunday_internal(p_year integer) to anon;
+grant execute on function public.nth_weekday_internal(p_year integer, p_month integer, p_dow integer, p_n integer) to anon;
+
+-- And the three search paths back to inherited. These are the statutory-holiday
+-- calculators; every other function in MaxDock already pins search_path to ''.
+alter function public.nth_weekday_internal(p_year integer, p_month integer, p_dow integer, p_n integer) reset search_path;
+alter function public.easter_sunday_internal(p_year integer) reset search_path;
+alter function public.statutory_holidays(p_country text, p_year integer) reset search_path;
+```
+
+The argument lists above were taken from `pg_get_function_identity_arguments` against the live
+catalogue immediately before the change, not written from memory. If a signature has moved since,
+take the current one the same way; the `revoke`/`grant` pair only ever names a function, it never
+rewrites one.
+
+### Why leaving it in place is safe
+
+- **No definition changed.** Every function body is byte-for-byte what it was.
+- **Nothing in MaxDock calls these anonymously.** The browser holds a session for every screen
+  that reaches any of them; the sign-in page itself calls none of them.
+- **The three pinned search paths cannot change behaviour**, because all three already qualify
+  every object they touch. Pinning turns an inherited lookup into a fixed one; a function that
+  never relied on the lookup cannot notice.
+- **Reversing is a grant, not a migration.** No table, no column, no data.
+
+### It took two migrations, and the second one is the one that mattered
+
+The first migration revoked `EXECUTE` from `anon` on all sixteen and the advisor still reported
+four functions reachable anonymously. That was not a stale reading. Nine of these functions carry
+an explicit grant to **`PUBLIC`** as well, and `anon` is a member of `PUBLIC`, so removing the
+direct grant changed nothing for them.
+
+This is worth writing down because it is the trap in the whole exercise: `revoke … from anon`
+reads like it closes the door and does not, whenever a `PUBLIC` grant is sitting behind it. The
+check that tells the truth counts both, `a.grantee = 0` being `PUBLIC`:
+
+```sql
+select count(*)
+from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+cross join lateral aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) a
+left join pg_roles r on r.oid = a.grantee
+where n.nspname = 'public' and a.privilege_type = 'EXECUTE'
+  and (r.rolname = 'anon' or a.grantee = 0);
+```
+
+It returned 16 before, 9 after the first migration, and 0 after the second. Note the
+`coalesce(…, acldefault(…))`: a function whose `proacl` is null is not ungranted, it is on
+Postgres defaults, which are `EXECUTE TO PUBLIC`. A query reading `proacl` alone reports such a
+function as reachable by nobody when it is reachable by everybody.
+
+To reverse the second migration:
+
+```sql
+-- Reverse of migration: revoke_public_execute_on_internal_helpers
+grant execute on function public.location_day_caps_internal(p_location_id uuid, p_date date) to public;
+grant execute on function public.location_shift_hours_internal(p_location_id uuid, p_date date) to public;
+grant execute on function public.protect_master_admin() to public;
+grant execute on function public.select_policy_dock_internal(p_location_id uuid, p_truck_type_code text, p_start_at timestamptz, p_end_at timestamptz, p_exclude_appointment_id uuid, p_direction text) to public;
+grant execute on function public.easter_sunday_internal(p_year integer) to public;
+grant execute on function public.nth_weekday_internal(p_year integer, p_month integer, p_dow integer, p_n integer) to public;
+grant execute on function public.enforce_appointment_dock_compatibility() to public;
+grant execute on function public.protect_active_dock_compatibility() to public;
+grant execute on function public.set_updated_at() to public;
+```
+
+`authenticated`, `postgres` and `service_role` hold their own explicit grants on all nine and
+were never touched, which is why nothing in the application noticed.
+
+### Still outstanding, and it is not a migration
+
+**Leaked-password protection is still off.** It checks a new password against Have I Been Pwned
+and it is a dashboard toggle in Supabase Auth — *Authentication → Policies → Password security* —
+which cannot be reached from a migration or from any tool available to the build. Somebody with
+Supabase access has to turn it on by hand.
+
+It cannot lock anyone out. It applies only when a password is being set, and rejects only
+passwords already known to be in a public breach corpus. Reversed by turning it back off.
+
+### What was verified after the change
+
+Counted against the live catalogue rather than assumed:
+
+- **`anon` can now execute zero functions in `public`**, counting the `PUBLIC` grant as well as
+  the direct one. Was sixteen. Supabase's own advisor agrees: `anon_security_definer_function_executable`
+  went from 11 findings to 0, and `function_search_path_mutable` from 3 to 0.
+- **`statutory_holidays('ca', 2026)` still returns 12 dates**, 1 January to 26 December. That
+  call chains through both pinned helpers — Good Friday goes via `easter_sunday_internal`,
+  Thanksgiving via `nth_weekday_internal` — so a pinned `search_path` breaking either one would
+  have shown up as a missing date or an error, and did not.
