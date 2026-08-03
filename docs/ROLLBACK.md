@@ -18,7 +18,7 @@ without needing anyone else, and without needing to understand anything above it
 | Branch the work happens on | `claude/maxdock-handoff-setup-h7d5nu` (mirrored to `feat/stage4-dock-board`) |
 | Production branch, untouched | `main` |
 | Supabase project | `rywzqepzramurbrpmept` (this is the live project — there is no separate dev database) |
-| Migrations added | `appointment_service_and_departure_clock`, `receive_appointment_stamps_service_and_departure`, `change_appointment_status_stamps_service_and_departure` |
+| Migrations added | `appointment_service_and_departure_clock`, `receive_appointment_stamps_service_and_departure`, `change_appointment_status_stamps_service_and_departure`, `lookup_appointment_site_by_check_in_token` |
 | Applied on | 2026-07-31. The columns are live; every toggle is off, so nothing behaves differently yet. |
 
 `72cfb56d3705f8207d93f4c1b594a9c578bf9f8d` is the state of the product immediately before this
@@ -1092,3 +1092,99 @@ begin
 end;
 $function$
 ```
+
+---
+
+## 5b-vi. The wrong-location lookup — a new function, and why it has no saved definition
+
+This one is different from every other entry above, and the difference is the whole reason it is
+safe: **there is nothing to restore.** `lookup_appointment_site_by_check_in_token` did not exist at
+the baseline commit, so `pg_get_functiondef` has no output to pin and no MD5 to hash. Reversing it
+is one statement, and after that statement the database is byte-for-byte what it was.
+
+```sql
+-- Reverse of migration: lookup_appointment_site_by_check_in_token
+-- The function is new. Dropping it restores the baseline exactly.
+-- Nothing else references it: it is called from one place in js/pages/receiving.js and by
+-- no other function, no trigger, no view, no policy.
+drop function if exists public.lookup_appointment_site_by_check_in_token(uuid);
+```
+
+Safe to run more than once. Safe to run while the branch code is still deployed — the caller is
+wrapped so that a missing function reads as "no answer", and the app falls back to the message it
+showed before this work ("that code does not match an appointment at a location you can receive
+for"). Nothing breaks; the screen just stops naming the site.
+
+### What it does, and the one line that makes it unusual
+
+A receiver at Mississauga scans the QR on a load that was booked into Guelph. Until now both
+lookups ended at `public.has_location_access(a.location_id)`, so the row was invisible and the
+screen said the code did not match an appointment — which is true, unhelpful, and reads to the
+person holding the phone like a broken scanner. The owner asked for the real sentence: *you are at
+the wrong location, this load belongs to Guelph.*
+
+To say **Guelph** the app has to learn one fact about a site the reader has no access to. So this
+function deliberately **does not** call `has_location_access`, and that omission is the only thing
+about it worth reviewing. Four things bound it:
+
+1. **It returns two columns and no more** — the booking reference and the site name. No company,
+   no carrier, no skid count, no PO/BOL, no times, no dock, no driver, not even the appointment
+   id. Nothing a competitor could want and nothing that identifies a customer.
+2. **The reference is already in the reader's hand.** The only way to call it is with the
+   36-character `check_in_token` off the QR code, which means possession of the physical
+   paperwork. It is not searchable and not guessable; there is no by-reference twin of this
+   function, and there deliberately never will be, because a partial booking number is a search
+   across every site rather than proof you are holding the load.
+3. **The permission gate is unchanged.** Same three checks as its siblings, in the same order:
+   signed in, profile active, holds `appointment.check_in`. That permission is held by
+   `coordinator`, `shipping_manager`, `site_admin` and `system_admin` and by no external role —
+   checked against `public.role_permissions` rather than assumed. No customer and no vendor can
+   reach it at all.
+4. **It is `STABLE`.** It cannot write anything, in any circumstance, including through a
+   mistake.
+
+The worst case, stated plainly so nobody has to reconstruct it: a Max Solutions shipping employee
+who is holding a printed load for a site they do not cover can learn the name of that site. That is
+the sentence the feature exists to print.
+
+### The forward migration, for reference
+
+```sql
+create or replace function public.lookup_appointment_site_by_check_in_token(p_token uuid)
+returns table(booking_reference text, location_name text)
+language plpgsql
+stable security definer
+set search_path to ''
+as $function$
+begin
+  if auth.uid() is null then raise exception 'You must be signed in to receive a truck.'; end if;
+  if not exists (select 1 from public.profiles p where p.id = auth.uid() and p.is_active) then
+    raise exception 'This MaxDock account is inactive.';
+  end if;
+  if not public.has_permission('appointment.check_in') then
+    raise exception 'You do not have permission to receive trucks.';
+  end if;
+
+  -- No has_location_access here, and that is the point of the function. See the four bounds
+  -- above: two columns, possession of the token required, staff-only permission, read-only.
+  return query
+  select a.booking_reference, l.name::text
+  from public.appointments a
+  join public.locations l on l.id = a.location_id
+  where a.check_in_token = p_token
+    and a.entry_kind = 'appointment'
+  limit 1;
+end;
+$function$;
+
+revoke all on function public.lookup_appointment_site_by_check_in_token(uuid) from public, anon;
+grant execute on function public.lookup_appointment_site_by_check_in_token(uuid) to authenticated;
+```
+
+### The second half of the feature touches no database at all
+
+A receiver who covers both Mississauga and Guelph gets the Guelph load back from the existing
+lookup, correctly, and is still standing at the wrong door. That case is caught in the browser by
+comparing the load's `location_id` against the site in the top bar, which the page already holds.
+It needs no function, no column and no grant, so rolling back the SQL above leaves that half
+working on its own.

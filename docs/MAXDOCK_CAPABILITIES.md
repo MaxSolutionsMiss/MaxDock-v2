@@ -80,6 +80,11 @@ the phone rather than by the schedule.
 - **Status progression** through the visit: arrived, service started, completed, departed — each
   timestamped, so turnaround time is measured rather than estimated.
 - **Quick QR codes** configurable per site for the steps that site actually runs.
+- **Wrong-location warning.** A load booked into Guelph that turns up at Mississauga is named as
+  such the moment it is scanned: *this load belongs to Guelph.* It holds in both directions —
+  for a receiver who covers only the site they are standing at, and for one who covers both and
+  would otherwise have opened the load with nothing to tell them which door they were at. It
+  warns rather than blocks: a truck at the wrong site is the office's decision to make.
 
 ---
 

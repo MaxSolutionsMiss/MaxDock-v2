@@ -182,6 +182,40 @@ if (!errors.length) {
   need(recv, /display-mode: standalone/, 'Nothing tells the app it was opened from the home screen.');
   need(recv, /function renderHome/, 'There is no two-button home screen.');
   need(recv, /function renderStart/, 'The app and the desk each pick their own idle screen, so the two can drift.');
+
+  // ── A load that belongs to another site says so, by name ───────────────────
+  //
+  // The owner's case, in his words: the load was supposed to go to Guelph and it showed up at
+  // Mississauga. Both halves of it are guarded here because they fail in opposite directions.
+  //
+  // The receiver who covers only Mississauga saw "that code does not match an appointment",
+  // which is true and reads like a broken scanner. The receiver who covers both saw the Guelph
+  // load open perfectly and had no reason to notice they were at the wrong door — that one is
+  // worse, because it ends with a status written against a truck standing somewhere else.
+  need(recv, /function elsewhere\(record\)/,
+    'Nothing compares the load against the site in the top bar, so a receiver who covers both sites can check a load in at the wrong one and never know.');
+  need(recv, /record\.location_id === here\.id/,
+    'The wrong-site test does not compare the load location against where the receiver is, so it is testing something else.');
+  need(recv, /const away = elsewhere\(record\)[\s\S]{0,4000}away \? wrongSiteBand/,
+    'The load screen never draws the wrong-location band, so the check is made and thrown away.');
+  need(recv, /lookup_appointment_site_by_check_in_token/,
+    'A load at a site the receiver cannot open still ends at "that code does not match an appointment", which names nothing.');
+  need(recv, /function renderWrongSite/, 'There is no screen for a load that belongs to another site.');
+  need(recv, /belongs to <b>\$\{escapeHtml\(belongsTo\)\}<\/b>/,
+    'The site is not named in the warning, which is the whole thing the receiver needs.');
+  need(css, /\.rload__top--stop\{/, 'The wrong-location band has no stop colour, so it reads as one more fact about the load.');
+
+  // The band is a warning, not a lock. A truck at the wrong site is the office's decision and
+  // the person at the door may well be told to take it; what they must not do is take it
+  // without noticing. So the steps stay, and a guard keeps anyone from "fixing" that later.
+  forbid(recv, /away \?[^\n]*disabled|disabled[^\n]*\baway\b/,
+    'The wrong-location warning disables the status steps. It is a warning, not a lock: a load that turned up at the wrong site is still a decision for the office.');
+
+  // Possession of the 36-character token is what earns the site name, because it means the
+  // paperwork is in the reader's hand. A booking number is a search, and a by-reference twin
+  // of that function would let any receiver sweep every site for a load. There is not one.
+  forbid(recv, /lookup_appointment_site_by_reference/,
+    'A by-reference site lookup turns "which site is this load at" from possession of the paperwork into a search across every site.');
 }
 
 if (errors.length) {

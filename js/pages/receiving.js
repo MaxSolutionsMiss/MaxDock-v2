@@ -97,6 +97,41 @@ function stepsFor(record) {
 
 const escapeHtml = value => String(value ?? '').replace(/[&<>'"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[char]));
 
+// Where the person holding the phone is standing, as far as MaxDock knows: the site in the top
+// bar. A receiver covering one site has it printed there; one covering several has it selected.
+const hereNow = () => state.context?.location || null;
+
+// A load that belongs to another site, on a screen somebody is holding at this one.
+//
+// It is worth being exact about which case this is, because there are two and only one of them
+// needs the database. This is the easy one: the load came back from the ordinary lookup, so the
+// receiver does have access to that site — they are simply at the wrong door of the two or more
+// they cover. Everything needed to notice that is already on the page.
+//
+// The other case, where the receiver has no access to that site at all, cannot be noticed here
+// because the lookup returns nothing to compare. That one is handled in lookup(), and it is the
+// only reason a new function exists in the database.
+function elsewhere(record) {
+  const here = hereNow();
+  if (!here?.id || !record?.location_id) return null;
+  if (record.location_id === here.id) return null;
+  return { belongsTo: record.location_name || 'another site', here: here.name || '' };
+}
+
+// One sentence, in the words the owner used: this load belongs to Guelph. The site standing at
+// is named too when it is known, because "belongs to Guelph" is only alarming once you have
+// registered that you are not at Guelph.
+const wrongSiteLine = (reference, belongsTo, here) =>
+  `${escapeHtml(reference || 'This load')} belongs to <b>${escapeHtml(belongsTo)}</b>${here ? `. You are at ${escapeHtml(here)}` : ''}.`;
+
+// The head of a load card, in the stop colour. Used twice: on its own for a load this receiver
+// cannot open at all, and above the load's own head for one they can.
+const wrongSiteBand = (reference, belongsTo, here) => `
+  <div class="rload__top rload__top--stop">
+    <div class="rload__ref">Wrong location</div>
+    <div class="rload__sum">${wrongSiteLine(reference, belongsTo, here)}</div>
+  </div>`;
+
 
 function tokenFromUrl() {
   const value = new URL(globalThis.location.href).searchParams.get('t');
@@ -188,6 +223,30 @@ function renderFind(message = '') {
     </div>`;
   const box = state.elements.host.querySelector('[data-token]');
   if (box) { box.focus(); box.setSelectionRange(box.value.length, box.value.length); }
+}
+
+// A load booked into a site this receiver does not cover. There is nothing here to act on and
+// nothing to correct on this phone, so the screen says the one thing that helps — which site —
+// and offers the way back. No status buttons: the whole point is that this load is not theirs.
+//
+// The desk does not get this screen. There a coordinator has the sentence in front of them and a
+// board they can go and look at, so the message goes through the ordinary idle path rather than
+// taking over the page; see lookup().
+function renderWrongSite(reference, belongsTo) {
+  const here = hereNow()?.name || '';
+  // Nothing on this screen can be acted on, so nothing may be left loaded behind it. A held
+  // appointment here would be the previous load, and the next tap would land on that one.
+  state.appointment = null;
+  state.matches = [];
+  state.elements.host.className = '';
+  state.elements.host.innerHTML = `
+    <div class="rapp">
+      <section class="card rload">
+        ${wrongSiteBand(reference, belongsTo, here)}
+        <p class="hint">Send the driver to ${escapeHtml(belongsTo)}. Nothing has been recorded against this load.</p>
+      </section>
+      <button class="btn btn--quiet btn--block btn--jumbo" type="button" data-home>Back</button>
+    </div>`;
 }
 
 // One door onto the first screen, so the app and the desk cannot drift into two idle states.
@@ -309,6 +368,11 @@ function renderAppointment(record) {
     ? `<p class="form-message form-message--success">First seen ${escapeHtml(format.timestamp(record.checked_in_at, location))}${record.driver_name ? ` · driver ${escapeHtml(record.driver_name)}` : ''}.</p>`
     : '';
   const driver = `<label class="field field--md"><span class="field__label">Driver <span class="field__opt">optional</span></span><input class="input" data-driver maxlength="120" autocomplete="name" value="${escapeHtml(record.driver_name || '')}"></label>`;
+  // A receiver who covers both sites can open this load and is still standing at the wrong door.
+  // The steps stay available rather than being taken away: a truck that turned up at the wrong
+  // site is a decision for the office, and the person at the door may well be told to take it.
+  // What they must not do is take it without noticing, which is what this is for.
+  const away = elsewhere(record);
 
   if (state.mode === 'app') {
     // The reference and the one line that says what this load is, then the facts that need a
@@ -317,6 +381,7 @@ function renderAppointment(record) {
     // the card ran to twice the screen.
     state.elements.host.innerHTML = `
       <section class="card rload">
+        ${away ? wrongSiteBand(record.booking_reference, away.belongsTo, away.here) : ''}
         <div class="rload__top">
           <div class="rload__ref">${escapeHtml(record.booking_reference || 'Appointment')}<span class="status status--${escapeHtml(String(record.status || ''))}">${escapeHtml(format.role(record.status))}</span></div>
           <div class="rload__sum">${escapeHtml([record.company_name, format.role(record.direction), `${record.skid_count ?? '–'} skids`].filter(Boolean).join(' · '))}</div>
@@ -342,6 +407,7 @@ function renderAppointment(record) {
   state.elements.host.innerHTML = `
     <section class="card recv">
       <h3 class="card__title">${escapeHtml(record.booking_reference || 'Appointment')}<span class="status status--${escapeHtml(String(record.status || ''))}">${escapeHtml(format.role(record.status))}</span></h3>
+      ${away ? `<p class="form-message">Wrong location. ${wrongSiteLine(record.booking_reference, away.belongsTo, away.here)}</p>` : ''}
       <div class="confirmgrid">
         ${detail('Location', record.location_name)}
         ${detail('Dock', record.dock_name)}
@@ -377,6 +443,24 @@ function showResult(rows, emptyMessage) {
   renderMatches(records);
 }
 
+// Which site a scanned load belongs to, when the ordinary lookup found nothing.
+//
+// Nothing found has two causes that look identical on a phone: the code is not a MaxDock code at
+// all, or it is a perfectly good load booked into a site this receiver does not cover. Telling
+// them apart is the whole feature, so it costs a second request — but only on the miss, which is
+// the rare path, and never on a scan that worked.
+//
+// This hands back two columns and no more, and it is deliberately wrapped: if the function is
+// absent, because this build is running against a database the migration has not reached, the
+// answer is simply "no site" and the screen falls back to the message it always showed.
+async function siteFor(token) {
+  const rows = await db.rpc('lookup_appointment_site_by_check_in_token', { p_token: token }, {
+    key: `receiving:site:${token}`, cache: 0, retry: 0,
+  }).catch(() => null);
+  const row = (Array.isArray(rows) ? rows : [rows]).filter(Boolean)[0];
+  return row?.location_name ? row : null;
+}
+
 async function lookup(token) {
   if (!token) { toast('That code is not a MaxDock appointment code.', 'error'); return; }
   try {
@@ -384,6 +468,14 @@ async function lookup(token) {
       key: `receiving:lookup:${token}`, cache: 0, retry: 1,
       userMessage: 'That appointment could not be looked up.',
     });
+    if (!(Array.isArray(rows) ? rows : [rows]).filter(Boolean).length) {
+      const site = await siteFor(token);
+      if (site) {
+        if (state.mode === 'app') { renderWrongSite(site.booking_reference, site.location_name); return; }
+        renderStart(`Wrong location. ${site.booking_reference || 'That load'} belongs to ${site.location_name}. Send the driver there.`);
+        return;
+      }
+    }
     showResult(rows, 'That code does not match an appointment at a location you can receive for.');
   } catch (error) {
     renderStart(error.userMessage || error.message || 'That appointment could not be looked up.');

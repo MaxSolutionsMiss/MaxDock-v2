@@ -420,7 +420,6 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
   margin:var(--s3) calc(var(--s3) * -1) calc(var(--s3) * -1);padding:var(--s3);
   padding-bottom:calc(var(--s3) + env(safe-area-inset-bottom,0px));
   background:var(--surface);border-top:1px solid var(--rule);touch-action:manipulation}
-.rbar__row{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;gap:var(--s2)}
 .rbar__steps{display:grid;gap:var(--s2)}
 .rbar .btn{min-height:52px;font-size:var(--t-lead)}
 /* Two columns on a phone. The shared grid asks 160px a column, which two of do not fit a
@@ -431,6 +430,10 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 .rload__ref{display:flex;align-items:center;gap:var(--s2);flex-wrap:wrap;
   font-family:var(--font-data);font-size:var(--t-lead);font-weight:700;letter-spacing:.01em}
 .rload__sum{margin-top:2px;font-size:var(--t-small);color:var(--ink-muted)}
+/* The same band in the stop colour, for a load that belongs to another site. One modifier
+   rather than a warning block of its own: it is the head of a load card either way, and the
+   only thing that changes is which of the two things it is announcing. */
+.rload__top--stop{background:var(--stop-wash);border-bottom-color:var(--stop);color:var(--stop)}
 .rload>.card__title{display:none}
 
 .recv__stage{position:relative;margin-top:var(--s2);border-radius:var(--radius-lg);overflow:hidden;background:#000;aspect-ratio:1}

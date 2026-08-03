@@ -2522,3 +2522,65 @@ in-progress load to completed once its window has passed.
 
 Checked after every change: no dock double-booked anywhere, no load carrying more than its
 truck type holds at its site, and no load on a dock that would refuse its truck.
+
+## Wrong location: the load that turned up at the wrong door (2026-08-03)
+
+The owner's case, in his words: *somebody showed up at the door, the load was supposed to go to
+Guelph but it showed up at Mississauga. When they scan the QR code, it should tell them, hey,
+you're at the wrong location, this load belongs to Guelph.*
+
+It is two problems wearing one sentence, and they fail in opposite directions.
+
+**A receiver who covers only Mississauga** got "that code does not match an appointment at a
+location you can receive for". True, and useless: both lookups end at
+`public.has_location_access(a.location_id)`, so a perfectly good Guelph load is invisible and
+reads to the person holding the phone like a broken scanner.
+
+**A receiver who covers both** got something worse. The load opened normally, correctly, with
+three status buttons and nothing anywhere on the screen saying which site it belonged to. The
+end of that story is `arrived` written against a truck standing sixty kilometres away.
+
+### The first one needed the database, and only just
+
+To print the word *Guelph* the app has to learn one fact about a site the reader cannot access.
+So `lookup_appointment_site_by_check_in_token` exists, and it is the only function in MaxDock
+that deliberately does not call `has_location_access`. Four things bound it, and they are set
+out in full in ROLLBACK.md section 5b-vi, which was written before the migration ran:
+
+- it returns **two columns** — the booking reference and the site name. No company, no carrier,
+  no skids, no PO, no times, no dock, no driver, not even the appointment id;
+- the only way to call it is with the **36-character check-in token off the QR**, which means
+  possession of the printed paperwork. There is no by-reference twin and there will not be one:
+  a partial booking number is a search across every site rather than proof you are holding the
+  load, and a verifier now forbids adding one;
+- the permission gate is unchanged — `appointment.check_in`, held by `coordinator`,
+  `shipping_manager`, `site_admin` and `system_admin` and by no external role. Checked against
+  `role_permissions` rather than assumed;
+- it is `STABLE`, so it cannot write.
+
+Worst case, stated plainly: a Max Solutions shipping employee holding a printed load for a site
+they do not cover can learn the name of that site. That is the sentence the feature exists to
+print.
+
+It costs a second request, and only on the miss. A scan that works never makes it.
+
+### The second one needed nothing at all
+
+The load's `location_id` against the site in the top bar, which the page already holds. Rolling
+back the SQL leaves this half working on its own.
+
+### It warns, it does not lock
+
+The three steps stay on the screen. A truck at the wrong site is a decision for the office and
+the person at the door may well be told to take it; what they must not do is take it without
+noticing. A guard now fails the build if anyone later wires the warning to `disabled`.
+
+### One rule, no budget raise
+
+The band is the load card's own head in the stop colour — `.rload__top--stop`, three
+declarations — used twice: alone for a load that cannot be opened, and above the load's own head
+for one that can. It was paid for by `.rbar__row`, left behind when the pinned bar went from two
+columns to three stacked steps and found by the dead-rule scan. 43 bytes under the 79 KB ceiling
+afterwards.
+
+Nine new guards, each proved to fail against a mutated source before being trusted.
