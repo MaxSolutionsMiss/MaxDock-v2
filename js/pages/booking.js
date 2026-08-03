@@ -940,10 +940,16 @@ function setStep(next) {
   if (state.step === 1 && target !== 1) poll.resume(SLOT_SUSPENSION);
   state.step = target;
   state.maxStep = Math.max(state.maxStep, target);
-  if (target === 2) poll.suspend(SLOT_SUSPENSION);
+  // Time is step 1 now that Load and Vehicle share a screen. These two lines still said 2,
+  // which is Confirm: polling was left running underneath the slot picker and suspended on
+  // the summary instead, and — the part that mattered — arriving at Time returned before the
+  // fetch below, so the times were never asked for. A date with an empty list under it and
+  // "Choose one available appointment time." on Continue, with no way past it. Nobody could
+  // book an appointment.
+  if (target === 1) poll.suspend(SLOT_SUSPENSION);
   renderAll();
   hosts.step.focus();
-  if (target !== 2) return;
+  if (target !== 1) return;
   // An after-hours request never asks for slots, so it would never reach the
   // code that looks for loads to combine with. Ask for them directly.
   if (state.form.after_hours) loadCombinable().then(renderCombinePicker);
@@ -952,10 +958,13 @@ function setStep(next) {
 }
 
 async function findSlots(options = {}) {
+  // What the times depend on is the load and the truck, and both are step 0 now. This
+  // asked step 1 as well, which since the merge *is* the time step — so looking for times
+  // began by refusing to look until a time had been chosen, and answered every request with
+  // "Choose one available appointment time." over an empty list.
   const loadError = validateStep(0);
-  const vehicleError = validateStep(1);
-  if (loadError || vehicleError) {
-    setMessage(loadError || vehicleError);
+  if (loadError) {
+    setMessage(loadError);
     return [];
   }
   state.slotLoading = true;
@@ -1002,7 +1011,9 @@ async function findSlots(options = {}) {
     return [];
   } finally {
     state.slotLoading = false;
-    if (!options.quiet && state.step === 2) renderTimeStep();
+    // Drawing what came back, on the step that asked for it — 1 since Load and Vehicle
+    // merged. Left at 2 the times would arrive and never be painted.
+    if (!options.quiet && state.step === 1) renderTimeStep();
   }
 }
 

@@ -65,7 +65,7 @@ const MODALS = {
     // alone and is deliberately not offered the action, so opening it would measure
     // an absence. MXD-2026-000146 is one of the two Guelph loads in the fixture.
     { name: 'combine-loads', prepare: '[data-open-record]:has-text("MXD-2026-000146")', trigger: '[data-combine]' },
-    { name: 'book-appointment', trigger: '[data-open-booking]', walkSteps: 5 },
+    { name: 'book-appointment', trigger: '[data-open-booking]', walkSteps: 3 },
     { name: 'notifications', trigger: '.notif__btn' },
     // The printable card behind a saved booking: a QR, the run in words, and the
     // link under it. Opened from inside the booking dialog, so the booking dialog
@@ -84,7 +84,7 @@ const MODALS = {
     // and is deliberately disabled. The audit wants a row the action is live on.
     { name: 'cancel-appointment', trigger: '.btn--danger:not([disabled])' },
     { name: 'move-appointment', trigger: '[data-move-appointment]:not([disabled])' },
-    { name: 'book-appointment', trigger: '[data-open-booking]', walkSteps: 5 },
+    { name: 'book-appointment', trigger: '[data-open-booking]', walkSteps: 3 },
     { name: 'customize', trigger: '[data-customize]' },
   ],
   // Add dock lives in the Docks & truck types section, so the section has to be
