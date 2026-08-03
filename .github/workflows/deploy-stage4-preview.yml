@@ -73,6 +73,9 @@ jobs:
       - name: Where Print goes, where Export goes, what reaches the paper
         run: node scripts/verify-print-export.mjs
 
+      - name: One subject to a settings section
+        run: node scripts/verify-settings-grouping.mjs
+
       - name: The rollback document still matches what it preserves
         run: node scripts/verify-rollback-doc.mjs
 

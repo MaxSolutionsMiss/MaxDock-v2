@@ -15,14 +15,32 @@ const SLOT_INTERVALS = [5, 10, 15, 20, 30, 60];
 // unrelated subjects makes both harder to find — "Docks & truck types" was two
 // screens with an ampersand between them, and the rule for combining loads was
 // buried under Dock assignment where nobody would look for it.
+//
+// Nine became eight in the pre-release audit, and the three moves it found were all cases
+// where the page was already telling on itself in its own help text:
+//
+//   Skids per truck was under Capacity while the same trailers' enable switch and setup
+//   minutes were under Truck types — whose hint read "Skids per truck is under Capacity".
+//   A section that has to say where the rest of itself is has been split in the wrong place.
+//   Both halves are now under Trucks, and Capacity means one thing: how much the floor holds.
+//
+//   Cap a day was under Labour, which is not what it is: it is a booking limit for one date.
+//   Its hint read "Standing limits live under Dock assignment", two clicks away under an
+//   unrelated heading, and the two controls had different names for the same idea — "Most at
+//   once" against "At once". They are one subject now, under one name, in Capacity & limits.
+//
+//   Booking window & notice was a whole section for two numbers. It joins combining and dock
+//   assignment under Booking rules, which is the question all three answer: what MaxDock does
+//   when somebody books. Dock assignment was also invisible before — it was rendered inside
+//   Docks and named nowhere, so anybody looking for "how does MaxDock pick a door" had to
+//   open a table and scroll past it.
 const SECTIONS = [
   { id: 'hours', label: 'Operating hours' },
   { id: 'timing', label: 'Timing & duration' },
-  { id: 'notice', label: 'Booking window & notice' },
-  { id: 'capacity', label: 'Capacity' },
-  { id: 'combining', label: 'Combining loads' },
+  { id: 'booking', label: 'Booking rules' },
+  { id: 'capacity', label: 'Capacity & limits' },
   { id: 'docks', label: 'Docks' },
-  { id: 'trucks', label: 'Truck types' },
+  { id: 'trucks', label: 'Trucks' },
   { id: 'labour', label: 'Labour' },
   { id: 'quickqr', label: 'Quick QR codes' },
 ];
@@ -421,7 +439,7 @@ function renderCapacity() {
     </fieldset>
     ${saveFoot(canEdit)}
   </form>
-  ${renderTruckCapacity(canEdit)}</div>`;
+  ${renderTrucksAtOnce(canEdit)}</div>`;
 }
 
 function renderAssignment() {
@@ -441,9 +459,42 @@ function renderAssignment() {
         <option value="balanced" ${s.dock_assignment_strategy === 'balanced' ? 'selected' : ''}>Spread evenly</option>
         <option value="fill_first" ${s.dock_assignment_strategy === 'fill_first' ? 'selected' : ''}>Fill one first</option>
       </select></div>
-      <div class="field field--num"><span class="field__label">Most at once</span><span class="inputwrap"><input class="input" type="number" min="1" name="max_concurrent_appointments" value="${s.max_concurrent_appointments ?? ''}" placeholder="∞" ${disabled}><span class="input__unit">trucks</span></span></div>
     </div>
-    <p class="hint hint--wide">How MaxDock chooses a dock for a booking, and the most trucks it will put on the docks at one time.</p>
+    <p class="hint hint--wide">How MaxDock chooses a dock for a booking. How many trucks it will put on the docks at once is a limit rather than a choice of door, so it lives under Capacity &amp; limits beside the other limits.</p>
+    ${saveFoot(canEdit)}
+  </form>`;
+}
+
+// How many trucks at once, standing and for one date, in one place and under one name.
+//
+// These were the same idea in two sections with two labels. The standing limit was "Most at
+// once" at the bottom of Dock assignment; the per-date override was "At once" inside Labour,
+// whose own help text had to say "Standing limits live under Dock assignment" because they
+// were two clicks apart under unrelated headings. A limit is not a labour setting and it is
+// not a choice of door: it is a limit, and it belongs with the other limits.
+function renderTrucksAtOnce(canEdit) {
+  const s = state.settings || {};
+  const disabled = canEdit ? '' : 'disabled';
+  const cap = (state.dayCaps || [])[0] || {};
+  return `<form data-section-form="assignment-limit">
+    <h3 class="card__title">Trucks at once</h3>
+    <div class="frow">
+      <div class="field field--num"><span class="field__label">Every day</span><span class="inputwrap"><input class="input" type="number" min="1" name="max_concurrent_appointments" value="${s.max_concurrent_appointments ?? ''}" placeholder="∞" ${disabled}><span class="input__unit">trucks</span></span></div>
+    </div>
+    <p class="hint hint--wide">The standing limit: the most trucks MaxDock will put on the docks at any one moment. Leave it blank for no limit.</p>
+    ${saveFoot(canEdit)}
+  </form>
+  <form data-section-form="day-cap">
+    <h3 class="card__title">Tighter on one date</h3>
+    <div class="frow">
+      <label class="field field--md"><span class="field__label">Date</span><input class="input" type="date" name="limit_date" value="${escapeHtml(cap.limit_date || format.todayInput(state.context?.location))}" ${disabled}></label>
+      <div class="field field--num"><span class="field__label">At once</span><span class="inputwrap"><input class="input" type="number" min="0" max="100" name="max_concurrent" value="${cap.max_concurrent_appointments ?? ''}" placeholder="–" ${disabled}><span class="input__unit">trucks</span></span></div>
+      <div class="field field--num"><span class="field__label">All day</span><span class="inputwrap"><input class="input" type="number" min="0" max="500" name="max_total" value="${cap.max_appointments ?? ''}" placeholder="–" ${disabled}><span class="input__unit">trucks</span></span></div>
+    </div>
+    <div class="frow">
+      <label class="field field--full"><span class="field__label">Note <span class="field__opt">optional</span></span><input class="input" name="cap_note" maxlength="120" value="${escapeHtml(cap.note || '')}" placeholder="Line rebuild, keep the docks quiet" ${disabled}></label>
+    </div>
+    <p class="hint hint--wide">Fewer trucks on one date, so a day that would otherwise fill up does not put the crew under pressure. This tightens the standing limit above for a single date and nothing else. Leave both blank to lift the cap on that date. Zero is a real answer: it stops anything new being booked while what is already on the board still runs. ${state.dayCaps?.length ? `Capped now: ${escapeHtml(state.dayCaps.map(row => row.limit_date).join(', '))}.` : 'No dates are capped.'}</p>
     ${saveFoot(canEdit)}
   </form>`;
 }
@@ -482,7 +533,6 @@ function renderLabour() {
   const canEdit = state.canManageLabour;
   const disabled = canEdit ? '' : 'disabled';
   const day = state.labourDay || {};
-  const cap = (state.dayCaps || [])[0] || {};
   return `<div class="stack stack--narrow">
     <form data-section-form="labour">
       <h3 class="card__title">Labour</h3>
@@ -496,19 +546,6 @@ function renderLabour() {
       <h3 class="card__title">Shifts${canEdit ? '<button class="btn btn--primary btn--sm at-end" type="button" data-unlocked data-add-shift>Add shift</button>' : ''}</h3>
       ${shiftRows(canEdit)}
       <p class="hint hint--wide">The shifts this site runs and how many people are on each. Summed for a weekday, this is the hours available for dock work, which is what the Labour hours report divides by, so it is worth being right.</p>
-      ${saveFoot(canEdit)}
-    </form>
-    <form data-section-form="day-cap">
-      <h3 class="card__title">Cap a day</h3>
-      <div class="frow">
-        <label class="field field--md"><span class="field__label">Date</span><input class="input" type="date" name="limit_date" value="${escapeHtml(cap.limit_date || format.todayInput(state.context?.location))}" ${disabled}></label>
-        <div class="field field--num"><span class="field__label">At once</span><span class="inputwrap"><input class="input" type="number" min="0" max="100" name="max_concurrent" value="${cap.max_concurrent_appointments ?? ''}" placeholder="–" ${disabled}><span class="input__unit">trucks</span></span></div>
-        <div class="field field--num"><span class="field__label">All day</span><span class="inputwrap"><input class="input" type="number" min="0" max="500" name="max_total" value="${cap.max_appointments ?? ''}" placeholder="–" ${disabled}><span class="input__unit">trucks</span></span></div>
-      </div>
-      <div class="frow">
-        <label class="field field--full"><span class="field__label">Note <span class="field__opt">optional</span></span><input class="input" name="cap_note" maxlength="120" value="${escapeHtml(cap.note || '')}" placeholder="Line rebuild, keep the docks quiet" ${disabled}></label>
-      </div>
-      <p class="hint hint--wide">Fewer trucks on one date, so a day that would otherwise fill up does not put the crew under pressure. Standing limits live under Dock assignment; this tightens them for a single date and nothing else. Leave both blank to lift the cap on that date. Zero is a real answer: it stops anything new being booked while what is already on the board still runs. ${state.dayCaps?.length ? `Capped now: ${escapeHtml(state.dayCaps.map(row => row.limit_date).join(', '))}.` : 'No dates are capped.'}</p>
       ${saveFoot(canEdit)}
     </form>
     <form data-section-form="labour-day">
@@ -554,6 +591,16 @@ function renderCombining() {
     <p class="hint hint--wide">Turned off, MaxDock never mentions other loads and never asks before booking. On the same day is the widest setting; a window narrows it to that many hours either side of the time being booked, so a twelve-hour window catches a morning load for an afternoon one and a two-hour window does not.</p>
     ${saveFoot(canEdit)}
   </form>`;
+}
+
+// Booking rules: what MaxDock does when somebody books.
+//
+// Three forms that were three places. The notice window said when a customer may book, the
+// combining switch said whether MaxDock offers to put two loads on one truck, and dock
+// assignment said which door it picks — and dock assignment was not named anywhere in the
+// navigation at all, because it was rendered at the bottom of the Docks table.
+function renderBookingRules() {
+  return `<div class="stack">${renderNotice()}${renderCombining()}${renderAssignment()}</div>`;
 }
 
 // How many skids each truck type holds here. The same 53 ft trailer is 26 skids
@@ -639,10 +686,9 @@ function renderDocks() {
     <form data-section-form="docks">
       <h3 class="card__title">Docks${canEditDocks ? '<button class="btn btn--primary btn--sm at-end" type="button" data-unlocked data-add-dock>Add dock</button>' : ''}</h3>
       <div class="tablewrap"><table class="table"><thead><tr><th>Dock</th><th>Direction</th><th>In service</th><th class="col-fill">Truck types</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
-      <p class="hint">Add dock and Edit save on their own. Save below applies the in-service switches.</p>
+      <p class="hint">Add dock and Edit save on their own. Save below applies the in-service switches. How MaxDock chooses between these doors is under Booking rules.</p>
       ${saveFoot(canEditDocks)}
-    </form>
-    ${renderAssignment()}</div>`;
+    </form></div>`;
 }
 
 function renderTruckTypes() {
@@ -660,12 +706,13 @@ function renderTruckTypes() {
   // A truck type is a company-wide code, so only a System Admin makes one — which
   // is also what the database allows. The rest of the section is per-location.
   const canAdd = state.context?.profile?.role_code === 'system_admin';
-  return `<form class="card card--table" data-section-form="truck-types">
+  return `<div class="stack"><form class="card card--table" data-section-form="truck-types">
       <h3 class="card__title">Truck types enabled at this location${canAdd ? '<button class="btn btn--primary btn--sm at-end" type="button" data-unlocked data-add-truck-type>Add truck type</button>' : ''}</h3>
       ${truckRows}
-      <p class="hint">Setup minutes here override the truck type's default for this location only. Skids per truck is under Capacity.</p>
+      <p class="hint">Setup minutes here override the truck type's default for this location only.</p>
       ${saveFoot(state.canManage)}
-    </form>`;
+    </form>
+    ${renderTruckCapacity(state.canManage)}</div>`;
 }
 
 // Quick QR — a booking somebody does over and over, saved once and reachable
@@ -712,11 +759,15 @@ function renderQuickQr() {
         ${canEdit ? `<button class="btn btn--quiet btn--sm" type="button" data-delete-shortcut="${shortcut.id}">Delete</button>` : ''}
       </div>
     </div>`).join('');
-  return `<form class="card" data-section-form="quickqr">
+  // A section rather than a form. It was a form with no fields, no Save and no save branch,
+  // which meant an Enter keypress anywhere inside it submitted a form that could do nothing.
+  // Every control here saves on its own through its own dialog; there is nothing to submit.
+  // Found by the guard that checks each named form against the branch that saves it.
+  return `<div class="card">
     <h3 class="card__title">Quick QR codes${canEdit ? '<button class="btn btn--primary btn--sm at-end" type="button" data-add-shortcut>New code</button>' : ''}</h3>
     ${rows || '<p class="hint">No quick codes yet. Make one for a run this site books over and over.</p>'}
     <p class="hint hint--wide">A quick code is a booking saved with everything but the time. Print it, put it where the loads are made up, and scanning it opens MaxDock with the load already in; the person booking picks a time and confirms. Edit a code and every printed copy of it changes with it; the paper does not have to be replaced.</p>
-  </form>`;
+  </div>`;
 }
 
 
@@ -817,8 +868,8 @@ function exportCsv() {
 
 function renderPanel() {
   const map = {
-    hours: renderHours, timing: renderTiming, notice: renderNotice, capacity: renderCapacity,
-    combining: renderCombining, docks: renderDocks, trucks: renderTruckTypes,
+    hours: renderHours, timing: renderTiming, booking: renderBookingRules,
+    capacity: renderCapacity, docks: renderDocks, trucks: renderTruckTypes,
     labour: renderLabour, quickqr: renderQuickQr,
   };
   state.elements.panel.innerHTML = (map[state.section] || renderHours)();
@@ -911,12 +962,17 @@ async function saveCapacity(form) {
 async function saveAssignment(form) {
   const data = new FormData(form);
   const autoAssign = form.querySelector('[data-assign-switch]').getAttribute('aria-pressed') === 'true';
-  const maxConcurrent = data.get('max_concurrent_appointments');
   await saveSettingsFields({
     auto_assign_dock: autoAssign,
     dock_assignment_strategy: data.get('dock_assignment_strategy'),
-    max_concurrent_appointments: maxConcurrent ? Number(maxConcurrent) : null,
   });
+}
+
+// The standing limit, saved on its own now that it sits with the other limits rather than at
+// the bottom of the dock-choice form. Blank means no limit, which is not the same as zero.
+async function saveAssignmentLimit(form) {
+  const value = new FormData(form).get('max_concurrent_appointments');
+  await saveSettingsFields({ max_concurrent_appointments: value ? Number(value) : null });
 }
 
 // Through the RPC, not through the table. A site manager holds
@@ -1178,6 +1234,7 @@ async function submitSection(event) {
     else if (kind === 'notice') await saveNotice(form);
     else if (kind === 'capacity') await saveCapacity(form);
     else if (kind === 'assignment') await saveAssignment(form);
+    else if (kind === 'assignment-limit') await saveAssignmentLimit(form);
     else if (kind === 'labour') await saveLabour(form);
     else if (kind === 'labour-day') await saveLabourDay(form);
     else if (kind === 'shifts') await saveShifts(form);

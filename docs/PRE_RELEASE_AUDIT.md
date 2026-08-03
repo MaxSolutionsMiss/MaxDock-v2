@@ -2,6 +2,17 @@
 
 Audited at `6f63cf8`, against the live schema in `rywzqepzramurbrpmept`.
 
+> **Status.** The owner accepted every finding and the work is under way. Done so far: §1.1 print
+> and export, §1.3 and §1.4 the anonymous surface and the pinned search paths, §2.1 the settings
+> regrouping. Decided: no-show and rejected will **not** affect any scorecard, and a no-show
+> **keeps** its dock slot and is released by hand — minimum notice means nobody could rebook that
+> slot at short notice anyway, so freeing it automatically buys nothing and removes a human from
+> a decision worth keeping. A carrier role **is** wanted: a vendor may be the carrier, and
+> carriers will book their own time. Still outstanding: §1.2 email, §1.5 the no-show release
+> action and the rejected outcome, §2.2 the booking wizard, §2.3 and §2.4, §3.1 turnaround,
+> §3.2 the carrier role. Leaked-password protection (§1.4) needs a person at the Supabase
+> dashboard; nothing in the build can reach it.
+
 Everything below was checked against the code or the database, not inferred from the design
 documents. Where a check came back clean I have said so, because a list of only problems tells
 you nothing about what was examined.
