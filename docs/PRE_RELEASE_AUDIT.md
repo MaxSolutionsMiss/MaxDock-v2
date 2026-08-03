@@ -312,6 +312,17 @@ Recorded so the audit is not read as a list of only faults.
   what a role sees reads the same list the rail is drawn from and the two cannot drift.
 - **19 verifiers** run on every push, and a layout auditor renders every page at seven widths,
   three text sizes and multiple roles.
+- **The layout auditor is clean.** Run against this commit over the three widths that catch most
+  faults (1440, 768, 390), across all ten screens and the dialogs opened from them: *"Layout
+  audit: no findings."* That covers labels beside their fields, one spacing rhythm, KPI cards
+  filling their row, consistent action placement, nothing clipped and nothing overflowing. It is
+  the fast sweep, so it does **not** include the per-role pass or the Large and Larger text-size
+  passes; the full sweep takes over ten minutes and is running separately.
+
+  Worth stating plainly, because it changes how the rest of this document should be read: the
+  problems found here are **not** rendering defects. The screens are laid out correctly. What is
+  wrong is where things have been *put* — which section a field lives in, which step a wizard
+  spends, what happens on paper, and what never leaves the building as an email.
 
 ---
 
