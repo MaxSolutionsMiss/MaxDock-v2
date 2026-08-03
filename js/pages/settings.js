@@ -418,6 +418,13 @@ function renderCapacity() {
       <div><div class="setrow__t">Enforce skid capacity</div><div class="setrow__d">Track occupied skids against how much this floor holds</div></div>
       <button type="button" class="switch ${enabled ? '' : 'switch--off'}" data-capacity-switch aria-pressed="${enabled}" aria-label="Enforce skid capacity" ${disabled}></button>
     </div>
+    ${/* The switch on with no floor number is the one state this screen could lie about, and it
+        was live at Mississauga when the go-live audit looked. The database is not fooled --
+        location_capacity_projection_internal returns capacity_enabled false and the message
+        "Warehouse skid-capacity control is not enabled", so nothing is wrongly warned or
+        blocked -- but the switch above reads ON, and a manager reading it believes the floor is
+        being watched when it is not. Nothing else on the page would ever tell them. */ ''}
+    ${enabled && !Number(s.skid_capacity) ? '<p class="form-message">This switch is on but no floor capacity is set, so nothing is actually being enforced. MaxDock treats the site as having no capacity limit until a floor number is entered below.</p>' : ''}
     <div class="frow">
       <div class="field field--num"><span class="field__label">Floor capacity</span><span class="inputwrap"><input class="input" type="number" min="1" name="skid_capacity" value="${s.skid_capacity ?? ''}" ${disabled}><span class="input__unit">skids</span></span></div>
       <div class="field field--num"><span class="field__label">Reserve</span><span class="inputwrap"><input class="input" type="number" min="0" name="capacity_reserve_skids" value="${s.capacity_reserve_skids ?? 0}" ${disabled}><span class="input__unit">skids</span></span></div>
