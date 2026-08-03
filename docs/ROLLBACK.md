@@ -1401,3 +1401,152 @@ The four legs, and what each one is:
 
 Total falls back to `completed_at` when departure is not being recorded, so a site with the
 switch off still gets a turnaround figure rather than nothing. The report says which it used.
+
+---
+
+## 5b-ix. Carrier — a third party type, not a sixth role
+
+The owner asked for a carrier who can book its own time, in his words: *"the vendor is going to
+be the carrier. That's the whole thing. The vendor could be the carrier... carriers can go book
+time as well."*
+
+The audit had proposed a new role. **Reading the schema first turned that into a much smaller
+change, and a better one.** MaxDock already models an external party as one role — `customer` —
+carrying an `external_party_type` of `Customer` or `Vendor`. The Users screen presents those as
+two separate choices; underneath they are one role with one permission set. A carrier is a third
+party of exactly the same kind: it signs in, books its own slot, sees and reschedules its own
+loads, and sees nothing of anybody else's.
+
+A sixth role would have duplicated the customer's five permissions exactly and given a future
+administrator two places to keep in step. So this is a widened check constraint and one array in
+the browser, and it inherits every guarantee the existing external party already has:
+
+- **Customer isolation is untouched.** `customerShell` is derived from permissions, not from a
+  role name (`js/session.js`), so a carrier gets the external shell with no rail, no site picker
+  and no dock board without a line changing. The five permissions are the same five.
+- **Every RPC behaves identically**, because the role code is identical. Nothing in the database
+  branches on `Customer` against `Vendor` today, and nothing branches on `Carrier` either.
+- **The scorecard already counts them.** A partner is `company_name` or `carrier_name`, so a
+  carrier that books its own loads appears on the vendor scorecard with no reporting change.
+
+### The reverse
+
+```sql
+-- Reverse of migration: carrier_as_external_party_type
+-- Restores the constraint to the two values it allowed at the baseline. Run the update first
+-- or the constraint will refuse to validate against any carrier account already created.
+update public.profiles set external_party_type = 'Vendor'
+ where external_party_type = 'Carrier';
+
+alter table public.profiles drop constraint if exists profiles_external_party_type_check;
+alter table public.profiles add constraint profiles_external_party_type_check
+  check (external_party_type is null or external_party_type = any (array['Customer'::text, 'Vendor'::text]));
+```
+
+The `update` is deliberate and is the only lossy step in this entry: an account created as a
+Carrier becomes a Vendor rather than being deleted. It keeps its sign-in, its bookings and its
+history; only the word changes. Losing the distinction is the cost of the rollback, and it is a
+far better cost than an orphaned account somebody cannot sign in to.
+
+### Why leaving it in place is safe
+
+Widening a check constraint cannot invalidate a row that already passed it. Every existing
+profile is `NULL`, `Customer` or `Vendor`, all three of which still pass. No column, no table, no
+function, no permission and no grant changed.
+
+### The one function this touched, restored word for word
+
+`admin_update_user` validated the party type against a two-item list and refused anything else,
+so widening the check constraint alone would have produced an error at save time rather than a
+carrier account. The list and its two messages are the whole change; nothing else in the body
+moved.
+
+| Function | MD5 of the definition | Characters |
+|---|---|---|
+| `admin_update_user` (7-argument overload) | `7ee98240f14fcbab42543de8708af455` | 3571 |
+
+The four-argument overload of the same name does not mention party types at all and was not
+touched. Captured from the live database with `pg_get_functiondef` before the change:
+
+```sql
+CREATE OR REPLACE FUNCTION public.admin_update_user(p_user_id uuid, p_full_name text, p_role_code text, p_is_active boolean, p_location_ids uuid[], p_external_party_type text, p_organization_name text)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+declare
+  v_profile public.profiles%rowtype;
+  v_location_ids uuid[];
+  v_requested_count integer;
+  v_valid_count integer;
+  v_external_party_type text;
+  v_organization_name text;
+begin
+  if auth.uid() is null then raise exception 'You must be signed in to manage MaxDock users.'; end if;
+  if not public.is_system_admin() then raise exception 'Only a MaxDock System Admin can manage users.'; end if;
+  if p_user_id is null then raise exception 'A MaxDock user is required.'; end if;
+  if nullif(trim(coalesce(p_full_name, '')), '') is null then raise exception 'Full name is required.'; end if;
+  if not exists (select 1 from public.roles r where r.code = p_role_code and r.is_active = true) then
+    raise exception 'The selected MaxDock role is invalid.';
+  end if;
+
+  select * into v_profile from public.profiles p where p.id = p_user_id for update;
+  if not found then raise exception 'MaxDock user not found.'; end if;
+  if p_user_id = auth.uid() and (coalesce(p_is_active, false) = false or p_role_code <> 'system_admin') then
+    raise exception 'You cannot deactivate or remove your own System Admin access.';
+  end if;
+
+  if p_role_code = 'customer' then
+    v_external_party_type := nullif(trim(coalesce(p_external_party_type, '')), '');
+    v_organization_name := nullif(trim(coalesce(p_organization_name, '')), '');
+    if v_external_party_type is null or v_external_party_type not in ('Customer', 'Vendor') then
+      raise exception 'Choose Customer or Vendor as the external account type.';
+    end if;
+    if v_organization_name is null then
+      raise exception 'Company name is required for a Customer access account.';
+    end if;
+  else
+    v_external_party_type := null;
+    v_organization_name := null;
+  end if;
+
+  select coalesce(array_agg(distinct requested_id), array[]::uuid[])
+  into v_location_ids
+  from unnest(coalesce(p_location_ids, array[]::uuid[])) requested(requested_id)
+  where requested_id is not null;
+
+  v_requested_count := coalesce(cardinality(v_location_ids), 0);
+  select count(*) into v_valid_count from public.locations l
+  where l.id = any(v_location_ids) and l.is_active = true;
+  if v_requested_count <> v_valid_count then raise exception 'One or more selected locations are invalid or inactive.'; end if;
+  if p_role_code <> 'system_admin' and v_requested_count = 0 then
+    raise exception 'At least one active MaxDock location is required.';
+  end if;
+
+  update public.profiles
+  set full_name = trim(p_full_name),
+      role_code = p_role_code,
+      is_active = coalesce(p_is_active, true),
+      external_party_type = v_external_party_type,
+      organization_name = v_organization_name,
+      updated_at = now()
+  where id = p_user_id;
+
+  delete from public.user_location_access where user_id = p_user_id;
+  insert into public.user_location_access (user_id, location_id, granted_by)
+  select p_user_id, location_id, auth.uid()
+  from unnest(v_location_ids) location_ids(location_id)
+  on conflict (user_id, location_id) do nothing;
+
+  return jsonb_build_object(
+    'user_id', p_user_id,
+    'role_code', p_role_code,
+    'is_active', coalesce(p_is_active, true),
+    'location_count', v_requested_count,
+    'external_party_type', v_external_party_type,
+    'organization_name', v_organization_name
+  );
+end;
+$function$
+```

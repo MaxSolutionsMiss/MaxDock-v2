@@ -36,7 +36,19 @@ function walk(dir, out = []) {
 const files = walk(ROOT);
 const rel = path => relative(ROOT, path).replaceAll('\\', '/');
 const read = path => readFileSync(path, 'utf8');
-const applicationFiles = files.filter(path => !rel(path).startsWith('docs/') && !rel(path).startsWith('.github/') && !rel(path).startsWith('scripts/'));
+// The application is what a browser downloads. docs/, .github/ and scripts/ were already
+// outside it because none of them ships; supabase/functions/ joins them for the same reason and
+// one more.
+//
+// Those files run on Deno inside Supabase, not in the browser. The no-TypeScript rule exists to
+// keep the *front end* buildless -- no compile step between the source somebody edits and the
+// file a browser fetches -- and an edge function has no such property to protect: it is deployed
+// through Supabase, which compiles it, and it cannot be written in anything else.
+//
+// This was found the moment maxdock-invite-user was first committed. The function had lived only
+// as a deployed artefact until then, which is exactly why the rule had never met it: the one
+// file that creates every account in the product was the one file no check had ever read.
+const applicationFiles = files.filter(path => !rel(path).startsWith('docs/') && !rel(path).startsWith('.github/') && !rel(path).startsWith('scripts/') && !rel(path).startsWith('supabase/'));
 
 function parseStage() {
   const statusPath = join(ROOT, 'docs', 'STATUS.md');

@@ -94,7 +94,16 @@ async function fetchAll() {
   }
 }
 
-const EXTERNAL_PARTY_TYPES = ['Customer', 'Vendor'];
+// The three kinds of party outside Max Solutions, all on one role.
+//
+// A carrier was asked for as a login that can book its own time, and the honest answer turned
+// out to be smaller than a new role: MaxDock already carries a party type beside the customer
+// role, the Users screen already offers those as separate choices, and every guarantee an
+// external account has is derived from its permissions rather than its name. A sixth role would
+// have duplicated the customer's five permissions exactly and left an administrator two lists
+// to keep in step. So Carrier joins Customer and Vendor here, and inherits the lot: no rail, no
+// site picker, no dock board, its own loads and nobody else's.
+const EXTERNAL_PARTY_TYPES = ['Customer', 'Vendor', 'Carrier'];
 
 function roleChoices() {
   return state.roles.flatMap(role => (role.code === 'customer'

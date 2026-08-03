@@ -108,6 +108,15 @@ const SAVED = {
   save_role_page_visibility: { md5: '9733737e45d1ba27cc4f127568605d03', chars: 1336 },
   // The truck-change RPC, captured before its two dead-end refusals became answers.
   set_appointment_truck_type: { md5: 'd5270119fcc62e96e92caac64034a5fb', chars: 5385 },
+  // Captured before Carrier joined Customer and Vendor as an external party type. This is the
+  // definition that refuses anything but those two, which is what a rollback puts back.
+  //
+  // Recorded trimmed, which is the convention every entry above uses and which cost a round to
+  // rediscover: pg_get_functiondef returns a trailing newline, this file strips it before
+  // hashing, and the untrimmed figures are 6a0e48296777b238e9c3ad47a9b331b6 / 3572. The value
+  // below was recomputed against the live catalogue with the same trim rather than copied out
+  // of the document, which would have made the check agree with itself and prove nothing.
+  admin_update_user: { md5: '7ee98240f14fcbab42543de8708af455', chars: 3571 },
 };
 const blocks = [...doc.matchAll(/```sql\n(CREATE OR REPLACE FUNCTION public\.(\w+)\([\s\S]*?\$function\$)\n```/g)];
 const seen = new Set();
