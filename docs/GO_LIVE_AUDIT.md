@@ -14,7 +14,22 @@ and none is a code defect — they are all deployment and data facts.
 
 ## 1. Would break or mislead on day one
 
-### 1.1 The production database is full of invented loads
+### 1.1 The production database is full of invented loads — CLEARED 2026-08-03
+
+> **Done.** The owner asked for these to be removed and will commission a fresh set later. All
+> 732 appointments are gone, along with 1,267 audit rows, 411 appointment-linked notifications
+> and 2 repeat series. Every configuration table is untouched: 12 locations, 34 docks, 84
+> operating-hours rows, 12 location settings, 5 truck types, 6 accounts, 121 role permissions.
+> Written up in `docs/ROLLBACK.md` §5c-i, including the part I did not expect — the audit trigger
+> recorded the cleanup itself, 1,467 rows of it, which had to be cleared in a second pass. The
+> general lesson is in that entry: **any bulk operation on appointments writes one audit row per
+> appointment per statement**, which matters before the first large import.
+>
+> The board is now honestly empty. That is the correct state to go live from, and it also means
+> every report will read "no movements in this range" until real bookings exist — which is right,
+> not a fault.
+
+The finding as originally written:
 
 ```
 appointments          732

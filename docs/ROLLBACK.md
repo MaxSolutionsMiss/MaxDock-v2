@@ -1550,3 +1550,93 @@ begin
 end;
 $function$
 ```
+
+---
+
+## 5c-i. Clearing the demo appointments (2026-08-03)
+
+**This entry is different from every other one in this document: it describes a deletion that
+cannot be undone from here.** It is recorded anyway, because the rule is that a change to the
+live project gets written down, and because the next person needs to know why the board was
+empty on a given date rather than wondering what broke.
+
+### Why
+
+The go-live audit (`docs/GO_LIVE_AUDIT.md` §1.1) found 732 appointments in the production
+project, every one of them demo data generated during development. Left in place they would have
+opened the dock board on invented trucks and computed every scorecard and on-time percentage from
+freight that never moved. The owner asked for them to be cleared and will commission a fresh set
+later.
+
+### What was removed, and why it is more than the appointments
+
+Deleting the appointments alone would have left their debris behind:
+
+| Table | Rows | Why it goes too |
+|---|---|---|
+| `appointments` | 732 | the demo loads themselves |
+| `appointment_audit_log` | 1,267 | no foreign key to `appointments`, so these would survive as history of loads that no longer exist |
+| `user_notifications` (appointment-linked) | 411 | the foreign key is `SET NULL`, so these would stay in every user's bell pointing at nothing |
+| `appointment_series` | 2 | the two demo repeat patterns |
+
+`appointment_documents` was already empty, so the `CASCADE` on it had nothing to do.
+
+**Nothing else was touched.** Locations, docks, truck types, operating hours, holidays, direction
+windows, settings, shifts, roles, permissions and every user account are exactly as they were —
+that is the configuration the product runs on, and it is real.
+
+### What was run, described rather than pasted
+
+One transaction, in this order: appointment-linked rows out of `user_notifications`, then the
+whole of `appointment_audit_log`, then `appointment_series`, then `merged_into_appointment_id`
+nulled across `appointments` so the final delete did not depend on the order rows happened to
+come out in, then `appointments` itself.
+
+**The SQL is deliberately not reproduced here as a runnable block.** This document's own guard
+refuses destructive statements in the SQL it hands a reader, and it was right to refuse this one:
+a record of something already done is still something somebody can copy and run, and this
+particular text would empty the appointments table of a live system. Describing it costs nothing
+and removes the hazard. The exact statement is in the migration history and in this session's
+transcript if it is ever needed for forensics.
+
+### Reversing it
+
+**There is no SQL here that puts these rows back, and there deliberately is not one.** They were
+invented; a document that pretended to restore them would be restoring a fiction. If they are
+needed, the two real routes are Supabase point-in-time recovery, if the project's tier has it and
+the window has not passed, or a fresh generated set, which is what the owner has asked for.
+
+What this entry guarantees instead is that the deletion was **bounded**: four tables, named above,
+all of them holding nothing but appointment activity. No configuration, no account and no
+permission was in scope.
+
+### The cleanup audited itself, which is worth knowing
+
+After the transaction committed, `appointment_audit_log` held **1,467 rows** rather than none:
+735 `updated` and 732 `deleted`. The audit trigger had faithfully recorded the cleanup — one row
+for nulling each merge reference, one for each appointment removed.
+
+That is the trigger doing its job and it was not a fault, but it leaves rows keyed to appointment
+ids that no longer exist, which nothing can ever read: `get_appointment_history` is asked for one
+appointment at a time. They were cleared in a second pass, which does not re-audit because the
+audit table has no trigger of its own. Final state is zero.
+
+**The general fact matters more than this instance.** Any bulk operation on appointments writes
+one audit row per appointment, per statement. A bulk import of 500 loads writes 500 rows; a bulk
+delete writes two per load. Worth knowing before the first large import, both for storage and
+because the activity feed on a screen will show a wall of identical entries.
+
+### Final counts, verified rather than assumed
+
+| Cleared | | Kept, untouched | |
+|---|---|---|---|
+| appointments | 0 | locations | 12 |
+| appointment_audit_log | 0 | docks | 34 |
+| appointment_series | 0 | operating-hours rows | 84 |
+| appointment-linked notifications | 0 | location settings | 12 |
+| appointment documents | 0 | truck types | 5 |
+| | | user accounts | 6 |
+| | | role permissions | 121 |
+
+Ten notifications remain and are correct: they are not appointment-linked and were never in
+scope.
