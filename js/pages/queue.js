@@ -5,7 +5,7 @@ import { renderState } from '../ui/empty.js';
 import { format } from '../format.js';
 import { createCustomizePanel } from '../ui/customize.js';
 import { openWall, paintWall } from '../ui/wall.js';
-import { pageHead } from '../ui/pagehead.js';
+import { pageHead, controlsBar, searchField } from '../ui/pagehead.js';
 import { mark } from '../ui/marks.js';
 import { createCombineDialog, combinableLanes, laneFullness, laneDescription, laneForRecord } from '../ui/combine-loads.js';
 import { createAppointmentDetails } from '../ui/appointment-details.js';
@@ -39,6 +39,8 @@ const state = {
   context: null,
   date: format.todayInput(),
   view: 'all',
+  direction: 'all',
+  search: '',
   docks: [],
   hours: null,
   records: [],
@@ -168,7 +170,19 @@ function visibleRecords() {
     if (state.view === 'onsite') return ACTIVE_STATUSES.has(record.status);
     if (state.view === 'completed') return record.status === 'completed';
     return true;
-  });
+  })
+    // Direction and a free-text find, the same two the dock board has always had. A
+    // coordinator on this screen looking for one load had to read the table or change page,
+    // which is a strange thing to ask of the screen whose whole job is finding the load that
+    // needs somebody. The control band is the shared component, so the two screens are
+    // operated the same way rather than merely looking alike.
+    .filter(record => state.direction === 'all' || record.direction === state.direction)
+    .filter(record => {
+      const term = state.search.trim().toLowerCase();
+      if (!term) return true;
+      return [record.booking_reference, record.company_name, record.carrier_name, record.external_reference, record.dock_name]
+        .some(value => String(value || '').toLowerCase().includes(term));
+    });
   // Late first, then the clock. A queue sorted purely by time buries the truck that needed
   // somebody twenty minutes ago underneath eight that are not due yet, and the whole reason
   // to look at this screen is to find the one that is going wrong. Within each group the
@@ -766,6 +780,15 @@ async function changeStatus(appointmentId, newStatus) {
 function buildShell(root) {
   root.innerHTML = `
     ${pageHead('Operations queue', { actions: ['export', 'fullscreen', 'customize'] })}
+    ${/* Direction and a find, and deliberately no date. The day picker belongs to the glance
+        card, where the owner asked for it and where it reads as part of the sentence the card
+        is making. A second one up here would be two controls for one thing, and the reader
+        would have to work out which of them the page was obeying. */ ''}
+    ${controlsBar({
+      label: 'Operations queue controls',
+      filters: `<div class="ctrl-field"><label for="queue-direction">Direction</label><select class="select" id="queue-direction" data-filter-direction><option value="all">All movements</option><option value="inbound">Inbound</option><option value="outbound">Outbound</option></select></div>
+      ${searchField({ id: 'queue-search', placeholder: 'Reference, company, PO', attribute: 'data-filter-search' })}`,
+    })}
     <div class="brief" data-brief></div>
     <div class="kpis" data-kpis></div>
     <div class="split">
@@ -802,6 +825,12 @@ function buildShell(root) {
 function wireEvents(root) {
   root.addEventListener('change', async event => {
     if (event.target.matches('[data-queue-date]') && event.target.value) await goToDate(event.target.value);
+    if (event.target.matches('[data-filter-direction]')) { state.direction = event.target.value; renderTable(); }
+  });
+  // Live as it is typed, the same as the dock board. A coordinator looking for one load is
+  // reading the screen while they type it, not composing a query and submitting it.
+  root.addEventListener('input', event => {
+    if (event.target.matches('[data-filter-search]')) { state.search = event.target.value; renderTable(); }
   });
   root.addEventListener('click', async event => {
     if (event.target.closest('[data-open-booking]')) globalThis.dispatchEvent(new CustomEvent('maxdock:open-booking', { detail: { trigger: event.target } }));

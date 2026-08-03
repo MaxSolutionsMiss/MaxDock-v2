@@ -176,8 +176,15 @@ function renderAppointmentImport() {
 }
 
 function renderSection() {
+  // The run history sits under whichever importer is open rather than under one of them.
+  //
+  // It only ever appeared beneath the inventory import, which read as though it were that
+  // importer's own history. It is not: admin_list_mis_import_runs is the record of every
+  // import this site has run, so a person who has just uploaded a sheet of appointments and
+  // wants to know whether it landed was looking at the one screen that would not tell them.
+  // Nothing about the query changed; it is drawn in both places now.
   if (state.section === 'import') return `${renderImport()}${renderRuns()}`;
-  if (state.section === 'appointments') return renderAppointmentImport();
+  if (state.section === 'appointments') return `${renderAppointmentImport()}${renderRuns()}`;
   return renderConnections();
 }
 
