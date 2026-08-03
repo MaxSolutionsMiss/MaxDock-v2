@@ -56,6 +56,34 @@ if (!errors.length) {
     requireText(page, new RegExp(`(?<!function )\\b${renderer}\\(`), `${renderer} is never called, so a step of the booking wizard draws nothing.`);
   }
   requireText(page, /data-field="requester_email"/, 'The requester email is nowhere in the wizard, so a booking cannot be attributed.');
+
+  // ── No bare step numbers ────────────────────────────────────────────────────
+  //
+  // This exists because the wizard's step indices drifted twice in one day. Five steps became
+  // three and three call sites kept counting the old ones -- setStep returned before the slot
+  // fetch and findSlots refused to look for times until a time had been chosen, so nobody could
+  // book an appointment. Two more survived the first fix, and the worse of them was
+  // attemptBooking calling validateStep(4): a step that no longer existed, matching no branch,
+  // so the last gate before submitting validated nothing.
+  //
+  // Every one of those was a literal integer standing in for a step. They are named constants
+  // now, and a bare number coming back fails the build rather than waiting to be found by
+  // somebody trying to book a truck.
+  const codeOnly = page.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  // `target` as well as `step`. The first draft of this guard matched only the word "step" and
+  // therefore sailed past `if (target !== 1) return;` -- which is setStep's own parameter, and
+  // the single line that stopped anybody booking. A guard that misses the bug it was written
+  // for is worse than none, because it certifies the thing it cannot see.
+  const bareSteps = [...codeOnly.matchAll(/(?:\b(?:step|target)\s*[=!]==?\s*|setStep\(|validateStep\(|maxStep,\s*)(\d+)/g)];
+  if (bareSteps.length) {
+    requireText(page, /$a/, `The booking wizard compares a step against a bare number (${bareSteps.map(match => match[0].trim()).join(', ')}). Use the STEP constants: a literal here has silently pointed at a step that no longer existed twice, once leaving nobody able to book at all.`);
+  }
+  requireText(page, /const STEP = Object\.freeze\(\{[^}]*LOAD[^}]*TIME[^}]*CONFIRM/,
+    'The booking steps are not named, so every reference to one is a number that can drift out of step with the list.');
+  // The final gate must walk the whole list rather than name one index, or it goes stale the
+  // next time a step is added or removed -- which is exactly how it came to validate nothing.
+  requireText(page, /STEPS\.map\(\(label, index\) => validateStep\(index\)\)/,
+    'The check before a booking is submitted names a single step instead of walking them all, so it will validate nothing the next time the steps change.');
   requireText(page, /list_capacity_aware_appointment_slots/, 'Capacity-aware slot RPC is missing.');
   requireText(page, /CUSTOMER_SLOT_PROJECTION/, 'Customer-safe slot response projection is missing.');
   requireText(page, /list_routed_appointment_slots/, 'Routed slot RPC is missing.');

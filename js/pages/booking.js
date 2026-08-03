@@ -19,6 +19,20 @@ import { truckFill } from '../ui/truckfill.js';
 // already knew. It is folded into Confirm, where it reads as part of the summary and can still
 // be corrected by the one person in a hundred whose name is on somebody else's screen.
 const STEPS = Object.freeze(['Load & truck', 'Time', 'Confirm']);
+
+// The steps by name, because the numbers have now drifted twice and the second time nobody
+// could book an appointment.
+//
+// Five steps became three and three call sites were left counting the old ones: setStep
+// suspended polling on the wrong step and returned before the slot fetch, and findSlots asked
+// validateStep(1) -- which after the merge *is* the time step -- so looking for times began by
+// refusing to look until a time had been chosen. A date, an empty list, and no way past it.
+//
+// Two more survived that fix, and one of them mattered: attemptBooking validated step 4, which
+// no longer exists, so the last gate before a booking is submitted matched no branch and
+// returned nothing. Every numeric step index in this module is now one of these three names,
+// and scripts/verify-stage3-booking.mjs fails the build if a bare number comes back.
+const STEP = Object.freeze({ LOAD: 0, TIME: 1, CONFIRM: 2 });
 const TERMINAL_STATUSES = new Set(['completed', 'cancelled', 'no_show']);
 const SLOT_SUSPENSION = 'booking-slot-picker';
 const CUSTOMER_SLOT_PROJECTION = 'slot_start, slot_end, recommendation_rank, recommendation_score, capacity_warning, alternative_date';
@@ -889,7 +903,7 @@ function clearSlotSelection() {
 
 function validateStep(step = state.step) {
   const form = state.form;
-  if (step === 0) {
+  if (step === STEP.LOAD) {
     if (context.customerShell && context.locations.length > 1 && !form.destination_location_id) return 'Choose the Max Solutions location you are sending to.';
     if (!form.appointment_type_code) return 'Choose an appointment type.';
     if (!state.reference.appointmentTypes.some(item => item.code === form.appointment_type_code)) return 'Choose an appointment type enabled at this location.';
@@ -900,13 +914,13 @@ function validateStep(step = state.step) {
     if (form.movement_kind === 'external' && !clean(form.requester_type)) return 'Choose the company type.';
   }
   // The truck is on the same step as the load now, so it is checked with it.
-  if (step === 0) {
+  if (step === STEP.LOAD) {
     if (!form.truck_type_code) return 'Choose a truck type.';
     if (!state.reference.truckTypes.some(item => item.code === form.truck_type_code)) return 'Choose a truck type enabled at this location.';
     if (!form.handling_type_code) return 'Choose a handling type.';
     if (!state.reference.handlingTypes.some(item => item.code === form.handling_type_code)) return 'Choose a handling type enabled at this location.';
   }
-  if (step === 1) {
+  if (step === STEP.TIME) {
     if (!form.date) return 'Choose a requested date.';
     // A time cannot be chosen for a load that will not fit the truck. This used to print
     // "4 over" in amber beside a list of times and let the person pick one, which books a
@@ -923,11 +937,11 @@ function validateStep(step = state.step) {
     }
   }
   // Contact lives on Confirm now, so it is checked there rather than on a step of its own.
-  if (step === 2) {
+  if (step === STEP.CONFIRM) {
     if (!clean(form.requester_name)) return 'Enter the requester name.';
     if (!clean(form.requester_email) || !form.requester_email.includes('@')) return 'Enter a valid requester email.';
   }
-  if (step === 2 && form.repeat_on) {
+  if (step === STEP.CONFIRM && form.repeat_on) {
     if (!form.repeat_days.length) return 'Choose at least one day for the repeat.';
     if (!form.repeat_until) return 'Choose the last date for the repeat.';
     if (form.after_hours) return 'A repeating booking cannot use an after-hours time.';
@@ -937,7 +951,7 @@ function validateStep(step = state.step) {
 
 function setStep(next) {
   const target = Math.max(0, Math.min(STEPS.length - 1, Number(next)));
-  if (state.step === 1 && target !== 1) poll.resume(SLOT_SUSPENSION);
+  if (state.step === STEP.TIME && target !== STEP.TIME) poll.resume(SLOT_SUSPENSION);
   state.step = target;
   state.maxStep = Math.max(state.maxStep, target);
   // Time is step 1 now that Load and Vehicle share a screen. These two lines still said 2,
@@ -946,10 +960,10 @@ function setStep(next) {
   // fetch below, so the times were never asked for. A date with an empty list under it and
   // "Choose one available appointment time." on Continue, with no way past it. Nobody could
   // book an appointment.
-  if (target === 1) poll.suspend(SLOT_SUSPENSION);
+  if (target === STEP.TIME) poll.suspend(SLOT_SUSPENSION);
   renderAll();
   hosts.step.focus();
-  if (target !== 1) return;
+  if (target !== STEP.TIME) return;
   // An after-hours request never asks for slots, so it would never reach the
   // code that looks for loads to combine with. Ask for them directly.
   if (state.form.after_hours) loadCombinable().then(renderCombinePicker);
@@ -962,7 +976,7 @@ async function findSlots(options = {}) {
   // asked step 1 as well, which since the merge *is* the time step — so looking for times
   // began by refusing to look until a time had been chosen, and answered every request with
   // "Choose one available appointment time." over an empty list.
-  const loadError = validateStep(0);
+  const loadError = validateStep(STEP.LOAD);
   if (loadError) {
     setMessage(loadError);
     return [];
@@ -1013,7 +1027,7 @@ async function findSlots(options = {}) {
     state.slotLoading = false;
     // Drawing what came back, on the step that asked for it — 1 since Load and Vehicle
     // merged. Left at 2 the times would arrive and never be painted.
-    if (!options.quiet && state.step === 1) renderTimeStep();
+    if (!options.quiet && state.step === STEP.TIME) renderTimeStep();
   }
 }
 
@@ -1024,7 +1038,7 @@ async function slotStillAvailable() {
   const match = rows.find(slot => slot.slot_start === selected);
   if (!match) {
     state.form.selected_slot = null;
-    setStep(1);
+    setStep(STEP.TIME);
     toast('That time was just taken. Choose another available time.', 'error');
     return false;
   }
@@ -1390,7 +1404,12 @@ async function submitBooking() {
 }
 
 async function attemptBooking() {
-  const error = validateStep(4);
+  // Every step, not one index. This read validateStep(4) after the wizard went to three steps,
+  // so it matched no branch and returned nothing: the last gate before a booking is submitted
+  // was checking nothing at all, and a repeat with no days chosen would have gone to the
+  // server. Walking the whole list cannot go stale, and a final gate should be re-checking
+  // everything anyway -- a person can go back and empty a field after passing its step.
+  const error = STEPS.map((label, index) => validateStep(index)).find(Boolean) || '';
   if (error) {
     setMessage(error);
     return;
@@ -1427,7 +1446,7 @@ async function continueWithAutoTime() {
   setMessage('Finding the first time this load can go…');
   const slot = await autoPickSlot(state.autoTime);
   if (!slot) {
-    setStep(1);
+    setStep(STEP.TIME);
     setMessage(`Nothing is free ${format.duration(Number(state.autoTime.lead_minutes || 0))} from now or later. Choose a time below.`);
     return;
   }
@@ -1472,7 +1491,7 @@ async function applyTemplate(template) {
   state.form.preferred_end_time = clean(template.preferred_end_time).slice(0, 5);
   clearSlotSelection();
   state.step = 0;
-  state.maxStep = Math.max(state.maxStep, 1);
+  state.maxStep = Math.max(state.maxStep, STEP.TIME);
   renderAll();
   // Remembered rather than acted on now: the time is chosen once the load has
   // been described, which is the step after this one.
@@ -1497,7 +1516,7 @@ async function removeTemplate() {
     db.invalidate('booking:templates:');
     deleteTemplateModal.close();
     deleteTemplateId = null;
-    if (state.step === 0) renderStep();
+    if (state.step === STEP.LOAD) renderStep();
     toast('Booking template deleted.', 'success');
   } catch (error) {
     toast(error.userMessage || 'The booking template could not be deleted.', 'error');
@@ -1560,7 +1579,7 @@ function updateField(target) {
   // Turning after-hours back off has to re-fetch: switching it on cleared the
   // slot list, and this branch used to exclude the very field that emptied it, so
   // the times never came back until the date was changed.
-  if (slotFieldChanged && state.step === 1 && !state.form.after_hours) findSlots();
+  if (slotFieldChanged && state.step === STEP.TIME && !state.form.after_hours) findSlots();
 }
 
 async function handleAction(button) {
@@ -1575,7 +1594,7 @@ async function handleAction(button) {
     // no earlier than the code's lead. It happens here rather than when the code
     // is scanned because until the load is described there is nothing to look a
     // time up for.
-    else if (state.step === 0 && state.autoTime) await continueWithAutoTime();
+    else if (state.step === STEP.LOAD && state.autoTime) await continueWithAutoTime();
     else setStep(state.step + 1);
   } else if (action === 'back') {
     setStep(state.step - 1);
@@ -1616,8 +1635,8 @@ async function handleAction(button) {
     state.sameDayAccepted = false;
     state.combineReviewed = true;
     state.combineSelected = [...new Set([...state.combineSelected, ...(state.sameDayMatches || []).map(matchKey)])];
-    state.step = 2;
-    state.maxStep = Math.max(state.maxStep, 4);
+    state.step = STEP.CONFIRM;
+    state.maxStep = STEPS.length - 1;
     renderAll();
     // Ticked loads mean a longer truck window, so the times are asked for again
     // here exactly as they are when a box is ticked by hand.
