@@ -833,7 +833,7 @@ function cacheSectionElements() {
 
 function buildShell(root) {
   root.innerHTML = `
-    ${pageHead('Users', { actions: ['export', 'print'] })}
+    ${pageHead('Users', { actions: ['export'] })}
     <div class="setlayout">
       <nav class="setnav" data-user-nav aria-label="User sections"></nav>
       <div class="setpanel" data-user-panel></div>
@@ -970,7 +970,6 @@ function wireEvents(root) {
     const editRole = event.target.closest('[data-edit-role]');
     if (editRole) { openRoleDialog(editRole.dataset.editRole, editRole); return; }
     if (event.target.closest('[data-export]')) { exportCsv(); return; }
-    if (event.target.closest('[data-print]')) { globalThis.print(); return; }
     if (event.target.closest('[data-bulk-activate]')) { applyBulkStatus(true); return; }
     if (event.target.closest('[data-bulk-deactivate]')) { applyBulkStatus(false); return; }
     if (event.target.closest('[data-bulk-clear]')) { state.selected.clear(); renderTable(); return; }

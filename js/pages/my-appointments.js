@@ -769,7 +769,7 @@ function buildPage(root, context) {
   heading.append(title, subtitle);
   head.append(heading);
   const headActions = createElement('div', 'pagehead__actions');
-  headActions.innerHTML = pageHeadActions(['export', 'print', 'customize']);
+  headActions.innerHTML = pageHeadActions(['export', 'customize']);
   head.append(headActions);
 
   const metrics = createElement('section', 'kpis');
@@ -957,7 +957,6 @@ function bindInteractions() {
 
   const onHeadAction = event => {
     if (event.target.closest('[data-export]')) exportCsv();
-    if (event.target.closest('[data-print]')) globalThis.print();
     const customize = event.target.closest('[data-customize]');
     if (customize) customizePanel?.open(customize);
     const booking = event.target.closest('[data-open-booking]');

@@ -1958,3 +1958,42 @@ body.modal-open{overflow:hidden}
 .vd{display:inline-flex;align-items:center;gap:3px;text-transform:none;letter-spacing:0;font-weight:600;white-space:nowrap}
 .vd svg{width:12px;height:12px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
 .vd--ok{color:var(--ok)} .vd--warn{color:var(--signal)} .vd--stop{color:var(--stop)} .vd--quiet{color:var(--ink-faint)}
+
+/* ── On paper ──────────────────────────────────────────────────────────────────
+   Reports is the only screen with a Print button now. Everything else that had one
+   gave it up for Export, on the owner's rule: a page of data is something somebody
+   reconciles in a spreadsheet, and only a report is something you carry into a
+   meeting. So these rules have one job — turn the reports screen into a document.
+
+   Before this block there were no print rules at all, which meant every Print button
+   in the product put the navigation rail, the top bar, the filter row and the
+   connection indicator on the paper, in screen colours. Nobody would have shipped
+   that on purpose; it was never looked at, because nothing in the build could look
+   at it. */
+@media print {
+  @page { margin: 14mm; }
+  /* Plain display:none, and nothing forcing it. The block sits at the end of the stylesheet,
+     so against the single-class rules it overrides it wins on order at equal specificity, and
+     the attribute selectors on the buttons are a step above the .btn classes they beat. The
+     first draft forced these declarations out of habit; the conformance check refused it, and
+     it was right for the usual reason — if specificity is fighting you, look again. It was
+     not fighting. Re-proved in a browser afterwards rather than assumed: under print media
+     the rail, top bar, banner, controls and both buttons all compute to none. */
+  .rail, .top, .sub, .controls, .pagehead__actions, .scrim, .toast, .switcher,
+  [data-fullscreen], [data-customize], [data-export], [data-print] { display: none; }
+  .app, [data-chrome] { display: block; height: auto; }
+  .main, .page, .page--fixed { display: block; height: auto; max-height: none; padding: 0; overflow: visible; }
+  body { background: #fff; color: #000; font-size: 10.5pt; }
+  .card, .panel, .kpi { background: #fff; box-shadow: none; border-color: #999; }
+  /* A panel that scrolls on screen has to give up its whole contents to the page,
+     or the printout is the first screenful and a cropped chart. */
+  .panel__scroll, .tablewrap { overflow: visible; max-height: none; }
+  /* Nothing that is one idea may be split across a page break, and a table running
+     over two pages repeats its header rather than leaving the second page unlabelled. */
+  .card, .panel, .kpi, .dials, .chart2 > section, tr { break-inside: avoid; }
+  thead { display: table-header-group; }
+  .pagehead__title { font-size: 16pt; }
+  /* Charts are drawn in ink the printer has to be told to keep. Without this every
+     fill drops to white and a bar chart prints as an empty axis. */
+  svg, .stat__fill, .hstrip__c, .ring__seg { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}

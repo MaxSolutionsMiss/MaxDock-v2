@@ -5,6 +5,7 @@ import { createModal } from '../ui/modal.js';
 import { pageHead } from '../ui/pagehead.js';
 import { format } from '../format.js';
 import { createShortcutCard } from '../ui/shortcut-card.js';
+import { toCsv, downloadFile } from '../ui/sheet.js';
 
 const DAY_LABELS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const DAY_ORDER = [1, 2, 3, 4, 5, 6, 0];
@@ -719,6 +720,101 @@ function renderQuickQr() {
 }
 
 
+// The whole of a site's setup, as one sheet.
+//
+// Print was taken off this screen, and off every screen but Reports: nobody pins a settings
+// page to a wall. What a manager actually does with this is hand it to another site to copy,
+// or keep it beside a change so there is a record of what the configuration was before it.
+// Both of those want a file, and a configuration is not one table — it is hours, docks,
+// trucks, limits and shifts — so it is written long, one setting to a row, rather than
+// forced into columns that would be empty for most of it.
+function exportCsv() {
+  const s = state.settings || {};
+  const site = state.context?.location?.name || '';
+  const rows = [['Site', 'Section', 'Item', 'Setting', 'Value']];
+  const put = (section, item, setting, value) => {
+    if (value === null || value === undefined || value === '') return;
+    rows.push([site, section, item, setting, String(value)]);
+  };
+
+  for (const day of DAY_ORDER) {
+    const row = state.hours.find(item => item.day_of_week === day) || {};
+    const open = row.is_open !== false;
+    put('Operating hours', DAY_LABELS[day], 'Open', open ? 'yes' : 'no');
+    if (open) {
+      put('Operating hours', DAY_LABELS[day], 'Opens', timeInput(row.open_time));
+      put('Operating hours', DAY_LABELS[day], 'Closes', timeInput(row.close_time));
+    }
+  }
+  put('Operating hours', 'Holidays', 'Calendar', s.holiday_calendar || 'none');
+  for (const row of state.holidays || []) put('Operating hours', 'Holidays', row.holiday_date, row.name);
+  for (const [index, row] of (state.directionWindows || []).entries()) {
+    const docks = (row.dock_ids || []).map(id => state.docks.find(d => d.id === id)?.name).filter(Boolean);
+    const days = (row.days || []).map(day => DAY_LABELS[Number(day)]);
+    put('Operating hours', `Window ${index + 1}`, 'Takes', row.direction);
+    put('Operating hours', `Window ${index + 1}`, 'From', timeInput(row.start_time));
+    put('Operating hours', `Window ${index + 1}`, 'To', timeInput(row.end_time));
+    put('Operating hours', `Window ${index + 1}`, 'Docks', docks.length ? docks.join(' / ') : 'every dock');
+    put('Operating hours', `Window ${index + 1}`, 'Days', days.length ? days.join(' / ') : 'every day');
+  }
+
+  for (const [label, value] of [
+    ['Slot interval (min)', s.slot_interval_minutes], ['Base (min)', s.base_minutes],
+    ['Per skid (min)', s.minutes_per_skid], ['Buffer (min)', s.buffer_minutes],
+    ['Full truck at (skids)', s.full_truck_skid_threshold], ['Full truck minimum (min)', s.full_truck_minimum_minutes],
+    ['Priority minimum (min)', s.priority_minimum_minutes],
+  ]) put('Timing & duration', 'How long a load takes', label, value);
+  put('Timing & duration', 'What the dock records', 'Record when work starts', s.track_service_start === true ? 'on' : 'off');
+  put('Timing & duration', 'What the dock records', 'Record when the truck leaves', s.track_departure === true ? 'on' : 'off');
+
+  put('Booking rules', 'Notice', 'Minimum notice (min)', s.minimum_notice_minutes);
+  put('Booking rules', 'Notice', 'Book ahead up to (days)', s.maximum_advance_days);
+  put('Booking rules', 'Combining', 'Offer to combine', s.suggest_same_day_consolidation !== false ? 'on' : 'off');
+  put('Booking rules', 'Combining', 'Look for loads', s.consolidation_window_hours ? `within ${s.consolidation_window_hours} hours` : 'on the same day');
+  put('Booking rules', 'Dock assignment', 'Auto-assign docks', s.auto_assign_dock !== false ? 'on' : 'off');
+  put('Booking rules', 'Dock assignment', 'Dock order', s.dock_assignment_strategy);
+
+  put('Capacity & limits', 'Floor', 'Enforce skid capacity', s.capacity_enabled === true ? 'on' : 'off');
+  put('Capacity & limits', 'Floor', 'Floor capacity (skids)', s.skid_capacity);
+  put('Capacity & limits', 'Floor', 'Reserve (skids)', s.capacity_reserve_skids);
+  put('Capacity & limits', 'Floor', 'Working limit (skids)', workingLimit(s));
+  put('Capacity & limits', 'Floor', 'When over capacity', s.capacity_enforcement_mode);
+  put('Capacity & limits', 'Trucks at once', 'Standing limit', s.max_concurrent_appointments ?? 'no limit');
+  for (const cap of state.dayCaps || []) {
+    put('Capacity & limits', `Capped ${cap.limit_date}`, 'Trucks at once', cap.max_concurrent_appointments ?? '');
+    put('Capacity & limits', `Capped ${cap.limit_date}`, 'Trucks all day', cap.max_appointments ?? '');
+    put('Capacity & limits', `Capped ${cap.limit_date}`, 'Note', cap.note || '');
+  }
+
+  for (const dock of state.docks) {
+    put('Docks', dock.name, 'Direction', dock.direction_mode === 'both' ? 'Both' : dock.direction_mode);
+    put('Docks', dock.name, 'In service', dock.is_active ? 'yes' : 'no');
+    put('Docks', dock.name, 'Truck types', dockTruckLabels(dock.id));
+  }
+
+  for (const type of state.truckTypes) {
+    const row = state.locationTruckTypes.find(item => item.truck_type_code === type.code);
+    put('Trucks', type.name, 'Enabled here', row && row.is_active !== false ? 'yes' : 'no');
+    if (row) {
+      put('Trucks', type.name, 'Setup (min)', row.setup_minutes);
+      put('Trucks', type.name, 'Skids per truck', row.skid_capacity);
+    }
+  }
+
+  put('Labour', 'Crew', 'Crew per truck', s.handlers_per_truck);
+  for (const shift of state.shifts || []) {
+    put('Labour', shift.name || 'Shift', 'Runs', `${timeInput(shift.start_time)} to ${timeInput(shift.end_time)}`);
+    put('Labour', shift.name || 'Shift', 'People', shift.people);
+  }
+
+  for (const shortcut of state.shortcuts || []) {
+    put('Quick QR codes', shortcut.name, 'Route', shortcutRoute(shortcut));
+    put('Quick QR codes', shortcut.name, 'Books', shortcutDetail(shortcut));
+  }
+
+  downloadFile(`maxdock-settings-${site.toLowerCase().replace(/[^a-z0-9]+/g, '-') || 'site'}.csv`, toCsv(rows));
+}
+
 function renderPanel() {
   const map = {
     hours: renderHours, timing: renderTiming, notice: renderNotice, capacity: renderCapacity,
@@ -1337,7 +1433,7 @@ async function deleteShortcut(shortcutId) {
 
 function buildShell(root) {
   root.innerHTML = `
-    ${pageHead('Settings', { actions: ['print'] })}
+    ${pageHead('Settings', { actions: ['export'] })}
     <div class="setlayout">
       <nav class="setnav" data-set-nav aria-label="Settings sections"></nav>
       <div class="setpanel" data-set-panel></div>
@@ -1551,7 +1647,7 @@ function wireEvents(root) {
   root.addEventListener('click', event => {
     const navButton = event.target.closest('[data-set-nav] button');
     if (navButton) { switchSection(navButton.dataset.section); return; }
-    if (event.target.closest('[data-print]')) { globalThis.print(); return; }
+    if (event.target.closest('[data-export]')) { exportCsv(); return; }
     const startEdit = event.target.closest('[data-edit-section]');
     if (startEdit) { editSection(startEdit.closest('[data-section-form]')); return; }
     const reset = event.target.closest('[data-reset]');

@@ -765,7 +765,7 @@ async function changeStatus(appointmentId, newStatus) {
 
 function buildShell(root) {
   root.innerHTML = `
-    ${pageHead('Operations queue', { actions: ['export', 'print', 'fullscreen', 'customize'] })}
+    ${pageHead('Operations queue', { actions: ['export', 'fullscreen', 'customize'] })}
     <div class="brief" data-brief></div>
     <div class="kpis" data-kpis></div>
     <div class="split">
@@ -806,7 +806,6 @@ function wireEvents(root) {
   root.addEventListener('click', async event => {
     if (event.target.closest('[data-open-booking]')) globalThis.dispatchEvent(new CustomEvent('maxdock:open-booking', { detail: { trigger: event.target } }));
     if (event.target.closest('[data-export]')) exportCsv();
-    if (event.target.closest('[data-print]')) globalThis.print();
     if (event.target.closest('[data-fullscreen]')) openBroadcastWindow();
     if (event.target.closest('[data-share-brief]')) shareBrief();
     const day = event.target.closest('[data-day]');

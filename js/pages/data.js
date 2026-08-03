@@ -4,6 +4,7 @@ import { toast } from '../ui/toast.js';
 import { renderState } from '../ui/empty.js';
 import { pageHead } from '../ui/pagehead.js';
 import { createAppointmentImport } from '../ui/appointment-import.js';
+import { toCsv, downloadFile } from '../ui/sheet.js';
 import { format } from '../format.js';
 
 const DATABASE_TYPES = [
@@ -127,6 +128,24 @@ function renderImport() {
     </div>
     <p class="form-message" data-import-message aria-live="polite"></p>
   </div>`;
+}
+
+// The run history, as a sheet. Print was removed from this screen and every other one but
+// Reports: a page of import runs is something somebody reconciles against a source system in a
+// spreadsheet, not something anybody pins to a wall.
+function exportCsv() {
+  const rows = [['Run', 'Started', 'File', 'Rows', 'Result', 'Imported by']];
+  for (const run of state.runs) {
+    rows.push([
+      `#${run.id}`,
+      format.timestamp(run.created_at, state.context.location),
+      run.file_name || '',
+      run.row_count ?? '',
+      run.status === 'completed' ? 'Success' : run.status,
+      run.imported_by_name || '',
+    ]);
+  }
+  downloadFile('maxdock-import-runs.csv', toCsv(rows));
 }
 
 function renderRuns() {
@@ -322,7 +341,7 @@ async function openAppointmentImport(trigger) {
 
 function wireEvents(root) {
   root.addEventListener('click', event => {
-    if (event.target.closest('[data-print]')) { globalThis.print(); return; }
+    if (event.target.closest('[data-export]')) { exportCsv(); return; }
     const openImport = event.target.closest('[data-open-appointment-import]');
     if (openImport) { openAppointmentImport(openImport); return; }
     const section = event.target.closest('[data-section]');
@@ -374,7 +393,7 @@ const page = {
       });
       return;
     }
-    context.pageRoot.innerHTML = `${pageHead('Data integration', { subtitle: 'System · MIS imports & connections', actions: ['print'] })}
+    context.pageRoot.innerHTML = `${pageHead('Data integration', { subtitle: 'System · MIS imports & connections', actions: ['export'] })}
       <div class="setlayout">
         <nav class="setnav" data-data-nav aria-label="Data integration sections"></nav>
         <div class="setpanel" data-data-panel></div>

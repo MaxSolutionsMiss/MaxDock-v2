@@ -18,7 +18,13 @@ if (missing.length) throw new Error(`Stage 4 board missing: ${missing.join(', ')
 // and the shared helper, not the band.
 if (!/pageHead\('Dock board'/.test(board)) throw new Error('Stage 4 board must build its header with pageHead().');
 if (!/controlsBar\(/.test(board)) throw new Error('Stage 4 board must build its controls band with controlsBar().');
-const declared = ['export', 'print', 'fullscreen', 'block', 'book'].filter(action => !board.includes(`'${action}'`));
+// Print is deliberately not in this list any more. The owner's ruling: Print belongs on
+// Reports alone, because a report is the only thing anybody carries into a meeting, and
+// every other screen holds data that gets reconciled in a spreadsheet instead. The board
+// therefore has Export and no Print, and scripts/verify-print-export.mjs is what holds
+// that line across all ten screens. The label is still checked in pagehead.js below,
+// because the shared helper must keep offering the action Reports uses.
+const declared = ['export', 'fullscreen', 'block', 'book'].filter(action => !board.includes(`'${action}'`));
 if (declared.length) throw new Error(`Stage 4 board missing actions: ${declared.join(', ')}`);
 const labels = ['Export CSV', 'Print', 'Full screen', 'Block dock time', 'Book appointment'].filter(label => !pagehead.includes(label));
 if (labels.length) throw new Error(`pagehead.js missing action labels: ${labels.join(', ')}`);

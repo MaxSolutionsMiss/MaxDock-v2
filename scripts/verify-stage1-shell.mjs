@@ -191,10 +191,27 @@ const cssRuleBytes = Buffer.byteLength(readFileSync(join(ROOT, 'assets/maxdock.c
 // gave two rules back rather than only taking: the QR mark's inner squares and the Find label's
 // negative margin. What is left is a sticky bar and its button row.
 //
+// 79 -> 80 KB, for an output medium the product did not have at all. Until this raise the
+// stylesheet contained zero @media print rules, while seven screens offered a Print button that
+// called window.print(). Every one of them put the navigation rail, the top bar, the filter row
+// and the connection indicator on the paper in screen colours. That was never a decision; it was
+// the absence of one, and nothing in the build could catch it because there was nothing to read.
+//
+// The owner's ruling settles the shape of the fix and makes it smaller than it would have been:
+// Print stays on Reports alone, because a report is what somebody carries into a meeting, and
+// every other screen trades it for Export, because a page of data is what somebody reconciles in
+// a spreadsheet. So this is one @media block aimed at one screen rather than a parallel print
+// treatment for ten, and it is bounded by that — hide the chrome, unlock the scrolling panels,
+// keep charts from splitting across a page break, and tell the printer to keep the ink.
+//
+// The dead-rule scan was run again first, as it was for each earlier raise. It reports only
+// names composed at runtime. Nothing to reclaim, so this is growth and not drift — and the
+// previous raise gave .rbar__row back rather than only taking.
+//
 // The point of the number is not the number. It is that growth in what a browser parses
 // stays a decision somebody has to make on purpose and justify in writing, instead of
 // arriving one convenience rule at a time.
-if (cssRuleBytes > 79 * 1024) fail('assets/maxdock.css', `CSS rule budget exceeded: ${Math.round(cssRuleBytes / 1024)} KB of declarations.`);
+if (cssRuleBytes > 80 * 1024) fail('assets/maxdock.css', `CSS rule budget exceeded: ${Math.round(cssRuleBytes / 1024)} KB of declarations.`);
 // The file figure is a sanity bound, not a second gate, and it took two raises in one day to
 // see that it had been the wrong shape all along. Sitting 2 KB above the rules content, it
 // bound on *comments* — so the thing it actually rationed was the reasoning three paragraphs

@@ -269,7 +269,7 @@ async function submitEdit(event) {
 
 function buildShell(root) {
   root.innerHTML = `
-    ${pageHead('Dock board', { subtitleAttribute: 'data-board-subtitle', actions: ['export', 'print', 'fullscreen', 'customize'] })}
+    ${pageHead('Dock board', { subtitleAttribute: 'data-board-subtitle', actions: ['export', 'fullscreen', 'customize'] })}
     ${controlsBar({
       label: 'Dock board controls',
       lead: `<div class="ctrl-field"><label for="board-date">Date</label><div class="datenav">
@@ -700,7 +700,6 @@ function wireEvents(root) {
     if (event.target.closest('[data-close-block]')) state.blockModal.close();
     if (event.target.closest('[data-close-edit]')) state.editModal.close();
     if (event.target.closest('[data-export]')) exportCsv();
-    if (event.target.closest('[data-print]')) globalThis.print();
     if (event.target.closest('[data-fullscreen]')) openBroadcastWindow();
     const customize = event.target.closest('[data-customize]');
     if (customize) state.customizePanel?.open(customize);
