@@ -65,10 +65,31 @@ const instructions = doc.replace(/```sql\nCREATE OR REPLACE FUNCTION public\.\w+
 for (const [pattern, what] of [
   [/drop table/i, 'a DROP TABLE'],
   [/truncate/i, 'a TRUNCATE'],
-  [/delete from public\./i, 'a DELETE'],
   [/drop column if exists (checked_in_at|completed_at|cancelled_at|status)\b/i, 'a drop of a pre-existing column'],
 ]) {
   if (pattern.test(instructions)) errors.push(`The rollback document contains ${what} in the SQL it tells somebody to run. Rolling back must not destroy anything that existed at the baseline.`);
+}
+
+// ── DELETE, allowed only where it provably cannot touch the baseline ───────────
+//
+// The rule this file enforces is "no rollback statement may destroy anything that existed at
+// the baseline". A blanket ban on DELETE approximated that rule and got it wrong in one
+// direction: work that ADDS a row — a permission code, a role — can then never write down how
+// to remove it, and a rollback document that cannot describe its own reversal is worse than
+// one containing a scoped delete.
+//
+// So a delete is permitted only when it is restricted to a literal that is on this list, and
+// the list holds only values introduced after the baseline commit. Adding to it is a
+// deliberate act somebody has to make, which is the property the blanket ban was protecting.
+// Anything the baseline shipped with is absent from this list and therefore still refused.
+const DELETABLE_SINCE_BASELINE = [
+  'reports.view_turnaround',
+];
+for (const statement of instructions.match(/delete from public\.[^;]*;/gi) || []) {
+  const scoped = DELETABLE_SINCE_BASELINE.some(value => statement.includes(`'${value}'`));
+  if (!scoped) {
+    errors.push(`The rollback document contains a DELETE that is not restricted to something this work created: ${statement.replace(/\s+/g, ' ').slice(0, 120)}. Rolling back must not destroy anything that existed at the baseline. If the value is genuinely new, add it to DELETABLE_SINCE_BASELINE in this file and say why.`);
+  }
 }
 
 // ── The saved definitions, hashed rather than eyeballed ────────────────────────

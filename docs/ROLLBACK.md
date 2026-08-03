@@ -1336,3 +1336,68 @@ Counted against the live catalogue rather than assumed:
   call chains through both pinned helpers — Good Friday goes via `easter_sunday_internal`,
   Thanksgiving via `nth_weekday_internal` — so a pinned `search_path` breaking either one would
   have shown up as a missing date or an error, and did not.
+
+---
+
+## 5b-viii. The turnaround report — one new function and one new permission
+
+From the pre-release audit §3.1, which is the finding with the largest gap between what MaxDock
+already holds and what it shows. `checked_in_at`, `service_started_at`, `completed_at` and
+`departed_at` are all recorded. Nothing reported on them: `avg_dwell_minutes` appeared once, as
+one column in the middle of the two scorecard tables.
+
+Turnaround is the headline metric of this product category. It is what a carrier negotiates
+detention on and the number that proves the project paid for itself.
+
+### The reverse
+
+```sql
+-- Reverse of migration: turnaround_report
+begin;
+drop function if exists public.get_turnaround_report(uuid, date, date);
+delete from public.role_permissions where permission_code = 'reports.view_turnaround';
+delete from public.permissions where code = 'reports.view_turnaround';
+commit;
+```
+
+Safe to run more than once. The `delete` statements are named exactly and touch one permission
+code that did not exist before this work, so they cannot remove anything that was there at the
+baseline. Nothing else references either the function or the code: the function is called from
+one place in `js/pages/reports.js`, and the permission is read by that same file and by the role
+editor, both of which degrade to simply not offering the view.
+
+### Why leaving it in place is safe
+
+- **Additive only.** One function, one permission row, four role grants. No table, no column, no
+  existing function, no data rewritten.
+- **Nothing else changes shape.** The two scorecard RPCs keep `avg_dwell_minutes` exactly as they
+  had it. This is a new reading of existing columns, not a move of an existing one.
+- **It cannot write.** `STABLE`, like every other report function.
+- **A role without the permission sees no difference.** The view is not offered and the RPC
+  refuses, the same as the other seven per-view permissions already behave.
+
+### What it counts, and the two decisions inside it
+
+Both are the owner's rules, applied here rather than invented:
+
+1. **A no-show or a rejected load contributes nothing to any average.** The owner's ruling was
+   that neither should affect a scorecard, and a turnaround report is a scorecard. A truck that
+   never arrived has no dwell time, and including it as a zero would drag every site's average
+   down for a truck that was never at the door.
+2. **Each leg is counted only where both of its ends were recorded.** The Start and Departed
+   switches ship off and are turned on per site, so a site not recording work-start has no
+   door-to-start leg. That leg reports as null and says "not recorded" rather than as zero, which
+   would read as instantaneous.
+
+The four legs, and what each one is:
+
+| Leg | From | To | What it tells you |
+|---|---|---|---|
+| Waiting | booked start | checked in | early or late at the gate |
+| At the door before work | checked in | work started | how long a truck sat after arriving |
+| Working | work started | completed | the load itself |
+| Leaving | completed | departed | how long a finished truck held the door |
+| **Total turnaround** | checked in | departed, or completed | gate to gone |
+
+Total falls back to `completed_at` when departure is not being recorded, so a site with the
+switch off still gets a turnaround figure rather than nothing. The report says which it used.

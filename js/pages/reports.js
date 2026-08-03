@@ -29,6 +29,7 @@ const VIEWS = [
   { id: 'scorecard-location', label: 'Site scorecard', icon: 'site', permission: 'reports.view_scorecard_location' },
   { id: 'fullness', label: 'Truck fullness', icon: 'load', permission: 'reports.view_fullness' },
   { id: 'labour', label: 'Labour hours', icon: 'crew', permission: 'reports.view_labour' },
+  { id: 'turnaround', label: 'Turnaround', icon: 'clock', permission: 'reports.view_turnaround' },
 ];
 const viewIcon = () => VIEWS.find(view => view.id === state.view)?.icon || 'chart';
 // Which views this account may open. Asked in three places — the picker, the landing view and
@@ -883,6 +884,90 @@ function labourCell(row) {
   </div>`;
 }
 
+// Turnaround: how long a truck is actually on site, from the four stamps MaxDock already
+// records and never reported on. This is the headline metric of the whole product category —
+// what a carrier argues detention over, and the number that shows whether the project paid.
+//
+// It leads with the MIDDLE truck, not the average, and that is not a stylistic choice. The
+// first run against real data returned a mean of 299 minutes against a median of 95, with a
+// 90th percentile of 1,139. A single average would have reported five hours for a site whose
+// typical truck is gone in an hour and a half. The spread is the finding, so the spread is
+// what the page shows: middle, slow tail, and the worst one, side by side.
+//
+// Nothing is quietly filtered to make the numbers look better. A load that sat overnight is
+// in here, because either it really did or the site never closed it off, and both of those
+// are worth somebody seeing.
+function turnaroundRows(bucket) {
+  // Kept per site rather than merged: averaging two sites' medians gives a number that is
+  // nobody's middle truck.
+  return (state.turnaround || []).flat().filter(row => row.bucket === bucket);
+}
+
+function minutes(value) {
+  if (value === null || value === undefined) return 'not recorded';
+  return format.duration(Math.round(Math.abs(Number(value))));
+}
+
+function renderTurnaround() {
+  const all = turnaroundRows('all');
+  const trucks = all.reduce((sum, row) => sum + num(row.trucks), 0);
+  if (!trucks) {
+    return `<div class="panel"><div class="panel__head"><h3 class="panel__title">Time on site</h3><div class="panel__actions"><span class="sub">${escapeHtml(siteRange())}</span></div></div>
+      <div class="panel__body"><p class="hint">No truck was checked in at these sites in this range, so there is no turnaround to measure. Turnaround is counted from the moment a load is checked in at the dock; a load nobody scanned in has no start.</p></div></div>`;
+  }
+  // Weighted by truck count so two sites of very different size do not count equally.
+  const weighted = key => {
+    const rows = all.filter(row => row[key] !== null && row[key] !== undefined);
+    const total = rows.reduce((sum, row) => sum + num(row.trucks), 0);
+    return total ? rows.reduce((sum, row) => sum + Number(row[key]) * num(row.trucks), 0) / total : null;
+  };
+  const median = weighted('turnaround_p50');
+  const mean = weighted('turnaround_minutes');
+  const tail = Math.max(...all.map(row => num(row.turnaround_p90)));
+  const worst = Math.max(...all.map(row => num(row.slowest_minutes)));
+  const departed = all.reduce((sum, row) => sum + num(row.measured_to_departure), 0);
+  const gate = weighted('waiting_minutes');
+  // A negative gate figure means trucks arrive before their slot, which is the common case and
+  // is not a problem. Saying "waiting -62 minutes" would read as a fault; "62 min early" reads
+  // as what it is.
+  const gateWord = gate === null ? 'not measured' : gate < 0 ? `${minutes(gate)} early` : `${minutes(gate)} late`;
+  const toDepart = departed
+    ? `measured to departure on ${departed} of ${trucks}`
+    : 'measured to completion: no site records departure yet';
+
+  return `<div class="panel"><div class="panel__head"><h3 class="panel__title">Time on site</h3><div class="panel__actions"><span class="sub">${escapeHtml(siteRange())}</span></div></div>
+    <section class="kpis">
+      <div class="kpi kpi--signal"><span class="kpi__label">Middle truck</span><span class="kpi__value">${escapeHtml(minutes(median))}</span></div>
+      <div class="kpi"><span class="kpi__label">Average</span><span class="kpi__value">${escapeHtml(minutes(mean))}</span></div>
+      <div class="kpi kpi--stop"><span class="kpi__label">Slow tail · 1 in 10</span><span class="kpi__value">${escapeHtml(minutes(tail))}</span></div>
+      <div class="kpi"><span class="kpi__label">Worst one</span><span class="kpi__value">${escapeHtml(minutes(worst))}</span></div>
+      <div class="kpi"><span class="kpi__label">At the gate</span><span class="kpi__value">${escapeHtml(gateWord)}</span></div>
+    </section>
+    <div class="panel__body">
+      <p class="hint hint--wide">${num(trucks)} trucks checked in, ${escapeHtml(toDepart)}. The middle truck is what a normal day looks like; the slow tail is what a carrier complains about. They are shown together because an average alone sits between them and describes neither. No-shows, cancellations and rejected loads are left out entirely: a truck that never came to the door has no time at it.</p>
+      <div class="chart2">
+        <section><h4 class="chart2__t">Slowest doors, middle truck</h4>${ranked(turnaroundRows('dock')
+          .map(row => ({ label: row.bucket_label, value: num(row.turnaround_p50), shown: `${minutes(row.turnaround_p50)} · ${num(row.trucks)} trucks` })), { max: 8 })}</section>
+        <section><h4 class="chart2__t">Slowest partners, middle truck</h4>${ranked(turnaroundRows('partner')
+          .map(row => ({ label: row.bucket_label, value: num(row.turnaround_p50), shown: `${minutes(row.turnaround_p50)} · ${num(row.trucks)} trucks` })), { max: 8 })}</section>
+      </div>
+      <div class="tablewrap"><table class="table">
+        <thead><tr><th class="col-fill">Where the time goes</th><th>Trucks</th><th>At the gate</th><th>Waiting to start</th><th>Working</th><th>Leaving</th><th>Middle</th><th>1 in 10</th></tr></thead>
+        <tbody>${[...turnaroundRows('all'), ...turnaroundRows('direction')].map(row => `<tr>
+          <td class="data data--strong">${escapeHtml(row.bucket_label)}</td>
+          <td class="data">${num(row.trucks)}</td>
+          <td class="data">${escapeHtml(row.waiting_minutes === null ? 'not measured' : `${minutes(row.waiting_minutes)} ${Number(row.waiting_minutes) < 0 ? 'early' : 'late'}`)}</td>
+          <td class="data">${escapeHtml(minutes(row.to_start_minutes))}</td>
+          <td class="data">${escapeHtml(minutes(row.working_minutes))}</td>
+          <td class="data">${escapeHtml(minutes(row.to_depart_minutes))}</td>
+          <td class="data data--strong">${escapeHtml(minutes(row.turnaround_p50))}</td>
+          <td class="data">${escapeHtml(minutes(row.turnaround_p90))}</td>
+        </tr>`).join('')}</tbody>
+      </table></div>
+      <p class="hint">A leg reads "not recorded" where the site does not keep that stamp. Waiting to start and Leaving are the two per-site switches under Settings, Timing &amp; duration; with them off, MaxDock still measures the whole visit but cannot say which part of it was the work.</p>
+    </div></div>`;
+}
+
 function renderView() {
   if (!state.data) return;
   // Land on something this account may actually open. The default is Overview, and a role that
@@ -900,7 +985,7 @@ function renderView() {
     'dock-utilisation': renderDockUtilisation,
     'scorecard-company': () => renderScorecard('company'),
     'scorecard-location': () => renderScorecard('location'),
-    fullness: renderFullness, labour: renderLabour,
+    fullness: renderFullness, labour: renderLabour, turnaround: renderTurnaround,
   };
   // The mark is folded in here rather than by each renderer, so every view carries one and
   // none of them has to remember.
@@ -945,6 +1030,13 @@ function csvRowsForView() {
   if (state.view === 'dock-utilisation') {
     return [['Hour', 'Appointments', 'Skids'], ...(data.by_hour || []).map(row => [row.label, num(row.appointments), num(row.skids)])];
   }
+  if (state.view === 'turnaround') {
+    return [['Group', 'Name', 'Trucks', 'At the gate (min)', 'Waiting to start (min)', 'Working (min)', 'Leaving (min)', 'Average (min)', 'Middle (min)', '1 in 10 (min)', 'Worst (min)', 'Measured to departure'],
+      ...(state.turnaround || []).flat().map(row => [row.bucket, row.bucket_label, row.trucks,
+        row.waiting_minutes ?? '', row.to_start_minutes ?? '', row.working_minutes ?? '', row.to_depart_minutes ?? '',
+        row.turnaround_minutes ?? '', row.turnaround_p50 ?? '', row.turnaround_p90 ?? '', row.slowest_minutes ?? '',
+        row.measured_to_departure ?? ''])];
+  }
   if (state.view === 'skid-movement') {
     return [['Date', 'Inbound skids', 'Outbound skids', 'Net change'], ...(data.by_day || []).map(row => [row.date, num(row.inbound_skids), num(row.outbound_skids), num(row.inbound_skids) - num(row.outbound_skids)])];
   }
@@ -967,7 +1059,7 @@ async function reload() {
     // The scorecard is its own query, fetched alongside so switching views does
     // not go back to the network. A failure there must not take the rest of the
     // report down with it.
-    const [data, scorecard, fullness, labour, capacities] = await Promise.all([
+    const [data, scorecard, fullness, labour, turnaround, capacities] = await Promise.all([
       fetchReport(),
       fanOut('get_partner_scorecard',
         id => ({ p_location_id: id, p_start_date: state.from, p_end_date: state.to }),
@@ -982,6 +1074,14 @@ async function reload() {
           id => ({ p_location_id: id, p_from: state.from, p_to: state.to }),
           'reports:labour').then(mergeLabour).catch(() => [])
         : Promise.resolve([]),
+      // Turnaround comes back per site and is kept per site rather than merged. Averaging two
+      // sites' medians would produce a number that is nobody's middle truck, and the whole
+      // point of this view is that the middle and the tail are different questions.
+      state.context.can('reports.view_turnaround')
+        ? fanOut('get_turnaround_report',
+          id => ({ p_location_id: id, p_start_date: state.from, p_end_date: state.to }),
+          'reports:turnaround').catch(() => [])
+        : Promise.resolve([]),
       // What each truck type holds at each chosen site, so a truck type can be drawn as a
       // trailer with the right amount of room in it. Read straight off the table under
       // row-level security rather than through an RPC, the way Settings reads it, and
@@ -994,6 +1094,7 @@ async function reload() {
     state.scorecard = Array.isArray(scorecard) ? scorecard : [];
     state.fullness = Array.isArray(fullness) ? fullness : [];
     state.labour = Array.isArray(labour) ? labour : [];
+    state.turnaround = (turnaround || []).map(rows => (Array.isArray(rows) ? rows : []));
     state.capacity = {};
     for (const site of (capacities || [])) {
       for (const row of (site || [])) {
