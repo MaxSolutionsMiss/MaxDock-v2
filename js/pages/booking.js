@@ -8,7 +8,17 @@ import { toast } from '../ui/toast.js';
 import { truckUpgrade, upgradeMessage } from '../truck-ladder.js';
 import { truckFill } from '../ui/truckfill.js';
 
-const STEPS = Object.freeze(['Load', 'Vehicle', 'Time', 'Contact', 'Confirm']);
+// Three steps, not five.
+//
+// Load and Vehicle were one question split in two: what is on the truck and what truck it is.
+// They fit on one screen and nobody thinks of them separately.
+//
+// Contact was worse. It is prefilled from the signed-in profile -- name, email, and the company
+// off the account -- and there is no anonymous booking, so for every single user it showed two
+// already-correct fields and a Continue button. A whole step spent confirming what MaxDock
+// already knew. It is folded into Confirm, where it reads as part of the summary and can still
+// be corrected by the one person in a hundred whose name is on somebody else's screen.
+const STEPS = Object.freeze(['Load & truck', 'Time', 'Confirm']);
 const TERMINAL_STATUSES = new Set(['completed', 'cancelled', 'no_show']);
 const SLOT_SUSPENSION = 'booking-slot-picker';
 const CUSTOMER_SLOT_PROJECTION = 'slot_start, slot_end, recommendation_rank, recommendation_score, capacity_warning, alternative_date';
@@ -472,8 +482,11 @@ function renderFullness() {
   note.hidden = !text;
 }
 
-function renderVehicleStep() {
-  hosts.step.innerHTML = `
+// Appended to the load step rather than owning a screen. `append` is not optional in
+// practice -- nothing calls this on its own any more -- but it is a parameter rather than an
+// assumption so the function still says what it does to the next person reading it.
+function renderVehicleStep({ append = false } = {}) {
+  const markup = `
     <div class="frow">
       <div class="field field--md"><span class="field__label">Truck type<span class="field__req" aria-hidden="true">*</span></span><select class="select" data-field="truck_type_code"></select></div>
       <div class="field field--md"><span class="field__label">Handling<span class="field__req" aria-hidden="true">*</span></span><select class="select" data-field="handling_type_code"></select></div>
@@ -481,6 +494,8 @@ function renderVehicleStep() {
     </div>
     <p class="hint hint--wide section-gap" data-fullness hidden></p>
 `;
+  if (append) hosts.step.insertAdjacentHTML('beforeend', markup);
+  else hosts.step.innerHTML = markup;
   addOptions(hosts.step.querySelector('[data-field="truck_type_code"]'), state.reference.truckTypes, state.form.truck_type_code, 'Choose one');
   addOptions(hosts.step.querySelector('[data-field="handling_type_code"]'), state.reference.handlingTypes, state.form.handling_type_code, 'Choose one');
   hosts.step.querySelector('[data-field="carrier_name"]').value = state.form.carrier_name;
@@ -584,23 +599,6 @@ function renderTimeStep() {
   renderSlotCards();
 }
 
-function renderContactStep() {
-  // The row always totals twelve columns, and the email gets the larger share of
-  // them either way — a work address runs past a field sized for a person's name.
-  const external = state.form.movement_kind === 'external';
-  hosts.step.innerHTML = `
-    <p class="hint hint--lead">These details identify the requester and are included in the confirmation draft.</p>
-    <div class="frow">
-      <div class="field ${external ? 'field--sm' : 'field--md'}"><span class="field__label">Requester name<span class="field__req" aria-hidden="true">*</span></span><input class="input" data-field="requester_name" maxlength="120" autocomplete="name"></div>
-      <div class="field ${external ? 'field--lg' : 'field--xl'}"><span class="field__label">Requester email<span class="field__req" aria-hidden="true">*</span></span><input class="input" data-field="requester_email" type="email" maxlength="180" autocomplete="email"></div>
-      ${external ? '<div class="field field--sm"><span class="field__label">Company</span><input class="input" data-field="company_name" maxlength="120" autocomplete="organization"></div>' : ''}
-    </div>`;
-  hosts.step.querySelector('[data-field="requester_name"]').value = state.form.requester_name;
-  hosts.step.querySelector('[data-field="requester_email"]').value = state.form.requester_email;
-  const company = hosts.step.querySelector('[data-field="company_name"]');
-  if (company) company.value = state.form.company_name;
-}
-
 function summaryRows() {
   const location = currentLocation();
   const counterpart = counterpartLocation();
@@ -684,6 +682,7 @@ function renderRepeat() {
 }
 
 function renderConfirmStep() {
+  const external = state.form.movement_kind === 'external';
   hosts.step.innerHTML = `
     <p class="hint hint--lead">Review the booking before reserving the dock${state.form.movement_kind === 'max' ? 's' : ''}.</p>
     <div class="card" data-confirm-grid></div>
@@ -691,6 +690,15 @@ function renderConfirmStep() {
     ${state.form.after_hours ? '<div class="inline-note inline-note--warning"><strong>After-hours override</strong><span>Your acknowledgement will be recorded with the booking.</span></div>' : ''}
     <div class="frow">
       <label class="field field--full"><span class="field__label">Notes <span class="field__opt">optional</span></span><textarea class="input" data-field="notes" maxlength="1000" rows="2" placeholder="Handling instructions only. No passwords or personal information."></textarea></label>
+    </div>
+    ${/* Who is booking, which used to be a step of its own. It is filled in from the account
+        before this screen is drawn, so it sits here as two small fields somebody can correct
+        rather than a page they have to walk through agreeing with themselves. The company is
+        offered only where MaxDock does not already know it. */ ''}
+    <div class="frow">
+      <div class="field field--${external ? 'sm' : 'md'}"><span class="field__label">Booked by<span class="field__req" aria-hidden="true">*</span></span><input class="input" data-field="requester_name" maxlength="120" autocomplete="name"></div>
+      <div class="field field--${external ? 'md' : 'lg'}"><span class="field__label">Email<span class="field__req" aria-hidden="true">*</span></span><input class="input" data-field="requester_email" type="email" maxlength="180" autocomplete="email"></div>
+      ${external ? '<div class="field field--sm"><span class="field__label">Company</span><input class="input" data-field="company_name" maxlength="120" autocomplete="organization"></div>' : ''}
     </div>
     <div class="frow">
       <label class="field field--full"><span class="field__label">Save as a shortcut <span class="field__opt">optional</span></span><input class="input" data-field="template_name" maxlength="80" placeholder="Name it: “Mississauga to Guelph”, “Weekly board run”"></label>
@@ -708,6 +716,10 @@ function renderConfirmStep() {
   }
   renderRepeat();
   hosts.step.querySelector('[data-field="notes"]').value = state.form.notes;
+  hosts.step.querySelector('[data-field="requester_name"]').value = state.form.requester_name;
+  hosts.step.querySelector('[data-field="requester_email"]').value = state.form.requester_email;
+  const company = hosts.step.querySelector('[data-field="company_name"]');
+  if (company) company.value = state.form.company_name;
   // Naming it is what saves it — a separate checkbox asked the same question twice.
   const name = hosts.step.querySelector('[data-field="template_name"]');
   if (name) name.value = state.form.template_name;
@@ -833,10 +845,8 @@ function renderStep() {
     return;
   }
   switch (state.step) {
-    case 0: renderLoadStep(); break;
-    case 1: renderVehicleStep(); break;
-    case 2: renderTimeStep(); break;
-    case 3: renderContactStep(); break;
+    case 0: renderLoadStep(); renderVehicleStep({ append: true }); break;
+    case 1: renderTimeStep(); break;
     default: renderConfirmStep(); break;
   }
 }
@@ -889,13 +899,14 @@ function validateStep(step = state.step) {
     if (form.movement_kind === 'max' && !form.requester_location_id) return 'Choose the other Max Solutions location.';
     if (form.movement_kind === 'external' && !clean(form.requester_type)) return 'Choose the company type.';
   }
-  if (step === 1) {
+  // The truck is on the same step as the load now, so it is checked with it.
+  if (step === 0) {
     if (!form.truck_type_code) return 'Choose a truck type.';
     if (!state.reference.truckTypes.some(item => item.code === form.truck_type_code)) return 'Choose a truck type enabled at this location.';
     if (!form.handling_type_code) return 'Choose a handling type.';
     if (!state.reference.handlingTypes.some(item => item.code === form.handling_type_code)) return 'Choose a handling type enabled at this location.';
   }
-  if (step === 2) {
+  if (step === 1) {
     if (!form.date) return 'Choose a requested date.';
     // A time cannot be chosen for a load that will not fit the truck. This used to print
     // "4 over" in amber beside a list of times and let the person pick one, which books a
@@ -911,11 +922,12 @@ function validateStep(step = state.step) {
       return 'Choose one available appointment time.';
     }
   }
-  if (step === 3) {
+  // Contact lives on Confirm now, so it is checked there rather than on a step of its own.
+  if (step === 2) {
     if (!clean(form.requester_name)) return 'Enter the requester name.';
     if (!clean(form.requester_email) || !form.requester_email.includes('@')) return 'Enter a valid requester email.';
   }
-  if (step === 4 && form.repeat_on) {
+  if (step === 2 && form.repeat_on) {
     if (!form.repeat_days.length) return 'Choose at least one day for the repeat.';
     if (!form.repeat_until) return 'Choose the last date for the repeat.';
     if (form.after_hours) return 'A repeating booking cannot use an after-hours time.';
@@ -925,7 +937,7 @@ function validateStep(step = state.step) {
 
 function setStep(next) {
   const target = Math.max(0, Math.min(STEPS.length - 1, Number(next)));
-  if (state.step === 2 && target !== 2) poll.resume(SLOT_SUSPENSION);
+  if (state.step === 1 && target !== 1) poll.resume(SLOT_SUSPENSION);
   state.step = target;
   state.maxStep = Math.max(state.maxStep, target);
   if (target === 2) poll.suspend(SLOT_SUSPENSION);
@@ -1001,7 +1013,7 @@ async function slotStillAvailable() {
   const match = rows.find(slot => slot.slot_start === selected);
   if (!match) {
     state.form.selected_slot = null;
-    setStep(2);
+    setStep(1);
     toast('That time was just taken. Choose another available time.', 'error');
     return false;
   }
@@ -1404,7 +1416,7 @@ async function continueWithAutoTime() {
   setMessage('Finding the first time this load can go…');
   const slot = await autoPickSlot(state.autoTime);
   if (!slot) {
-    setStep(2);
+    setStep(1);
     setMessage(`Nothing is free ${format.duration(Number(state.autoTime.lead_minutes || 0))} from now or later. Choose a time below.`);
     return;
   }
@@ -1537,7 +1549,7 @@ function updateField(target) {
   // Turning after-hours back off has to re-fetch: switching it on cleared the
   // slot list, and this branch used to exclude the very field that emptied it, so
   // the times never came back until the date was changed.
-  if (slotFieldChanged && state.step === 2 && !state.form.after_hours) findSlots();
+  if (slotFieldChanged && state.step === 1 && !state.form.after_hours) findSlots();
 }
 
 async function handleAction(button) {
@@ -1552,7 +1564,7 @@ async function handleAction(button) {
     // no earlier than the code's lead. It happens here rather than when the code
     // is scanned because until the load is described there is nothing to look a
     // time up for.
-    else if (state.step === 1 && state.autoTime) await continueWithAutoTime();
+    else if (state.step === 0 && state.autoTime) await continueWithAutoTime();
     else setStep(state.step + 1);
   } else if (action === 'back') {
     setStep(state.step - 1);

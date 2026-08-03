@@ -29,7 +29,33 @@ if (!errors.length) {
   const router = read('js/router.js');
 
   requireText(html, /js\/pages\/booking\.js/, 'Booking page module is not declared in app/book.html.');
-  requireText(page, /Load[\s\S]*Vehicle[\s\S]*Time[\s\S]*Contact[\s\S]*Confirm/, 'The five-step booking order is missing.');
+  // The step order, read off the declaration rather than sniffed out of the file.
+  //
+  // This line used to be /Load[\s\S]*Vehicle[\s\S]*Time[\s\S]*Contact[\s\S]*Confirm/ against the
+  // whole module, and it gave false confidence for as long as it existed: [\s\S]* spans
+  // anything, so it was satisfied by those five words appearing in that order anywhere across
+  // a hundred kilobytes. When the wizard went from five steps to three it still passed --
+  // matching renderLoadStep, renderVehicleStep, renderTimeStep and renderConfirmStep strung
+  // across 3,860 characters of unrelated code, with the word Contact somewhere in the middle.
+  // A guard that cannot notice two steps being removed was never testing the order.
+  const steps = page.match(/const STEPS = Object\.freeze\(\[([^\]]*)\]\)/);
+  if (!steps) {
+    requireText(page, /$a/, 'The booking wizard does not declare its steps as a frozen list, so nothing can check what they are.');
+  } else {
+    const names = [...steps[1].matchAll(/'([^']+)'/g)].map(match => match[1]);
+    const EXPECTED = ['Load & truck', 'Time', 'Confirm'];
+    if (names.join(' | ') !== EXPECTED.join(' | ')) {
+      requireText(page, /$a/, `The booking wizard runs ${names.join(', ')}. It should run ${EXPECTED.join(', ')} -- what is on the truck and which truck it is are one question, and the requester is prefilled from the account so it belongs in the summary rather than on a step of its own.`);
+    }
+  }
+  // A step nothing renders is a dead end, and a renderer no step reaches is dead code.
+  // A call, not a mention. The first version of this matched `renderVehicleStep(` and was
+  // therefore satisfied by the function's own declaration, so dropping the call from the step
+  // dispatch left it green -- the exact failure it exists to catch.
+  for (const renderer of ['renderLoadStep', 'renderVehicleStep', 'renderTimeStep', 'renderConfirmStep']) {
+    requireText(page, new RegExp(`(?<!function )\\b${renderer}\\(`), `${renderer} is never called, so a step of the booking wizard draws nothing.`);
+  }
+  requireText(page, /data-field="requester_email"/, 'The requester email is nowhere in the wizard, so a booking cannot be attributed.');
   requireText(page, /list_capacity_aware_appointment_slots/, 'Capacity-aware slot RPC is missing.');
   requireText(page, /CUSTOMER_SLOT_PROJECTION/, 'Customer-safe slot response projection is missing.');
   requireText(page, /list_routed_appointment_slots/, 'Routed slot RPC is missing.');
