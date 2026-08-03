@@ -125,16 +125,21 @@ const FLOWS = {
     // Capacity, hours and docks each draw one window with ruled parts rather than
     // a card per part, so .card is the wrong thing to wait for — it is .stack.
     { name: 'capacity', query: '', act: async page => { await page.click('[data-section="capacity"]'); await page.waitForTimeout(250); await page.locator('[data-edit-section] >> visible=true').first().click({ timeout: 2000 }).catch(() => {}); }, expect: '.stack' },
-    { name: 'combining', query: '', act: async page => { await page.click('[data-section="combining"]'); await page.waitForTimeout(250); await page.locator('[data-edit-section] >> visible=true').first().click({ timeout: 2000 }).catch(() => {}); }, expect: '.card' },
+    // Combining and Notice are two forms inside Booking rules now, not sections of
+    // their own, so each is unlocked by its own Edit rather than by whichever one
+    // happens to be first on the panel.
+    { name: 'combining', query: '', act: async page => { await page.click('[data-section="booking"]'); await page.waitForTimeout(250); await page.locator('[data-section-form="combining"] [data-edit-section]').click({ timeout: 2000 }).catch(() => {}); }, expect: '.card' },
     { name: 'trucks', query: '', act: async page => { await page.click('[data-section="trucks"]'); await page.waitForTimeout(250); await page.locator('[data-edit-section] >> visible=true').first().click({ timeout: 2000 }).catch(() => {}); }, expect: '.card--table' },
     // Three forms in one section, so each is unlocked by its own Edit rather than
     // by position — the positions moved once and took the sweep with them.
     { name: 'labour', query: '', act: async page => { await page.click('[data-section="labour"]'); await page.waitForTimeout(250); await page.locator('[data-section-form="labour"] [data-edit-section]').click({ timeout: 2000 }).catch(() => {}); }, expect: '[name="handlers_per_truck"]' },
     { name: 'labour-shifts', query: '', act: async page => { await page.click('[data-section="labour"]'); await page.waitForTimeout(250); await page.locator('[data-section-form="shifts"] [data-edit-section]').click({ timeout: 2000 }).catch(() => {}); await page.locator('[data-add-shift]').click({ timeout: 2000 }).catch(() => {}); await page.waitForTimeout(200); }, expect: '.shiftrow [data-shift-name]' },
-    { name: 'labour-day-cap', query: '', act: async page => { await page.click('[data-section="labour"]'); await page.waitForTimeout(250); await page.locator('[data-section-form="day-cap"] [data-edit-section]').click({ timeout: 2000 }).catch(() => {}); }, expect: '[name="max_concurrent"]' },
+    // How many trucks a day takes is a limit rather than a crew question, so it sits
+    // under Capacity & limits with the rest of them now. Named for where it is.
+    { name: 'capacity-day-cap', query: '', act: async page => { await page.click('[data-section="capacity"]'); await page.waitForTimeout(250); await page.locator('[data-section-form="day-cap"] [data-edit-section]').click({ timeout: 2000 }).catch(() => {}); }, expect: '[name="max_concurrent"]' },
     { name: 'labour-day', query: '', act: async page => { await page.click('[data-section="labour"]'); await page.waitForTimeout(250); await page.locator('[data-section-form="labour-day"] [data-edit-section]').click({ timeout: 2000 }).catch(() => {}); }, expect: '[name="hours_each"]' },
     { name: 'quickqr', query: '', act: async page => { await page.click('[data-section="quickqr"]'); await page.waitForTimeout(250); await page.locator('[data-edit-section] >> visible=true').first().click({ timeout: 2000 }).catch(() => {}); }, expect: '[data-print-shortcut]' },
-    { name: 'notice', query: '', act: async page => { await page.click('[data-section="notice"]'); await page.waitForTimeout(250); await page.locator('[data-edit-section] >> visible=true').first().click({ timeout: 2000 }).catch(() => {}); }, expect: '.card' },
+    { name: 'notice', query: '', act: async page => { await page.click('[data-section="booking"]'); await page.waitForTimeout(250); await page.locator('[data-section-form="notice"] [data-edit-section]').click({ timeout: 2000 }).catch(() => {}); }, expect: '.card' },
     { name: 'timing', query: '', act: async page => { await page.click('[data-section="timing"]'); await page.waitForTimeout(250); await page.locator('[data-edit-section] >> visible=true').first().click({ timeout: 2000 }).catch(() => {}); }, expect: '.card' },
   ],
   // Each report view is its own table and chart; the tab that is open on load was
