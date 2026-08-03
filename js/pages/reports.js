@@ -608,7 +608,7 @@ function renderDockUtilisation() {
         { percent: s.available_dock_minutes ? (num(s.blocked_minutes) / num(s.available_dock_minutes)) * 100 : null, label: 'Time blocked off', note: 'maintenance, breaks, events', shape: 'clock' },
         { percent: num(s.active_docks) ? (num(s.booked_minutes) / 60) / num(s.active_docks) / Math.max(1, (state.data.by_day || []).length) / 9.5 * 100 : null, label: 'Busiest door share', note: 'booked hours per door per day', good: 'none', shape: 'door' },
       ])}</div>
-    <div class="kpis" style="--kpi-cols:4">
+    <div class="kpis" style="--kpi-cols:5">
       <article class="kpi kpi--signal"><span class="kpi__label">Dock time used</span><span class="kpi__value">${num(s.occupied_utilization_percent).toFixed(1)}<span>%</span></span></article>
       <article class="kpi"><span class="kpi__label">Booked hours</span><span class="kpi__value">${compact(num(s.booked_minutes) / 60)}</span></article>
       <article class="kpi kpi--stop"><span class="kpi__label">Blocked hours</span><span class="kpi__value">${compact(num(s.blocked_minutes) / 60)}</span></article>
@@ -652,6 +652,20 @@ function renderScorecard(kind) {
   const cancelled = rows.reduce((sum, row) => sum + num(row.cancelled), 0);
   const verd = verdict(overall);
   const who = kind === 'location' ? 'site' : 'vendor';
+  // How much of the booked work this percentage was actually measured over.
+  //
+  // On time is calculated only across loads with a check-in time, which is correct maths and
+  // a trap if it is not stated. A load nobody scanned in is in neither the numerator nor the
+  // denominator: it does not count as late, it simply is not counted. And the missing rows are
+  // not random. The morning a receiver is too busy to stop and scan is the morning trucks are
+  // running late, so what goes unrecorded skews late and the score reads better than the yard
+  // did. A site still building the habit can post 96% on a third of its trucks.
+  //
+  // The fix is not to guess at the missing ones. It is to publish the denominator, so a number
+  // measured on 61 of 88 trucks says so and a manager can decide whether to believe it.
+  const expected = Math.max(trucks - noShows - cancelled, 0);
+  const coverage = expected ? Math.round((arrived / expected) * 1000) / 10 : null;
+  const coverVerd = verdict(coverage);
   // Late by how much, not just how often. A carrier ten minutes late forty times and one
   // two hours late twice are the same on-time percentage and are not the same problem.
   const worstLate = rows
@@ -667,8 +681,10 @@ function renderScorecard(kind) {
       <article class="kpi kpi--ok"><span class="kpi__label">On time <span class="vd vd--${verd.key}">${verd.glyph}${escapeHtml(verd.words)}</span></span><span class="kpi__value">${overall === null ? '–' : overall.toFixed(1)}<span>%</span></span></article>
       <article class="kpi"><span class="kpi__label">${kind === 'location' ? 'Sites' : 'Vendors'}</span><span class="kpi__value">${rows.length}</span></article>
       <article class="kpi kpi--out"><span class="kpi__label">Trucks</span><span class="kpi__value">${compact(trucks)}</span></article>
+      <article class="kpi"><span class="kpi__label">Measured <span class="vd vd--${coverVerd.key}">${coverVerd.glyph}${escapeHtml(coverage === null ? 'nothing to measure' : `${arrived} of ${expected} scanned in`)}</span></span><span class="kpi__value">${coverage === null ? '–' : coverage.toFixed(0)}<span>%</span></span></article>
       <article class="kpi kpi--stop"><span class="kpi__label">No shows</span><span class="kpi__value">${noShows}</span></article>
     </div>
+    ${coverage !== null && coverage < 90 ? `<p class="form-message">On time is measured only on loads that were scanned in at the dock. ${arrived} of ${expected} trucks were, so this percentage describes ${coverage.toFixed(0)}% of the work. The trucks nobody scanned are more likely to be the late ones, because the busiest mornings are the ones where scanning gets skipped, so treat the figure above as the best case until coverage is up.</p>` : ''}
     <div class="panel">
       <div class="panel__head"><h3 class="panel__title">How the ${who}s are doing</h3><div class="panel__actions">${formSwitch(`read-${kind}`, [{ id: 'dial', label: 'Dials' }, { id: 'shape', label: 'Fill' }])}<span class="sub">${escapeHtml(siteRange())}</span></div></div>
       ${readings(`read-${kind}`, [

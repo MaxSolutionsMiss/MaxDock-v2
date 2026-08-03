@@ -249,6 +249,30 @@ recommendation is that they be operable the same way.
 Compared against Opendock (Loadsmart), C3 Solutions, Transporeon slot management, Descartes and
 e2open — the products a director will have seen demoed.
 
+### 3.0 On time is measured only on the trucks somebody scanned in
+
+**Found while building §3.1. It matters more than §3.1 does, because on-time is the metric the
+owner says the project will actually be judged on.**
+
+`get_partner_scorecard` computes on-time across `checked_in_at is not null`. That is correct
+arithmetic — a cancellation is not a late arrival and must not be averaged in as one — and it is
+a trap the moment it goes unstated. A load nobody scanned is in neither the numerator nor the
+denominator. It does not count as late. It simply is not counted.
+
+**And the missing rows are not random.** The morning a receiver is too busy to stop and scan is
+the morning trucks are running late. So what goes unrecorded skews late, and the score reads
+better than the yard did. A site still building the habit can post 96% on a third of its trucks
+and have no way of knowing that is what it is looking at.
+
+The fix is not to guess at the missing ones. It is to publish the denominator. Both scorecards
+now carry a **Measured** reading — "61 of 88 scanned in", with the percentage — and below 90%
+coverage the page says in words that the figure above it is a best case. No database change: the
+scorecard already returned every piece, since arrivals are `on_time + late` and the expected
+count is trucks less no-shows and cancellations.
+
+This also turns crew discipline from something invisible into something a manager can see falling
+and act on, which is the honest answer to "I am not sure how disciplined the crews will be."
+
 ### 3.1 You capture turnaround and never report it
 
 **This is the highest-value gap, because the data is already there.**
@@ -262,6 +286,15 @@ Turnaround is the headline metric of this entire product category. It is what ca
 detention on, what a director asks about first, and the number that proves the project paid for
 itself. You are collecting it and not showing it. A ninth report view — turnaround by site, by
 dock, by carrier, with the distribution rather than just the mean — is mostly a query.
+
+**Owner's steer, after the view was built and shown: deprioritise it.** Max Solutions has no gate
+and no yard, trucks may not be received at the door at all to begin with, and in the GTA a
+turnaround figure is subjective in a way an on-time figure is not. The view stays and costs
+nothing, and it will be worth reading once check-in is a habit — but it is not a release metric
+and it is not a presentation headline. **The site and vendor scorecards are.** That reprioritises
+§3.0 above from a side-finding to the most important thing in this section, and it is why the
+carrier role (§3.2) and confirmation email (§1.2) matter more than they appeared to: both exist
+to make an appointment something a carrier can actually hit.
 
 ### 3.2 There is no carrier role
 
