@@ -69,7 +69,11 @@ const isInternal = record => Boolean(record?.requester_location_id);
 const STATUS_STEPS = [
   { id: 'arrived', label: 'At the dock' },
   { id: 'in_progress', label: direction => (direction === 'outbound' ? 'Loading' : 'Unloading') },
-  { id: 'completed', label: 'Complete' },
+  // "Complete" said that something finished without saying what. The same tap means two
+  // different events depending on which way the load is going, and the person tapping it knows
+  // which one they just did: an outbound load has been put on a truck and sent, an inbound one
+  // has been taken off and taken in. Shipped and Received are what they would write on paper.
+  { id: 'completed', label: direction => (direction === 'outbound' ? 'Shipped' : 'Received') },
   // Departed, and for an internal movement that is the handoff rather than an afterthought.
   //
   // The words change with who is waiting for it. "Left the yard" is right for a customer's
