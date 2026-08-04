@@ -547,7 +547,7 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
 .modal__head--load .modal__title{font-size:var(--t-metric)}
 .modal__head--load .modal__sub{font-size:var(--t-title);color:var(--ink)}
 /* Big enough to read off a phone held at arm's length, which is the whole job of it. */
-.qrbox,.apptdocs{display:grid;gap:var(--s2)}
+.qrbox,.apptdocs,.docbox{display:grid;gap:var(--s2)}
 .qrbox{justify-items:center}
 .qrbox .qr-frame{width:100%;max-width:210px;margin:0}
 .qrbox__c,.apptdocs .watch__t{margin:0}

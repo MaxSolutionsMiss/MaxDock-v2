@@ -16,6 +16,9 @@ const ICONS = {
   // and a node joined to two others.
   qr: '<rect x="3" y="3" width="7" height="7" rx="1"></rect><rect x="14" y="3" width="7" height="7" rx="1"></rect><rect x="3" y="14" width="7" height="7" rx="1"></rect><path d="M14 14h3v3h-3zM20 14v3M14 20h7"></path>',
   share: '<circle cx="18" cy="5.5" r="2.5"></circle><circle cx="6" cy="12" r="2.5"></circle><circle cx="18" cy="18.5" r="2.5"></circle><path d="M8.2 10.8 15.8 6.7M8.2 13.2l7.6 4.1"></path>',
+  // A sheet with its corner turned. Paperwork rather than a paperclip: what goes on a load is
+  // a bill of lading or a packing list, and the folded corner reads at 16px where a clip does not.
+  doc: '<path d="M13.5 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8.5z"></path><path d="M13.5 3v5.5H19"></path>',
   // A verdict, drawn. Beside a percentage and its word, so a reading never rests on a
   // colour: a tick for on time, a bar for slipping, a cross for not acceptable.
   ok: '<circle cx="12" cy="12" r="9"></circle><path d="M8 12.5l2.6 2.6L16 9.5"></path>',

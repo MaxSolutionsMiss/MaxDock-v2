@@ -1640,3 +1640,125 @@ because the activity feed on a screen will show a wall of identical entries.
 
 Ten notifications remain and are correct: they are not appointment-linked and were never in
 scope.
+
+---
+
+## 5d-i. Documents attached from My Appointments (2026-08-04)
+
+Baseline SHA `9323f4c`. Project `rywzqepzramurbrpmept`.
+
+### Why
+
+Somebody books a load before the paperwork exists — the BOL is not cut, the packing list is
+not signed — and there has been nowhere for them to put it afterwards. Documents worked only
+from the dock board, which is the one screen an outside company cannot open, so a customer's
+only route was to email the plant and hope it got attached.
+
+The table policies were already written for this: both `appointment_documents_select` and
+`appointment_documents_insert` carry an
+`(has_permission('appointment.view_own') and owns_appointment(appointment_id))` branch. **The
+storage policies were not.** All three ask only `has_location_access(foldername[1]::uuid)`,
+and an outside company has access to no site, so every upload, read and delete was refused at
+the bucket. The table was ready and the bucket was shut.
+
+### What changed
+
+1. A new function `public.owns_appointment_at(uuid, uuid)` — true when the signed-in account
+   created that appointment *and* the appointment sits at that location. The location is part
+   of it because the first path segment is what the bucket policies key on, so a path could
+   otherwise be filed against a site the appointment does not belong to.
+2. The three `storage.objects` policies for bucket `appointment-documents` gain an owner
+   branch. Reading and deleting additionally require `owner = auth.uid()`, so an outside
+   company reaches its own uploads and nothing else.
+3. `appointment_documents_select` and `appointment_documents_delete` gain a matching
+   own-uploads branch, and `appointment_documents_insert` now forces `uploaded_by` to be the
+   caller on that branch so a row cannot be attributed to somebody else.
+4. `appointment_documents.uploaded_by` gains `default auth.uid()`. It was nullable with no
+   default and the client never set it, which meant the `uploaded_by = auth.uid()` branch of
+   the delete policy had been dead since it was written — nobody but a system or site admin
+   could remove a document, including the person who attached it.
+
+**The owner decision this encodes:** an outside company sees only the documents it uploaded
+itself. Staff continue to see everything on the load. That was chosen over showing them
+everything so that an internal note or photo attached by the plant cannot reach a customer.
+Widening it later is one predicate.
+
+### The reverse
+
+Run in the SQL editor. It restores all six policies to the definitions captured from the live
+database at the baseline, word for word, and drops the one function this work created.
+
+```sql
+begin;
+
+-- 1. storage policies, back to site-access only
+drop policy if exists "appointment_documents_write" on storage.objects;
+create policy "appointment_documents_write" on storage.objects for insert to public
+  with check (((bucket_id = 'appointment-documents'::text) AND has_location_access(((storage.foldername(name))[1])::uuid)));
+
+drop policy if exists "appointment_documents_read" on storage.objects;
+create policy "appointment_documents_read" on storage.objects for select to public
+  using (((bucket_id = 'appointment-documents'::text) AND has_location_access(((storage.foldername(name))[1])::uuid)));
+
+drop policy if exists "appointment_documents_remove" on storage.objects;
+create policy "appointment_documents_remove" on storage.objects for delete to public
+  using (((bucket_id = 'appointment-documents'::text) AND has_location_access(((storage.foldername(name))[1])::uuid) AND ((owner = auth.uid()) OR (current_maxdock_role() = ANY (ARRAY['system_admin'::text, 'site_admin'::text])))));
+
+-- 2. table policies, back to the baseline text
+drop policy if exists "appointment_documents_select" on public.appointment_documents;
+create policy "appointment_documents_select" on public.appointment_documents for select to public
+  using (((has_permission('appointment.view'::text) AND (has_location_access(location_id) OR has_appointment_access(appointment_id))) OR (has_permission('appointment.view_own'::text) AND owns_appointment(appointment_id))));
+
+drop policy if exists "appointment_documents_insert" on public.appointment_documents;
+create policy "appointment_documents_insert" on public.appointment_documents for insert to public
+  with check (((EXISTS ( SELECT 1
+   FROM appointments a
+  WHERE ((a.id = appointment_documents.appointment_id) AND (a.location_id = appointment_documents.location_id)))) AND ((has_permission('appointment.view'::text) AND has_location_access(location_id)) OR (has_permission('appointment.view_own'::text) AND owns_appointment(appointment_id)))));
+
+drop policy if exists "appointment_documents_delete" on public.appointment_documents;
+create policy "appointment_documents_delete" on public.appointment_documents for delete to public
+  using ((has_location_access(location_id) AND ((uploaded_by = auth.uid()) OR (current_maxdock_role() = ANY (ARRAY['system_admin'::text, 'site_admin'::text])))));
+
+-- 3. the column default, back to none
+alter table public.appointment_documents alter column uploaded_by drop default;
+
+-- 4. the function this work created
+drop function if exists public.owns_appointment_at(uuid, uuid);
+
+commit;
+```
+
+### Why leaving it in place is safe
+
+Nothing here widens what staff can reach; every staff branch is the baseline text untouched.
+The outside-company branches are all gated on `owns_appointment_at`, which resolves to
+`created_by = auth.uid()` — the same predicate `list_my_appointments` already uses to decide
+what appears on that page. A person can therefore attach a document to exactly the bookings
+the page already shows them, and to nothing else.
+
+The narrowing in `appointment_documents_select` is the one behaviour change that could
+surprise: an account holding `appointment.view_own` but not `appointment.view` now sees only
+rows it uploaded. No such account had a way to see any of them before this work, because the
+bucket refused the read, so nothing that used to be visible stops being visible.
+
+### The procedure, click by click
+
+1. Open the Supabase dashboard and pick project `rywzqepzramurbrpmept`.
+2. Confirm the site is on the release that carries this work; if it is not, stop, because the
+   front end below is what calls these policies.
+3. Go to **SQL Editor** and open a new query.
+4. Paste the whole reverse block above, including `begin;` and `commit;`.
+5. Run it. It should report success with no rows returned.
+6. Go to **Authentication → Policies**, filter to `appointment_documents`, and check the three
+   policies read as the baseline text above.
+7. Go to **Storage → Policies**, choose the `appointment-documents` bucket, and check its three
+   policies no longer mention `owns_appointment_at`.
+8. Go to **Database → Functions** and confirm `owns_appointment_at` is gone.
+9. In the app, open **My Appointments** as an outside company and confirm the Documents panel
+   reports that documents cannot be read — that is the expected state once the bucket is shut.
+10. Revert the front-end change by checking out `9323f4c` for `js/pages/my-appointments.js`,
+    or by reverting the pull request that carried this work.
+
+### What was verified after the change
+
+Recorded once the migration had run, in the section below.

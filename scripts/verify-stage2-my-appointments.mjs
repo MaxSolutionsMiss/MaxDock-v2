@@ -91,6 +91,33 @@ if (!failures.length) {
   check(/normaliseStatus\(record\.status\) === 'cancelled'\) return false/.test(page),
     'js/pages/my-appointments.js',
     'Cancelled bookings are mixed into Upcoming, so the list somebody works from fills with loads that are not happening.');
+
+  // ── Paperwork can be attached after the booking ─────────────────────────────
+  //
+  // A bill of lading is not cut when somebody reserves a door two days out, so a booking screen
+  // with no way back to it forces the whole thing through email. The bucket and the row have to
+  // move together: the object first so a row never points at a file that is not there, and the
+  // path has to carry the site and the appointment because both bucket policies read them.
+  check(/appointment-documents/.test(page), 'js/pages/my-appointments.js',
+    'The person who made the booking has no way to attach paperwork to it after the fact.');
+  check(/db\.storage\.upload\(/.test(page), 'js/pages/my-appointments.js',
+    'Documents cannot be uploaded from the one screen an outside company can open.');
+  check(/db\.storage\.signedUrl\(/.test(page), 'js/pages/my-appointments.js',
+    'A document can be attached and then never opened again — the bucket is private, so a link has to be signed on demand.');
+  // Read the path out of the upload itself. A window of characters matched the appointment id
+  // in the neighbouring activity call, so a path missing its site segment still passed.
+  const uploadBody = page.slice(page.indexOf('async function uploadDocument'), page.indexOf('async function openDocument'));
+  check(/\$\{locationId\}\/\$\{currentRecord\.appointment_id\}\//.test(uploadBody), 'js/pages/my-appointments.js',
+    'The storage path does not lead with the site and then the booking, which is what both bucket policies read — every upload would be refused.');
+  check(/db\.storage\.upload[\s\S]*db\.insert\('appointment_documents'/.test(uploadBody), 'js/pages/my-appointments.js',
+    'The row is written before the file lands, so a failed upload leaves a document in the list that cannot be opened.');
+  // Size is checked here as well as at the bucket, because a person who picked a 30 MB photo
+  // should be told before they wait for the upload to fail.
+  check(/DOC_MAX_BYTES/.test(uploadBody), 'js/pages/my-appointments.js',
+    'Nothing checks the file size before the upload starts.');
+  const removeBody = page.slice(page.indexOf('async function removeDocument'), page.indexOf('docsToggle.addEventListener'));
+  check(/db\.remove\('appointment_documents'[\s\S]*db\.storage\.remove\(/.test(removeBody), 'js/pages/my-appointments.js',
+    'Removing takes the object away before the row, so a failure in between leaves a line in the list that opens nothing.');
 }
 
 console.log('\nMaxDock Stage 2 My Appointments verification');

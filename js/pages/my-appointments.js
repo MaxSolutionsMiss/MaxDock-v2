@@ -17,6 +17,12 @@ const VIEW_LABELS = Object.freeze({
   all: 'All',
 });
 const VIEW_PREFERENCE_KEY = 'my-appointments';
+// The same bucket, limit and file types the dock board uses. A document attached from here is
+// the same document, in the same place, and appears on the load the plant is working from.
+const DOC_BUCKET = 'appointment-documents';
+const DOC_MAX_MB = 25;
+const DOC_MAX_BYTES = DOC_MAX_MB * 1024 * 1024;
+const DOC_ACCEPT = '.pdf,.jpg,.jpeg,.png,.heic,.webp,.doc,.docx,.xlsx,.csv';
 const CONTROL_FOCUS_REASON = 'my-appointments-control-focus';
 
 let activeContext = null;
@@ -372,6 +378,20 @@ function shareText(record, url) {
 
 const toastLike = message => toast(message, 'success');
 
+const documentSize = bytes => (bytes >= 1024 * 1024
+  ? `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+  : `${Math.max(1, Math.round(bytes / 1024))} KB`);
+
+// A mark for what kind of file it is, so a list of eight is skimmable. Not a preview: a PDF
+// thumbnail is a lot of work to say something the file name already says.
+const documentKind = (mime, name) => {
+  const value = `${mime || ''} ${name || ''}`.toLowerCase();
+  if (/pdf/.test(value)) return 'pdf';
+  if (/(image|jpe?g|png|heic|webp)/.test(value)) return 'image';
+  if (/(sheet|excel|csv|xlsx)/.test(value)) return 'sheet';
+  return 'file';
+};
+
 function createCardAction(name, label, className = 'btn btn--quiet btn--icon') {
   const button = createElement('button', className);
   button.type = 'button';
@@ -447,7 +467,12 @@ function createAppointmentCard(record) {
   // matches the requester, not just staff. Nothing had ever asked it from here.
   const codeToggle = createCardAction('qr', 'Show the check-in code');
   const share = createCardAction('share', 'Share this appointment');
-  actions.append(codeToggle, share, copy, move, cancel);
+  // Paperwork arrives after the booking does. A bill of lading is not cut when somebody
+  // reserves a door on Tuesday for Thursday, so the only way to attach it used to be to email
+  // the plant and hope. This opens the same documents the dock board holds, for the person who
+  // made the booking, on the one screen they can actually open.
+  const docsToggle = createCardAction('doc', 'Documents');
+  actions.append(docsToggle, codeToggle, share, copy, move, cancel);
   head.append(expand, identity, status, actions);
 
   const details = createElement('div', 'appointment-card__details');
@@ -613,7 +638,148 @@ function createAppointmentCard(record) {
     }
   });
 
-  element.append(head, details, codePanel, activity);
+  // ── Documents ───────────────────────────────────────────────────────────────
+  //
+  // Closed until asked for, like the code and the activity, and for the same reason. What the
+  // person sees here is what they attached themselves: the plant's own paperwork stays on the
+  // dock board, so an internal note or photo cannot reach an outside company through this
+  // panel. Row-level security enforces that; this is only the screen.
+  const docsPanel = createElement('div', 'docbox');
+  docsPanel.hidden = true;
+  const docsList = createElement('div', 'docbox__list');
+  const docsAdd = createElement('div', 'docadd');
+  const docsFile = createElement('input', 'input');
+  docsFile.type = 'file';
+  docsFile.accept = DOC_ACCEPT;
+  docsFile.setAttribute('aria-label', `Choose a document for ${record.booking_reference}`);
+  const docsUpload = createElement('button', 'btn btn--quiet', 'Upload');
+  docsUpload.type = 'button';
+  docsAdd.append(docsFile, docsUpload);
+  const docsMessage = createElement('p', 'form-message');
+  docsMessage.setAttribute('aria-live', 'polite');
+  docsPanel.append(docsList, docsAdd, docsMessage);
+  let docsLoaded = false;
+
+  async function loadDocuments() {
+    docsList.textContent = 'Loading…';
+    try {
+      const rows = await db.select('appointment_documents', query => query
+        .select('id,file_name,mime_type,size_bytes,storage_path,uploaded_at')
+        .eq('appointment_id', currentRecord.appointment_id)
+        .order('uploaded_at', { ascending: false }), {
+        key: `mine:docs:${currentRecord.appointment_id}`, cache: 0, retry: 1,
+        userMessage: 'Your documents for this booking could not be read.',
+      });
+      renderDocuments(Array.isArray(rows) ? rows : []);
+    } catch (error) {
+      docsLoaded = false;
+      docsList.textContent = error.userMessage || 'Your documents for this booking could not be read.';
+    }
+  }
+
+  function renderDocuments(rows) {
+    if (!rows.length) {
+      docsList.replaceChildren(createElement('p', 'hint', 'You have not attached anything to this booking yet.'));
+      return;
+    }
+    const site = { timezone: currentRecord.location_timezone };
+    const list = createElement('ul', 'doclist');
+    rows.forEach(row => {
+      const item = createElement('li', 'docrow');
+      const kind = createElement('span', `docrow__k docrow__k--${documentKind(row.mime_type, row.file_name)}`);
+      kind.setAttribute('aria-hidden', 'true');
+      const name = createElement('span', 'docrow__n');
+      name.append(
+        createElement('b', '', row.file_name),
+        createElement('span', '', `${documentSize(Number(row.size_bytes || 0))} · ${format.dateShort(row.uploaded_at, site)}`),
+      );
+      const act = createElement('span', 'docrow__a');
+      const view = createElement('button', 'linkBtn', 'View');
+      view.type = 'button';
+      view.addEventListener('click', () => openDocument(row.storage_path));
+      const drop = createElement('button', 'linkBtn', 'Remove');
+      drop.type = 'button';
+      drop.setAttribute('aria-label', `Remove ${row.file_name}`);
+      drop.addEventListener('click', () => removeDocument(row));
+      act.append(view, drop);
+      item.append(kind, name, act);
+      list.append(item);
+    });
+    docsList.replaceChildren(list);
+  }
+
+  async function uploadDocument() {
+    const file = docsFile.files?.[0];
+    docsMessage.textContent = '';
+    if (!file) { docsMessage.textContent = 'Choose a file first.'; return; }
+    if (file.size > DOC_MAX_BYTES) {
+      docsMessage.textContent = `${file.name} is ${documentSize(file.size)}. The limit is ${DOC_MAX_MB} MB. Send a smaller scan or split it.`;
+      return;
+    }
+    // The site the booking sits at, and the booking itself, are the two path segments every
+    // policy on this bucket reads. Getting either wrong is refused rather than mis-filed.
+    const locationId = currentRecord.location_id;
+    if (!locationId) { docsMessage.textContent = 'This booking has no site recorded, so a document cannot be filed against it.'; return; }
+    docsUpload.disabled = true;
+    const safe = file.name.replace(/[^\w.\- ]+/g, '_').slice(0, 90);
+    const path = `${locationId}/${currentRecord.appointment_id}/${crypto.randomUUID()}-${safe}`;
+    try {
+      await db.storage.upload(DOC_BUCKET, path, file, { userMessage: 'The document could not be uploaded.' });
+      // The row goes in after the file lands, so a failed upload never leaves a line in the
+      // list pointing at something that is not there.
+      await db.insert('appointment_documents', {
+        appointment_id: currentRecord.appointment_id,
+        location_id: locationId,
+        storage_path: path,
+        file_name: file.name.slice(0, 200),
+        mime_type: file.type || null,
+        size_bytes: file.size,
+      }, { select: false, userMessage: 'The document was uploaded but could not be filed against this booking.' });
+      docsFile.value = '';
+      toastLike('Document attached.');
+      await loadDocuments();
+    } catch (error) {
+      docsMessage.textContent = error.userMessage || 'The document could not be uploaded.';
+    } finally {
+      docsUpload.disabled = false;
+    }
+  }
+
+  async function openDocument(path) {
+    docsMessage.textContent = '';
+    try {
+      const url = await db.storage.signedUrl(DOC_BUCKET, path, 300, { userMessage: 'That document could not be opened.' });
+      if (url) globalThis.open(url, '_blank', 'noopener');
+    } catch (error) {
+      docsMessage.textContent = error.userMessage || 'That document could not be opened.';
+    }
+  }
+
+  async function removeDocument(row) {
+    docsMessage.textContent = '';
+    try {
+      // The row first. If the object removal fails the list is already honest, and an orphaned
+      // object in a private bucket is invisible; the other order leaves a line nobody can open.
+      await db.remove('appointment_documents', query => query.eq('id', row.id),
+        { userMessage: 'That document could not be removed.' });
+      await db.storage.remove(DOC_BUCKET, [row.storage_path], { userMessage: 'That document could not be removed.' });
+      await loadDocuments();
+    } catch (error) {
+      docsMessage.textContent = error.userMessage || 'That document could not be removed.';
+    }
+  }
+
+  docsToggle.addEventListener('click', () => {
+    const open = docsPanel.hidden;
+    docsPanel.hidden = !open;
+    docsToggle.setAttribute('aria-pressed', String(open));
+    if (!open || docsLoaded) return;
+    docsLoaded = true;
+    loadDocuments();
+  });
+  docsUpload.addEventListener('click', uploadDocument);
+
+  element.append(head, details, codePanel, docsPanel, activity);
   update(record);
   return Object.freeze({ element, update, destroy: () => element.remove() });
 }
