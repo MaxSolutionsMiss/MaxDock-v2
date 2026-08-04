@@ -1078,10 +1078,6 @@ html[data-text="larger"] .frow>.field--md:not(.field-action){grid-column:span 5}
    a switch cannot share one line — the row pushed the whole page sideways. The day
    takes its own line and the two times split the next. */
 @media (max-width:600px){
-  /* On a phone the brief's columns are stacked single file, so there is nothing to tell
-     apart by shape and the gutter is only taking width off the sentences. */
-  .briefcols .briefcol__m{display:none}
-  .briefcols .briefcol{grid-template-columns:1fr}
   .hourrow{grid-template-columns:minmax(0,1fr) minmax(0,1fr) auto}
   .hourrow .input{width:auto}
   .hourrow .day{grid-column:1/-1}
@@ -1236,13 +1232,12 @@ html[data-text="larger"] .frow>.field--md:not(.field-action){grid-column:span 5}
    and the card is four things: trucks, labour, combining, attention. Side by side they compare;
    stacked they read as two unrelated pairs. */
 @container (min-width:58em){.briefcols{grid-template-columns:repeat(4,minmax(0,1fr))}}
-/* The mark sits on the heading, in MaxDock blue, with the points directly under it. A
-   gutter of its own cost the points width and left the column looking half empty; the
-   column is just as recognisable by shape with the mark on its title line. */
-/* A big mark in a gutter, with the heading and the points sharing one left edge beside
-   it. On the title line the mark had to be text-sized, which is too small to tell four
-   grey columns apart from across a desk. Sized in em so it grows with the type. */
-.briefcol{padding-left:var(--s4);border-left:1px solid var(--rule);display:grid;grid-template-columns:auto minmax(0,1fr);column-gap:var(--s3);align-items:start;min-width:0}
+/* No mark. A drawing in a gutter above each heading told the four columns apart from across
+   a desk and cost about forty pixels of a card that has a ceiling and scrolls when it is
+   reached: on a laptop the last bullet of the fourth column fell below that line, so the one
+   thing on this card worth acting on had to be scrolled to. The heading carries the job now —
+   see .briefcol__t — and the column is a heading over its points, nothing else. */
+.briefcol{padding-left:var(--s4);border-left:1px solid var(--rule);display:grid;grid-template-columns:minmax(0,1fr);align-items:start;min-width:0}
 /* The rule divides the two columns, so it belongs on the right-hand one of each pair rather
    than on everything after the first. With one column there is no pair and no rule. */
 .briefcol:first-child{border-left:none;padding-left:0}
@@ -1259,22 +1254,14 @@ html[data-text="larger"] .frow>.field--md:not(.field-action){grid-column:span 5}
      between Labour and Combining went missing. */
   .briefcol:nth-child(odd),.briefcol:nth-child(even){border-left:1px solid var(--rule);padding-left:var(--s3)}
   .briefcol:first-child{border-left:none;padding-left:0}
-  /* Four across is four narrow columns, and a mark in a gutter beside them costs each one
-     about seventy of the two hundred and eighty pixels it has. That left a bullet carrying a
-     booking reference wrapping at thirteen characters a line: "3 running late:" on one line
-     and one reference on each of the next two. A fifteen-character reference is the whole
-     reason these bullets exist, so the text has to be wide enough to hold one and still say
-     something beside it. At four across the mark goes above its heading instead of beside it,
-     which gives every point the full width of its column back. It stays a mark rather than a
-     text-sized glyph, so the four columns are still told apart by shape from across a room.
-     Beside the heading is right at one and two across, where there is room for both. */
-  .briefcol{grid-template-columns:minmax(0,1fr)}
-  .briefcol__m{padding-top:0;margin-bottom:2px}
-  .briefcol__m svg{width:2.6em;height:2.6em}
 }
-.briefcol__m{color:var(--dock);display:grid;padding-top:2px}
-.briefcol__m svg{width:3.9em;height:3.9em}
-.briefcol__t{font-size:var(--t-micro);text-transform:uppercase;letter-spacing:.03em;color:var(--ink-muted);font-weight:600;margin:0 0 var(--s1)}
+/* The heading is what tells the four sections apart, so it is a heading rather than the
+   caption it used to be: body size instead of caption size — a quarter larger — in full ink
+   rather than grey, and ruled off from its own points. Still uppercase and still tracked,
+   because four of these read as a set of named sections that way and as four sentences
+   otherwise. The rule is the section's, not the card's: it stops at the column's own width,
+   which is why it divides a heading from its points instead of cutting the card in two. */
+.briefcol__t{font-size:var(--t-base);line-height:1.2;text-transform:uppercase;letter-spacing:.05em;color:var(--ink);font-weight:700;margin:0 0 var(--s1);padding-bottom:var(--s1);border-bottom:1px solid var(--rule-strong)}
 .briefpoints{margin:0;padding-left:1.1em;display:grid;gap:2px}
 .briefpoints li{font-size:var(--t-small);color:var(--ink-muted)}
 /* The references under a combining bullet. A line of their own, smaller and fainter, so

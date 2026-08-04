@@ -128,42 +128,35 @@ if (!errors.length) {
     'The brief counts trucks but never says what is on them. Twelve trucks at four skids and twelve at twenty read the same otherwise.');
   need(queue, /const each = rows => \(rows\.length \?/,
     'The skids-per-truck average is not guarded against a direction with no trucks in it.');
-  need(queue, /briefcol__m/, 'The brief\'s categories carry no mark.');
-  const FIXED = [['Trucks', 'truck'], ['Labour', 'crew'], ['Combining', 'combine']];
-  for (const [group, mark] of FIXED) {
-    need(queue, new RegExp(`title: '${group}',\\s*\\n?\\s*mark: '${mark}'`),
-      `The brief's ${group} column has no ${mark} mark, so the four columns are told apart by their headings alone.`);
+  // ── The glance is four named sections, and it fits ─────────────────────────
+  //
+  // Each column used to carry a large drawing above its heading. It read from across a desk
+  // and it cost about forty pixels of a card that has a ceiling and scrolls once it is
+  // reached, so on a laptop the fourth column's last bullet — the Combining lane and the
+  // button that acts on it — sat below the fold of the card itself. The heading took the
+  // job over: body size rather than caption size, full ink rather than grey, ruled off from
+  // its own points. So what is guarded here is the *height*, not the drawing.
+  for (const group of ['Trucks', 'Labour', 'Combining', 'Attention']) {
+    need(queue, new RegExp(`title: '${group}'`),
+      `The glance has no ${group} section. The card is four named sections and it is four whether or not today has anything in one of them.`);
   }
-  // Attention is the one column whose mark depends on what is in it: a clock when the
-  // column is reporting trucks running late, the hazard triangle otherwise. So the rule
-  // is checked rather than the spelling — every mark it can take must be a real drawing,
-  // and none of them may be another column's, which is the thing this section exists to
-  // protect. Pinning one literal would have said the conditional was wrong when it is not,
-  // and would still have passed a typo that names a mark nothing draws.
-  const attention = queue.match(/title: 'Attention',\s*\n?\s*mark: ([\s\S]+?),\s*\n?\s*points:/);
-  if (!attention) {
-    errors.push('The brief\'s Attention column names no mark, so the four columns are told apart by their headings alone.');
-  } else {
-    const drawn = new Set([...read('js/ui/marks.js').matchAll(/^\s{2}([a-z_0-9]+):/gm)].map(match => match[1]));
-    const taken = new Set(FIXED.map(([, mark]) => mark));
-    const named = [...attention[1].matchAll(/'([a-z_0-9]+)'/g)].map(match => match[1]);
-    if (!named.length) errors.push('The brief\'s Attention column has a mark expression that names no mark at all.');
-    for (const name of named) {
-      if (!drawn.has(name)) errors.push(`The brief's Attention column asks for a '${name}' mark, which js/ui/marks.js does not draw. It would fall back to the bar chart and the column would be marked as a report.`);
-      if (taken.has(name)) errors.push(`The brief's Attention column uses '${name}', which is already another column's mark. Two columns wearing one mark is the fault this section exists to catch.`);
-    }
-  }
-  // The mark stands in a gutter of its own, big enough to tell four grey columns apart
-  // from across a desk, with the heading and the points sharing one left edge beside it.
-  // On the title line it could only ever be text-sized.
-  need(queue, /<span class="briefcol__m"[\s\S]{0,120}<div class="briefcol__c">/,
-    'The brief\'s mark is not in a gutter beside the column, so it cannot be more than text-sized.');
-  need(css, /\.briefcol\{[^}]*grid-template-columns:auto/,
-    'The brief column is not laid out with a gutter for its mark.');
-  need(css, /\.briefcol__m svg\{width:[23]\.\d+em/,
-    'The brief\'s mark is sized in px or is text-sized; it should be several em so it grows with the type and reads from a distance.');
-  need(css, /\.briefcol__m\{[^}]*color:var\(--dock/,
-    'The brief\'s marks are not in MaxDock blue.');
+  forbid(queue, /briefcol__m/,
+    'The glance columns carry a drawing above the heading again. It is about forty pixels each on a card with a ceiling, which is what pushed the Combining action below the card\'s own scroll line.');
+  forbid(queue, /title: '(?:Trucks|Labour|Combining|Attention)',\s*\n?\s*mark:/,
+    'A glance section names a mark again. Nothing draws it, so it is dead weight that will grow a gutter back the next time somebody wires it up.');
+  forbid(css, /\.briefcol__m/,
+    'The glance still styles a mark gutter, so the next thing to add one gets the height back for free.');
+  forbid(css, /\.briefcol\{[^}]*grid-template-columns:auto/,
+    'The glance column still reserves a gutter beside its text, which costs every bullet width for a drawing that is no longer there.');
+  // The whole point of removing the drawing was to let the heading do the telling apart, so
+  // the heading has to actually be a heading. --t-base is 14.5px against the --t-micro 11.5px
+  // it was, a quarter bigger, which is the change that was asked for.
+  need(css, /\.briefcol__t\{font-size:var\(--t-base\)/,
+    'The glance headings are back at caption size. With no mark beside them that leaves four columns of near-identical grey text and nothing to tell them apart.');
+  need(css, /\.briefcol__t\{[^}]*border-bottom:1px solid/,
+    'Nothing rules a glance heading off from its own points, so the section title reads as the first line of the section rather than as its name.');
+  need(css, /\.briefcol__t\{[^}]*color:var\(--ink\)/,
+    'The glance headings are grey, the same weight of colour as the points under them.');
   // One outline around the whole glance, with the groups as columns inside it. Giving each
   // group its own card made a page of nothing but metric cards, which is a lot of border
   // for what is really one summary; a tinted panel behind cards was a box around boxes.

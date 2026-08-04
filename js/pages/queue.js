@@ -6,7 +6,6 @@ import { format } from '../format.js';
 import { createCustomizePanel } from '../ui/customize.js';
 import { openWall, paintWall } from '../ui/wall.js';
 import { pageHead, controlsBar, searchField } from '../ui/pagehead.js';
-import { mark } from '../ui/marks.js';
 import { createCombineDialog, combinableLanes, laneFullness, laneDescription, laneForRecord } from '../ui/combine-loads.js';
 import { createAppointmentDetails } from '../ui/appointment-details.js';
 
@@ -467,7 +466,6 @@ function briefGroups() {
   const each = rows => (rows.length ? Math.round(skids(rows) / rows.length) : 0);
   const groups = [{
     title: 'Trucks',
-    mark: 'truck',
     points: [
       `${appointments.length} truck${appointments.length === 1 ? '' : 's'}${today()}: ${inbound.length} in with ${skids(inbound)} skids, ${outbound.length} out with ${skids(outbound)}.`,
       `${each(appointments)} skids a truck on average: ${inbound.length ? `${each(inbound)} in` : 'nothing in'}, ${outbound.length ? `${each(outbound)} out` : 'nothing out'}.`,
@@ -476,7 +474,7 @@ function briefGroups() {
   }];
 
   const labour = labourPoints(appointments);
-  if (labour.length) groups.push({ title: 'Labour', mark: 'crew', points: labour });
+  if (labour.length) groups.push({ title: 'Labour', points: labour });
   const combining = combinePoints(appointments);
   state.combineLanes = combining;
   // The only group whose bullets are worth acting on: everything else on this card
@@ -487,7 +485,6 @@ function briefGroups() {
   // somebody came to this card for. Silence would read as "not checked yet".
   groups.push({
     title: 'Combining',
-    mark: 'combine',
     points: combining.length
       ? combining.map(lane => ({ text: lane.text, sub: lane.refs }))
       : [`No combining opportunity ${thatDay()}.`],
@@ -504,7 +501,7 @@ function briefGroups() {
   // priority both land in this column, but they are not the same kind of problem, and a
   // hazard triangle over "3 running late" overstates one and understates the other.
   if (!attention.length) attention.push('Nothing needs watching. Nothing late, nothing marked priority.');
-  groups.push({ title: 'Attention', mark: late.length ? 'late' : 'warn', points: attention });
+  groups.push({ title: 'Attention', points: attention });
   return groups;
 }
 
@@ -595,17 +592,16 @@ function renderBriefCard() {
   // is going wrong.
   const narrative = state.briefLoading
     ? '<span class="brief__x">Generating today’s narrative…</span>'
-    // A large mark in a gutter of its own, with the heading and the points sharing one
-    // left edge beside it. Four columns of near-identical grey text are told apart by
-    // shape before a word of them is read, which is the whole job of the card, and the
-    // shape is the subject: a truck, a person, a load, a warning. On the title line it
-    // was too small to do that job from across a desk.
+    // The heading does the telling apart, not a drawing. A large mark in a gutter above each
+    // column read well from across a desk and cost about forty pixels of a card that has a
+    // ceiling: on a laptop the fourth column's last bullet fell below the card's own scroll
+    // line, so the one thing on this card worth acting on had to be scrolled to. The heading
+    // took the job instead — set at body size rather than caption size, in full ink, with a
+    // rule under it — which is a quarter of the height and still reads as four named sections
+    // rather than four paragraphs.
     : `<div class="briefcols">${briefGroups().map(group => `<section class="briefcol">
-        <span class="briefcol__m" aria-hidden="true">${mark(group.mark || 'chart')}</span>
-        <div class="briefcol__c">
-          <h4 class="briefcol__t">${escapeHtml(group.title)}</h4>
-          <ul class="briefpoints">${group.points.map((point, index) => `<li>${escapeHtml(pointText(point))}${pointSub(point) || group.action ? `<small class="briefpoint__s">${pointSub(point) ? escapeHtml(pointSub(point)) : ''}${group.action ? `<button class="linkBtn linkBtn--tight" type="button" ${group.action.attribute}="${index}">${escapeHtml(group.action.label)}</button>` : ''}</small>` : ''}</li>`).join('')}</ul>
-        </div>
+        <h4 class="briefcol__t">${escapeHtml(group.title)}</h4>
+        <ul class="briefpoints">${group.points.map((point, index) => `<li>${escapeHtml(pointText(point))}${pointSub(point) || group.action ? `<small class="briefpoint__s">${pointSub(point) ? escapeHtml(pointSub(point)) : ''}${group.action ? `<button class="linkBtn linkBtn--tight" type="button" ${group.action.attribute}="${index}">${escapeHtml(group.action.label)}</button>` : ''}</small>` : ''}</li>`).join('')}</ul>
       </section>`).join('')}</div>`;
   host.innerHTML = `<div class="brief__head"><span class="brief__ico">AI</span>
     <div class="brief__t">${escapeHtml(state.context.location.name)} · ${escapeHtml(dayWord())} at a glance</div>
