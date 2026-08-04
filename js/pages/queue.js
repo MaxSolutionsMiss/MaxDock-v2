@@ -254,7 +254,7 @@ function renderTable() {
     : `Showing ${records.length} of ${total} movements · updated ${format.currentTimeLabel()}`;
   state.elements.rows.innerHTML = records.map(record => {
     const late = isLate(record);
-    const statusText = late ? 'Late' : format.role(record.status);
+    const statusText = late ? 'Late' : format.movementStatus(record);
     const colorVar = late ? 'var(--stop)' : ACTIVE_STATUSES.has(record.status) ? 'var(--ok)' : record.status === 'completed' ? 'var(--ink-faint)' : 'var(--signal)';
     // A truck that never turns up has to be closed off by somebody. Without this
     // it stays "Late" for the rest of the day, keeps a dock nominally reserved,

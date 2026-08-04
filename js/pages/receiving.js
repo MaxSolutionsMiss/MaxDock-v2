@@ -54,17 +54,39 @@ const state = {
 // Setting in_progress here stamps the service clock either way, which costs nothing and is
 // invisible until a site asks to see it.
 //
-// Departed is the odd one and deliberately so. It is not a status: the load stays complete
-// and only gains the time it pulled off the door, so nothing that reads status — the board
-// colours, the queue filters, every scorecard — sees any difference at all.
+// Departed is the odd one and deliberately so. It is not a status: the load stays complete and
+// only gains the time it pulled off the door, so nothing that reads status — the board colours,
+// the queue filters, every scorecard — sees any difference.
+//
+// With one exception, added deliberately and worth naming here because the sentence above used
+// to end "at all". On a Max-to-Max movement the counterpart site reads this same row, and
+// format.movementStatus turns a completed load with a departure time into "En route" on that
+// site's board. It still writes no status and still touches no scorecard; it gives the other
+// end the one fact it had no way to learn.
+// A movement between two Max sites, which is one appointment row carrying both ends.
+const isInternal = record => Boolean(record?.requester_location_id);
+
 const STATUS_STEPS = [
   { id: 'arrived', label: 'At the dock' },
   { id: 'in_progress', label: direction => (direction === 'outbound' ? 'Loading' : 'Unloading') },
   { id: 'completed', label: 'Complete' },
-  { id: 'departed', label: 'Left the yard', needs: 'track_departure', after: 'completed' },
+  // Departed, and for an internal movement that is the handoff rather than an afterthought.
+  //
+  // The words change with who is waiting for it. "Left the yard" is right for a customer's
+  // truck, which MaxDock stops caring about at the gate. A Mississauga load bound for Guelph is
+  // not finished when it leaves -- it is on the road to another Max site whose board is
+  // expecting it, and the receiving end reads this same row. So on a Max-to-Max movement the
+  // button says what it means to the person at the other end.
+  {
+    id: 'departed',
+    label: (direction, record) => (isInternal(record) ? 'Departed, en route' : 'Left the yard'),
+    needs: 'track_departure',
+    after: 'completed',
+  },
 ];
 
-const stepLabel = (step, direction) => (typeof step.label === 'function' ? step.label(direction) : step.label);
+
+const stepLabel = (step, direction, record) => (typeof step.label === 'function' ? step.label(direction, record) : step.label);
 
 // The site's two switches, read the same way the operations queue reads its labour numbers.
 // Cached per location for a minute: a receiver stands at one dock for a shift, and this must
@@ -87,7 +109,12 @@ async function clockFor(locationId) {
 function stepsFor(record) {
   const clock = state.clock.get(record.location_id) || {};
   return STATUS_STEPS.filter(step => {
-    if (step.needs && clock[step.needs] !== true) return false;
+    // Departure is a per-site switch that ships off, which is right for a customer's load:
+    // once it is off the door MaxDock has no further claim on it. An internal movement is the
+    // exception, and the reason is not a preference -- the other Max site is reading this same
+    // row to know whether the truck has set off, and there is nothing else on it that says so.
+    // Withholding the button behind a switch would leave that site guessing.
+    if (step.needs && clock[step.needs] !== true && !(step.id === 'departed' && isInternal(record))) return false;
     // Departed only means something once the load is finished, and the RPC refuses it
     // otherwise. Offering a button that is guaranteed to fail is worse than not offering it.
     if (step.after && String(record.status || '') !== step.after) return false;
@@ -333,7 +360,7 @@ function statusButtons(record, { lead = 'current' } = {}) {
   const current = String(record.status || '');
   const next = nextStep(record);
   return stepsFor(record).map(step => {
-    const label = stepLabel(step, record.direction);
+    const label = stepLabel(step, record.direction, record);
     const isCurrent = step.id === current;
     // On the desk the filled button says where the truck is. On a phone that highlights the
     // one button nobody needs to press, so there the filled one is the step to reach for —
@@ -529,7 +556,7 @@ async function setStatus(status) {
     db.invalidate('queue:schedule:');
     db.invalidate('board:schedule:');
     const step = STATUS_STEPS.find(item => item.id === status);
-    toast(`${result.booking_reference} · ${stepLabel(step, record.direction).toLowerCase()}.`, 'success');
+    toast(`${result.booking_reference} · ${stepLabel(step, record.direction, record).toLowerCase()}.`, 'success');
     // Departure is not a status, so a refetch cannot show it. The RPC hands it back and it is
     // held on the record the panel is drawing from.
     if (result.departed_at) state.appointment = { ...record, departed_at: result.departed_at };

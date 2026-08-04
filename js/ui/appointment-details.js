@@ -205,7 +205,7 @@ export function createAppointmentDetails({ location, onEdit, laneFor, onCombine,
       els.combine.textContent = `Combine ${currentLane.rows.length} loads ${currentLane.direction === 'outbound' ? 'to' : 'from'} ${currentLane.partner}`;
     }
     els.grid.innerHTML = [
-      cell('Status', format.role(record.status)),
+      cell('Status', format.movementStatus(record)),
       cell('Booked', `${format.shortDateInput(format.inputDate(record.start_at, site), site)} · ${format.time(record.start_at, site)}–${format.time(record.end_at, site)}`),
       cell('Dock', record.dock_name || record.dock),
       cell('Direction', format.role(record.direction || '')),

@@ -228,4 +228,36 @@ export const format = Object.freeze({
       .replaceAll('_', ' ')
       .replace(/\b\w/g, letter => letter.toUpperCase());
   },
+
+  // What a load's status says at the end that is reading it.
+  //
+  // A Max-to-Max movement is one appointment row holding both ends, and list_location_schedule
+  // mirrors it onto the counterpart's board with the direction flipped and is_linked_movement
+  // set. The status came across unchanged, and that was wrong in a way nobody had named: the
+  // moment Mississauga finished loading, Guelph's board called the truck "Completed" -- a load
+  // still standing in another yard, described to the site waiting for it as finished.
+  //
+  // Completed belongs to the end that did the work. To the other end the same row means the
+  // truck is coming, and departed_at is what says it has actually set off. No new column and no
+  // new status: both facts were already on the row, read from the wrong side.
+  movementStatus(record = {}) {
+    if (!record.is_linked_movement) return this.role(record.status);
+    const status = String(record.status || '');
+    // A load that was cancelled or never turned up is that at both ends.
+    if (status === 'cancelled' || status === 'no_show') return this.role(status);
+    if (status === 'completed') return record.departed_at ? 'En route' : 'Loaded';
+    if (status === 'in_progress') return 'Loading';
+    return 'Expected';
+  },
+
+  // The same distinction as a status code, so a colour can follow it. En route is its own
+  // thing rather than borrowing the completed green, which would say arrived.
+  movementStatusCode(record = {}) {
+    if (!record.is_linked_movement) return String(record.status || '');
+    const status = String(record.status || '');
+    if (status === 'cancelled' || status === 'no_show') return status;
+    if (status === 'completed') return record.departed_at ? 'in_progress' : 'arrived';
+    if (status === 'in_progress') return 'arrived';
+    return 'scheduled';
+  },
 });

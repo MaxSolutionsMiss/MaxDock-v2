@@ -468,7 +468,7 @@ function blockLines(record, startMin) {
   return [
     show('reference') && record.booking_reference,
     combined && show('combined') && `${combined} load${combined === 1 ? '' : 's'} combined in`,
-    show('status') && format.role(record.status),
+    show('status') && format.movementStatus(record),
     show('route') && `${record.direction === 'outbound' ? 'To' : 'From'} ${record.company_name || record.display_counterpart_location_name || record.requester_name || 'unnamed'}`,
     show('time') && `${clockLabel(startMin)}–${clockLabel(endMin)}`,
     load,

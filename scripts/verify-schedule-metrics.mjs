@@ -84,6 +84,41 @@ if (!errors.length) {
     'The brief\'s default figures are a hand-written list, so the new truck counts are off by default.');
 }
 
+// ── A load reads differently at the end that is waiting for it ─────────────────
+//
+// A Max-to-Max movement is one appointment row holding both ends, and
+// list_location_schedule mirrors it onto the counterpart's board with the direction flipped
+// and is_linked_movement set. The status came across untouched, which meant the moment
+// Mississauga finished loading, Guelph's board called the incoming truck "Completed" -- a load
+// still standing in another yard, described to the site waiting for it as finished.
+//
+// Completed belongs to the end that did the work. departed_at is what says the truck has set
+// off, and it was already on the row: no column and no status was added to fix this.
+const fmt = read('js/format.js');
+need(fmt, /movementStatus\(record = \{\}\)/,
+  'Nothing translates a movement status for the end that is reading it, so a counterpart site sees the origin\'s word for a load that has not reached it.');
+// The early return itself, not the mere mention of the flag. Matching is_linked_movement
+// anywhere passed while the guard clause was deleted, because the sibling helper below
+// mentions it too -- and without that clause the owning site's own board would have its
+// statuses rewritten as though it were the one waiting.
+need(fmt, /if \(!record\.is_linked_movement\) return this\.role\(record\.status\);/,
+  'The translation does not return early on a load the reading site owns, so it would rewrite a status on the board that did the work.');
+need(fmt, /departed_at \? 'En route' : 'Loaded'/,
+  'A completed load is not distinguished by whether it has actually left, which is the one fact the receiving site cannot otherwise learn.');
+for (const [file, label] of [['js/pages/board.js', 'dock board'], ['js/pages/queue.js', 'operations queue'], ['js/ui/appointment-details.js', 'appointment window']]) {
+  need(read(file), /format\.movementStatus\(/,
+    `The ${label} prints the raw status, so a Max-to-Max load reads as Completed at the site still waiting for it.`);
+}
+// The origin has to be able to say it has gone, and on an internal movement that cannot sit
+// behind a switch that ships off: the other site has nothing else to read.
+const recv = read('js/pages/receiving.js');
+need(recv, /const isInternal = record => Boolean\(record\?\.requester_location_id\)/,
+  'Receiving cannot tell an internal movement from a customer load, so it cannot treat the handoff differently.');
+need(recv, /step\.id === 'departed' && isInternal\(record\)/,
+  'Departed stays behind the per-site switch on an internal movement, so the receiving Max site is left guessing whether the truck has set off.');
+need(recv, /'Departed, en route'/,
+  'The departure button says the same thing for an internal handoff as for a customer truck leaving for good.');
+
 if (errors.length) {
   console.error('Schedule metrics verification failed');
   for (const error of errors) console.error(`- ${error}`);
