@@ -97,14 +97,24 @@ if (!errors.length) {
 const fmt = read('js/format.js');
 need(fmt, /movementStatus\(record = \{\}\)/,
   'Nothing translates a movement status for the end that is reading it, so a counterpart site sees the origin\'s word for a load that has not reached it.');
-// The early return itself, not the mere mention of the flag. Matching is_linked_movement
-// anywhere passed while the guard clause was deleted, because the sibling helper below
-// mentions it too -- and without that clause the owning site's own board would have its
-// statuses rewritten as though it were the one waiting.
-need(fmt, /if \(!record\.is_linked_movement\) return this\.role\(record\.status\);/,
-  'The translation does not return early on a load the reading site owns, so it would rewrite a status on the board that did the work.');
-need(fmt, /departed_at \? 'En route' : 'Loaded'/,
-  'A completed load is not distinguished by whether it has actually left, which is the one fact the receiving site cannot otherwise learn.');
+// A load the reading site owns passes through untouched, apart from the one case the design
+// deliberately rewrites: a shipped outbound is En route on its own board too.
+//
+// The earlier version of this guard demanded an early return before any rewriting at all, and
+// it was correct until the design changed under it. Kept as a check on the pass-through rather
+// than deleted, because without one the translation could quietly start renaming statuses on
+// the board that did the work.
+need(fmt, /if \(!record\.is_linked_movement\) return this\.role\(status\);/,
+  'The translation never falls back to the plain status for a load the reading site owns, so it would rename statuses on the board that did the work.');
+// An outbound load that is complete has been sent, not parked. Somebody scans it as the truck
+// pulls away, so completed on an outbound means gone -- on the shipping site's own board and on
+// the board of the site waiting for it.
+need(fmt, /status === 'completed' && String\(record\.direction \|\| ''\) === 'outbound'\) return 'En route'/,
+  'A shipped outbound load still reads Completed, which says it is finished and standing still rather than on the road.');
+// And the mirrored leg must never call it received. That is the precise lie this exists to
+// stop: a truck on the road, reported to the site waiting for it as already in.
+forbid(fmt, /if \(status === 'completed'\) return 'Received';/,
+  'The site waiting for a load reads Received the moment the other end ships it, which says a truck still on the road has arrived.');
 for (const [file, label] of [['js/pages/board.js', 'dock board'], ['js/pages/queue.js', 'operations queue'], ['js/ui/appointment-details.js', 'appointment window']]) {
   need(read(file), /format\.movementStatus\(/,
     `The ${label} prints the raw status, so a Max-to-Max load reads as Completed at the site still waiting for it.`);
@@ -116,8 +126,13 @@ need(recv, /const isInternal = record => Boolean\(record\?\.requester_location_i
   'Receiving cannot tell an internal movement from a customer load, so it cannot treat the handoff differently.');
 need(recv, /step\.id === 'departed' && isInternal\(record\)/,
   'Departed stays behind the per-site switch on an internal movement, so the receiving Max site is left guessing whether the truck has set off.');
-need(recv, /'Departed, en route'/,
-  'The departure button says the same thing for an internal handoff as for a customer truck leaving for good.');
+// Three steps, not four. An inbound load never departs -- it arrives, is unloaded, and Received
+// is the end of it -- and an outbound one departs as the same act as being shipped, because
+// that is when somebody is standing there to scan it.
+need(recv, /direction === 'outbound' \? 'Shipped' : 'Received'/,
+  'The last step still says Complete, which does not say whether the load went out or came in.');
+forbid(recv, /id: 'departed'/,
+  'Departed is a button again. It is not an event on an inbound load at all, and on an outbound one it is the same act as Shipped -- a second tap nobody walks back to the phone to make.');
 
 if (errors.length) {
   console.error('Schedule metrics verification failed');

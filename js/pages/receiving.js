@@ -74,19 +74,15 @@ const STATUS_STEPS = [
   // which one they just did: an outbound load has been put on a truck and sent, an inbound one
   // has been taken off and taken in. Shipped and Received are what they would write on paper.
   { id: 'completed', label: direction => (direction === 'outbound' ? 'Shipped' : 'Received') },
-  // Departed, and for an internal movement that is the handoff rather than an afterthought.
+  // There is no fourth button, and that is the whole design rather than something missing.
   //
-  // The words change with who is waiting for it. "Left the yard" is right for a customer's
-  // truck, which MaxDock stops caring about at the gate. A Mississauga load bound for Guelph is
-  // not finished when it leaves -- it is on the road to another Max site whose board is
-  // expecting it, and the receiving end reads this same row. So on a Max-to-Max movement the
-  // button says what it means to the person at the other end.
-  {
-    id: 'departed',
-    label: (direction, record) => (isInternal(record) ? 'Departed, en route' : 'Left the yard'),
-    needs: 'track_departure',
-    after: 'completed',
-  },
+  // An inbound load never departs: the truck arrives here, is unloaded, and Received is the end
+  // of it. Offering Departed on an inbound was offering an event that does not happen.
+  //
+  // An outbound load does depart, but not as a separate tap. Somebody scans it as the truck
+  // pulls away -- that moment IS Shipped -- so asking them to press Complete and then walk back
+  // to the phone to press Departed is asking for a second visit nobody will make. Shipped is
+  // the departure, and the load reads En route from then on.
 ];
 
 

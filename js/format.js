@@ -241,11 +241,25 @@ export const format = Object.freeze({
   // truck is coming, and departed_at is what says it has actually set off. No new column and no
   // new status: both facts were already on the row, read from the wrong side.
   movementStatus(record = {}) {
-    if (!record.is_linked_movement) return this.role(record.status);
     const status = String(record.status || '');
-    // A load that was cancelled or never turned up is that at both ends.
+    // A load that was cancelled or never turned up is that to everybody.
     if (status === 'cancelled' || status === 'no_show') return this.role(status);
-    if (status === 'completed') return record.departed_at ? 'En route' : 'Loaded';
+
+    // An outbound load that is complete has been put on a truck and sent. Somebody scans it as
+    // the truck pulls away, so "completed" on an outbound means gone, not finished-and-parked,
+    // and En route is what it is until the other end takes it in. This holds on the shipping
+    // site's own board too: their part is over, but the load is not sitting in their yard.
+    if (status === 'completed' && String(record.direction || '') === 'outbound') return 'En route';
+
+    if (!record.is_linked_movement) return this.role(status);
+
+    // The mirrored leg of a Max-to-Max movement, read by the site waiting for it. The row is
+    // the same one the shipping site wrote, with the direction flipped, so its status is the
+    // other end's word for what happened -- and completed there means they shipped it, not that
+    // it arrived here. This read "Received" for a moment while I was writing it, which is the
+    // exact lie this whole change exists to stop: a truck on the road, reported to the site
+    // waiting for it as already in.
+    if (status === 'completed') return 'En route';
     if (status === 'in_progress') return 'Loading';
     return 'Expected';
   },
@@ -253,10 +267,12 @@ export const format = Object.freeze({
   // The same distinction as a status code, so a colour can follow it. En route is its own
   // thing rather than borrowing the completed green, which would say arrived.
   movementStatusCode(record = {}) {
-    if (!record.is_linked_movement) return String(record.status || '');
     const status = String(record.status || '');
     if (status === 'cancelled' || status === 'no_show') return status;
-    if (status === 'completed') return record.departed_at ? 'in_progress' : 'arrived';
+    // En route is its own state and must not borrow the completed colour, which says arrived.
+    if (status === 'completed' && String(record.direction || '') === 'outbound') return 'in_progress';
+    if (!record.is_linked_movement) return status;
+    if (status === 'completed') return 'in_progress';
     if (status === 'in_progress') return 'arrived';
     return 'scheduled';
   },
