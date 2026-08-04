@@ -169,18 +169,36 @@ if (!errors.length) {
   // ── The queue's filters ride on the title line, not in a band ───────────────
   //
   // The queue is a fixed-height page: every pixel above the schedule is a pixel the schedule
-  // does not get, and the glance card is what gives way. A band holding one select and one
-  // search cost about seventy of them for two controls that fit beside the three buttons
-  // already on the title line. Removing it is what let the reading come up onto the screen.
+  // does not get, and the glance card is what gives way. A band cost about seventy of them to
+  // hold controls that fit beside the three buttons already on the title line. Removing it is
+  // what let the reading come up onto the screen.
   forbid(queue, /controlsBar\(/,
-    'The operations queue has grown a controls band again. It is about seventy pixels on a page that cannot scroll, and it holds two controls that fit on the title line.');
-  need(queue, /pageHead\('Operations queue',[\s\S]{0,400}controls:/, 'The queue\'s filters are not on its title line.');
-  need(queue, /data-filter-direction[\s\S]{0,400}data-filter-search/,
-    'Direction and the search are no longer both in the head, so one of the two ways of narrowing the day has gone missing.');
+    'The operations queue has grown a controls band again. It is about seventy pixels on a page that cannot scroll, and it holds a control that fits on the title line.');
+  need(queue, /pageHead\('Operations queue',[\s\S]{0,400}controls:/, 'The queue\'s find is not on its title line.');
+  need(queue, /data-filter-search/, 'There is no way to find one load on the screen whose job is finding the load that needs somebody.');
+  // No direction on this page. It is the whole day at one site and the reason somebody opens
+  // it is to see all of it; inbound against outbound is the dock board's question and the
+  // board has the control. Checked in both places, because a select left in the markup with
+  // nothing reading it is worse than either answer.
+  forbid(queue, /data-filter-direction/,
+    'The queue has a direction filter again. That question belongs to the dock board, and two controls asking it is one too many.');
+  forbid(queue, /state\.direction/,
+    'The queue still filters by direction. Either the control came back or the code behind a control that is gone did not.');
   // A stacked caption is what makes a field taller than a button, and one taller control is
-  // what turns a single line back into two. The names live on the controls instead.
-  need(queue, /aria-label="Direction"/, 'The direction select has no name at all now that its printed label is gone.');
+  // what turns a single line back into two. The name lives on the control instead.
   need(queue, /bare: true/, 'The queue\'s search still carries a stacked caption, which makes it taller than the buttons beside it and wraps the head onto a second line.');
+  // A placeholder that does not fit is worse than a shorter one: the box cuts it mid-word and
+  // the reader is left with "Reference, PO, comp". Measured in the browser against the real
+  // face at both text settings — at Larger the same box holds a third fewer characters — and
+  // "Ref, PO, company" is the longest of the candidates that clears 14em at both.
+  need(queue, /placeholder: 'Ref, PO, company'/,
+    'The queue\'s search placeholder is not the one measured to fit its box. Anything longer is cut off mid-word at 14em, and cut worse again at the Larger text setting.');
+  // The width and the placeholder are one decision, so they are guarded together: 14em is what
+  // the owner asked for once the direction select left the row, and the placeholder above is
+  // the longest that clears 14em. Widening this without revisiting the other leaves a field
+  // stated at one size and filled for another.
+  need(css, /\.ctrl-field--bare\{flex:0 1 14em/,
+    'The head search is not at the width its placeholder was measured against.');
   need(css, /\.pagehead__actions\{flex:1 1 auto/,
     'The page head\'s action row sizes itself again. Left to do that it measured 633px against 974px of free row and wrapped its own contents, which is an 80px head with three hundred pixels of empty space beside it.');
   need(css, /\.pagehead__actions\{[^}]*align-items:center/,

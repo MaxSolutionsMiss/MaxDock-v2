@@ -145,9 +145,6 @@ html[data-rail="mini"]{--rail-w:64px}
    sat. The auto margin is what has to go: it and flex-grow are two answers to the same
    question and the margin wins. */
 .pagehead__actions{flex:1 1 auto;display:flex;flex-wrap:wrap;align-items:center;justify-content:flex-end;gap:var(--s2)}
-/* A filter that sits on the title line rather than in a band. Sized to its longest option so
-   it does not take width off the search beside it, and never shorter than a tap target. */
-.select--head{flex:0 0 auto;width:auto;min-width:11.5em}
 .btn{font-family:inherit;font-size:var(--t-base);font-weight:500;border-radius:var(--radius);border:1px solid transparent;padding:0 14px;min-height:var(--ctl-h);height:var(--ctl-h);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:7px;white-space:nowrap}
 .btn svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.7}
 .btn--primary{background:var(--dock);color:#fff} .btn--primary:hover{background:var(--dock-hover)}
@@ -277,15 +274,17 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
    never wider than its own column. */
 .ctrl-field--find{flex:0 1 15.4em;min-width:11em}
 /* The head version: no stacked caption above the box, so the field is exactly one control
-   tall and the row it shares with Export and Full screen stays one line. Wider than the
-   banded one, because the head has the room a band did not and this is the field somebody
-   types a fifteen-character booking reference into.
+   tall and the row it shares with Export and Full screen stays one line. 14em rather than the
+   20 it started at, which is the thirty per cent the owner asked for once the direction select
+   left the row: with the whole title line to itself a wide box read as a search page rather
+   than as one control among four. Still wide enough for its placeholder and for the fifteen
+   characters of a booking reference, which is the thing it is mostly used on.
 
    Written here rather than up beside .pagehead__actions where it is used, and that is the
    whole point: --bare and --find are both one class, so whichever is written last wins. Up
    there it lost its width to --find and the field came out at the band's 15.4em with the
    placeholder cut off at "Reference, company, P". Below the rule it modifies, it wins. */
-.ctrl-field--bare{flex:0 1 20em;min-width:11em}
+.ctrl-field--bare{flex:0 1 14em;min-width:11em}
 .ctrl-field--bare .searchbox{height:var(--ctl-h)}
 .searchbox{position:relative;display:flex;width:100%;min-width:0}
 .searchbox .input{flex:1 1 auto;min-width:0;padding-right:calc(var(--ctl-h) + 4px)}

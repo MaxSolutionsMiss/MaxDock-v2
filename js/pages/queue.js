@@ -38,7 +38,6 @@ const state = {
   context: null,
   date: format.todayInput(),
   view: 'all',
-  direction: 'all',
   search: '',
   docks: [],
   hours: null,
@@ -170,12 +169,10 @@ function visibleRecords() {
     if (state.view === 'completed') return record.status === 'completed';
     return true;
   })
-    // Direction and a free-text find, the same two the dock board has always had. A
-    // coordinator on this screen looking for one load had to read the table or change page,
-    // which is a strange thing to ask of the screen whose whole job is finding the load that
-    // needs somebody. The control band is the shared component, so the two screens are
-    // operated the same way rather than merely looking alike.
-    .filter(record => state.direction === 'all' || record.direction === state.direction)
+    // A free-text find, and deliberately no direction. This page is the whole day at one
+    // site and the reason somebody opens it is to see everything on it; splitting that into
+    // inbound and outbound is the dock board's job, and the board has the control. The owner
+    // took it off here rather than carry two ways to ask the same question.
     .filter(record => {
       const term = state.search.trim().toLowerCase();
       if (!term) return true;
@@ -773,27 +770,29 @@ async function changeStatus(appointmentId, newStatus) {
   }
 }
 
-// Direction and a find on the title line, not in a band of their own underneath. This page is
-// fixed height: everything above the schedule is taken off the schedule, and a band cost about
-// seventy pixels to hold two controls that fit perfectly well beside the three buttons already
+// A find on the title line, and nothing else. Not a band of its own underneath: this page is
+// fixed height, everything above the schedule is taken off the schedule, and a band cost about
+// seventy pixels to hold one control that fits perfectly well beside the three buttons already
 // up there. Every control in the row is one height, so they read as one line rather than as a
 // toolbar bolted onto a title.
 //
-// Deliberately no date. The day picker belongs to the glance card, where the owner asked for it
-// and where it reads as part of the sentence the card is making. A second one up here would be
-// two controls for one thing, and the reader would have to work out which of them the page was
-// obeying.
+// Deliberately no direction. This page is the whole day at one site, and the reason somebody
+// opens it is to see all of it; inbound against outbound is a question for the dock board, and
+// the board has the control. Two ways to ask the same thing is one too many.
 //
-// The fields carry their names in aria-label rather than above themselves: a stacked caption
-// would make them taller than the buttons and there would go the single line. Neither needs the
-// printed word. "All movements" says what the select is, and the search placeholder says what
-// can be typed into it.
+// Deliberately no date either. The day picker belongs to the glance card, where the owner asked
+// for it and where it reads as part of the sentence the card is making. A second one up here
+// would be two controls for one thing, and the reader would have to work out which of them the
+// page was obeying.
+//
+// The field carries its name in aria-label rather than above itself: a stacked caption would
+// make it taller than the buttons and there would go the single line. It does not need the
+// printed word, because the placeholder already says what can be typed into it.
 function buildShell(root) {
   root.innerHTML = `
     ${pageHead('Operations queue', {
       actions: ['export', 'fullscreen', 'customize'],
-      controls: `<select class="select select--head" id="queue-direction" data-filter-direction aria-label="Direction"><option value="all">All movements</option><option value="inbound">Inbound</option><option value="outbound">Outbound</option></select>
-      ${searchField({ id: 'queue-search', label: 'Search movements', placeholder: 'Reference, company, PO', attribute: 'data-filter-search', bare: true })}`,
+      controls: searchField({ id: 'queue-search', label: 'Search movements', placeholder: 'Ref, PO, company', attribute: 'data-filter-search', bare: true }),
     })}
     <div class="brief" data-brief></div>
     <div class="kpis" data-kpis></div>
@@ -831,7 +830,6 @@ function buildShell(root) {
 function wireEvents(root) {
   root.addEventListener('change', async event => {
     if (event.target.matches('[data-queue-date]') && event.target.value) await goToDate(event.target.value);
-    if (event.target.matches('[data-filter-direction]')) { state.direction = event.target.value; renderTable(); }
   });
   // Live as it is typed, the same as the dock board. A coordinator looking for one load is
   // reading the screen while they type it, not composing a query and submitting it.
