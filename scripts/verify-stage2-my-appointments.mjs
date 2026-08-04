@@ -47,6 +47,31 @@ if (!failures.length) {
   check(/returnFocus/.test(modal), 'js/ui/modal.js', 'The modal must restore focus after closing.');
   check(/nowEpoch\(\)/.test(format), 'js/format.js', 'Current-time arithmetic must be provided by format.js.');
   check(/\.card/.test(css) && /\.kpis/.test(css) && /\.table/.test(css), 'assets/maxdock.css', 'Approved composed appointment layout styles are missing.');
+
+  // ── The check-in code belongs to whoever holds the booking ──────────────────
+  //
+  // It lived only on the dock board, which is the one screen an outside company cannot open,
+  // so a customer whose driver had lost the code had to telephone the plant. That is the call
+  // this product exists to remove. The database was never the obstacle:
+  // get_appointment_check_in_token already admits the creator and anybody whose email matches
+  // the requester, not only staff holding appointment.view. This screen simply never asked.
+  check(/get_appointment_check_in_token/.test(page), 'js/pages/my-appointments.js',
+    'My appointments never asks for the check-in code, so the people who cannot open the dock board have no way to get it to a driver.');
+  check(/renderQr\(/.test(page), 'js/pages/my-appointments.js',
+    'The check-in code is fetched and then never drawn.');
+  check(/navigator\.share/.test(page), 'js/pages/my-appointments.js',
+    'There is no way to pass an appointment on from the screen that holds it.');
+  // Share must carry the check-in link rather than the page: a link to My appointments is
+  // useless to a driver with no MaxDock account, and the token link works in anybody's hands.
+  // Read out of the share handler itself rather than by proximity. A window of characters
+  // matched checkInUrl in the handler *above* this one, so replacing the share link with the
+  // current page URL left this green -- the precise fault it exists to catch.
+  const shareBody = page.slice(page.indexOf("share.addEventListener('click'"), page.indexOf('element.append(head'));
+  check(/checkInUrl\(currentRecord\)/.test(shareBody), 'js/pages/my-appointments.js',
+    'Share does not send the check-in link, so it hands somebody a page they cannot open.');
+  // A share the person cancelled is them changing their mind, not a fault to report at them.
+  check(/AbortError/.test(page), 'js/pages/my-appointments.js',
+    'A share the person cancelled is reported back to them as a failure.');
 }
 
 console.log('\nMaxDock Stage 2 My Appointments verification');

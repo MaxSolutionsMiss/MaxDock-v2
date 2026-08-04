@@ -11,6 +11,11 @@ const ICONS = {
   edit: '<path d="M4 20h4L19 9a2.1 2.1 0 0 0-3-3L5 17v3z"></path><path d="M14.5 6.5 17.5 9.5"></path>',
   cancel: '<circle cx="12" cy="12" r="9"></circle><path d="M5.6 5.6 18.4 18.4"></path>',
   search: '<circle cx="10.5" cy="10.5" r="6.5"></circle><path d="M15.5 15.5 21 21"></path>',
+  // The check-in code, and passing it on. Drawn on the same 24px grid and 2px stroke as the
+  // rest so a row of actions reads as one set: three finder squares and a scattering of cells,
+  // and a node joined to two others.
+  qr: '<rect x="3" y="3" width="7" height="7" rx="1"></rect><rect x="14" y="3" width="7" height="7" rx="1"></rect><rect x="3" y="14" width="7" height="7" rx="1"></rect><path d="M14 14h3v3h-3zM20 14v3M14 20h7"></path>',
+  share: '<circle cx="18" cy="5.5" r="2.5"></circle><circle cx="6" cy="12" r="2.5"></circle><circle cx="18" cy="18.5" r="2.5"></circle><path d="M8.2 10.8 15.8 6.7M8.2 13.2l7.6 4.1"></path>',
   // A verdict, drawn. Beside a percentage and its word, so a reading never rests on a
   // colour: a tick for on time, a bar for slipping, a cross for not acceptable.
   ok: '<circle cx="12" cy="12" r="9"></circle><path d="M8 12.5l2.6 2.6L16 9.5"></path>',

@@ -6,6 +6,7 @@ import { renderState } from '../ui/empty.js';
 import { createModal } from '../ui/modal.js';
 import { controlsBar, pageHeadActions, icon } from '../ui/pagehead.js';
 import { createCustomizePanel } from '../ui/customize.js';
+import { renderQr } from '../ui/qr.js';
 import { toast } from '../ui/toast.js';
 
 const TERMINAL_STATUSES = new Set(['completed', 'cancelled', 'no_show']);
@@ -324,6 +325,38 @@ function createDetail(label) {
 // A row action is an icon at the same height as every other button, with the
 // wording it replaces kept as its label so it still reads to a screen reader and
 // on hover. Three words of chrome per card, on every card, was the white space.
+// The link a driver actually needs: the receiving screen with this load's token in it. Asked
+// for only when somebody presses Show the code or Share, and cached by db for a minute, so
+// opening the same card twice does not ask twice.
+async function checkInUrl(record) {
+  const id = record?.appointment_id;
+  if (!id) return null;
+  const token = await db.rpc('get_appointment_check_in_token', { p_appointment_id: id }, {
+    key: `mine:token:${id}`, cache: 60000, retry: 1,
+  }).catch(() => null);
+  if (!token) return null;
+  const url = new URL('receiving.html', globalThis.location.href);
+  url.searchParams.set('t', token);
+  return url.href;
+}
+
+// What gets pasted into a text message. The reference and the time first, because that is what
+// somebody reads out over the phone, and the link last so it does not split the sentence.
+function shareText(record, url) {
+  const location = { timezone: record.location_timezone };
+  const when = record.start_at
+    ? `${format.shortDateInput(format.inputDate(record.start_at, location), location)} at ${format.time(record.start_at, location)}`
+    : '';
+  return [
+    `${record.booking_reference || 'MaxDock appointment'}${when ? ` · ${when}` : ''}`,
+    record.location_name ? `Dock: ${record.location_name}` : '',
+    'Scan or open this to check in at the dock:',
+    url,
+  ].filter(Boolean).join('\n');
+}
+
+const toastLike = message => toast(message, 'success');
+
 function createCardAction(name, label, className = 'btn btn--quiet btn--icon') {
   const button = createElement('button', className);
   button.type = 'button';
@@ -390,7 +423,16 @@ function createAppointmentCard(record) {
   const move = createCardAction('edit', 'Edit appointment');
   move.dataset.moveAppointment = '';
   const cancel = createCardAction('cancel', 'Cancel appointment', 'btn btn--danger btn--icon');
-  actions.append(copy, move, cancel);
+  // The check-in code, and a way to pass it on.
+  //
+  // It was only ever on the dock board, which is the one screen an outside company cannot
+  // open. So a customer whose driver had lost the code had no way to get it again except to
+  // telephone the plant -- which is the call this product exists to remove. The database was
+  // already willing: get_appointment_check_in_token admits the creator and anybody whose email
+  // matches the requester, not just staff. Nothing had ever asked it from here.
+  const codeToggle = createCardAction('qr', 'Show the check-in code');
+  const share = createCardAction('share', 'Share this appointment');
+  actions.append(codeToggle, share, copy, move, cancel);
   head.append(expand, identity, status, actions);
 
   const details = createElement('div', 'appointment-card__details');
@@ -511,7 +553,52 @@ function createAppointmentCard(record) {
   // reason appended to the end would have been written and never seen. On a cancelled load the
   // reason outranks the handling type.
   details.prepend(note);
-  element.append(head, details, activity);
+  // Closed until asked for, like the activity list, and for the same reason: a page of twenty
+  // bookings should not fetch twenty tokens nobody looked at.
+  const codePanel = createElement('div', 'qrbox');
+  codePanel.hidden = true;
+  const codeFrame = createElement('div', 'qr-frame');
+  const codeNote = createElement('p', 'qrbox__c');
+  codePanel.append(codeFrame, codeNote);
+  let codeLoaded = false;
+
+  codeToggle.addEventListener('click', async () => {
+    const open = codePanel.hidden;
+    codePanel.hidden = !open;
+    codeToggle.setAttribute('aria-pressed', String(open));
+    if (!open || codeLoaded) return;
+    codeLoaded = true;
+    codeNote.textContent = 'Loading the code…';
+    const url = await checkInUrl(currentRecord);
+    if (!url) {
+      codeLoaded = false;
+      codeNote.textContent = 'This appointment has no check-in code yet.';
+      return;
+    }
+    renderQr(codeFrame, url, { label: `Check-in code for MaxDock appointment ${currentRecord.booking_reference || ''}` });
+    codeNote.textContent = 'Send this to the driver. Scanning it checks the load in at the dock.';
+  });
+
+  // Share sends the code, not the page. A link to My Appointments is no use to a driver who
+  // has no MaxDock account; the check-in link is the thing that works in anybody's hands.
+  // Web Share where the device has it, which is every phone, and the clipboard everywhere else.
+  share.addEventListener('click', async () => {
+    const url = await checkInUrl(currentRecord);
+    if (!url) { toastLike('This appointment has no check-in code to share yet.'); return; }
+    const title = `MaxDock ${currentRecord.booking_reference || 'appointment'}`;
+    const text = shareText(currentRecord, url);
+    try {
+      if (navigator.share) { await navigator.share({ title, text, url }); return; }
+      await navigator.clipboard.writeText(text);
+      toastLike('Check-in details copied. Paste them to the driver.');
+    } catch (error) {
+      // A share the person cancelled is not a failure and must not be reported as one.
+      if (error?.name === 'AbortError') return;
+      toastLike('That could not be shared. Use Copy confirmation instead.');
+    }
+  });
+
+  element.append(head, details, codePanel, activity);
   update(record);
   return Object.freeze({ element, update, destroy: () => element.remove() });
 }

@@ -444,7 +444,7 @@ function renderLoadStep() {
         .filter(location => location.id !== currentLocation().id)
         .map(location => ({ value: location.id, label: location.name })),
       state.form.requester_location_id,
-      'Choose a Max Solutions location',
+      'Choose a location',
     );
   }
   const destination = hosts.step.querySelector('[data-field="destination_location_id"]');
@@ -453,7 +453,7 @@ function renderLoadStep() {
       destination,
       context.locations.map(location => ({ value: location.id, label: location.name })),
       currentLocation().id,
-      'Choose a Max Solutions location',
+      'Choose a location',
     );
     // The select comes up showing a site, so the form has to agree with it. It did
     // not: the field stayed empty until the vendor changed the dropdown, and
