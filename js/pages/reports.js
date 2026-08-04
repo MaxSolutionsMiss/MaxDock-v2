@@ -120,6 +120,34 @@ async function fetchReport() {
   return mergeContext(parts);
 }
 
+// The window before the one being read: the same number of days, ending the day before this
+// one starts. So the past 7 days is measured against the 7 before it, this month against the
+// same number of days before the 1st, and a custom range against a range of its own size.
+// Never a fixed week, because a reader comparing a 30-day range to a 7-day one is being told
+// a difference that is mostly the difference in length.
+function previousWindow() {
+  const days = format.daysBetweenInput(state.from, state.to);
+  if (!days) return null;
+  return { from: format.addDaysInput(state.from, -days), to: format.addDaysInput(state.from, -1) };
+}
+
+// The same call over that window. Its own cache key, so moving the range picker does not serve
+// one period's numbers against another's, and its own catch: a report must not fail to draw
+// because the comparison could not be fetched. Absent, every reading simply says nothing about
+// direction, which is where this screen was before.
+async function fetchPrevious() {
+  const window = previousWindow();
+  if (!window) return null;
+  try {
+    const parts = await Promise.all(state.locationIds.map(id => db.rpc('get_ai_operations_context',
+      { p_location_id: id, p_start_date: window.from, p_end_date: window.to },
+      { key: `reports:prev:${id}:${window.from}:${window.to}`, cache: 60000, retry: 1 })));
+    return mergeContext(parts);
+  } catch {
+    return null;
+  }
+}
+
 const KPI_CARDS = [
   { id: 'appointments', label: 'Appointments', className: '', compute: s => compact(num(s.appointments)) },
   { id: 'inbound', label: 'Inbound skids', className: 'kpi--out', compute: s => compact(s.inbound_skids) },
@@ -259,33 +287,95 @@ function readingBand(percent, good = 'low') {
   return { value, band, words, ok, tone, target, over: value > 100 };
 }
 
-function dial(percent, label, note, { good = 'low' } = {}) {
+// A level with no direction is half an answer. 68% of dock time used is fine on the way up
+// from 61 and a problem on the way down from 79, and until now this screen made the reader
+// hold the previous range in their head and do the subtraction. So every reading that can be
+// measured over the window before it carries the change.
+//
+// Percentage points, not per cent of a per cent. The readings are all percentages already,
+// and "up 11%" on a number that went 61 to 68 is ambiguous in a way that "up 7 points" is not.
+//
+// A change is not a verdict. It is drawn in the ink colours with an arrow, never in the
+// good/bad palette, because whether up is good depends on the reading: more dock time used is
+// capacity being earned, more cancelled is not. The verdict stays with readingBand, which is
+// the one judge on this page, and this adds a fact beside it rather than a second opinion.
+//
+// Under a fifth of a point reads as level. Two runs of the same quiet week should not report
+// movement because a rounding fell differently.
+const CHANGE_FLOOR = 0.2;
+function changeOf(percent, previous) {
+  if (percent === null || percent === undefined || !Number.isFinite(Number(percent))) return null;
+  if (previous === null || previous === undefined || !Number.isFinite(Number(previous))) return null;
+  const delta = Number(percent) - Number(previous);
+  if (Math.abs(delta) < CHANGE_FLOOR) return { delta: 0, direction: 'level', text: 'level on the period before' };
+  const points = Math.abs(delta) >= 10 ? Math.round(Math.abs(delta)) : Math.round(Math.abs(delta) * 10) / 10;
+  return {
+    delta,
+    direction: delta > 0 ? 'up' : 'down',
+    text: `${delta > 0 ? 'up' : 'down'} ${points} point${points === 1 ? '' : 's'} on the period before`,
+  };
+}
+
+// No comparison and no movement are different answers and must not draw alike. Absent means the
+// reading has no previous window to be measured against — the trailer readings, which come from
+// a call this page does not fetch twice. Level means it was measured and did not move.
+//
+// So level is the word, not a dash. A dash sat at the end of "of the hours the doors were open"
+// on the dial's caption line and read as a stray hyphen in the sentence rather than as a value.
+const CHANGE_GLYPH = { up: '▲', down: '▼' };
+function changeChip(change) {
+  if (!change) return '';
+  if (change.direction === 'level') return '<span class="chg chg--level" aria-hidden="true">level</span>';
+  const points = Math.abs(change.delta) >= 10 ? Math.round(Math.abs(change.delta)) : Math.round(Math.abs(change.delta) * 10) / 10;
+  return `<span class="chg chg--${change.direction}" aria-hidden="true">${CHANGE_GLYPH[change.direction]} ${points}</span>`;
+}
+
+function dial(percent, label, note, { good = 'low', change = null } = {}) {
   if (percent === null || percent === undefined) {
     return `<figure class="dial dial--empty"><div class="dial__face"><span class="dial__v">–</span></div><figcaption class="dial__l">${escapeHtml(label)}<span>not measured</span></figcaption></figure>`;
   }
   const { value, band, words } = readingBand(percent, good);
   const shown = Math.min(100, value);
-  return `<figure class="dial dial--${band}" role="img" aria-label="${escapeHtml(`${label}: ${value.toFixed(1)} per cent${words ? `, ${words}` : ''}`)}">
+  // The change goes into the label the screen reader is given as well as onto the face, so it
+  // is not a fact only sighted readers get.
+  return `<figure class="dial dial--${band}" role="img" aria-label="${escapeHtml(`${label}: ${value.toFixed(1)} per cent${words ? `, ${words}` : ''}${change ? `, ${change.text}` : ''}`)}">
     <div class="dial__face" style="--pct:${shown.toFixed(1)}"><span class="dial__v">${value.toFixed(0)}<i>%</i></span></div>
-    <figcaption class="dial__l">${escapeHtml(label)}<span>${escapeHtml(note || words)}</span></figcaption>
+    ${/* Separated by the middot this product uses everywhere else for label-and-value. Butted
+         straight onto the note, "of the hours the doors were open level" read as the end of the
+         sentence rather than as a second fact. The tile needs no separator: there the chip
+         follows a 27px number, and the size difference is the break. */ ''}
+    <figcaption class="dial__l">${escapeHtml(label)}<span>${escapeHtml(note || words)}${change ? ` · ${changeChip(change)}` : ''}</span></figcaption>
   </figure>`;
 }
 
 // The same reading as a number with a bar under it. Same band, same words, same judge —
 // this chooses nothing, which is why a tile and a dial of one figure always agree.
-function tileOf(percent, label, note, { good = 'low' } = {}) {
+function tileOf(percent, label, note, { good = 'low', change = null } = {}) {
   if (percent === null || percent === undefined) return readingTile({ percent: null, label });
   const { value, words, tone, target, over } = readingBand(percent, good);
-  return readingTile({ percent: value, label, note, words, tone, target, over });
+  return readingTile({
+    percent: value, label, note, words, tone, target, over,
+    change: change ? { direction: change.direction, chip: changeChip(change), text: change.text } : null,
+  });
 }
 
 // Three readings, drawn whichever way the reader picked. The switch is per panel and
 // remembered, so a page that opens on dials stays on dials.
+//
+// A card may state its value two ways. `of` is a function of a context, and it is the one that
+// earns a change: the same expression is run against this window and the one before, so the
+// two numbers cannot be computed differently. `percent` is a plain number, for readings built
+// from a source with no previous window fetched — those draw exactly as they always did and
+// say nothing about direction, which is honest rather than a gap.
 function readings(key, cards) {
   const form = formOf(key, 'dial');
-  const drawn = cards.map(card => (form === 'shape'
-    ? tileOf(card.percent, card.label, card.note, { good: card.good })
-    : dial(card.percent, card.label, card.note, { good: card.good })));
+  const drawn = cards.map(card => {
+    const percent = card.of ? card.of(state.data || {}) : card.percent;
+    const change = card.of && state.previous ? changeOf(percent, card.of(state.previous)) : null;
+    return form === 'shape'
+      ? tileOf(percent, card.label, card.note, { good: card.good, change })
+      : dial(percent, card.label, card.note, { good: card.good, change });
+  });
   return `<div class="dials${form === 'shape' ? ' dials--tile' : ''}">${drawn.join('')}</div>`;
 }
 
@@ -474,10 +564,14 @@ function renderOverview() {
   return `${kpiRow()}
     <div class="panel">
       <div class="panel__head"><h3 class="panel__title">The three readings</h3><div class="panel__actions">${formSwitch('overview-read', [{ id: 'dial', label: 'Dials' }, { id: 'shape', label: 'Fill' }])}<span class="sub">${escapeHtml(siteRange())}</span></div></div>
+      ${/* Two of the three are read out of the context, so they are stated as expressions over
+           it and carry their change. Trailer used comes from the fullness scorecard, a
+           different call with no previous window fetched, so it stays a plain number and says
+           nothing about direction rather than guessing at one. */ ''}
       ${readings('overview-read', [
-        { percent: num(s.occupied_utilization_percent), label: 'Dock time used', note: 'of the hours the doors were open', shape: 'door' },
+        { of: ctx => num(ctx.summary?.occupied_utilization_percent), label: 'Dock time used', note: 'of the hours the doors were open', shape: 'door' },
         { percent: used, label: 'Trailer used', note: 'skids against what the trailers hold', good: 'high', shape: 'truck' },
-        { percent: num(s.appointments) ? (num(s.cancelled) / num(s.appointments)) * 100 : null, label: 'Cancelled', note: 'of every booking made', good: 'zero', shape: 'cancelled' },
+        { of: ctx => (num(ctx.summary?.appointments) ? (num(ctx.summary?.cancelled) / num(ctx.summary?.appointments)) * 100 : null), label: 'Cancelled', note: 'of every booking made', good: 'zero', shape: 'cancelled' },
       ])}
       <div class="panel__body"><p class="hint hint--flush">Doors, trailers and reliability. Each of the three has its own view with the detail behind it; this is whether any of them needs one.</p></div>
     </div>
@@ -568,9 +662,23 @@ function renderSkidMovement() {
   return `${kpiRow()}
     <div class="panel">
       <div class="panel__head"><h3 class="panel__title">How the skids moved</h3><div class="panel__actions">${formSwitch('skid-read', [{ id: 'dial', label: 'Dials' }, { id: 'shape', label: 'Fill' }])}<span class="sub">${escapeHtml(siteRange())}</span></div></div>
+      ${/* The peak-against-even reading is entirely a function of the daily series, so it is
+           written over the context and compares cleanly: whether this range leans on one day
+           harder than the last one did is exactly the question it exists to answer. Trailer
+           space used comes from the fullness call and has no previous window. */ ''}
       <div class="panel__body">${readings('skid-read', [
         { percent: capacity ? (carried / capacity) * 100 : null, label: 'Trailer space used', note: 'skids carried against what those trailers hold', good: 'high', shape: 'truck' },
-        { percent: total && moved.length ? (heaviest / (total / moved.length)) * 100 : null, label: 'Heaviest day against an even one', note: `${compact(heaviest)} skids on the busiest of ${moved.length} day${moved.length === 1 ? '' : 's'}`, good: 'none', shape: 'day' },
+        {
+          of: ctx => {
+            const days = (ctx.by_day || []).map(row => num(row.inbound_skids) + num(row.outbound_skids));
+            const sum = days.reduce((running, value) => running + value, 0);
+            return sum && days.length ? (Math.max(...days) / (sum / days.length)) * 100 : null;
+          },
+          label: 'Heaviest day against an even one',
+          note: `${compact(heaviest)} skids on the busiest of ${moved.length} day${moved.length === 1 ? '' : 's'}`,
+          good: 'none',
+          shape: 'day',
+        },
       ])}
         <p class="hint">Trailer space used is the room that was paid for and filled. The second reading is the busiest day measured against what an even day of this range would be, so 100% is perfectly level and 200% is a day carrying twice its share. Measured that way because a share out of the whole range makes every well-run month look empty: thirty level days are 3% each, and 3% drawn against 100 says nothing.</p></div>
     </div>
@@ -603,10 +711,15 @@ function renderDockUtilisation() {
       <div class="panel__body">${hourStrip(byHour)}</div>
     </div>
     <div class="panel"><div class="panel__head"><h3 class="panel__title">How hard the doors worked</h3><div class="panel__actions">${formSwitch('dock-read', [{ id: 'dial', label: 'Dials' }, { id: 'shape', label: 'Fill' }])}<span class="sub">${escapeHtml(siteRange())}</span></div></div>
+      ${/* All three out of the context, so all three carry their change. The third divides by
+           the number of days in the window, which is why it is written against `ctx` and not
+           against state.data: run over the previous window it has to count that window's days,
+           and a fixed reference to state.data would have measured last month's hours across
+           this month's days. */ ''}
       ${readings('dock-read', [
-        { percent: num(s.occupied_utilization_percent), label: 'Dock time used', note: 'of the hours the doors were open', shape: 'door' },
-        { percent: s.available_dock_minutes ? (num(s.blocked_minutes) / num(s.available_dock_minutes)) * 100 : null, label: 'Time blocked off', note: 'maintenance, breaks, events', shape: 'clock' },
-        { percent: num(s.active_docks) ? (num(s.booked_minutes) / 60) / num(s.active_docks) / Math.max(1, (state.data.by_day || []).length) / 9.5 * 100 : null, label: 'Busiest door share', note: 'booked hours per door per day', good: 'none', shape: 'door' },
+        { of: ctx => num(ctx.summary?.occupied_utilization_percent), label: 'Dock time used', note: 'of the hours the doors were open', shape: 'door' },
+        { of: ctx => (ctx.summary?.available_dock_minutes ? (num(ctx.summary?.blocked_minutes) / num(ctx.summary?.available_dock_minutes)) * 100 : null), label: 'Time blocked off', note: 'maintenance, breaks, events', shape: 'clock' },
+        { of: ctx => (num(ctx.summary?.active_docks) ? (num(ctx.summary?.booked_minutes) / 60) / num(ctx.summary?.active_docks) / Math.max(1, (ctx.by_day || []).length) / 9.5 * 100 : null), label: 'Busiest door share', note: 'booked hours per door per day', good: 'none', shape: 'door' },
       ])}</div>
     <div class="kpis" style="--kpi-cols:5">
       <article class="kpi kpi--signal"><span class="kpi__label">Dock time used</span><span class="kpi__value">${num(s.occupied_utilization_percent).toFixed(1)}<span>%</span></span></article>
@@ -1080,8 +1193,11 @@ async function reload() {
     // The scorecard is its own query, fetched alongside so switching views does
     // not go back to the network. A failure there must not take the rest of the
     // report down with it.
-    const [data, scorecard, fullness, labour, turnaround, capacities] = await Promise.all([
+    const [data, previous, scorecard, fullness, labour, turnaround, capacities] = await Promise.all([
       fetchReport(),
+      // The window before this one, for the change on each reading. Alongside rather than
+      // after, so it costs latency only if it is the slowest of the seven, and it never is.
+      fetchPrevious(),
       fanOut('get_partner_scorecard',
         id => ({ p_location_id: id, p_start_date: state.from, p_end_date: state.to }),
         'reports:scorecard').then(mergeScorecard).catch(() => []),
@@ -1112,6 +1228,7 @@ async function reload() {
         { key: `reports:capacity:${id}`, cache: 300000 }).catch(() => []))).catch(() => []),
     ]);
     state.data = data;
+    state.previous = previous || null;
     state.scorecard = Array.isArray(scorecard) ? scorecard : [];
     state.fullness = Array.isArray(fullness) ? fullness : [];
     state.labour = Array.isArray(labour) ? labour : [];

@@ -77,6 +77,22 @@ export const format = Object.freeze({
     return `${stepped.getUTCFullYear()}-${pad(stepped.getUTCMonth() + 1)}-${pad(stepped.getUTCDate())}`;
   },
 
+  // How many calendar days a range covers, counting both ends: a Monday to the Sunday after
+  // it is 7, not 6. Stepped in UTC through the same arithmetic as addDaysInput rather than
+  // subtracting two timestamps and dividing by 86400000, because a range that crosses a
+  // daylight-saving boundary is not a whole number of days and the division rounds it wrong.
+  // Reports needs this to work out the window before the one being read.
+  daysBetweenInput(from, to) {
+    const parse = value => {
+      const [year, month, day] = String(value || '').slice(0, 10).split('-').map(Number);
+      return year && month && day ? Date.UTC(year, month - 1, day) : null;
+    };
+    const start = parse(from);
+    const end = parse(to);
+    if (start === null || end === null) return 0;
+    return Math.round((end - start) / 86400000) + 1;
+  },
+
   todayInput(location) {
     return this.inputDate(new Date(), location);
   },

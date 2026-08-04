@@ -211,6 +211,54 @@ if (!errors.length) {
   // to leave unwired. It was, on this page, until it moved somewhere people would press it.
   need(queue, /data-search-go[\s\S]{0,200}renderTable\(\)/,
     'The queue\'s magnifier does nothing when it is pressed.');
+  // ── A reading says which way it moved, not only how big it is ──────────────
+  //
+  // 68% of dock time used is fine on the way up from 61 and a problem on the way down from 79.
+  // Until now the reader held the previous range in their head and did the subtraction.
+  need(reports, /function previousWindow\(\)/,
+    'Nothing works out the window before the one being read, so no reading can say which way it moved.');
+  // The same length, ending the day before. A fixed week would tell somebody reading a 30-day
+  // range a difference that is mostly the difference in length.
+  need(reports, /const days = format\.daysBetweenInput\(state\.from, state\.to\)/,
+    'The comparison window is not measured from the range being read, so a 30-day range gets compared against something that is not 30 days.');
+  need(reports, /addDaysInput\(state\.from, -days\)[\s\S]{0,80}addDaysInput\(state\.from, -1\)/,
+    'The comparison window does not end the day before the range starts, so the two windows overlap and every change is diluted by the days they share.');
+  need(read('js/format.js'), /daysBetweenInput\(from, to\)/,
+    'Day arithmetic for the comparison window lives outside format.js.');
+  // Its own cache key. Sharing the current window's key would serve one period's numbers as
+  // the other's the moment the range picker moved.
+  need(reports, /key: `reports:prev:\$\{id\}:\$\{window\.from\}:\$\{window\.to\}`/,
+    'The comparison fetch does not key its cache on its own window, so moving the range serves one period\'s numbers against another\'s.');
+  // A report must still draw when the comparison cannot be fetched.
+  need(reports, /async function fetchPrevious\(\)[\s\S]{0,700}catch \{\s*\n?\s*return null;/,
+    'A failed comparison fetch takes the whole report down with it. The change is the least important thing on the page.');
+  // One expression, both windows. Two expressions is how a comparison starts measuring
+  // something slightly different from the thing it is compared against.
+  need(reports, /const percent = card\.of \? card\.of\(state\.data \|\| \{\}\) : card\.percent;/,
+    'A reading no longer computes its value through one expression, so the current and previous numbers can be worked out differently.');
+  need(reports, /const change = card\.of && state\.previous \? changeOf\(percent, card\.of\(state\.previous\)\) : null;/,
+    'The change is not computed with the same expression as the value it belongs to.');
+  // Points, not per cent of a per cent: these readings are percentages already.
+  need(reports, /point\$\{points === 1 \? '' : 's'\}/,
+    'The change is not stated in percentage points, which on a reading that is itself a percentage is ambiguous.');
+  // The one rule that matters. Whether up is good depends on the reading: more dock time used
+  // is capacity earned, more cancelled is not. A green arrow on a rising cancellation rate is
+  // the page contradicting the verdict printed beside it.
+  forbid(css, /\.chg--up\{[^}]*color:var\(--ok\)/,
+    'The change arrow is coloured by direction. Up is not good on every reading, and on Cancelled a green arrow contradicts the verdict beside it.');
+  forbid(css, /\.chg--down\{[^}]*color:var\(--stop\)/,
+    'The change arrow is coloured by direction. Down is not bad on every reading.');
+  need(css, /\.chg\{[^}]*color:var\(--ink-muted\)/,
+    'The change chip is not drawn in ink, so it competes with the verdict colour on the same tile.');
+  // Absent and level are different answers: no comparison at all against measured and unmoved.
+  need(reports, /if \(change\.direction === 'level'\) return '<span class="chg chg--level"[^>]*>level<\/span>'/,
+    'A reading that was measured and did not move draws the same as one with nothing to compare against.');
+  // Both forms of the same reading carry it, or the switch changes what the page tells you.
+  need(read('js/ui/reading-tile.js'), /change = null/,
+    'The tile form cannot show a change, so switching from Dials to Fill loses it.');
+  need(reports, /aria-label="\$\{escapeHtml\(`\$\{label\}: \$\{value\.toFixed\(1\)\} per cent\$\{words \? `, \$\{words\}` : ''\}\$\{change \? `, \$\{change\.text\}` : ''\}/,
+    'The change is drawn but not spoken, so it is a fact only sighted readers get.');
+
   // ── The report mark is knocked out of the brand blue ───────────────────────
   //
   // A pale disc with a dark mark in it is decoration on the page. Reversed out of solid

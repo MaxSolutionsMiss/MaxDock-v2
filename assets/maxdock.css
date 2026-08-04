@@ -1918,6 +1918,26 @@ body.modal-open{overflow:hidden}
 .stat__v{font-family:var(--font-data);font-size:var(--t-metric);font-weight:600;line-height:1;
   color:var(--ink);font-variant-numeric:tabular-nums;letter-spacing:-.02em}
 .stat__v i{font-style:normal;font-size:var(--t-lead);font-weight:500;color:var(--ink-muted);margin-left:1px}
+/* How the reading moved against the window before it.
+
+   In ink, never in the good/bad palette, and this is the whole rule: whether up is good depends
+   on the reading. More dock time used is capacity being earned; more cancelled is not. A green
+   arrow on a rising cancellation rate would be the page contradicting itself, and the verdict
+   already has a colour of its own on the same tile. So the arrow says which way and the tone
+   stays neutral, one step lighter than the number it sits beside.
+
+   No font-variant-numeric: body sets tabular figures and this inherits them. letter-spacing is
+   restated, because that one is inherited from .stat__v's -.02em, a tracking chosen for a 27px
+   number and wrong on a 13px chip.
+
+   The caption rule is the dial's alone, and it sets size only: the dial separates the chip from
+   its note with a middot, so the left margin was landing on top of that and opening a gap wide
+   enough to read as a column break. The tile keeps the margin, because there the chip follows a
+   27px number with no separator between them. */
+.chg{font-family:var(--font-data);font-size:var(--t-small);font-weight:600;color:var(--ink-muted);
+  letter-spacing:0;margin-left:var(--s2);white-space:nowrap}
+.chg--level{color:var(--ink-faint)}
+.dial__l .chg{font-size:var(--t-micro);margin-left:0}
 .stat__track{position:relative;height:8px;border-radius:99px;background:var(--chart-track);overflow:visible}
 .stat__fill{display:block;height:100%;border-radius:99px;background:var(--c);max-width:100%}
 /* Where the reading has to get to. Overhangs the track top and bottom so it reads as a line

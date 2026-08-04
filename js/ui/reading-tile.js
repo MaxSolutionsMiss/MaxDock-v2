@@ -23,7 +23,11 @@
 
 const escapeHtml = value => String(value ?? '').replace(/[&<>'"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[char]));
 
-export function readingTile({ percent, label = '', note = '', words = '', tone = 'flat', target = null, over = false } = {}) {
+// `change` arrives already worked out and already drawn — direction, the chip's markup and the
+// sentence for a screen reader. Same discipline as the verdict above it: this file draws and
+// does not decide, so it cannot reach a different conclusion about a number than the dial of
+// the same reading standing next to it.
+export function readingTile({ percent, label = '', note = '', words = '', tone = 'flat', target = null, over = false, change = null } = {}) {
   // Never measured is not zero, and must not draw as an empty bar — that reads as a finding
   // when it is a gap in the data. The track is drawn and nothing is in it.
   if (percent === null || percent === undefined || !Number.isFinite(Number(percent))) {
@@ -40,9 +44,12 @@ export function readingTile({ percent, label = '', note = '', words = '', tone =
   // to be a target, so it is simply not drawn.
   const mark = target !== null && target > 0 && target < 100
     ? `<span class="stat__mark" style="left:${Number(target).toFixed(1)}%"></span>` : '';
+  // Beside the number rather than under the label, which is where the dial puts it. On a tile
+  // the number is the hero and the change belongs to the number; on a dial the face is full and
+  // the caption is where it fits. Both draw the same chip.
   return `<figure class="stat stat--${tone}${over ? ' stat--over' : ''}" role="img"
-    aria-label="${escapeHtml(`${label}: ${value.toFixed(1)} per cent${words ? `, ${words}` : ''}`)}">
-    <div class="stat__v">${value.toFixed(0)}<i>%</i></div>
+    aria-label="${escapeHtml(`${label}: ${value.toFixed(1)} per cent${words ? `, ${words}` : ''}${change ? `, ${change.text}` : ''}`)}">
+    <div class="stat__v">${value.toFixed(0)}<i>%</i>${change ? change.chip : ''}</div>
     <div class="stat__track">
       <span class="stat__fill" style="width:${shown.toFixed(1)}%"></span>
       ${mark}
