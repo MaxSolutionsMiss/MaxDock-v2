@@ -72,6 +72,25 @@ if (!failures.length) {
   // A share the person cancelled is them changing their mind, not a fault to report at them.
   check(/AbortError/.test(page), 'js/pages/my-appointments.js',
     'A share the person cancelled is reported back to them as a failure.');
+
+  // ── A booking does not disappear on the day it belongs to ───────────────────
+  //
+  // isUpcoming used to read "not in a terminal status AND the start time has not passed", and
+  // it took a card out from under the person who had just acted on it, two ways at once.
+  // Marking a load Shipped sets status completed, which counted as terminal, so it vanished the
+  // moment the truck pulled away -- on the road, due today, and no longer findable by whoever
+  // scanned it. Separately, a truck booked at 09:00 and being unloaded at 09:30 had already
+  // failed the start-time test, so a load standing at the dock was not upcoming either.
+  check(!/TERMINAL_STATUSES/.test(page), 'js/pages/my-appointments.js',
+    'A set of terminal statuses decides what is upcoming again, which is what made a load disappear the moment somebody marked it Shipped.');
+  check(/format\.inputDate\(record\.start_at, location\) === format\.todayInput\(location\)/.test(page),
+    'js/pages/my-appointments.js',
+    'A load that has started or finished today is not kept in view for the rest of its day, so acting on a booking makes it vanish.');
+  // Cancelled is the one thing held back, and that is not a disappearance: it has its own view
+  // and its own count, which is where somebody goes looking for it.
+  check(/normaliseStatus\(record\.status\) === 'cancelled'\) return false/.test(page),
+    'js/pages/my-appointments.js',
+    'Cancelled bookings are mixed into Upcoming, so the list somebody works from fills with loads that are not happening.');
 }
 
 console.log('\nMaxDock Stage 2 My Appointments verification');

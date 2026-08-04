@@ -9,7 +9,6 @@ import { createCustomizePanel } from '../ui/customize.js';
 import { renderQr } from '../ui/qr.js';
 import { toast } from '../ui/toast.js';
 
-const TERMINAL_STATUSES = new Set(['completed', 'cancelled', 'no_show']);
 const CANCELLABLE_STATUSES = new Set(['scheduled', 'confirmed']);
 const VIEW_LABELS = Object.freeze({
   upcoming: 'Upcoming',
@@ -67,9 +66,25 @@ function routeEnds(record) {
   return String(record.direction || '').toLowerCase() === 'outbound' ? [here, other] : [other, here];
 }
 
+// Still on somebody's plate: due later, or due today whatever has happened to it since.
+//
+// This used to be "not in a terminal status AND the start time has not passed", and it made a
+// booking vanish out from under the person who had just acted on it. Two ways, compounding.
+// Marking a load Shipped sets status completed, which was terminal, so the card disappeared the
+// moment the truck pulled away -- the load is on the road, the appointment is today, and the
+// person who scanned it now cannot find it. And separately, a truck booked at 09:00 and being
+// unloaded at 09:30 had already failed the start-time test, so a load actively at the dock was
+// not "upcoming" either.
+//
+// The owner's rule is that an appointment does not disappear on the day it belongs to. So a
+// load stays here until its own day is over, in whatever state it reached, and anything still
+// to come stays regardless. Cancelled is the one exception and it is not a disappearance: it
+// has a view and a count of its own, which is where somebody goes looking for it.
 function isUpcoming(record, now = format.nowEpoch()) {
-  return !TERMINAL_STATUSES.has(normaliseStatus(record.status))
-    && format.epoch(record.start_at) >= now;
+  if (normaliseStatus(record.status) === 'cancelled') return false;
+  if (format.epoch(record.start_at) >= now) return true;
+  const location = { timezone: record.location_timezone };
+  return format.inputDate(record.start_at, location) === format.todayInput(location);
 }
 
 // What a customer or coordinator has in hand when they come looking: the booking
