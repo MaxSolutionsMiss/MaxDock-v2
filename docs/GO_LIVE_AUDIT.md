@@ -157,8 +157,38 @@ you only find once. Worth folding into an existing shared module rather than a n
 
 **What I did not check**, so it is not implied: performance under load, behaviour on a slow or
 flapping connection beyond the retry logic, and accessibility beyond the ARIA already verified. No
-automated test exercises a booking end to end against a real database — the verifiers read source,
-and the layout sweep runs against a stubbed backend.
+automated test exercises a booking end to end against a **real** database — the verifiers read
+source, and the layout sweep runs against a stubbed backend.
+
+### 3a. A correction, and the lesson is about process rather than tooling
+
+I wrote above that the layout sweep runs against a stub, and used that to explain why the
+verifiers could not have caught the booking outage of 3 August. **That was wrong, and it let me
+off too lightly.**
+
+The sweep drives the real wizard against that stub, so it walks the steps like a person. It
+caught the outage exactly, eight times over:
+
+```
+wizard-step-blocked  (8)
+   board › book-appointment            @1440  step 2 would not advance
+                                              — "Choose one available appointment time."
+   my-appointments › book-appointment  @1440  step 2 would not advance
+                                              — "Choose one available appointment time."
+```
+
+The tooling saw it. **I committed and reported "all 21 verifiers green" without waiting for the
+one check that takes twelve minutes and actually uses the screen.** The 21 that finished in
+seconds all read source, and source-reading cannot see a wizard that will not advance.
+
+The rule that follows is worth more than the fix: **a change to a flow is not verified until the
+sweep has finished.** Fast checks say a change is well-formed. Only the slow one says it works.
+
+The same run also caught two faults in the on-time coverage reading added the same day — a label
+overflowing its card by 15px at 768, and a denominator that could fall below its numerator, so a
+site printed "Measured 11 of 10 scanned in". A load checked in and later cancelled is counted in
+both, and the subtraction dropped it from the denominator while leaving it in the numerator.
+Neither would have been found by reading the code.
 
 ---
 

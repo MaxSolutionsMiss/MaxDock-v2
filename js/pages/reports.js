@@ -663,7 +663,12 @@ function renderScorecard(kind) {
   //
   // The fix is not to guess at the missing ones. It is to publish the denominator, so a number
   // measured on 61 of 88 trucks says so and a manager can decide whether to believe it.
-  const expected = Math.max(trucks - noShows - cancelled, 0);
+  // Never smaller than what was actually measured. A load can be checked in and cancelled
+  // afterwards, in which case it is counted in `cancelled` and in `arrived` both, and the
+  // subtraction below drops it out of the denominator while leaving it in the numerator. The
+  // full sweep caught this on paper before anybody saw it in the yard: "Measured 11 of 10
+  // scanned in", which is not a sentence about anything.
+  const expected = Math.max(trucks - noShows - cancelled, arrived, 0);
   const coverage = expected ? Math.round((arrived / expected) * 1000) / 10 : null;
   const coverVerd = verdict(coverage);
   // Late by how much, not just how often. A carrier ten minutes late forty times and one
@@ -681,7 +686,7 @@ function renderScorecard(kind) {
       <article class="kpi kpi--ok"><span class="kpi__label">On time <span class="vd vd--${verd.key}">${verd.glyph}${escapeHtml(verd.words)}</span></span><span class="kpi__value">${overall === null ? '–' : overall.toFixed(1)}<span>%</span></span></article>
       <article class="kpi"><span class="kpi__label">${kind === 'location' ? 'Sites' : 'Vendors'}</span><span class="kpi__value">${rows.length}</span></article>
       <article class="kpi kpi--out"><span class="kpi__label">Trucks</span><span class="kpi__value">${compact(trucks)}</span></article>
-      <article class="kpi"><span class="kpi__label">Measured <span class="vd vd--${coverVerd.key}">${coverVerd.glyph}${escapeHtml(coverage === null ? 'nothing to measure' : `${arrived} of ${expected} scanned in`)}</span></span><span class="kpi__value">${coverage === null ? '–' : coverage.toFixed(0)}<span>%</span></span></article>
+      <article class="kpi"><span class="kpi__label">Measured <span class="vd vd--${coverVerd.key}">${coverVerd.glyph}${escapeHtml(coverage === null ? 'nothing to measure' : `${arrived} of ${expected} scanned`)}</span></span><span class="kpi__value">${coverage === null ? '–' : coverage.toFixed(0)}<span>%</span></span></article>
       <article class="kpi kpi--stop"><span class="kpi__label">No shows</span><span class="kpi__value">${noShows}</span></article>
     </div>
     ${coverage !== null && coverage < 90 ? `<p class="form-message">On time is measured only on loads that were scanned in at the dock. ${arrived} of ${expected} trucks were, so this percentage describes ${coverage.toFixed(0)}% of the work. The trucks nobody scanned are more likely to be the late ones, because the busiest mornings are the ones where scanning gets skipped, so treat the figure above as the best case until coverage is up.</p>` : ''}
