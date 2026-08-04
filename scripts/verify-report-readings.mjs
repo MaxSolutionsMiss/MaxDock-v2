@@ -211,6 +211,26 @@ if (!errors.length) {
   // to leave unwired. It was, on this page, until it moved somewhere people would press it.
   need(queue, /data-search-go[\s\S]{0,200}renderTable\(\)/,
     'The queue\'s magnifier does nothing when it is pressed.');
+  // ── The report mark is knocked out of the brand blue ───────────────────────
+  //
+  // A pale disc with a dark mark in it is decoration on the page. Reversed out of solid
+  // MaxDock blue it is a plate, and the same object as the MaxDock tile in the corner of the
+  // rail, which is what the owner asked it to match.
+  need(css, /\.panel__mark\{background:var\(--dock\);color:#fff\}/,
+    'The report mark sits in a wash again instead of being reversed out of the brand blue.');
+  // --dock, not --dock-deep. The deep one is the hover and the ink colour; the mark is meant
+  // to be the Max Solutions blue itself.
+  forbid(css, /\.panel__mark\{background:var\(--dock-deep\)/,
+    'The report mark uses the deep blue rather than the brand blue it was asked to match.');
+  // Reversed, the second tone needs more of itself: 42% white on solid blue is most of the way
+  // back to the ground, and the trailer band, the pallet foot and the second worker vanish.
+  need(css, /\.panel__mark \.mk \.mk__b\{opacity:\.5\d\}/,
+    'The mark\'s second tone is left at the value tuned for a pale badge. On solid blue that is nearly the background, so half of every mark disappears.');
+  // The empty and error badge is the same shape doing the opposite job: it introduces an empty
+  // list or a failure, and a solid brand-blue disc shouts at somebody just told nothing is there.
+  need(css, /\.state__icon,\.panel__mark\{[^}]*background:var\(--dock-wash\)/,
+    'The empty-state badge lost its wash. A solid brand-blue disc is the wrong volume for "nothing here" and "this failed".');
+
   // One outline around the whole glance, with the groups as columns inside it. Giving each
   // group its own card made a page of nothing but metric cards, which is a lot of border
   // for what is really one summary; a tinted panel behind cards was a box around boxes.

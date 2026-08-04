@@ -1601,12 +1601,29 @@ body.modal-open{overflow:hidden}
 .state__icon,.panel__mark{width:44px;height:44px;border-radius:50%;display:grid;place-items:center;background:var(--dock-wash);color:var(--dock-deep)}
 .state__icon{margin:0 auto var(--s3)}
 .state__icon svg,.panel__mark svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.7}
+/* The report mark is knocked out of solid MaxDock blue rather than sat in a wash of it.
+   A pale disc with a dark mark in it is a decoration on the page; the same mark reversed
+   out of the brand blue is a plate, and it is the same object as the MaxDock tile in the
+   corner of the rail, which is what the owner is matching it to.
+
+   Only the report mark. .state__icon above keeps the wash: that badge introduces an empty
+   list or a failure, and a solid brand-blue disc shouts at somebody who has just been told
+   nothing is there. Same shape, opposite job.
+
+   The blue is --dock, the Max Solutions blue itself, not --dock-deep. White on it measures
+   4.15:1, comfortably past the 3:1 that a graphic needs. */
+.panel__mark{background:var(--dock);color:#fff}
 /* A mark is a filled silhouette, not an outline. At 22px in a badge with nothing else in
    it an outline is faint and characterless, which is what the owner kept seeing. Two tones
    from one colour: the second is the same currentColor at lower opacity, so a mark works
-   in the report head's wash and in the brief's plain blue without a second variable. */
+   in the report head's blue and anywhere else it is dropped without a second variable. */
 .mk{fill:currentColor;stroke:none}
 .mk .mk__b{opacity:.42}
+/* Reversed, the second tone needs more of itself. 42% of a dark ink on a pale wash still
+   reads as a shape; 42% white on solid blue is most of the way back to the ground it sits
+   on, and the trailer band, the pallet foot and the second worker went missing at 22px.
+   55% puts them back at the same apparent separation the pale badge had. */
+.panel__mark .mk .mk__b{opacity:.55}
 /* A mark at the size of the line it belongs to, rather than in a badge of its own. A truck
    type is a row in a settings list and a field in the appointment window; naming it and
    drawing it beside each other is faster to find in a list of five than reading five names. */
