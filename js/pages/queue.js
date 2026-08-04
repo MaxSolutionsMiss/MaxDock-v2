@@ -5,7 +5,7 @@ import { renderState } from '../ui/empty.js';
 import { format } from '../format.js';
 import { createCustomizePanel } from '../ui/customize.js';
 import { openWall, paintWall } from '../ui/wall.js';
-import { pageHead, controlsBar, searchField } from '../ui/pagehead.js';
+import { pageHead, searchField } from '../ui/pagehead.js';
 import { createCombineDialog, combinableLanes, laneFullness, laneDescription, laneForRecord } from '../ui/combine-loads.js';
 import { createAppointmentDetails } from '../ui/appointment-details.js';
 
@@ -773,17 +773,27 @@ async function changeStatus(appointmentId, newStatus) {
   }
 }
 
+// Direction and a find on the title line, not in a band of their own underneath. This page is
+// fixed height: everything above the schedule is taken off the schedule, and a band cost about
+// seventy pixels to hold two controls that fit perfectly well beside the three buttons already
+// up there. Every control in the row is one height, so they read as one line rather than as a
+// toolbar bolted onto a title.
+//
+// Deliberately no date. The day picker belongs to the glance card, where the owner asked for it
+// and where it reads as part of the sentence the card is making. A second one up here would be
+// two controls for one thing, and the reader would have to work out which of them the page was
+// obeying.
+//
+// The fields carry their names in aria-label rather than above themselves: a stacked caption
+// would make them taller than the buttons and there would go the single line. Neither needs the
+// printed word. "All movements" says what the select is, and the search placeholder says what
+// can be typed into it.
 function buildShell(root) {
   root.innerHTML = `
-    ${pageHead('Operations queue', { actions: ['export', 'fullscreen', 'customize'] })}
-    ${/* Direction and a find, and deliberately no date. The day picker belongs to the glance
-        card, where the owner asked for it and where it reads as part of the sentence the card
-        is making. A second one up here would be two controls for one thing, and the reader
-        would have to work out which of them the page was obeying. */ ''}
-    ${controlsBar({
-      label: 'Operations queue controls',
-      filters: `<div class="ctrl-field"><label for="queue-direction">Direction</label><select class="select" id="queue-direction" data-filter-direction><option value="all">All movements</option><option value="inbound">Inbound</option><option value="outbound">Outbound</option></select></div>
-      ${searchField({ id: 'queue-search', placeholder: 'Reference, company, PO', attribute: 'data-filter-search' })}`,
+    ${pageHead('Operations queue', {
+      actions: ['export', 'fullscreen', 'customize'],
+      controls: `<select class="select select--head" id="queue-direction" data-filter-direction aria-label="Direction"><option value="all">All movements</option><option value="inbound">Inbound</option><option value="outbound">Outbound</option></select>
+      ${searchField({ id: 'queue-search', label: 'Search movements', placeholder: 'Reference, company, PO', attribute: 'data-filter-search', bare: true })}`,
     })}
     <div class="brief" data-brief></div>
     <div class="kpis" data-kpis></div>
@@ -827,6 +837,18 @@ function wireEvents(root) {
   // reading the screen while they type it, not composing a query and submitting it.
   root.addEventListener('input', event => {
     if (event.target.matches('[data-filter-search]')) { state.search = event.target.value; renderTable(); }
+  });
+  // The magnifier inside the box, the same as the dock board's. Filtering already happened as
+  // it was typed, so this reads what is in the field and draws again, which is the right thing
+  // whether it is pressed after typing or on an empty box. On the title line it stands beside
+  // Export and Full screen, so it has to do something when it is pressed.
+  root.addEventListener('click', event => {
+    if (!event.target.closest('[data-search-go]')) return;
+    const field = root.querySelector('[data-filter-search]');
+    if (!field) return;
+    state.search = field.value;
+    renderTable();
+    field.focus();
   });
   root.addEventListener('click', async event => {
     if (event.target.closest('[data-open-booking]')) globalThis.dispatchEvent(new CustomEvent('maxdock:open-booking', { detail: { trigger: event.target } }));

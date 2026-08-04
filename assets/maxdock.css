@@ -130,7 +130,24 @@ html[data-rail="mini"]{--rail-w:64px}
 .pagehead{display:flex;align-items:center;gap:var(--s3) var(--s4);margin-bottom:var(--s3);flex:none;flex-wrap:wrap}
 .pagehead__title{font-size:var(--t-title);font-weight:600;letter-spacing:-.015em;margin:0}
 .pagehead__sub{font-size:var(--t-small);color:var(--ink-muted);margin:1px 0 0}
-.pagehead__actions{margin-left:auto;display:flex;flex-wrap:wrap;gap:var(--s2)}
+/* align-items:center, because this row now holds fields as well as buttons. Stretched, a
+   select or a search box would grow to the tallest thing in the row and stop being --ctl-h,
+   which is the one number that makes a mixed row of controls line up without arranging it. */
+/* align-items:center, because this row now holds fields as well as buttons. Stretched, a
+   select or a search box would grow to the tallest thing in the row and stop being --ctl-h,
+   which is the one number that makes a mixed row of controls line up without arranging it.
+
+   flex:1 1 auto with the contents pushed to the end, rather than a left margin of auto. Left
+   to size itself, a wrapping flex container measured 633px against 974px of free row and
+   wrapped its own contents onto a second line — the queue's head came out 80px tall on a
+   1440 with three hundred pixels of empty space beside it. Growing it hands that space to
+   the row it belongs to; end-justified, every other page's buttons sit exactly where they
+   sat. The auto margin is what has to go: it and flex-grow are two answers to the same
+   question and the margin wins. */
+.pagehead__actions{flex:1 1 auto;display:flex;flex-wrap:wrap;align-items:center;justify-content:flex-end;gap:var(--s2)}
+/* A filter that sits on the title line rather than in a band. Sized to its longest option so
+   it does not take width off the search beside it, and never shorter than a tap target. */
+.select--head{flex:0 0 auto;width:auto;min-width:11.5em}
 .btn{font-family:inherit;font-size:var(--t-base);font-weight:500;border-radius:var(--radius);border:1px solid transparent;padding:0 14px;min-height:var(--ctl-h);height:var(--ctl-h);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:7px;white-space:nowrap}
 .btn svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.7}
 .btn--primary{background:var(--dock);color:#fff} .btn--primary:hover{background:var(--dock-hover)}
@@ -259,16 +276,30 @@ textarea{padding:8px 10px;min-height:70px;resize:vertical}
    floor is the whole fix: full width where there is room, narrower where there is not, and
    never wider than its own column. */
 .ctrl-field--find{flex:0 1 15.4em;min-width:11em}
+/* The head version: no stacked caption above the box, so the field is exactly one control
+   tall and the row it shares with Export and Full screen stays one line. Wider than the
+   banded one, because the head has the room a band did not and this is the field somebody
+   types a fifteen-character booking reference into.
+
+   Written here rather than up beside .pagehead__actions where it is used, and that is the
+   whole point: --bare and --find are both one class, so whichever is written last wins. Up
+   there it lost its width to --find and the field came out at the band's 15.4em with the
+   placeholder cut off at "Reference, company, P". Below the rule it modifies, it wins. */
+.ctrl-field--bare{flex:0 1 20em;min-width:11em}
+.ctrl-field--bare .searchbox{height:var(--ctl-h)}
 .searchbox{position:relative;display:flex;width:100%;min-width:0}
 .searchbox .input{flex:1 1 auto;min-width:0;padding-right:calc(var(--ctl-h) + 4px)}
 /* Two glyphs in one corner otherwise: the browser draws its own clear × for a
    type=search field, and it lands exactly where the magnifier is. */
 .searchbox .input::-webkit-search-cancel-button{-webkit-appearance:none;appearance:none}
 /* Inside the box, and two pixels shorter than it on every edge, so the field is
-   still exactly --ctl-h tall and nothing sticks out of it. Ruled off rather than
-   filled, so it reads as part of the field and not as a button parked beside one. */
+   still exactly --ctl-h tall and nothing sticks out of it. Ruled off *and* sunk: on a white
+   field a bare glyph read as decoration on the input rather than as the thing you press, and
+   the row it now shares with Export and Full screen is a row of pressable things. The tint is
+   the same one every quiet button takes on hover, so it is the panel grey of this product
+   and not a colour introduced for one control. */
 .searchbox__go{position:absolute;top:2px;right:2px;width:calc(var(--ctl-h) - 4px);height:calc(var(--ctl-h) - 4px);
-  display:grid;place-items:center;border:none;border-left:1px solid var(--rule);background:none;color:var(--ink-muted);
+  display:grid;place-items:center;border:none;border-left:1px solid var(--rule);background:var(--surface-sunk);color:var(--ink-muted);
   border-radius:0 3px 3px 0;cursor:pointer}
 .searchbox__go svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round}
 .searchbox__go:hover{color:var(--dock-deep);background:var(--dock-wash)}
@@ -1237,7 +1268,12 @@ html[data-text="larger"] .frow>.field--md:not(.field-action){grid-column:span 5}
    reached: on a laptop the last bullet of the fourth column fell below that line, so the one
    thing on this card worth acting on had to be scrolled to. The heading carries the job now —
    see .briefcol__t — and the column is a heading over its points, nothing else. */
-.briefcol{padding-left:var(--s4);border-left:1px solid var(--rule);display:grid;grid-template-columns:minmax(0,1fr);align-items:start;min-width:0}
+/* align-content, not only align-items. The columns are stretched to the tallest of the four,
+   and a grid whose rows are auto-sized spreads its spare height *between* those rows by
+   default — so a column with one bullet sat halfway down its box and no two headings in the
+   row started their points at the same height. It read as vertically centred because it was.
+   Every section now begins at the top of the row and the slack falls to the bottom. */
+.briefcol{padding-left:var(--s4);border-left:1px solid var(--rule);display:grid;grid-template-columns:minmax(0,1fr);align-items:start;align-content:start;min-width:0}
 /* The rule divides the two columns, so it belongs on the right-hand one of each pair rather
    than on everything after the first. With one column there is no pair and no rule. */
 .briefcol:first-child{border-left:none;padding-left:0}
@@ -1256,12 +1292,12 @@ html[data-text="larger"] .frow>.field--md:not(.field-action){grid-column:span 5}
   .briefcol:first-child{border-left:none;padding-left:0}
 }
 /* The heading is what tells the four sections apart, so it is a heading rather than the
-   caption it used to be: body size instead of caption size — a quarter larger — in full ink
-   rather than grey, and ruled off from its own points. Still uppercase and still tracked,
-   because four of these read as a set of named sections that way and as four sentences
-   otherwise. The rule is the section's, not the card's: it stops at the column's own width,
-   which is why it divides a heading from its points instead of cutting the card in two. */
-.briefcol__t{font-size:var(--t-base);line-height:1.2;text-transform:uppercase;letter-spacing:.05em;color:var(--ink);font-weight:700;margin:0 0 var(--s1);padding-bottom:var(--s1);border-bottom:1px solid var(--rule-strong)}
+   caption it used to be: body size instead of caption size — a quarter larger — uppercase,
+   tracked, and in MaxDock blue. Colour is what carries it. A rule under each heading did the
+   same job and cost four more lines on a card that already has three verticals and a border,
+   and four lines drawn to say "these are headings" is a lot of drawing for something the
+   headings can say themselves. Blue is the one thing on this card that is not grey. */
+.briefcol__t{font-size:var(--t-base);line-height:1.2;text-transform:uppercase;letter-spacing:.05em;color:var(--dock);font-weight:700;margin:0 0 var(--s2)}
 .briefpoints{margin:0;padding-left:1.1em;display:grid;gap:2px}
 .briefpoints li{font-size:var(--t-small);color:var(--ink-muted)}
 /* The references under a combining bullet. A line of their own, smaller and fainter, so

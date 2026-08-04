@@ -78,13 +78,20 @@ const ACTIONS = {
 //
 // The browser's own clear × for type=search is turned off in the stylesheet, or a
 // phone draws two glyphs in the same corner.
-export function searchField({ id, label = 'Search', placeholder = '', attribute }) {
+// `bare` drops the label above the field and hangs it off the input instead. That is for the
+// page head, where the box shares one line with the icon buttons: a stacked caption there
+// would make the search taller than everything beside it and break the single control height
+// the whole row is built on. The label still exists for a screen reader, and the placeholder
+// says what can be typed, so nothing is lost but the printed word.
+export function searchField({ id, label = 'Search', placeholder = '', attribute, bare = false }) {
+  const box = `<div class="searchbox">
+      <input class="input" type="search" id="${escapeHtml(id)}" placeholder="${escapeHtml(placeholder)}" ${attribute} autocomplete="off"${bare ? ` aria-label="${escapeHtml(label)}"` : ''}>
+      <button class="searchbox__go" type="button" data-search-go="${escapeHtml(id)}" aria-label="${escapeHtml(label)}" title="${escapeHtml(label)}">${icon('search')}</button>
+    </div>`;
+  if (bare) return `<div class="ctrl-field ctrl-field--find ctrl-field--bare">${box}</div>`;
   return `<div class="ctrl-field ctrl-field--find">
     <label for="${escapeHtml(id)}">${escapeHtml(label)}</label>
-    <div class="searchbox">
-      <input class="input" type="search" id="${escapeHtml(id)}" placeholder="${escapeHtml(placeholder)}" ${attribute} autocomplete="off">
-      <button class="searchbox__go" type="button" data-search-go="${escapeHtml(id)}" aria-label="${escapeHtml(label)}" title="${escapeHtml(label)}">${icon('search')}</button>
-    </div>
+    ${box}
   </div>`;
 }
 
@@ -114,11 +121,17 @@ export function pageHeadActions(actions = []) {
   return [...LEAD_ORDER, ...END_ORDER].filter(name => enabled.has(name)).map(actionButton).join('');
 }
 
-export function pageHead(title, { subtitleAttribute = 'data-subtitle', subtitle = '', actions = [] } = {}) {
+// `controls` puts a page's own filters on the title line, ahead of the output buttons, in
+// place of a band of its own underneath. A band costs about seventy pixels of vertical space
+// and the queue is a fixed-height page: seventy pixels there is the difference between the
+// day's reading being on screen and being scrolled to. Only pages whose filters genuinely fit
+// beside the buttons should use it — every control in the row is --ctl-h tall, so the fields
+// have to be passed bare, without the stacked caption a band would give them.
+export function pageHead(title, { subtitleAttribute = 'data-subtitle', subtitle = '', actions = [], controls = '' } = {}) {
   const buttons = pageHeadActions(actions);
   return `<div class="pagehead">
     <div><h1 class="pagehead__title">${escapeHtml(title)}</h1><p class="pagehead__sub" ${subtitleAttribute}>${escapeHtml(subtitle)}</p></div>
-    ${buttons ? `<div class="pagehead__actions">${buttons}</div>` : ''}
+    ${controls || buttons ? `<div class="pagehead__actions">${controls}${buttons}</div>` : ''}
   </div>`;
 }
 

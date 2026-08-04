@@ -134,8 +134,8 @@ if (!errors.length) {
   // and it cost about forty pixels of a card that has a ceiling and scrolls once it is
   // reached, so on a laptop the fourth column's last bullet — the Combining lane and the
   // button that acts on it — sat below the fold of the card itself. The heading took the
-  // job over: body size rather than caption size, full ink rather than grey, ruled off from
-  // its own points. So what is guarded here is the *height*, not the drawing.
+  // job over: body size rather than caption size, uppercase, and in MaxDock blue. So what is
+  // guarded here is the *height*, not the drawing.
   for (const group of ['Trucks', 'Labour', 'Combining', 'Attention']) {
     need(queue, new RegExp(`title: '${group}'`),
       `The glance has no ${group} section. The card is four named sections and it is four whether or not today has anything in one of them.`);
@@ -153,10 +153,46 @@ if (!errors.length) {
   // it was, a quarter bigger, which is the change that was asked for.
   need(css, /\.briefcol__t\{font-size:var\(--t-base\)/,
     'The glance headings are back at caption size. With no mark beside them that leaves four columns of near-identical grey text and nothing to tell them apart.');
-  need(css, /\.briefcol__t\{[^}]*border-bottom:1px solid/,
-    'Nothing rules a glance heading off from its own points, so the section title reads as the first line of the section rather than as its name.');
-  need(css, /\.briefcol__t\{[^}]*color:var\(--ink\)/,
-    'The glance headings are grey, the same weight of colour as the points under them.');
+  need(css, /\.briefcol__t\{[^}]*color:var\(--dock\)/,
+    'The glance headings are grey, the same weight of colour as the points under them. Colour is what tells them apart now that nothing is drawn.');
+  // A rule under each heading said "this is a heading" in four more lines, on a card that
+  // already carries three verticals and a border. The owner struck them: too many lines makes
+  // a summary card look busy, and blue says the same thing without drawing anything.
+  forbid(css, /\.briefcol__t\{[^}]*border-bottom/,
+    'Each glance heading is ruled off again. That is four more lines on a card that already has three verticals and a border, which is what made it read as busy.');
+  // The columns are stretched to the tallest of the four, and a grid with auto rows spreads
+  // its spare height between them unless told not to — so a short column sat halfway down its
+  // box and no two sections started their points at the same height.
+  need(css, /\.briefcol\{[^}]*align-content:start/,
+    'The glance sections are not anchored to the top of their row, so a column with less in it floats to the middle and the four sets of points no longer start on one line.');
+
+  // ── The queue's filters ride on the title line, not in a band ───────────────
+  //
+  // The queue is a fixed-height page: every pixel above the schedule is a pixel the schedule
+  // does not get, and the glance card is what gives way. A band holding one select and one
+  // search cost about seventy of them for two controls that fit beside the three buttons
+  // already on the title line. Removing it is what let the reading come up onto the screen.
+  forbid(queue, /controlsBar\(/,
+    'The operations queue has grown a controls band again. It is about seventy pixels on a page that cannot scroll, and it holds two controls that fit on the title line.');
+  need(queue, /pageHead\('Operations queue',[\s\S]{0,400}controls:/, 'The queue\'s filters are not on its title line.');
+  need(queue, /data-filter-direction[\s\S]{0,400}data-filter-search/,
+    'Direction and the search are no longer both in the head, so one of the two ways of narrowing the day has gone missing.');
+  // A stacked caption is what makes a field taller than a button, and one taller control is
+  // what turns a single line back into two. The names live on the controls instead.
+  need(queue, /aria-label="Direction"/, 'The direction select has no name at all now that its printed label is gone.');
+  need(queue, /bare: true/, 'The queue\'s search still carries a stacked caption, which makes it taller than the buttons beside it and wraps the head onto a second line.');
+  need(css, /\.pagehead__actions\{flex:1 1 auto/,
+    'The page head\'s action row sizes itself again. Left to do that it measured 633px against 974px of free row and wrapped its own contents, which is an 80px head with three hundred pixels of empty space beside it.');
+  need(css, /\.pagehead__actions\{[^}]*align-items:center/,
+    'The head row stretches its children, so a select or a search box beside the buttons stops being one control tall.');
+  // The magnifier was ruled off but not filled. On the title line it stands in a row of
+  // pressable things, and a bare glyph on a white field read as decoration on the input.
+  need(css, /\.searchbox__go\{[\s\S]{0,240}background:var\(--surface-sunk\)/,
+    'The magnifier has no ground of its own, so in a row beside Export and Full screen it reads as a mark printed on the field rather than as something to press.');
+  // Live filtering means the button is not needed to search — which is exactly why it is easy
+  // to leave unwired. It was, on this page, until it moved somewhere people would press it.
+  need(queue, /data-search-go[\s\S]{0,200}renderTable\(\)/,
+    'The queue\'s magnifier does nothing when it is pressed.');
   // One outline around the whole glance, with the groups as columns inside it. Giving each
   // group its own card made a page of nothing but metric cards, which is a lot of border
   // for what is really one summary; a tinted panel behind cards was a box around boxes.
