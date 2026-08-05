@@ -109,8 +109,34 @@ header says.
 and sign them in once saved. Then use "Forgot password" on the same login screen and confirm the
 recovery route lands on the same panel.
 
-**Undo.** Redeploy the previous function from the v1 repository and delete the secret. Both halves
-have to go back together, for the same reason they went forward together.
+**Undo.** Both halves go back together, for the same reason they went forward together: delete
+the secret, and redeploy the previous source. The previous source is in this repository's own
+history and does not have to be fetched from v1:
+
+```
+git show 8f8f759~1:supabase/functions/maxdock-invite-user/index.ts
+```
+
+That is verified, not assumed. On 2026-08-05 the deployed function was **version 10**, and its
+source was read in full and matches that commit exactly: same header, same
+`https://maxsolutionsmiss.github.io/MaxDock/db04` fallback, both `redirectTo` values still
+`${appUrl}/set-password.html`, and no other divergence. Deploying makes it version 11, and the
+whole of the change is three lines:
+
+```
+-  "https://maxsolutionsmiss.github.io/MaxDock/db04").replace(/\/$/, "");
++  "https://maxsolutionsmiss.github.io/MaxDock-v2").replace(/\/$/, "");
+-        options: {redirectTo: `${appUrl}/set-password.html`}
++        options: {redirectTo: `${appUrl}/?mode=setup`}
+-          redirectTo: `${appUrl}/set-password.html`,
++          redirectTo: `${appUrl}/?mode=setup`,
+```
+
+Nothing else in the function moves: not the CORS header, not username sign-in, not the password
+reset, the username change, the delete, or the invite and temporary-password paths.
+
+`verify_jwt` is already `false` on the deployed function, so there is nothing to change there and
+nothing to check afterwards.
 
 ## A2 — [owner] Point Supabase Auth at v2
 
