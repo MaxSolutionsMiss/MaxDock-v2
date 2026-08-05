@@ -4,9 +4,11 @@ import { poll } from '../poll.js';
 import { startPage } from '../router.js';
 import { renderState } from '../ui/empty.js';
 import { createModal } from '../ui/modal.js';
+import { controlsBar, pageHeadActions, icon } from '../ui/pagehead.js';
+import { createCustomizePanel } from '../ui/customize.js';
+import { renderQr } from '../ui/qr.js';
 import { toast } from '../ui/toast.js';
 
-const TERMINAL_STATUSES = new Set(['completed', 'cancelled', 'no_show']);
 const CANCELLABLE_STATUSES = new Set(['scheduled', 'confirmed']);
 const VIEW_LABELS = Object.freeze({
   upcoming: 'Upcoming',
@@ -15,6 +17,12 @@ const VIEW_LABELS = Object.freeze({
   all: 'All',
 });
 const VIEW_PREFERENCE_KEY = 'my-appointments';
+// The same bucket, limit and file types the dock board uses. A document attached from here is
+// the same document, in the same place, and appears on the load the plant is working from.
+const DOC_BUCKET = 'appointment-documents';
+const DOC_MAX_MB = 25;
+const DOC_MAX_BYTES = DOC_MAX_MB * 1024 * 1024;
+const DOC_ACCEPT = '.pdf,.jpg,.jpeg,.png,.heic,.webp,.doc,.docx,.xlsx,.csv';
 const CONTROL_FOCUS_REASON = 'my-appointments-control-focus';
 
 let activeContext = null;
@@ -23,9 +31,23 @@ let activeView = 'upcoming';
 let hosts = null;
 let cancelTarget = null;
 let cancelModal = null;
+let moveTarget = null;
+let moveModal = null;
 let interactionCleanup = [];
 let cards = new Map();
 let nextAppointmentSignature = '';
+let customizePanel = null;
+let visibleCards = [];
+let searchTerm = '';
+
+// Same markup, same element types and the same accent colours the board and the
+// queue use, so a metric card reads identically wherever it appears.
+const METRIC_CARDS = [
+  { id: 'upcoming', label: 'Upcoming', className: 'kpi--out' },
+  { id: 'past', label: 'Past', className: 'kpi--ok' },
+  { id: 'cancelled', label: 'Cancelled', className: 'kpi--stop' },
+  { id: 'total', label: 'Total', className: '' },
+];
 
 function createElement(tag, className, text) {
   const element = document.createElement(tag);
@@ -42,13 +64,50 @@ function statusLabel(value) {
   return format.role(normaliseStatus(value));
 }
 
+// Origin and destination, in the direction the load actually travels. Inbound is
+// somebody else's site to ours; outbound is ours to theirs.
+function routeEnds(record) {
+  const here = record.location_name || 'Max Solutions';
+  const other = String(record.company_name || record.display_counterpart_location_name || record.requester_name || '').trim() || 'Not named';
+  return String(record.direction || '').toLowerCase() === 'outbound' ? [here, other] : [other, here];
+}
+
+// Still on somebody's plate: due later, or due today whatever has happened to it since.
+//
+// This used to be "not in a terminal status AND the start time has not passed", and it made a
+// booking vanish out from under the person who had just acted on it. Two ways, compounding.
+// Marking a load Shipped sets status completed, which was terminal, so the card disappeared the
+// moment the truck pulled away -- the load is on the road, the appointment is today, and the
+// person who scanned it now cannot find it. And separately, a truck booked at 09:00 and being
+// unloaded at 09:30 had already failed the start-time test, so a load actively at the dock was
+// not "upcoming" either.
+//
+// The owner's rule is that an appointment does not disappear on the day it belongs to. So a
+// load stays here until its own day is over, in whatever state it reached, and anything still
+// to come stays regardless. Cancelled is the one exception and it is not a disappearance: it
+// has a view and a count of its own, which is where somebody goes looking for it.
 function isUpcoming(record, now = format.nowEpoch()) {
-  return !TERMINAL_STATUSES.has(normaliseStatus(record.status))
-    && format.epoch(record.start_at) >= now;
+  if (normaliseStatus(record.status) === 'cancelled') return false;
+  if (format.epoch(record.start_at) >= now) return true;
+  const location = { timezone: record.location_timezone };
+  return format.inputDate(record.start_at, location) === format.todayInput(location);
+}
+
+// What a customer or coordinator has in hand when they come looking: the booking
+// reference from the confirmation, the site, the PO the office quoted, or the
+// carrier on the gate.
+function matchesSearch(record) {
+  const term = searchTerm.trim().toLowerCase();
+  if (!term) return true;
+  return [
+    record.booking_reference, record.location_name, record.company_name,
+    record.carrier_name, record.external_reference, record.truck_type,
+  ].some(value => String(value || '').toLowerCase().includes(term));
 }
 
 function filterRecords(view, rows) {
   const now = format.nowEpoch();
+  rows = rows.filter(matchesSearch);
   switch (view) {
     case 'cancelled':
       return rows.filter(record => normaliseStatus(record.status) === 'cancelled');
@@ -67,10 +126,10 @@ function sortRecords(rows) {
 
 function appointmentTime(record) {
   const location = { timezone: record.location_timezone };
-  return `${format.date(record.start_at, location)} · ${format.time(record.start_at, location)}–${format.time(record.end_at, location)}`;
+  return `${format.dateShort(record.start_at, location)} · ${format.time(record.start_at, location)}–${format.time(record.end_at, location)}`;
 }
 
-function detailValue(value, fallback = '—') {
+function detailValue(value, fallback = '–') {
   const clean = String(value ?? '').trim();
   return clean || fallback;
 }
@@ -88,7 +147,7 @@ function renderMetrics() {
 function confirmationText(record) {
   return [
     `MaxDock appointment ${record.booking_reference}`,
-    `${record.location_name} — ${appointmentTime(record)}`,
+    `${record.location_name} · ${appointmentTime(record)}`,
     `${format.role(record.direction || '')} · ${detailValue(record.appointment_type)} · ${record.skid_count ?? 0} skids`,
     `Company: ${detailValue(record.company_name)}`,
     `Carrier: ${detailValue(record.carrier_name)}`,
@@ -103,6 +162,141 @@ async function copyConfirmation(record) {
     toast('Appointment confirmation copied.', 'success');
   } catch {
     toast('The appointment confirmation could not be copied.', 'error');
+  }
+}
+
+// What this site actually offers, which is not the same list at every site — the
+// same per-location mapping the booking wizard reads, asked for once per location
+// and kept, because a customer editing three loads at one site should not ask
+// three times. The promise is what is cached, so two dialogs opened quickly share
+// one round trip; a failure is dropped so the next open tries again.
+const editOptions = new Map();
+
+async function loadEnabledOptions(mappingTable, codeColumn, masterTable, locationId) {
+  const mappings = await db.select(mappingTable, query => query
+    .select(codeColumn)
+    .eq('location_id', locationId)
+    .eq('is_active', true), {
+    key: `mine:${mappingTable}:${locationId}`,
+    cache: 300000,
+    retry: 1,
+    userMessage: 'The booking options for this site could not be loaded.',
+  });
+  const codes = (mappings || []).map(row => row[codeColumn]);
+  if (!codes.length) return [];
+  return db.select(masterTable, query => query
+    .select('code, name, sort_order')
+    .in('code', codes)
+    .eq('is_active', true)
+    .order('sort_order'), {
+    key: `mine:${masterTable}:${locationId}`,
+    cache: 300000,
+    retry: 1,
+    userMessage: 'The booking options for this site could not be loaded.',
+  });
+}
+
+function loadEditOptions(locationId) {
+  if (!locationId) return Promise.resolve({ types: [], trucks: [], handling: [] });
+  if (editOptions.has(locationId)) return editOptions.get(locationId);
+  const pending = Promise.all([
+    loadEnabledOptions('location_appointment_types', 'appointment_type_code', 'appointment_types', locationId),
+    loadEnabledOptions('location_truck_types', 'truck_type_code', 'truck_types', locationId),
+    loadEnabledOptions('location_handling_types', 'handling_type_code', 'handling_types', locationId),
+  ]).then(([types, trucks, handling]) => ({ types: types || [], trucks: trucks || [], handling: handling || [] }));
+  pending.catch(() => editOptions.delete(locationId));
+  editOptions.set(locationId, pending);
+  return pending;
+}
+
+// The option already on the booking stays selectable even when the site has since
+// stopped offering it, because dropping it would silently change the load the
+// moment anything else on the dialog was saved.
+function fillOptions(select, rows, chosenCode, chosenName) {
+  const options = [...(rows || [])];
+  if (chosenCode && !options.some(row => row.code === chosenCode)) {
+    options.unshift({ code: chosenCode, name: chosenName || chosenCode });
+  }
+  select.replaceChildren();
+  for (const row of options) {
+    const option = createElement('option', '', row.name || row.code);
+    option.value = row.code;
+    select.append(option);
+  }
+  select.value = chosenCode || options[0]?.code || '';
+}
+
+function openMoveModal(record, trigger) {
+  moveTarget = record;
+  const location = { timezone: record.location_timezone };
+  hosts.moveReference.textContent = `${record.booking_reference} · ${record.location_name} · now ${format.timestamp(record.start_at, location)}`;
+  hosts.moveDate.value = format.inputDate(record.start_at, location);
+  hosts.moveDate.min = format.todayInput(location);
+  hosts.moveTime.value = format.inputTime(record.start_at, location);
+  hosts.editSkids.value = String(record.skid_count ?? 0);
+  hosts.editCarrier.value = record.carrier_name || '';
+  hosts.editReference.value = record.external_reference || '';
+  hosts.moveMessage.textContent = '';
+  // What is on the booking now, drawn straight away so the dialog opens reading
+  // correctly rather than with three empty selects that fill in a moment later.
+  fillOptions(hosts.editType, [], record.appointment_type_code, record.appointment_type);
+  fillOptions(hosts.editTruck, [], record.truck_type_code, record.truck_type);
+  fillOptions(hosts.editHandling, [], record.handling_type_code, record.handling_type);
+  moveModal.open({ trigger });
+  loadEditOptions(record.location_id).then(options => {
+    if (moveTarget !== record) return;
+    fillOptions(hosts.editType, options.types, hosts.editType.value, record.appointment_type);
+    fillOptions(hosts.editTruck, options.trucks, hosts.editTruck.value, record.truck_type);
+    fillOptions(hosts.editHandling, options.handling, hosts.editHandling.value, record.handling_type);
+  }).catch(() => {
+    // The dialog still works on the date and time alone; the selects keep what
+    // the booking already carries.
+  });
+}
+
+function closeMoveModal(options) {
+  moveTarget = null;
+  moveModal?.close(options);
+}
+
+// One call for the whole change. The server re-inspects the window with the load
+// as it will be — more skids is a longer truck window — so a change that no longer
+// fits comes back as a refusal rather than as an overlapping booking.
+async function confirmMove() {
+  if (!moveTarget) return;
+  const appointmentId = moveTarget.appointment_id;
+  const timezone = moveTarget.location_timezone;
+  const skids = Number(hosts.editSkids.value);
+  if (!hosts.moveDate.value || !hosts.moveTime.value) {
+    hosts.moveMessage.textContent = 'A date and a start time are needed.';
+    return;
+  }
+  if (!Number.isInteger(skids) || skids < 0) {
+    hosts.moveMessage.textContent = 'Enter how many skids the truck carries.';
+    return;
+  }
+  hosts.moveConfirm.disabled = true;
+  hosts.moveMessage.textContent = '';
+  try {
+    const result = await db.rpc('update_my_appointment', {
+      p_appointment_id: appointmentId,
+      p_date: hosts.moveDate.value,
+      p_start_time: hosts.moveTime.value,
+      p_appointment_type_code: hosts.editType.value || null,
+      p_truck_type_code: hosts.editTruck.value || null,
+      p_skid_count: skids,
+      p_handling_type_code: hosts.editHandling.value || null,
+      p_carrier_name: hosts.editCarrier.value.trim() || null,
+      p_external_reference: hosts.editReference.value.trim() || null,
+    }, { key: `appointment:edit:${appointmentId}:${format.nowEpoch()}`, retry: 0, userMessage: 'The appointment could not be changed.' });
+    db.invalidate('appointments:mine');
+    closeMoveModal({ restoreFocus: false });
+    toast(`${result.booking_reference} is now ${format.timestamp(result.start_at, { timezone })} · ${result.skid_count} skids.`, 'success');
+    await refreshData(true);
+  } catch (error) {
+    hosts.moveMessage.textContent = error.userMessage || error.message || 'The appointment could not be changed.';
+  } finally {
+    hosts.moveConfirm.disabled = false;
   }
 }
 
@@ -149,20 +343,138 @@ function createDetail(label) {
   return { element: item, value: description };
 }
 
+// A row action is an icon at the same height as every other button, with the
+// wording it replaces kept as its label so it still reads to a screen reader and
+// on hover. Three words of chrome per card, on every card, was the white space.
+// The link a driver actually needs: the receiving screen with this load's token in it. Asked
+// for only when somebody presses Show the code or Share, and cached by db for a minute, so
+// opening the same card twice does not ask twice.
+async function checkInUrl(record) {
+  const id = record?.appointment_id;
+  if (!id) return null;
+  const token = await db.rpc('get_appointment_check_in_token', { p_appointment_id: id }, {
+    key: `mine:token:${id}`, cache: 60000, retry: 1,
+  }).catch(() => null);
+  if (!token) return null;
+  const url = new URL('receiving.html', globalThis.location.href);
+  url.searchParams.set('t', token);
+  return url.href;
+}
+
+// What gets pasted into a text message. The reference and the time first, because that is what
+// somebody reads out over the phone, and the link last so it does not split the sentence.
+function shareText(record, url) {
+  const location = { timezone: record.location_timezone };
+  const when = record.start_at
+    ? `${format.shortDateInput(format.inputDate(record.start_at, location), location)} at ${format.time(record.start_at, location)}`
+    : '';
+  return [
+    `${record.booking_reference || 'MaxDock appointment'}${when ? ` · ${when}` : ''}`,
+    record.location_name ? `Dock: ${record.location_name}` : '',
+    'Scan or open this to check in at the dock:',
+    url,
+  ].filter(Boolean).join('\n');
+}
+
+const toastLike = message => toast(message, 'success');
+
+const documentSize = bytes => (bytes >= 1024 * 1024
+  ? `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+  : `${Math.max(1, Math.round(bytes / 1024))} KB`);
+
+// A mark for what kind of file it is, so a list of eight is skimmable. Not a preview: a PDF
+// thumbnail is a lot of work to say something the file name already says.
+const documentKind = (mime, name) => {
+  const value = `${mime || ''} ${name || ''}`.toLowerCase();
+  if (/pdf/.test(value)) return 'pdf';
+  if (/(image|jpe?g|png|heic|webp)/.test(value)) return 'image';
+  if (/(sheet|excel|csv|xlsx)/.test(value)) return 'sheet';
+  return 'file';
+};
+
+function createCardAction(name, label, className = 'btn btn--quiet btn--icon') {
+  const button = createElement('button', className);
+  button.type = 'button';
+  button.innerHTML = icon(name);
+  button.title = label;
+  button.setAttribute('aria-label', label);
+  return button;
+}
+
+// One line per event, in the site's own clock. The server already decided what a customer may
+// be told — no dock, no internal name, no token — so this only has to read well.
+function renderActivity(rows, record) {
+  const list = Array.isArray(rows) ? rows : [];
+  if (!list.length) return [createElement('p', 'hint', 'Nothing has happened to this booking yet.')];
+  const site = { timezone: record.location_timezone };
+  return list.map(row => {
+    const line = createElement('div', 'appointment-activity__row');
+    const when = createElement('span', 'appointment-activity__when', format.timestamp(row.happened_at, site));
+    const parts = [row.what];
+    if (row.moved_to) parts.push(`to ${format.timestamp(row.moved_to, site)}`);
+    if (row.detail) parts.push(`(${row.detail})`);
+    const what = createElement('span', 'appointment-activity__what', parts.join(' '));
+    line.append(when, what);
+    return line;
+  });
+}
+
 function createAppointmentCard(record) {
   let currentRecord = record;
   const element = createElement('article', 'appointment-card');
   element.dataset.appointmentId = record.appointment_id;
 
   const head = createElement('div', 'appointment-card__head');
-  const identity = createElement('div');
-  const reference = createElement('div', 'appointment-card__reference data');
-  const location = createElement('h3', 'appointment-card__title');
-  identity.append(reference, location);
+  // The same control the Users list uses to open a row: a quiet chevron at the far left that
+  // turns when it opens. It leads the head rather than trailing the card, so the way in is in
+  // the place the eye already starts.
+  const expand = createElement('button', 'btn btn--quiet btn--icon appointment-card__toggle');
+  expand.type = 'button';
+  expand.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg>';
+  expand.setAttribute('aria-expanded', 'false');
+  // Named here and not only in the click handler. The chevron is an icon-only button whose
+  // only child is aria-hidden, so until it was pressed once a screen reader read it as
+  // "button" and nothing else — and the whole point of the control is to be pressed first.
+  expand.title = 'Show activity';
+  expand.setAttribute('aria-label', `Show activity for ${record.booking_reference}`);
+  const identity = createElement('div', 'appointment-card__identity');
+  const reference = createElement('span', 'appointment-card__reference data');
+  // The line reads as the movement itself: which booking, from where, to where.
+  // It used to name only the Max Solutions site, which is the one thing every row
+  // in the list has in common — so fifty rows shared a headline and the empty
+  // middle of the card carried nothing at all.
+  const route = createElement('h3', 'appointment-card__title');
+  const origin = createElement('span', 'appointment-card__place');
+  const arrow = createElement('span', 'appointment-card__arrow');
+  arrow.setAttribute('aria-hidden', 'true');
+  arrow.textContent = '→';
+  const destination = createElement('span', 'appointment-card__place');
+  route.append(origin, arrow, destination);
+  const when = createElement('span', 'appointment-card__time');
+  identity.append(reference, route, when);
   const status = createElement('span', 'status');
-  head.append(identity, status);
+  const actions = createElement('div', 'appointment-card__actions');
+  const copy = createCardAction('copy', 'Copy confirmation');
+  const move = createCardAction('edit', 'Edit appointment');
+  move.dataset.moveAppointment = '';
+  const cancel = createCardAction('cancel', 'Cancel appointment', 'btn btn--danger btn--icon');
+  // The check-in code, and a way to pass it on.
+  //
+  // It was only ever on the dock board, which is the one screen an outside company cannot
+  // open. So a customer whose driver had lost the code had no way to get it again except to
+  // telephone the plant -- which is the call this product exists to remove. The database was
+  // already willing: get_appointment_check_in_token admits the creator and anybody whose email
+  // matches the requester, not just staff. Nothing had ever asked it from here.
+  const codeToggle = createCardAction('qr', 'Show the check-in code');
+  const share = createCardAction('share', 'Share this appointment');
+  // Paperwork arrives after the booking does. A bill of lading is not cut when somebody
+  // reserves a door on Tuesday for Thursday, so the only way to attach it used to be to email
+  // the plant and hope. This opens the same documents the dock board holds, for the person who
+  // made the booking, on the one screen they can actually open.
+  const docsToggle = createCardAction('doc', 'Documents');
+  actions.append(docsToggle, codeToggle, share, copy, move, cancel);
+  head.append(expand, identity, status, actions);
 
-  const when = createElement('p', 'appointment-card__time');
   const details = createElement('div', 'appointment-card__details');
   const detailRefs = [
     ['direction', 'Direction'],
@@ -176,23 +488,66 @@ function createAppointmentCard(record) {
   ].map(([key, label]) => ({ key, ...createDetail(label) }));
   details.append(...detailRefs.map(detail => detail.element));
 
-  const actions = createElement('div', 'appointment-card__actions');
-  const copy = createElement('button', 'btn btn--quiet', 'Copy confirmation');
-  copy.type = 'button';
+  // What has happened to this load. Closed until asked for, and fetched only then: a page of
+  // twenty bookings makes no requests for nineteen histories nobody opened.
+  const activity = createElement('div', 'appointment-activity');
+  activity.hidden = true;
+  let activityLoaded = false;
+  expand.addEventListener('click', async () => {
+    const open = expand.getAttribute('aria-expanded') !== 'true';
+    expand.setAttribute('aria-expanded', String(open));
+    expand.title = open ? 'Hide activity' : 'Show activity';
+    expand.setAttribute('aria-label', `${open ? 'Hide' : 'Show'} activity for ${currentRecord.booking_reference}`);
+    element.classList.toggle('is-open', open);
+    activity.hidden = !open;
+    if (!open || activityLoaded) return;
+    activityLoaded = true;
+    activity.textContent = 'Loading…';
+    try {
+      const rows = await db.rpc('list_my_appointment_activity', { p_appointment_id: currentRecord.appointment_id }, {
+        key: `mine:activity:${currentRecord.appointment_id}`, cache: 15000, retry: 1,
+        userMessage: 'That activity could not be loaded.',
+      });
+      activity.replaceChildren(...renderActivity(rows, currentRecord));
+    } catch (error) {
+      activityLoaded = false;
+      activity.textContent = error.userMessage || 'That activity could not be loaded.';
+    }
+  });
+
   copy.addEventListener('click', () => copyConfirmation(currentRecord));
-  const cancel = createElement('button', 'btn btn--danger', 'Cancel appointment');
-  cancel.type = 'button';
+  move.addEventListener('click', () => openMoveModal(currentRecord, move));
   cancel.addEventListener('click', () => openCancelModal(currentRecord, cancel));
-  actions.append(copy, cancel);
 
   function update(nextRecord) {
     currentRecord = nextRecord;
     reference.textContent = nextRecord.booking_reference;
-    location.textContent = nextRecord.location_name;
+    const [from, to] = routeEnds(nextRecord);
+    origin.textContent = from;
+    destination.textContent = to;
+    route.title = `${from} → ${to}`;
     when.textContent = appointmentTime(nextRecord);
     const nextStatus = normaliseStatus(nextRecord.status);
     status.className = `status status--${nextStatus}`;
     status.textContent = statusLabel(nextStatus);
+
+    // Both ends of a combine are said on the card: the load that was absorbed
+    // says where it went, and the truck that took it says how many it carries.
+    const reason = String(nextRecord.cancellation_reason || '').trim();
+    const combined = Number(nextRecord.combined_from_count || 0);
+    if (nextStatus === 'cancelled' && nextRecord.merged_into_reference) {
+      note.hidden = false;
+      note.textContent = `Combined onto ${nextRecord.merged_into_reference}. Those skids travel on that truck.`;
+    } else if (nextStatus === 'cancelled' && reason) {
+      note.hidden = false;
+      note.textContent = reason;
+    } else if (combined) {
+      note.hidden = false;
+      note.textContent = `⧉ ${combined} other load${combined === 1 ? '' : 's'} combined onto this one. It carries ${nextRecord.skid_count} skids in total.`;
+    } else {
+      note.hidden = true;
+      note.textContent = '';
+    }
 
     for (const detail of detailRefs) {
       const rawValue = detail.key === 'direction'
@@ -201,10 +556,230 @@ function createAppointmentCard(record) {
       detail.value.textContent = detailValue(rawValue);
     }
 
-    cancel.hidden = !(activeContext?.can('appointment.cancel_own') && CANCELLABLE_STATUSES.has(nextStatus) && isUpcoming(nextRecord));
+    // Shown to anyone allowed to use them and disabled rather than removed when
+    // the appointment is past or already closed. A control that vanishes reads as
+    // a missing feature; one that is greyed out with a reason on it reads as the
+    // rule it is — you cannot cancel a truck that has already been and gone.
+    const closed = !CANCELLABLE_STATUSES.has(nextStatus);
+    const past = !isUpcoming(nextRecord);
+    const why = closed ? `Already ${statusLabel(nextStatus).toLowerCase()}` : past ? 'This appointment has passed' : '';
+    cancel.hidden = !activeContext?.can('appointment.cancel_own');
+    // Whoever booked it may change it — vendor, customer, coordinator alike.
+    // Every row on this page is the signed-in account's own booking, so holding
+    // any of the permissions that let an account make or withdraw its own load is
+    // the same thing as being allowed to correct it. Gating on appointment.create
+    // alone would hide the control from an account that can cancel its booking
+    // but not raise a new one, which is a stranger rule than it sounds.
+    move.hidden = !['appointment.create', 'appointment.cancel_own', 'appointment.update']
+      .some(permission => activeContext?.can(permission));
+    for (const [button, label] of [[cancel, 'Cancel appointment'], [move, 'Edit appointment']]) {
+      button.disabled = Boolean(why);
+      button.title = why || label;
+      button.setAttribute('aria-label', why ? `${label}: ${why.toLowerCase()}` : label);
+    }
   }
 
-  element.append(head, when, details, actions);
+  // Why an appointment was cancelled, on the appointment. MaxDock cancels loads
+  // itself now when they are combined onto one truck, so "Cancelled" with nothing
+  // beside it would be the first thing a customer sees and the first phone call.
+  // Joined to the end of the detail row rather than given a line of its own. "Cancelled by a
+  // MaxDock administrator." is eight words, and a whole line plus its margins for eight words
+  // is most of the empty space on the card.
+  const note = createElement('span', 'appointment-card__note');
+  note.hidden = true;
+  // The note rides inside the detail row, so a card without one is exactly one line shorter
+  // rather than carrying an empty paragraph's worth of margin. It goes at the *front* of that
+  // row: the row runs off its own right edge by design — what does not fit is not drawn — so a
+  // reason appended to the end would have been written and never seen. On a cancelled load the
+  // reason outranks the handling type.
+  details.prepend(note);
+  // Closed until asked for, like the activity list, and for the same reason: a page of twenty
+  // bookings should not fetch twenty tokens nobody looked at.
+  const codePanel = createElement('div', 'qrbox');
+  codePanel.hidden = true;
+  const codeFrame = createElement('div', 'qr-frame');
+  const codeNote = createElement('p', 'qrbox__c');
+  codePanel.append(codeFrame, codeNote);
+  let codeLoaded = false;
+
+  codeToggle.addEventListener('click', async () => {
+    const open = codePanel.hidden;
+    codePanel.hidden = !open;
+    codeToggle.setAttribute('aria-pressed', String(open));
+    if (!open || codeLoaded) return;
+    codeLoaded = true;
+    codeNote.textContent = 'Loading the code…';
+    const url = await checkInUrl(currentRecord);
+    if (!url) {
+      codeLoaded = false;
+      codeNote.textContent = 'This appointment has no check-in code yet.';
+      return;
+    }
+    renderQr(codeFrame, url, { label: `Check-in code for MaxDock appointment ${currentRecord.booking_reference || ''}` });
+    codeNote.textContent = 'Send this to the driver. Scanning it checks the load in at the dock.';
+  });
+
+  // Share sends the code, not the page. A link to My Appointments is no use to a driver who
+  // has no MaxDock account; the check-in link is the thing that works in anybody's hands.
+  // Web Share where the device has it, which is every phone, and the clipboard everywhere else.
+  share.addEventListener('click', async () => {
+    const url = await checkInUrl(currentRecord);
+    if (!url) { toastLike('This appointment has no check-in code to share yet.'); return; }
+    const title = `MaxDock ${currentRecord.booking_reference || 'appointment'}`;
+    const text = shareText(currentRecord, url);
+    try {
+      if (navigator.share) { await navigator.share({ title, text, url }); return; }
+      await navigator.clipboard.writeText(text);
+      toastLike('Check-in details copied. Paste them to the driver.');
+    } catch (error) {
+      // A share the person cancelled is not a failure and must not be reported as one.
+      if (error?.name === 'AbortError') return;
+      toastLike('That could not be shared. Use Copy confirmation instead.');
+    }
+  });
+
+  // ── Documents ───────────────────────────────────────────────────────────────
+  //
+  // Closed until asked for, like the code and the activity, and for the same reason. What the
+  // person sees here is what they attached themselves: the plant's own paperwork stays on the
+  // dock board, so an internal note or photo cannot reach an outside company through this
+  // panel. Row-level security enforces that; this is only the screen.
+  const docsPanel = createElement('div', 'docbox');
+  docsPanel.hidden = true;
+  const docsList = createElement('div', 'docbox__list');
+  const docsAdd = createElement('div', 'docadd');
+  const docsFile = createElement('input', 'input');
+  docsFile.type = 'file';
+  docsFile.accept = DOC_ACCEPT;
+  docsFile.setAttribute('aria-label', `Choose a document for ${record.booking_reference}`);
+  const docsUpload = createElement('button', 'btn btn--quiet', 'Upload');
+  docsUpload.type = 'button';
+  docsAdd.append(docsFile, docsUpload);
+  const docsMessage = createElement('p', 'form-message');
+  docsMessage.setAttribute('aria-live', 'polite');
+  docsPanel.append(docsList, docsAdd, docsMessage);
+  let docsLoaded = false;
+
+  async function loadDocuments() {
+    docsList.textContent = 'Loading…';
+    try {
+      const rows = await db.select('appointment_documents', query => query
+        .select('id,file_name,mime_type,size_bytes,storage_path,uploaded_at')
+        .eq('appointment_id', currentRecord.appointment_id)
+        .order('uploaded_at', { ascending: false }), {
+        key: `mine:docs:${currentRecord.appointment_id}`, cache: 0, retry: 1,
+        userMessage: 'Your documents for this booking could not be read.',
+      });
+      renderDocuments(Array.isArray(rows) ? rows : []);
+    } catch (error) {
+      docsLoaded = false;
+      docsList.textContent = error.userMessage || 'Your documents for this booking could not be read.';
+    }
+  }
+
+  function renderDocuments(rows) {
+    if (!rows.length) {
+      docsList.replaceChildren(createElement('p', 'hint', 'You have not attached anything to this booking yet.'));
+      return;
+    }
+    const site = { timezone: currentRecord.location_timezone };
+    const list = createElement('ul', 'doclist');
+    rows.forEach(row => {
+      const item = createElement('li', 'docrow');
+      const kind = createElement('span', `docrow__k docrow__k--${documentKind(row.mime_type, row.file_name)}`);
+      kind.setAttribute('aria-hidden', 'true');
+      const name = createElement('span', 'docrow__n');
+      name.append(
+        createElement('b', '', row.file_name),
+        createElement('span', '', `${documentSize(Number(row.size_bytes || 0))} · ${format.dateShort(row.uploaded_at, site)}`),
+      );
+      const act = createElement('span', 'docrow__a');
+      const view = createElement('button', 'linkBtn', 'View');
+      view.type = 'button';
+      view.addEventListener('click', () => openDocument(row.storage_path));
+      const drop = createElement('button', 'linkBtn', 'Remove');
+      drop.type = 'button';
+      drop.setAttribute('aria-label', `Remove ${row.file_name}`);
+      drop.addEventListener('click', () => removeDocument(row));
+      act.append(view, drop);
+      item.append(kind, name, act);
+      list.append(item);
+    });
+    docsList.replaceChildren(list);
+  }
+
+  async function uploadDocument() {
+    const file = docsFile.files?.[0];
+    docsMessage.textContent = '';
+    if (!file) { docsMessage.textContent = 'Choose a file first.'; return; }
+    if (file.size > DOC_MAX_BYTES) {
+      docsMessage.textContent = `${file.name} is ${documentSize(file.size)}. The limit is ${DOC_MAX_MB} MB. Send a smaller scan or split it.`;
+      return;
+    }
+    // The site the booking sits at, and the booking itself, are the two path segments every
+    // policy on this bucket reads. Getting either wrong is refused rather than mis-filed.
+    const locationId = currentRecord.location_id;
+    if (!locationId) { docsMessage.textContent = 'This booking has no site recorded, so a document cannot be filed against it.'; return; }
+    docsUpload.disabled = true;
+    const safe = file.name.replace(/[^\w.\- ]+/g, '_').slice(0, 90);
+    const path = `${locationId}/${currentRecord.appointment_id}/${crypto.randomUUID()}-${safe}`;
+    try {
+      await db.storage.upload(DOC_BUCKET, path, file, { userMessage: 'The document could not be uploaded.' });
+      // The row goes in after the file lands, so a failed upload never leaves a line in the
+      // list pointing at something that is not there.
+      await db.insert('appointment_documents', {
+        appointment_id: currentRecord.appointment_id,
+        location_id: locationId,
+        storage_path: path,
+        file_name: file.name.slice(0, 200),
+        mime_type: file.type || null,
+        size_bytes: file.size,
+      }, { select: false, userMessage: 'The document was uploaded but could not be filed against this booking.' });
+      docsFile.value = '';
+      toastLike('Document attached.');
+      await loadDocuments();
+    } catch (error) {
+      docsMessage.textContent = error.userMessage || 'The document could not be uploaded.';
+    } finally {
+      docsUpload.disabled = false;
+    }
+  }
+
+  async function openDocument(path) {
+    docsMessage.textContent = '';
+    try {
+      const url = await db.storage.signedUrl(DOC_BUCKET, path, 300, { userMessage: 'That document could not be opened.' });
+      if (url) globalThis.open(url, '_blank', 'noopener');
+    } catch (error) {
+      docsMessage.textContent = error.userMessage || 'That document could not be opened.';
+    }
+  }
+
+  async function removeDocument(row) {
+    docsMessage.textContent = '';
+    try {
+      // The row first. If the object removal fails the list is already honest, and an orphaned
+      // object in a private bucket is invisible; the other order leaves a line nobody can open.
+      await db.remove('appointment_documents', query => query.eq('id', row.id),
+        { userMessage: 'That document could not be removed.' });
+      await db.storage.remove(DOC_BUCKET, [row.storage_path], { userMessage: 'That document could not be removed.' });
+      await loadDocuments();
+    } catch (error) {
+      docsMessage.textContent = error.userMessage || 'That document could not be removed.';
+    }
+  }
+
+  docsToggle.addEventListener('click', () => {
+    const open = docsPanel.hidden;
+    docsPanel.hidden = !open;
+    docsToggle.setAttribute('aria-pressed', String(open));
+    if (!open || docsLoaded) return;
+    docsLoaded = true;
+    loadDocuments();
+  });
+  docsUpload.addEventListener('click', uploadDocument);
+
+  element.append(head, details, codePanel, docsPanel, activity);
   update(record);
   return Object.freeze({ element, update, destroy: () => element.remove() });
 }
@@ -357,20 +932,33 @@ async function loadViewPreference() {
   }
 }
 
-async function saveViewPreference() {
-  try {
-    await db.rpc('save_user_preference', {
-      p_preference_key: VIEW_PREFERENCE_KEY,
-      p_preferences: { default_view: activeView },
-    }, {
-      key: `preference:${VIEW_PREFERENCE_KEY}:save`,
-      retry: 0,
-      userMessage: 'Your appointment view preference could not be saved.',
-    });
-    db.invalidate(`preference:${VIEW_PREFERENCE_KEY}`);
-  } catch {
-    toast('The view changed, but MaxDock could not save it as your default.', 'error');
-  }
+// Remembering which tab somebody likes is not worth a round trip per press.
+//
+// Every click on Upcoming / Past / Cancelled / All sent save_user_preference and then invalidated
+// the cached copy of the very thing it had just written. Switching costs nothing locally — the
+// records are already in memory and a switch paints in about 20ms — so what the owner was seeing
+// was the network: a request per press, and then a refetch of the preference behind it.
+//
+// It is a preference. It settles after the pressing stops. Clicking through all four tabs now
+// sends one write instead of four, and nothing is invalidated: activeView in this module is
+// already the truth, and re-reading a value we just set can only tell us what we know.
+let savePreferenceTimer = null;
+function saveViewPreference() {
+  clearTimeout(savePreferenceTimer);
+  savePreferenceTimer = setTimeout(async () => {
+    try {
+      await db.rpc('save_user_preference', {
+        p_preference_key: VIEW_PREFERENCE_KEY,
+        p_preferences: { default_view: activeView },
+      }, {
+        key: `preference:${VIEW_PREFERENCE_KEY}:save`,
+        retry: 0,
+        userMessage: 'Your appointment view preference could not be saved.',
+      });
+    } catch {
+      toast('The view changed, but MaxDock could not save it as your default.', 'error');
+    }
+  }, 700);
 }
 
 async function refreshData(force = false) {
@@ -382,13 +970,27 @@ async function refreshData(force = false) {
   }
 }
 
-function createMetric(label, key) {
-  const card = createElement('div', 'metric-card');
-  const value = createElement('strong', 'metric-card__value data', '0');
-  const caption = createElement('span', 'metric-card__label', label);
-  card.append(value, caption);
+function createMetric(label, key, className = '') {
+  const card = createElement('article', `kpi ${className}`.trim());
+  const value = createElement('span', 'kpi__value', '0');
+  const caption = createElement('span', 'kpi__label', label);
+  card.append(caption, value);
   hosts.metricValues[key] = value;
+  hosts.metricCards[key] = card;
   return card;
+}
+
+function applyVisibleCards() {
+  let shown = 0;
+  for (const card of METRIC_CARDS) {
+    const element = hosts.metricCards[card.id];
+    if (!element) continue;
+    element.hidden = !visibleCards.includes(card.id);
+    if (!element.hidden) shown += 1;
+  }
+  hosts.metrics.hidden = shown === 0;
+  const page = hosts.metrics.closest('.page');
+  page?.style.setProperty('--kpi-cols', String(Math.max(2, shown)));
 }
 
 function createViewControls() {
@@ -405,43 +1007,92 @@ function createViewControls() {
   return views;
 }
 
-function buildPage(root, context) {
-  hosts = { metricValues: {} };
+function exportCsv() {
+  const rows = [['Reference', 'Status', 'Direction', 'Start', 'End', 'Location', 'Company', 'Skids', 'Carrier', 'Reference number']];
+  for (const record of filterRecords(activeView, records)) {
+    const location = { timezone: record.location_timezone };
+    rows.push([
+      record.booking_reference, statusLabel(record.status), record.direction,
+      format.timestamp(record.start_at, location), format.timestamp(record.end_at, location),
+      record.location_name, record.company_name, record.skid_count, record.carrier_name, record.external_reference,
+    ]);
+  }
+  const csv = rows.map(row => row.map(value => `"${String(value ?? '').replaceAll('"', '""')}"`).join(',')).join('\n');
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+  link.download = `maxdock-my-appointments-${activeView}.csv`;
+  link.click();
+  URL.revokeObjectURL(link.href);
+}
 
-  const head = createElement('div', 'page__head');
+function buildPage(root, context) {
+  hosts = { metricValues: {}, metricCards: {} };
+
+  const head = createElement('div', 'pagehead');
   const heading = createElement('div');
-  const title = createElement('h1', 'page__title', 'My appointments');
-  const subtitle = createElement('p', 'page__sub', context.customerShell
+  const title = createElement('h1', 'pagehead__title', 'My appointments');
+  const subtitle = createElement('p', 'pagehead__sub', context.customerShell
     ? 'View and manage your MaxDock bookings.'
     : `${context.location.name} · Your bookings`);
   heading.append(title, subtitle);
   head.append(heading);
+  const headActions = createElement('div', 'pagehead__actions');
+  headActions.innerHTML = pageHeadActions(['export', 'customize']);
+  head.append(headActions);
 
-  const metrics = createElement('section', 'metric-grid');
+  const metrics = createElement('section', 'kpis');
   metrics.setAttribute('aria-label', 'Appointment summary');
-  metrics.append(
-    createMetric('Upcoming', 'upcoming'),
-    createMetric('Past', 'past'),
-    createMetric('Cancelled', 'cancelled'),
-    createMetric('Total', 'total'),
-  );
+  metrics.append(...METRIC_CARDS.map(card => createMetric(card.label, card.id, card.className)));
 
   const next = createElement('section', 'panel next-appointment');
   next.setAttribute('aria-label', 'Next appointment');
 
-  const toolbar = createElement('div', 'appointment-toolbar');
+  // The view switcher and the page's output actions live in the same controls band
+  // every other screen uses, so Print and the gear sit where they always sit.
+  const controls = createElement('div');
+  controls.innerHTML = controlsBar({ label: 'Appointment controls', actions: [['book', context.can('appointment.create')]] });
+  const controlsHost = controls.firstElementChild;
   const views = createViewControls();
-  const toolbarMeta = createElement('div', 'profile appointment-toolbar__meta');
+  const search = createElement('label', 'ctrl-field appointment-search');
+  const searchLabel = createElement('span', '', 'Search');
+  const searchInput = createElement('input', 'input');
+  searchInput.type = 'search';
+  searchInput.placeholder = 'Reference, site, PO';
+  searchInput.autocomplete = 'off';
+  searchInput.dataset.appointmentSearch = '';
+  search.append(searchLabel, searchInput);
+
+  const toolbarMeta = createElement('div', 'controls__filters appointment-toolbar__meta');
   const count = createElement('span', 'appointment-toolbar__count data');
   count.setAttribute('aria-live', 'polite');
   const updated = createElement('span', 'page-updated muted');
   toolbarMeta.append(count, updated);
-  toolbar.append(views, toolbarMeta);
+  const lead = controlsHost.querySelector('.controls__lead') || controlsHost;
+  lead.append(views);
+  // Three groups, the same three every band on every page has: what you are
+  // looking at on the left, how much of it and when it was read in the middle,
+  // and the box to narrow it hard against the right edge. The find box used to be
+  // auto-placed into the middle column beside the count and the timestamp, where
+  // it ran straight into them; the band's own end group is where it belongs, and
+  // it lands under the output controls that sit there on every other screen.
+  lead.after(toolbarMeta);
+  const end = controlsHost.querySelector('.controls__end') || createElement('div', 'controls__end');
+  end.append(search);
+  controlsHost.append(end);
 
+  // Left column scrolls on its own so the appointments below the fold can be
+  // reached; previously the list sat directly in the viewport-height page column
+  // with nothing scrollable, so everything past the first screen was unreachable.
+  const split = createElement('div', 'split split--list');
+  const listPanel = createElement('section', 'panel panel--fill');
+  const listScroll = createElement('div', 'panel__scroll');
   const list = createElement('section', 'appointment-list');
   list.setAttribute('aria-label', 'Appointments');
+  listScroll.append(list);
+  listPanel.append(listScroll);
+  split.append(listPanel, next);
 
-  const cancelBackdrop = createElement('div', 'modal-backdrop');
+  const cancelBackdrop = createElement('div', 'scrim');
   cancelBackdrop.hidden = true;
   const dialog = createElement('section', 'modal');
   dialog.setAttribute('role', 'dialog');
@@ -463,7 +1114,43 @@ function buildPage(root, context) {
   dialog.append(modalTitle, modalMessage, modalActions);
   cancelBackdrop.append(dialog);
 
-  root.append(head, metrics, next, toolbar, list, cancelBackdrop);
+  // Moving a booking rather than cancelling it and losing the slot. The same
+  // rules a new booking passes apply, including this location's minimum notice,
+  // so the answer comes back from the server rather than being guessed here.
+  const moveBackdrop = createElement('div', 'scrim');
+  moveBackdrop.hidden = true;
+  const moveDialog = createElement('section', 'modal modal--md');
+  moveDialog.setAttribute('role', 'dialog');
+  moveDialog.setAttribute('aria-modal', 'true');
+  moveDialog.setAttribute('aria-labelledby', 'move-appointment-title');
+  // Edit, not only move. A load that turns out to be 22 skids rather than 15 was
+  // a cancellation and a rebooking; it is a change now. The skids are here
+  // because changing them changes how long the truck needs, which is exactly
+  // what decides whether the time asked for is still free.
+  moveDialog.innerHTML = `
+    <div class="modal__head"><div><h2 class="modal__title" id="move-appointment-title">Edit this appointment</h2><p class="modal__sub" data-move-reference></p></div><button class="modal__x" type="button" data-move-dismiss aria-label="Close">×</button></div>
+    <div class="modal__body">
+      <div class="frow">
+        <label class="field field--md"><span class="field__label">Date</span><input class="input" type="date" data-move-date required></label>
+        <label class="field field--sm"><span class="field__label">Start time</span><input class="input" type="time" data-move-time required></label>
+        <div class="field field--num"><span class="field__label">Skids</span><span class="inputwrap"><input class="input" type="number" min="0" max="9999" data-edit-skids><span class="input__unit">skids</span></span></div>
+      </div>
+      <div class="frow">
+        <label class="field field--md"><span class="field__label">Appointment type</span><select class="select" data-edit-type></select></label>
+        <label class="field field--md"><span class="field__label">Truck type</span><select class="select" data-edit-truck></select></label>
+        <label class="field field--md"><span class="field__label">Handling</span><select class="select" data-edit-handling></select></label>
+      </div>
+      <div class="frow">
+        <label class="field field--lg"><span class="field__label">Carrier <span class="field__opt">optional</span></span><input class="input" data-edit-carrier maxlength="120"></label>
+        <label class="field field--lg"><span class="field__label">PO / BOL / job</span><input class="input" data-edit-reference maxlength="20"></label>
+      </div>
+      <p class="hint">The time has to clear this location's notice period and have a compatible dock free. Changing the skids changes how long the truck needs, so the time is checked again against the new load.</p>
+      <p class="form-message" data-move-message aria-live="polite"></p>
+    </div>
+    <div class="modal__foot"><button class="btn btn--quiet" type="button" data-move-dismiss>Cancel</button><button class="btn btn--primary" type="button" data-move-confirm>Save changes</button></div>`;
+  moveBackdrop.append(moveDialog);
+
+  root.append(head, controlsHost, metrics, split, cancelBackdrop, moveBackdrop);
 
   Object.assign(hosts, {
     metrics,
@@ -476,11 +1163,32 @@ function buildPage(root, context) {
     cancelReference,
     cancelConfirm,
     cancelDismiss,
+    moveBackdrop,
+    moveReference: moveDialog.querySelector('[data-move-reference]'),
+    moveDate: moveDialog.querySelector('[data-move-date]'),
+    moveTime: moveDialog.querySelector('[data-move-time]'),
+    editSkids: moveDialog.querySelector('[data-edit-skids]'),
+    editType: moveDialog.querySelector('[data-edit-type]'),
+    editTruck: moveDialog.querySelector('[data-edit-truck]'),
+    editHandling: moveDialog.querySelector('[data-edit-handling]'),
+    editCarrier: moveDialog.querySelector('[data-edit-carrier]'),
+    editReference: moveDialog.querySelector('[data-edit-reference]'),
+    moveMessage: moveDialog.querySelector('[data-move-message]'),
+    moveConfirm: moveDialog.querySelector('[data-move-confirm]'),
   });
 
   cancelModal = createModal(cancelBackdrop, {
     initialFocus: cancelConfirm,
     onRequestClose: () => closeCancelModal(),
+  });
+
+  moveModal = createModal(moveBackdrop, {
+    initialFocus: hosts.moveDate,
+    onRequestClose: () => closeMoveModal(),
+  });
+  moveBackdrop.addEventListener('click', event => {
+    if (event.target.closest('[data-move-dismiss]')) closeMoveModal();
+    if (event.target.closest('[data-move-confirm]')) confirmMove();
   });
 }
 
@@ -506,7 +1214,26 @@ function bindInteractions() {
     });
   };
 
+  // Filtering as you type. The metric cards recount too, so "3 upcoming" always
+  // means three of the ones actually on screen.
+  const onSearch = event => {
+    if (!event.target.matches('[data-appointment-search]')) return;
+    searchTerm = event.target.value;
+    renderMetrics();
+    renderAppointments();
+  };
+
+  const onHeadAction = event => {
+    if (event.target.closest('[data-export]')) exportCsv();
+    const customize = event.target.closest('[data-customize]');
+    if (customize) customizePanel?.open(customize);
+    const booking = event.target.closest('[data-open-booking]');
+    if (booking) globalThis.dispatchEvent(new CustomEvent('maxdock:open-booking', { detail: { trigger: booking } }));
+  };
+
   hosts.views.addEventListener('click', onViewClick);
+  activeContext.pageRoot.addEventListener('click', onHeadAction);
+  activeContext.pageRoot.addEventListener('input', onSearch);
   hosts.cancelDismiss.addEventListener('click', closeCancelModal);
   hosts.cancelConfirm.addEventListener('click', confirmCancellation);
   activeContext.pageRoot.addEventListener('focusin', onFocusIn);
@@ -514,6 +1241,8 @@ function bindInteractions() {
 
   interactionCleanup = [
     () => hosts?.views.removeEventListener('click', onViewClick),
+    () => activeContext?.pageRoot?.removeEventListener('click', onHeadAction),
+    () => activeContext?.pageRoot?.removeEventListener('input', onSearch),
     () => hosts?.cancelDismiss.removeEventListener('click', closeCancelModal),
     () => hosts?.cancelConfirm.removeEventListener('click', confirmCancellation),
     () => activeContext?.pageRoot?.removeEventListener('focusin', onFocusIn),
@@ -535,10 +1264,20 @@ const page = {
     activeContext = context;
     records = [];
     activeView = 'upcoming';
+    searchTerm = '';
     cards = new Map();
     nextAppointmentSignature = '';
     buildPage(context.pageRoot, context);
     bindInteractions();
+    customizePanel = await createCustomizePanel({
+      preferenceKey: 'my-appointment-cards',
+      options: METRIC_CARDS.map(card => ({ id: card.id, group: 'Metric cards', label: card.label })),
+      defaultIds: METRIC_CARDS.map(card => card.id),
+      max: METRIC_CARDS.length,
+      onChange: selected => { visibleCards = selected; applyVisibleCards(); },
+    });
+    visibleCards = customizePanel.selected;
+    applyVisibleCards();
     await loadViewPreference();
     await refreshData(true);
   },
@@ -552,6 +1291,8 @@ const page = {
     closeCancelModal({ restoreFocus: false });
     cancelModal?.destroy();
     cancelModal = null;
+    customizePanel?.destroy();
+    customizePanel = null;
     for (const cleanup of interactionCleanup.splice(0)) cleanup();
     for (const card of cards.values()) card.destroy();
     cards.clear();

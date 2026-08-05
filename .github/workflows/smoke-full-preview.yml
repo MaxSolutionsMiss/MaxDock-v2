@@ -1,0 +1,113 @@
+name: Smoke Full Preview
+on:
+  push:
+    branches: [feat/stage4-dock-board]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  smoke-preview:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wait for Pages propagation
+        run: sleep 30
+      - name: Verify deployed routes and assets
+        env:
+          BASE: https://maxsolutionsmiss.github.io/MaxDock-v2/stage4-preview
+        run: |
+          set -euo pipefail
+          for path in \
+            / \
+            /app/board.html \
+            /app/queue.html \
+            /app/my-appointments.html \
+            /app/settings.html \
+            /app/reports.html \
+            /app/users.html \
+            /app/data.html \
+            /app/book.html \
+            /assets/maxdock.css \
+            /js/router.js \
+            /js/pages/board.js \
+            /js/pages/queue.js \
+            /js/pages/settings.js \
+            /js/pages/reports.js \
+            /js/pages/users.js \
+            /js/pages/data.js \
+            /js/pages/booking.js \
+            /js/ui/modal.js; do
+            curl --fail --silent --show-error --location --retry 8 --retry-delay 3 --output /dev/null "${BASE}${path}?sha=${GITHUB_SHA}"
+          done
+      - name: Verify deployed Supabase loaders
+        env:
+          BASE: https://maxsolutionsmiss.github.io/MaxDock-v2/stage4-preview
+        run: |
+          set -euo pipefail
+          expected='<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.52.1/dist/umd/supabase.min.js"></script>'
+          for page in queue reports settings users data; do
+            curl --fail --silent --show-error --location --retry 8 --retry-delay 3 "${BASE}/app/${page}.html?sha=${GITHUB_SHA}" -o "/tmp/${page}.html"
+            grep -Fq "$expected" "/tmp/${page}.html"
+            grep -Fq 'id="app-root"' "/tmp/${page}.html"
+            grep -Fq 'type="module"' "/tmp/${page}.html"
+          done
+      - name: Verify deployed canonical CSS and direct modal
+        env:
+          BASE: https://maxsolutionsmiss.github.io/MaxDock-v2/stage4-preview
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --location --retry 8 --retry-delay 3 "${BASE}/assets/maxdock.css?sha=${GITHUB_SHA}" -o /tmp/maxdock.css
+          curl --fail --silent --show-error --location --retry 8 --retry-delay 3 "${BASE}/js/router.js?sha=${GITHUB_SHA}" -o /tmp/router.js
+          curl --fail --silent --show-error --location --retry 8 --retry-delay 3 "${BASE}/js/pages/booking.js?sha=${GITHUB_SHA}" -o /tmp/booking.js
+          # Components the app actually renders, so a truncated or stale stylesheet
+          # fails here. .capbar used to be on this list and was reached by nothing —
+          # the assertion only froze dead bytes in a budgeted file.
+          test "$(grep -c '\.brief' /tmp/maxdock.css)" -gt 0
+          test "$(grep -c '\.tlb' /tmp/maxdock.css)" -gt 0
+          test "$(grep -c '\.kpis' /tmp/maxdock.css)" -gt 0
+          test "$(grep -c '\.passwordReveal' /tmp/maxdock.css)" -gt 0
+          test "$(grep -c '\.login-page' /tmp/maxdock.css)" -gt 0
+          test "$(grep -c '\.toast-region' /tmp/maxdock.css)" -gt 0
+          # The booking page is lazily imported, which is what this asserts. The
+          # deploy stamps the commit onto asset URLs so a release invalidates the
+          # browser cache by itself, and that stamp lands on import specifiers too —
+          # so the specifier is matched with an optional ?v=, not verbatim. The
+          # assertion is unchanged in substance: no stamp, or a stamp, but an import.
+          grep -qE "import\('\./pages/booking\.js(\?v=[0-9a-f]+)?'\)" /tmp/router.js
+          grep -q 'bookingPage.mount' /tmp/router.js
+          grep -q 'createModal' /tmp/router.js
+          grep -q 'book_appointment' /tmp/booking.js
+          ! grep -q '<iframe' /tmp/router.js
+          ! grep -q 'bookingModalMarkup' /tmp/router.js
+      - name: Verify deployed pages are backend-wired, not mockups
+        env:
+          BASE: https://maxsolutionsmiss.github.io/MaxDock-v2/stage4-preview
+        run: |
+          set -euo pipefail
+          # A 200 on these modules only proves a file exists. Assert the deployed
+          # bytes carry the real backend wiring so a stale Pages artifact fails here
+          # instead of looking healthy.
+          for page in queue reports settings users data; do
+            curl --fail --silent --show-error --location --retry 8 --retry-delay 3 \
+              "${BASE}/js/pages/${page}.js?sha=${GITHUB_SHA}" -o "/tmp/page-${page}.js"
+            grep -Eq "db\.(rpc|select|insert|update|remove|edge)\(" "/tmp/page-${page}.js"
+            ! grep -q 'mountComposedPage' "/tmp/page-${page}.js"
+          done
+          grep -q 'change_appointment_status' /tmp/page-queue.js
+          grep -q 'maxdock-ai-brief' /tmp/page-queue.js
+          grep -q 'list_return_load_opportunities' /tmp/page-queue.js
+          grep -q 'get_ai_operations_context' /tmp/page-reports.js
+          grep -q 'admin_list_users_with_identity' /tmp/page-users.js
+          grep -q 'maxdock-invite-user' /tmp/page-users.js
+          grep -q 'admin_import_inventory_snapshots' /tmp/page-data.js
+          grep -q 'location_operating_hours' /tmp/page-settings.js
+          # Header controls must come from the shared helper on every page that has them.
+          curl --fail --silent --show-error --location --retry 8 --retry-delay 3 \
+            "${BASE}/js/ui/pagehead.js?sha=${GITHUB_SHA}" -o /tmp/pagehead.js
+          for label in 'Export CSV' 'Print' 'Full screen' 'Book appointment'; do
+            grep -Fq "$label" /tmp/pagehead.js
+          done
+          for page in board queue reports users; do
+            curl --fail --silent --show-error --location --retry 8 --retry-delay 3 \
+              "${BASE}/js/pages/${page}.js?sha=${GITHUB_SHA}" -o "/tmp/head-${page}.js"
+            grep -q 'pageHead(' "/tmp/head-${page}.js"
+          done

@@ -42,6 +42,12 @@ jobs:
             exit 1
           fi
 
+      - name: Every shipped module must parse
+        run: node scripts/verify-modules.mjs
+
+      - name: Date arithmetic
+        run: node scripts/verify-format.mjs
+
       - name: Run Claude architecture checker
         shell: bash
         run: |
@@ -62,3 +68,115 @@ jobs:
 
       - name: Test both verifiers against clean and bad fixtures
         run: node scripts/test-verifiers.mjs
+
+      - name: Bulk user import
+        run: node scripts/verify-users-import.mjs
+
+      - name: Verify bulk appointment import
+        run: node scripts/verify-appointments-import.mjs
+
+      - name: Verify per-role rail visibility
+        run: node scripts/verify-role-visibility.mjs
+
+      - name: Which truck a combined run needs
+        run: node scripts/verify-truck-ladder.mjs
+
+      - name: Documents on an appointment
+        run: node scripts/verify-appointment-documents.mjs
+
+      - name: What the board and the queue show
+        run: node scripts/verify-schedule-metrics.mjs
+
+      - name: How a report reading is drawn
+        run: node scripts/verify-report-readings.mjs
+
+      - name: No em dashes in anything the site renders
+        run: node scripts/verify-no-em-dashes.mjs
+
+      - name: Where a combined load came from
+        run: node scripts/verify-combine-trail.mjs
+
+      - name: Reading a settings section against editing one
+        run: node scripts/verify-edit-mode.mjs
+
+      - name: Scanning a load in at the dock
+        run: node scripts/verify-qr-scan.mjs
+
+      - name: The rollback document still matches what it preserves
+        run: node scripts/verify-rollback-doc.mjs
+
+      - name: Hit areas on the compact controls
+        run: node scripts/verify-tap-targets.mjs
+
+  layout:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # Its own step, because two different browser checks run below and installing inside
+      # the first of them makes the second depend on the first having got that far.
+      - name: Install a browser
+        env:
+          PLAYWRIGHT_BROWSERS_PATH: /home/runner/.cache/ms-playwright
+        run: |
+          npm i --no-save playwright@1.56.1
+          npx playwright install --with-deps chromium
+
+      - name: Render every page and audit its layout
+        # Catches clipped fields, dead space in form rows, undersized hit targets,
+        # unequal KPI cards and inconsistent spacing before a person has to notice.
+        if: '!cancelled()'
+        env:
+          AUDIT_STRICT: '1'
+          PLAYWRIGHT_BROWSERS_PATH: /home/runner/.cache/ms-playwright
+        run: node scripts/audit-layout.mjs
+
+      - name: The chrome must not move between pages
+        # The header, rail, location selector, bell and account controls are the parts that
+        # are the same on every screen. A few pixels of drift reads as "cheap" and is the
+        # kind of fault nobody can name, so it is measured rather than looked at. Guarded
+        # with !cancelled() for the reason the flows job spells out: a spacing fault must not
+        # be able to hide a different fault behind it.
+        if: '!cancelled()'
+        env:
+          PLAYWRIGHT_BROWSERS_PATH: /home/runner/.cache/ms-playwright
+        run: node scripts/verify-chrome-stability.mjs
+
+  # Its own job, not three more steps under the layout audit. A label wrapping onto a
+  # second line would fail that audit and *skip* these, so a functional regression in
+  # combining, importing or role access could sit behind a spacing fault and never be
+  # reported. Two different questions deserve two answers on every push.
+  flows:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install a browser
+        env:
+          PLAYWRIGHT_BROWSERS_PATH: /home/runner/.cache/ms-playwright
+        run: |
+          npm i --no-save playwright@1.56.1
+          npx playwright install --with-deps chromium
+
+      - name: Walk combining from a board block to the load leaving both boards
+        # Combining existed on both sides and had never once been carried through:
+        # no appointment in the database had ever been merged, because the only way
+        # in was a line in the operations brief. This drives the whole path.
+        if: '!cancelled()'
+        env:
+          PLAYWRIGHT_BROWSERS_PATH: /home/runner/.cache/ms-playwright
+        run: node scripts/verify-combine-end-to-end.mjs
+
+      - name: Import a sheet of loads from Data integration
+        # A spreadsheet of next week is how a site actually arrives on MaxDock, and
+        # the import must never become a second way to create an appointment.
+        if: '!cancelled()'
+        env:
+          PLAYWRIGHT_BROWSERS_PATH: /home/runner/.cache/ms-playwright
+        run: node scripts/verify-import-end-to-end.mjs
+
+      - name: Arrange a role's access and read it back off the rail
+        # Taking a link off a rail must never be able to become a lock, and a System
+        # Admin must never be able to lose Settings.
+        if: '!cancelled()'
+        env:
+          PLAYWRIGHT_BROWSERS_PATH: /home/runner/.cache/ms-playwright
+        run: node scripts/verify-rail-end-to-end.mjs

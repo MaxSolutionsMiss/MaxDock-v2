@@ -1,0 +1,1835 @@
+import { startPage } from '../router.js';
+import { db } from '../db.js';
+import { toast } from '../ui/toast.js';
+import { createModal } from '../ui/modal.js';
+import { pageHead } from '../ui/pagehead.js';
+import { format } from '../format.js';
+import { createShortcutCard } from '../ui/shortcut-card.js';
+import { toCsv, downloadFile } from '../ui/sheet.js';
+
+const DAY_LABELS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+const DAY_ORDER = [1, 2, 3, 4, 5, 6, 0];
+const SLOT_INTERVALS = [5, 10, 15, 20, 30, 60];
+
+// One subject to a section, named for what it is. A section that holds two
+// unrelated subjects makes both harder to find — "Docks & truck types" was two
+// screens with an ampersand between them, and the rule for combining loads was
+// buried under Dock assignment where nobody would look for it.
+//
+// Nine became eight in the pre-release audit, and the three moves it found were all cases
+// where the page was already telling on itself in its own help text:
+//
+//   Skids per truck was under Capacity while the same trailers' enable switch and setup
+//   minutes were under Truck types — whose hint read "Skids per truck is under Capacity".
+//   A section that has to say where the rest of itself is has been split in the wrong place.
+//   Both halves are now under Trucks, and Capacity means one thing: how much the floor holds.
+//
+//   Cap a day was under Labour, which is not what it is: it is a booking limit for one date.
+//   Its hint read "Standing limits live under Dock assignment", two clicks away under an
+//   unrelated heading, and the two controls had different names for the same idea — "Most at
+//   once" against "At once". They are one subject now, under one name, in Capacity & limits.
+//
+//   Booking window & notice was a whole section for two numbers. It joins combining and dock
+//   assignment under Booking rules, which is the question all three answer: what MaxDock does
+//   when somebody books. Dock assignment was also invisible before — it was rendered inside
+//   Docks and named nowhere, so anybody looking for "how does MaxDock pick a door" had to
+//   open a table and scroll past it.
+const SECTIONS = [
+  { id: 'hours', label: 'Operating hours' },
+  { id: 'timing', label: 'Timing & duration' },
+  { id: 'booking', label: 'Booking rules' },
+  { id: 'capacity', label: 'Capacity & limits' },
+  { id: 'docks', label: 'Docks' },
+  { id: 'trucks', label: 'Trucks' },
+  { id: 'labour', label: 'Labour' },
+  { id: 'quickqr', label: 'Quick QR codes' },
+];
+
+const state = {
+  context: null,
+  locationId: null,
+  canManage: false,
+  canManageDocks: false,
+
+  canManageLabour: false,
+  labourDay: null,
+  shifts: [],
+  holidays: [],
+  dayCaps: [],
+  section: 'hours',
+  hours: [],
+  settings: null,
+  docks: [],
+  truckTypes: [],
+  locationTruckTypes: [],
+  dockTruckTypes: [],
+  directionWindows: [],
+  // Which windows are unlocked for editing right now, by section-form name.
+  editing: new Set(),
+  appointmentTypes: [],
+  handlingTypes: [],
+  shortcuts: [],
+  locations: [],
+  elements: {},
+  dockModal: null,
+  editingDockId: null,
+  shortcutModal: null,
+  shortcutCard: null,
+  editingShortcutId: null,
+};
+
+const escapeHtml = value => String(value ?? '').replace(/[&<>'"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[char]));
+const timeInput = value => (value ? String(value).slice(0, 5) : '');
+
+// A datetime-local input speaks the browser's local clock with no zone. The
+// stored value is an instant, so it is rendered in the location's own time —
+// a count taken at 7am in Langley is 7am to the person who took it.
+function localDateTime(value) {
+  if (!value) return '';
+  const location = state.context?.location;
+  return `${format.inputDate(value, location)}T${format.inputTime(value, location)}`;
+}
+
+// A duration is stored in one unit and thought about in another. Two hours' notice
+// is two hours to the manager setting it and 120 to the column holding it; making
+// them type 120 is asking them to do the conversion the page can do. The unit is a
+// choice beside the number, and the value comes back in whichever unit the column
+// uses. Reading back, the largest unit the value divides into evenly is picked, so
+// 120 comes back as "2 hours" and 90 as "90 minutes".
+const UNIT_MINUTES = { minutes: 1, hours: 60, days: 1440, weeks: 10080 };
+const NOTICE_UNITS = ['minutes', 'hours', 'days'];
+const AHEAD_UNITS = ['days', 'weeks'];
+// Hours and days only: the column holds hours, so a minute would round away.
+const WINDOW_UNITS = ['hours', 'days'];
+const LEAD_UNITS = ['hours', 'days'];
+// A code that picks its own time always leaves a gap; four hours is the working
+// default, so the field is never a blank nobody knows to fill in.
+const LEAD_DEFAULT_MINUTES = 240;
+
+function unitParts(storedValue, baseUnit, units) {
+  // An unset value stays unset, so a field with a placeholder does not read as a
+  // deliberate zero.
+  if (storedValue === '' || storedValue === null || storedValue === undefined) return { value: '', unit: baseUnit };
+  const minutes = Number(storedValue || 0) * UNIT_MINUTES[baseUnit];
+  for (const unit of [...units].reverse()) {
+    const size = UNIT_MINUTES[unit];
+    if (minutes >= size && minutes % size === 0) return { value: minutes / size, unit };
+  }
+  return { value: Number(storedValue || 0), unit: baseUnit };
+}
+
+function durationField(label, name, storedValue, baseUnit, units, disabled) {
+  const { value, unit } = unitParts(storedValue, baseUnit, units);
+  const options = units.map(item => `<option value="${item}" ${item === unit ? 'selected' : ''}>${item}</option>`).join('');
+  return `<div class="field field--num field--dur"><span class="field__label">${escapeHtml(label)}</span><span class="inputwrap">
+    <input class="input" type="number" min="0" name="${name}" value="${value}" ${disabled}>
+    <select class="select unitsel" name="${name}__unit" aria-label="${escapeHtml(label)} unit" ${disabled}>${options}</select>
+  </span></div>`;
+}
+
+function durationValue(data, name, baseUnit, units) {
+  const unit = units.includes(data.get(`${name}__unit`)) ? data.get(`${name}__unit`) : baseUnit;
+  return Math.round(Number(data.get(name) || 0) * UNIT_MINUTES[unit] / UNIT_MINUTES[baseUnit]);
+}
+
+async function fetchAll() {
+  const locationId = state.locationId;
+  const [hours, settings, docks, truckTypes, locationTruckTypes, dockTruckTypes, capacity, directionWindows,
+    appointmentTypes, handlingTypes, shortcuts, labourDay, shifts, holidays, dayCaps] = await Promise.all([
+    db.select('location_operating_hours', q => q.select('location_id,day_of_week,is_open,open_time,close_time').eq('location_id', locationId), { key: `settings:hours:${locationId}`, cache: 0 }),
+    db.select('location_settings', q => q.select('*').eq('location_id', locationId).maybeSingle(), { key: `settings:row:${locationId}`, cache: 0 }),
+    db.select('docks', q => q.select('id,name,description,sort_order,direction_mode,is_active').eq('location_id', locationId).order('sort_order').order('name'), { key: `settings:docks:${locationId}`, cache: 0 }),
+    db.select('truck_types', q => q.select('code,name').eq('is_active', true).order('sort_order'), { key: 'truck-types:active', cache: 60000 }),
+    db.select('location_truck_types', q => q.select('truck_type_code,setup_minutes,is_active,skid_capacity').eq('location_id', locationId), { key: `settings:location-truck-types:${locationId}`, cache: 0 }),
+    db.select('dock_truck_types', q => q.select('dock_id,truck_type_code').eq('location_id', locationId), { key: `settings:dock-truck-types:${locationId}`, cache: 0 }),
+    db.rpc('get_location_capacity_projection', { p_location_id: locationId, p_at: format.nowIso(), p_direction: 'inbound', p_skid_count: 0 }, { key: `settings:capacity:${locationId}`, cache: 0, retry: 1 }).catch(() => null),
+    db.rpc('list_dock_direction_windows', { p_location_id: locationId }, { key: `settings:windows:${locationId}`, cache: 0, retry: 1 }).catch(() => []),
+    db.select('appointment_types', q => q.select('code,name').eq('is_active', true).order('sort_order'), { key: 'appointment-types:active', cache: 60000 }),
+    db.select('handling_types', q => q.select('code,name').eq('is_active', true).order('sort_order'), { key: 'handling-types:active', cache: 60000 }),
+    db.select('booking_templates', q => q
+      .select('id,owner_user_id,location_id,name,is_shared,direction,requester_type,company_name,appointment_type_code,truck_type_code,skid_count,handling_type_code,is_priority,carrier_name,auto_time,lead_minutes,updated_at')
+      .eq('location_id', locationId).eq('is_shared', true).order('name'), { key: `settings:shortcuts:${locationId}`, cache: 0 }),
+    // Today's recorded crew, if there is one, so the form opens showing what is
+    // already on record for today rather than an empty box that overwrites it.
+    db.select('location_labour_days', q => q.select('work_date,people,hours_each,note').eq('location_id', locationId).order('work_date', { ascending: false }).limit(1), { key: `settings:labour-day:${locationId}`, cache: 0 }).catch(() => []),
+    db.select('location_shifts', q => q.select('id,name,start_time,end_time,people,days_of_week,is_active,sort_order').eq('location_id', locationId).order('sort_order').order('start_time'), { key: `settings:shifts:${locationId}`, cache: 0 }).catch(() => []),
+    // Only what is still ahead: a list of dates that have already passed is not a
+    // setting anybody reviews.
+    db.select('location_holidays', q => q.select('holiday_date,name,source').eq('location_id', locationId).gte('holiday_date', format.todayInput()).order('holiday_date'), { key: `settings:holidays:${locationId}`, cache: 0 }).catch(() => []),
+    db.select('location_day_limits', q => q.select('limit_date,max_concurrent_appointments,max_appointments,note').eq('location_id', locationId).gte('limit_date', format.todayInput()).order('limit_date'), { key: `settings:day-caps:${locationId}`, cache: 0 }).catch(() => []),
+  ]);
+  state.hours = hours || [];
+  state.capacity = Array.isArray(capacity) ? capacity[0] || null : capacity || null;
+  state.settings = settings || null;
+  state.labourDay = (labourDay || [])[0] || null;
+  state.shifts = shifts || [];
+  state.holidays = holidays || [];
+  state.dayCaps = dayCaps || [];
+  state.docks = docks || [];
+  state.truckTypes = truckTypes || [];
+  state.locationTruckTypes = locationTruckTypes || [];
+  state.dockTruckTypes = dockTruckTypes || [];
+  state.directionWindows = groupWindows(directionWindows);
+  state.appointmentTypes = appointmentTypes || [];
+  state.handlingTypes = handlingTypes || [];
+  state.shortcuts = shortcuts || [];
+}
+
+
+// Every settings window ends the same way: Reset, Save, Edit — one size, in that
+// order, and the same size as Add dock at the top of the window, because controls
+// that do the same kind of job should not be two different shapes on one screen.
+// A window arrives locked; nothing on a settings screen should change because
+// somebody leaned on a dropdown while reading it. Edit unlocks the window it
+// belongs to; Save puts it back to locked; Reset throws the edit away and does
+// the same.
+// Two modes, two sets of buttons, and only the set that applies is on screen.
+//
+// It used to show all three at once and grey out the two that did not apply, which put a
+// blue Save and a blue Edit side by side with one of them dead. A disabled primary button
+// reads as broken rather than as "not yet", and with two of them nobody could tell which
+// one the screen wanted. Reading a section offers one thing: Edit. Editing one offers two:
+// throw it away, or keep it.
+//
+// "Cancel", not "Reset": reset means back to defaults, which is a different and more
+// frightening promise than discarding the change just made.
+function saveFoot(canEdit) {
+  if (!canEdit) return '';
+  return `<div class="form-actions form-actions--edit">
+    <span class="editflag" data-edit-flag hidden>Editing</span>
+    <button class="btn btn--quiet btn--sm" type="button" data-edit-section>Edit</button>
+    <button class="btn btn--quiet btn--sm" type="button" data-reset hidden>Cancel</button>
+    <button class="btn btn--primary btn--sm" type="submit" hidden>Save changes</button>
+  </div><p class="form-message" data-save-message aria-live="polite"></p>`;
+}
+
+// Locking is applied after the markup is drawn, not baked into it, so a control
+// that is already disabled for its own reason — a closing time on a day the site
+// is shut, the window length when the mode is "same day" — stays disabled when
+// the window is unlocked. What that control was before the lock is remembered on
+// the element itself, because the panel is re-rendered from scratch on every
+// change and there is nowhere else for it to live.
+function applyLocks() {
+  for (const form of state.elements.panel.querySelectorAll('[data-section-form]')) {
+    const foot = form.querySelector('.form-actions--edit');
+    if (!foot) continue;
+    const editing = state.editing.has(form.dataset.sectionForm);
+    for (const control of form.querySelectorAll('input,select,textarea,button')) {
+      // A control that opens its own dialog and saves on its own is not part of
+      // this window's Save, so the lock has nothing to do with it — Add dock is
+      // still Add dock while the in-service switches beside it are locked.
+      if (foot.contains(control) || control.hasAttribute('data-unlocked')) continue;
+      if (editing) control.disabled = control.dataset.lockedWas === '1';
+      else {
+        control.dataset.lockedWas = control.disabled ? '1' : '0';
+        control.disabled = true;
+      }
+    }
+    // Swapped, not disabled. A greyed-out Save beside a live Edit is two controls where
+    // there is one decision.
+    foot.querySelector('[data-edit-section]').hidden = editing;
+    foot.querySelector('[data-reset]').hidden = !editing;
+    foot.querySelector('[type="submit"]').hidden = !editing;
+    foot.querySelector('[data-edit-flag]').hidden = !editing;
+    // The whole section says it is open, not just the buttons at the bottom of it.
+    form.classList.toggle('secform--on', editing);
+  }
+}
+
+function editSection(form) {
+  state.editing.add(form.dataset.sectionForm);
+  applyLocks();
+  form.querySelector('input:not([disabled]),select:not([disabled]),textarea:not([disabled])')?.focus();
+}
+
+function renderHours() {
+  const canEdit = state.canManage;
+  const rows = DAY_ORDER.map(day => {
+    const row = state.hours.find(item => item.day_of_week === day) || {};
+    const isOpen = row.is_open !== false;
+    return `<div class="hourrow" data-day="${day}">
+      <span class="day">${DAY_LABELS[day]}</span>
+      <input class="input" type="time" name="open" aria-label="${DAY_LABELS[day]} opening time" value="${escapeHtml(timeInput(row.open_time))}" ${isOpen ? '' : 'disabled'} ${canEdit ? '' : 'readonly disabled'}>
+      <input class="input" type="time" name="close" aria-label="${DAY_LABELS[day]} closing time" value="${escapeHtml(timeInput(row.close_time))}" ${isOpen ? '' : 'disabled'} ${canEdit ? '' : 'readonly disabled'}>
+      <button type="button" class="switch ${isOpen ? '' : 'switch--off'}" data-hours-switch aria-pressed="${isOpen}" aria-label="${DAY_LABELS[day]} open" ${canEdit ? '' : 'disabled'}></button>
+    </div>`;
+  }).join('');
+  return `<div class="stack"><form data-section-form="hours">
+    <h3 class="card__title">Operating hours</h3>
+    <div class="hours">${rows}</div>
+    <p class="hint">Staff may book outside these hours with a warning. Customers cannot.</p>
+    ${saveFoot(canEdit)}
+  </form>
+  ${renderHolidays(canEdit)}
+  ${renderDirectionWindows(canEdit)}</div>`;
+}
+
+// Statutory holidays, worked out rather than typed in. Operating hours are per
+// weekday and cannot know that this particular Monday is Family Day.
+//
+// Applying the calendar blocks every dock across each date, which is what a closed
+// day already is in this application — so the slot search, every booking path and
+// the board all honour it without learning a new idea. A date that already has
+// trucks booked on it is reported back rather than cleared: cancelling somebody's
+// load behind their back is not MaxDock's decision to make.
+function renderHolidays(canEdit) {
+  const chosen = state.settings?.holiday_calendar || 'none';
+  const year = format.yearOf(state.context?.location);
+  const upcoming = (state.holidays || []).slice(0, 8);
+  const list = upcoming.length
+    ? `<div class="tablewrap"><table class="table"><thead><tr><th>Date</th><th class="col-fill">Holiday</th><th>Source</th></tr></thead><tbody>${upcoming.map(row => `<tr>
+        <td class="data data--strong">${escapeHtml(format.dateShort(`${row.holiday_date}T12:00:00Z`, state.context.location))}</td>
+        <td class="data">${escapeHtml(row.name)}</td>
+        <td><span class="tag tag--quiet">${escapeHtml(row.source === 'manual' ? 'Added by hand' : 'Statutory')}</span></td>
+      </tr>`).join('')}</tbody></table></div>`
+    : '<p class="hint">No dates recorded yet. Choose a calendar and apply it.</p>';
+  return `<form data-section-form="holidays">
+    <h3 class="card__title">Holidays</h3>
+    <div class="frow">
+      <!-- --md, not --lg. The width that stops "United States (federal)" being clipped
+           is the 13.5em floor, which scales with the text-size setting; widening the
+           field to --lg on top of that made the row "meant to fill", and a viewer
+           without permission to apply a calendar has no third control in the row, so
+           it then stopped 254px short of its own right edge. -->
+      <label class="field field--md"><span class="field__label">Calendar</span><select class="select" name="holiday_calendar" ${canEdit ? '' : 'disabled'}>
+        <option value="none" ${chosen === 'none' ? 'selected' : ''}>None: set closures by hand</option>
+        <option value="ca" ${chosen === 'ca' ? 'selected' : ''}>Canada (Ontario)</option>
+        <option value="us" ${chosen === 'us' ? 'selected' : ''}>United States (federal)</option>
+      </select></label>
+      <div class="field field--num"><span class="field__label">Year</span><span class="inputwrap"><input class="input" type="number" min="2020" max="2100" name="holiday_year" value="${year}" ${canEdit ? '' : 'disabled'}></span></div>
+      ${canEdit ? `<div class="field-action"><button class="btn btn--quiet btn--sm" type="button" data-unlocked data-apply-holidays>Block these dates</button></div>` : ''}
+    </div>
+    <p class="hint hint--wide">Choosing a calendar and saving records which dates this site observes. <strong>Block these dates</strong> then closes every dock across each of them, the same way blocking dock time does, so nothing can be booked on them and the board shows why. A date that already has trucks on it is left alone and named back to you, because cancelling a booked load is your call and not MaxDock's.</p>
+    ${list}
+    ${saveFoot(canEdit)}
+  </form>`;
+}
+
+// When this site takes inbound and when it takes outbound.
+//
+// A window with no dock applies to every door here, which is how "inbound before
+// noon, outbound after" is said once instead of once per dock. No windows at all
+// means the site takes either direction whenever it is open, which is how every
+// location behaves today and stays behaving until somebody adds a row.
+// One window on screen can stand for several stored rows: the database keeps a
+// row per dock per day, which is what the booking rules read, and the owner sets
+// them the way he says them — "docks one, two and three take inbound, Monday to
+// Thursday, before noon" is one thing to say, not twelve.
+function directionWindowRow(row, index, canEdit) {
+  const disabled = canEdit ? '' : 'disabled';
+  const docks = new Set(row.dock_ids || []);
+  const days = new Set((row.days || []).map(String));
+  const dockChecks = state.docks.map(dock => `<label class="dock-check"><input type="checkbox" data-window-dock value="${dock.id}" ${docks.has(dock.id) ? 'checked' : ''} ${disabled}><span>${escapeHtml(dock.name)}</span></label>`).join('');
+  const dayChecks = DAY_ORDER.map(day => `<label class="dock-check"><input type="checkbox" data-window-day value="${day}" ${days.has(String(day)) ? 'checked' : ''} ${disabled}><span>${DAY_LABELS[day]}</span></label>`).join('');
+  return `<fieldset class="dock-checks dirwin" data-window="${index}">
+    <legend>Window ${index + 1}${canEdit ? '<button class="btn btn--danger btn--icon at-end" type="button" data-remove-window aria-label="Remove this window" title="Remove this window">×</button>' : ''}</legend>
+    <fieldset class="pickgroup"><div class="frow">
+      <div class="field field--md"><span class="field__label">This site</span><select class="select" data-window-direction ${disabled}>
+        <option value="inbound" ${row.direction === 'inbound' ? 'selected' : ''}>takes inbound</option>
+        <option value="outbound" ${row.direction === 'outbound' ? 'selected' : ''}>takes outbound</option>
+      </select></div>
+      <div class="field field--sm"><span class="field__label">From</span><input class="input" type="time" data-window-start value="${escapeHtml(timeInput(row.start_time))}" ${disabled}></div>
+      <div class="field field--sm"><span class="field__label">To</span><input class="input" type="time" data-window-end value="${escapeHtml(timeInput(row.end_time))}" ${disabled}></div>
+    </div></fieldset>
+    <fieldset class="dock-checks pickgroup"><legend>Docks · none ticked means every dock</legend>${dockChecks}</fieldset>
+    <fieldset class="dock-checks pickgroup"><legend>Days · none ticked means every day</legend>${dayChecks}</fieldset>
+  </fieldset>`;
+}
+
+function renderDirectionWindows(canEdit) {
+  const rows = state.directionWindows.map((row, index) => directionWindowRow(row, index, canEdit)).join('');
+  return `<form data-section-form="direction-windows">
+    <h3 class="card__title">Inbound and outbound hours${canEdit ? '<button class="btn btn--quiet btn--sm at-end" type="button" data-add-window>Add a window</button>' : ''}</h3>
+    <div class="dirlist">${rows || '<p class="hint">No windows set. This location takes inbound and outbound at any time it is open.</p>'}</div>
+    <p class="hint hint--wide">A window says when a door takes a direction. Tick the docks and the days it applies to, or leave a list empty to mean all of them. A load must fit entirely inside a window, so an outbound running past the end of the outbound period is not offered. Each dock's own Inbound or Outbound setting still applies.</p>
+    ${saveFoot(canEdit)}
+  </form>`;
+}
+
+function renderTiming() {
+  const s = state.settings || {};
+  const canEdit = state.canManage;
+  const disabled = canEdit ? '' : 'disabled';
+  // Both columns are nullable and were added without a backfill, so a location nobody has
+  // opened since the migration reads null. Null means off, which is the state this site was
+  // in yesterday.
+  const startOn = s.track_service_start === true;
+  const departOn = s.track_departure === true;
+  return `<form class="card" data-section-form="timing">
+    <h3 class="card__title">Timing & duration</h3>
+    <div class="frow">
+      <div class="field field--sm"><span class="field__label">Slot interval</span><select class="select" name="slot_interval_minutes" ${disabled}>${SLOT_INTERVALS.map(minutes => `<option value="${minutes}" ${Number(s.slot_interval_minutes) === minutes ? 'selected' : ''}>${minutes} minutes</option>`).join('')}</select></div>
+      <div class="field field--num"><span class="field__label">Base</span><span class="inputwrap"><input class="input" type="number" min="0" name="base_minutes" value="${s.base_minutes ?? 0}" ${disabled}><span class="input__unit">min</span></span></div>
+      <div class="field field--num"><span class="field__label">Per skid</span><span class="inputwrap"><input class="input" type="number" min="0" step="0.1" name="minutes_per_skid" value="${s.minutes_per_skid ?? 0}" ${disabled}><span class="input__unit">min</span></span></div>
+      <div class="field field--num"><span class="field__label">Buffer</span><span class="inputwrap"><input class="input" type="number" min="0" name="buffer_minutes" value="${s.buffer_minutes ?? 0}" ${disabled}><span class="input__unit">min</span></span></div>
+    </div>
+    <div class="frow">
+      <div class="field field--num"><span class="field__label">Full truck at</span><span class="inputwrap"><input class="input" type="number" min="0" name="full_truck_skid_threshold" value="${s.full_truck_skid_threshold ?? 0}" ${disabled}><span class="input__unit">skids</span></span></div>
+      <div class="field field--num"><span class="field__label">Full truck</span><span class="inputwrap"><input class="input" type="number" min="0" name="full_truck_minimum_minutes" value="${s.full_truck_minimum_minutes ?? 0}" ${disabled}><span class="input__unit">min</span></span></div>
+      <div class="field field--num"><span class="field__label">Priority</span><span class="inputwrap"><input class="input" type="number" min="0" name="priority_minimum_minutes" value="${s.priority_minimum_minutes ?? 0}" ${disabled}><span class="input__unit">min</span></span></div>
+    </div>
+    <p class="hint hint--wide">How long a booking runs for: the base, plus the per-skid rate, plus the buffer. A load at or over the full-truck skid count never gets less than the full-truck time, and a priority load never gets less than the priority time. Slot interval is the spacing of the times offered.</p>
+    <h4 class="setgroup__t">What the dock records</h4>
+    <div class="setrow setrow--lead">
+      <div><div class="setrow__t">Record when work starts</div><div class="setrow__d">Adds a Start action between Arrived and Complete, so the time on the load can be told apart from the time at the door</div></div>
+      <button type="button" class="switch ${startOn ? '' : 'switch--off'}" data-start-switch aria-pressed="${startOn}" aria-label="Record when work starts" ${disabled}></button>
+    </div>
+    <div class="setrow">
+      <div><div class="setrow__t">Record when the truck leaves</div><div class="setrow__d">Adds a Departed action after Complete. The load stays complete; only the time it pulled off the door is kept</div></div>
+      <button type="button" class="switch ${departOn ? '' : 'switch--off'}" data-depart-switch aria-pressed="${departOn}" aria-label="Record when the truck leaves" ${disabled}></button>
+    </div>
+    <p class="hint hint--wide">Both are off to begin with, and off is exactly how this site works today: Arrived, then Complete. Turn them on one at a time, per site, once the habit is there. Nothing already booked or already finished changes either way.</p>
+    ${saveFoot(canEdit)}
+  </form>`;
+}
+
+function renderNotice() {
+  const s = state.settings || {};
+  const canEdit = state.canManage;
+  const disabled = canEdit ? '' : 'disabled';
+  return `<form class="card" data-section-form="notice">
+    <h3 class="card__title">Booking window & notice</h3>
+    <div class="frow">
+      ${durationField('Minimum notice', 'minimum_notice_minutes', s.minimum_notice_minutes ?? 0, 'minutes', NOTICE_UNITS, disabled)}
+      ${durationField('Book ahead up to', 'maximum_advance_days', s.maximum_advance_days ?? 0, 'days', AHEAD_UNITS, disabled)}
+    </div>
+    <p class="hint">Customers cannot book inside the minimum notice window or beyond the max days ahead.</p>
+    ${saveFoot(canEdit)}
+  </form>`;
+}
+
+// What MaxDock will actually fill: the floor less whatever is held back. Shown
+// because "Free now 80" against a capacity of 100 reads as arithmetic nobody
+// asked for until the 20 being reserved is on the same row.
+function workingLimit(settings) {
+  const total = Number(settings.skid_capacity || 0);
+  if (!total) return '–';
+  return Math.max(total - Number(settings.capacity_reserve_skids || 0), 0);
+}
+
+function renderCapacity() {
+  const s = state.settings || {};
+  const canEdit = state.canManage;
+  const disabled = canEdit ? '' : 'disabled';
+  const enabled = s.capacity_enabled === true;
+  return `<div class="stack"><form data-section-form="capacity">
+    <h3 class="card__title">Capacity</h3>
+    <div class="setrow setrow--lead">
+      <div><div class="setrow__t">Enforce skid capacity</div><div class="setrow__d">Track occupied skids against how much this floor holds</div></div>
+      <button type="button" class="switch ${enabled ? '' : 'switch--off'}" data-capacity-switch aria-pressed="${enabled}" aria-label="Enforce skid capacity" ${disabled}></button>
+    </div>
+    ${/* The switch on with no floor number is the one state this screen could lie about, and it
+        was live at Mississauga when the go-live audit looked. The database is not fooled --
+        location_capacity_projection_internal returns capacity_enabled false and the message
+        "Warehouse skid-capacity control is not enabled", so nothing is wrongly warned or
+        blocked -- but the switch above reads ON, and a manager reading it believes the floor is
+        being watched when it is not. Nothing else on the page would ever tell them. */ ''}
+    ${enabled && !Number(s.skid_capacity) ? '<p class="form-message">This switch is on but no floor capacity is set, so nothing is actually being enforced. MaxDock treats the site as having no capacity limit until a floor number is entered below.</p>' : ''}
+    <div class="frow">
+      <div class="field field--num"><span class="field__label">Floor capacity</span><span class="inputwrap"><input class="input" type="number" min="1" name="skid_capacity" value="${s.skid_capacity ?? ''}" ${disabled}><span class="input__unit">skids</span></span></div>
+      <div class="field field--num"><span class="field__label">Reserve</span><span class="inputwrap"><input class="input" type="number" min="0" name="capacity_reserve_skids" value="${s.capacity_reserve_skids ?? 0}" ${disabled}><span class="input__unit">skids</span></span></div>
+      <div class="field field--num"><span class="field__label">Working limit</span><span class="inputwrap"><input class="input" value="${workingLimit(s)}" readonly tabindex="-1" aria-label="Working limit, calculated"><span class="input__unit">skids</span></span></div>
+      <div class="field field--md"><span class="field__label">When over capacity</span><select class="select" name="capacity_enforcement_mode" ${disabled}>
+        <option value="warn" ${s.capacity_enforcement_mode === 'warn' ? 'selected' : ''}>Warn only</option>
+        <option value="enforce" ${s.capacity_enforcement_mode === 'enforce' ? 'selected' : ''}>Block booking</option>
+      </select></div>
+    </div>
+    <fieldset class="countset">
+      <legend>Counted stock</legend>
+      <div class="frow">
+        <div class="field field--num"><span class="field__label">Counted</span><span class="inputwrap"><input class="input" type="number" min="0" name="current_occupied_skids" value="${s.current_occupied_skids ?? 0}" ${disabled}><span class="input__unit">skids</span></span></div>
+        <div class="field field--md"><span class="field__label">As of</span><input class="input" type="datetime-local" name="inventory_as_of" value="${escapeHtml(localDateTime(s.inventory_as_of))}" ${disabled}></div>
+        <div class="field field--num"><span class="field__label">Occupied now</span><span class="inputwrap"><input class="input" value="${state.capacity?.projected_before ?? s.current_occupied_skids ?? 0}" readonly tabindex="-1" aria-label="Occupied now, calculated"><span class="input__unit">skids</span></span></div>
+        <div class="field field--num"><span class="field__label">Free now</span><span class="inputwrap"><input class="input" value="${state.capacity?.available_after ?? '–'}" readonly tabindex="-1" aria-label="Free now, calculated"><span class="input__unit">skids</span></span></div>
+      </div>
+      <p class="hint hint--wide">Floor capacity is how many skids this site holds; the reserve is held back and never booked into, so the working limit is what MaxDock will fill. Enter a floor count and the time it was taken. MaxDock keeps it current from there: every booked inbound adds, every outbound subtracts. Occupied now and Free now are calculated${s.capacity_last_source === 'mis' ? ', last set from an MIS import' : ''}.</p>
+    </fieldset>
+    ${saveFoot(canEdit)}
+  </form>
+  ${renderTrucksAtOnce(canEdit)}</div>`;
+}
+
+function renderAssignment() {
+  const s = state.settings || {};
+  const canEdit = state.canManage;
+  const disabled = canEdit ? '' : 'disabled';
+  const autoAssign = s.auto_assign_dock !== false;
+  const consolidation = s.suggest_same_day_consolidation !== false;
+  return `<form data-section-form="assignment">
+    <h3 class="card__title">Dock assignment</h3>
+    <div class="setrow setrow--lead">
+      <div><div class="setrow__t">Auto-assign docks</div><div class="setrow__d">MaxDock picks the dock for each booking</div></div>
+      <button type="button" class="switch ${autoAssign ? '' : 'switch--off'}" data-assign-switch aria-pressed="${autoAssign}" aria-label="Auto-assign docks" ${disabled}></button>
+    </div>
+    <div class="frow">
+      <div class="field field--md"><span class="field__label">Dock order</span><select class="select" name="dock_assignment_strategy" ${disabled}>
+        <option value="balanced" ${s.dock_assignment_strategy === 'balanced' ? 'selected' : ''}>Spread evenly</option>
+        <option value="fill_first" ${s.dock_assignment_strategy === 'fill_first' ? 'selected' : ''}>Fill one first</option>
+      </select></div>
+    </div>
+    <p class="hint hint--wide">How MaxDock chooses a dock for a booking. How many trucks it will put on the docks at once is a limit rather than a choice of door, so it lives under Capacity &amp; limits beside the other limits.</p>
+    ${saveFoot(canEdit)}
+  </form>`;
+}
+
+// How many trucks at once, standing and for one date, in one place and under one name.
+//
+// These were the same idea in two sections with two labels. The standing limit was "Most at
+// once" at the bottom of Dock assignment; the per-date override was "At once" inside Labour,
+// whose own help text had to say "Standing limits live under Dock assignment" because they
+// were two clicks apart under unrelated headings. A limit is not a labour setting and it is
+// not a choice of door: it is a limit, and it belongs with the other limits.
+function renderTrucksAtOnce(canEdit) {
+  const s = state.settings || {};
+  const disabled = canEdit ? '' : 'disabled';
+  const cap = (state.dayCaps || [])[0] || {};
+  return `<form data-section-form="assignment-limit">
+    <h3 class="card__title">Trucks at once</h3>
+    <div class="frow">
+      <div class="field field--num"><span class="field__label">Every day</span><span class="inputwrap"><input class="input" type="number" min="1" name="max_concurrent_appointments" value="${s.max_concurrent_appointments ?? ''}" placeholder="∞" ${disabled}><span class="input__unit">trucks</span></span></div>
+    </div>
+    <p class="hint hint--wide">The standing limit: the most trucks MaxDock will put on the docks at any one moment. Leave it blank for no limit.</p>
+    ${saveFoot(canEdit)}
+  </form>
+  <form data-section-form="day-cap">
+    <h3 class="card__title">Tighter on one date</h3>
+    <div class="frow">
+      <label class="field field--md"><span class="field__label">Date</span><input class="input" type="date" name="limit_date" value="${escapeHtml(cap.limit_date || format.todayInput(state.context?.location))}" ${disabled}></label>
+      <div class="field field--num"><span class="field__label">At once</span><span class="inputwrap"><input class="input" type="number" min="0" max="100" name="max_concurrent" value="${cap.max_concurrent_appointments ?? ''}" placeholder="–" ${disabled}><span class="input__unit">trucks</span></span></div>
+      <div class="field field--num"><span class="field__label">All day</span><span class="inputwrap"><input class="input" type="number" min="0" max="500" name="max_total" value="${cap.max_appointments ?? ''}" placeholder="–" ${disabled}><span class="input__unit">trucks</span></span></div>
+    </div>
+    <div class="frow">
+      <label class="field field--full"><span class="field__label">Note <span class="field__opt">optional</span></span><input class="input" name="cap_note" maxlength="120" value="${escapeHtml(cap.note || '')}" placeholder="Line rebuild, keep the docks quiet" ${disabled}></label>
+    </div>
+    <p class="hint hint--wide">Fewer trucks on one date, so a day that would otherwise fill up does not put the crew under pressure. This tightens the standing limit above for a single date and nothing else. Leave both blank to lift the cap on that date. Zero is a real answer: it stops anything new being booked while what is already on the board still runs. ${state.dayCaps?.length ? `Capped now: ${escapeHtml(state.dayCaps.map(row => row.limit_date).join(', '))}.` : 'No dates are capped.'}</p>
+    ${saveFoot(canEdit)}
+  </form>`;
+}
+
+// Labour is its own section rather than three fields at the bottom of Dock
+// assignment. It is not about docks — it is about people, it is the setting a
+// site revisits when the crew changes, and buried under a heading about dock
+// choice nobody would go looking for it.
+// Labour is the site manager's own subject, so it carries its own permission
+// rather than riding on settings.manage. A manager who knows how many hands were
+// on the dock on Tuesday is not a Site Admin, and handing them every other
+// location setting so they can say "six people" is the wrong trade.
+// One row per shift: what it is called, when it runs, which days, how many people.
+// A day picker of seven initials rather than seven words, because the row has to
+// fit beside the times and a manager reading it already knows which letter is
+// which. Rows are edited together and saved together — see saveShifts.
+function shiftRows(canEdit) {
+  const disabled = canEdit ? '' : 'disabled';
+  const rows = (state.shifts || []).map((shift, index) => {
+    const days = new Set((shift.days_of_week || []).map(String));
+    const picks = DAY_ORDER.map(day => `<label class="daypick" title="${DAY_LABELS[day]}"><input type="checkbox" data-shift-day value="${day}" ${days.has(String(day)) ? 'checked' : ''} ${disabled}><span aria-hidden="true">${DAY_LABELS[day][0]}</span><span class="sr">${DAY_LABELS[day]}</span></label>`).join('');
+    return `<div class="shiftrow" data-shift-row="${index}">
+      <label class="field field--md"><span class="field__label">Shift</span><input class="input" data-shift-name maxlength="40" value="${escapeHtml(shift.name || '')}" placeholder="Day" ${disabled}></label>
+      <label class="field field--sm"><span class="field__label">Starts</span><input class="input" type="time" data-shift-start value="${escapeHtml(timeInput(shift.start_time))}" ${disabled}></label>
+      <label class="field field--sm"><span class="field__label">Ends</span><input class="input" type="time" data-shift-end value="${escapeHtml(timeInput(shift.end_time))}" ${disabled}></label>
+      <div class="field field--num"><span class="field__label">People</span><span class="inputwrap"><input class="input" type="number" min="0" max="500" data-shift-people value="${shift.people ?? 0}" ${disabled}></span></div>
+      <div class="field"><span class="field__label">Days</span><div class="daypicks">${picks}</div></div>
+      ${canEdit ? '<button class="btn btn--quiet btn--sm" type="button" data-remove-shift>Remove</button>' : ''}
+    </div>`;
+  }).join('');
+  return rows || '<p class="hint">No shifts set. Until there are, the Labour hours report shows what the day costs and leaves the percentage blank rather than dividing by a number this site never gave.</p>';
+}
+
+function renderLabour() {
+  const s = state.settings || {};
+  const canEdit = state.canManageLabour;
+  const disabled = canEdit ? '' : 'disabled';
+  const day = state.labourDay || {};
+  return `<div class="stack stack--narrow">
+    <form data-section-form="labour">
+      <h3 class="card__title">Labour</h3>
+      <div class="frow">
+        <div class="field field--sm"><span class="field__label">Crew per truck</span><span class="inputwrap"><input class="input" type="number" min="0" max="50" name="handlers_per_truck" value="${s.handlers_per_truck ?? 2}" ${disabled}><span class="input__unit">people</span></span></div>
+      </div>
+      <p class="hint hint--wide">What a truck costs in people. The hours are not typed in anywhere: they come from the window MaxDock already worked out for the load under Timing &amp; duration, multiplied by this: a 75-minute truck at two people is 2.5 hours of dock labour. The operations brief and the Labour hours report both count from here.</p>
+      ${saveFoot(canEdit)}
+    </form>
+    <form data-section-form="shifts">
+      <h3 class="card__title">Shifts${canEdit ? '<button class="btn btn--primary btn--sm at-end" type="button" data-unlocked data-add-shift>Add shift</button>' : ''}</h3>
+      ${shiftRows(canEdit)}
+      <p class="hint hint--wide">The shifts this site runs and how many people are on each. Summed for a weekday, this is the hours available for dock work, which is what the Labour hours report divides by, so it is worth being right.</p>
+      ${saveFoot(canEdit)}
+    </form>
+    <form data-section-form="labour-day">
+      <h3 class="card__title">Hours actually worked</h3>
+      <div class="frow">
+        <label class="field field--md"><span class="field__label">Date</span><input class="input" type="date" name="work_date" value="${escapeHtml(day.work_date || format.todayInput(state.context?.location))}" ${disabled}></label>
+        <div class="field field--num"><span class="field__label">People on</span><span class="inputwrap"><input class="input" type="number" min="0" max="500" name="people" value="${day.people ?? 0}" ${disabled}><span class="input__unit">people</span></span></div>
+        <div class="field field--num"><span class="field__label">Hours each</span><span class="inputwrap"><input class="input" type="number" min="0.5" max="24" step="0.5" name="hours_each" value="${day.hours_each ?? 8}" ${disabled}><span class="input__unit">hours</span></span></div>
+      </div>
+      <div class="frow">
+        <label class="field field--full"><span class="field__label">Note <span class="field__opt">optional</span></span><input class="input" name="note" maxlength="120" value="${escapeHtml(day.note || '')}" placeholder="Civic holiday, skeleton crew" ${disabled}></label>
+      </div>
+      <p class="hint hint--wide">The shifts above cover a normal week. Record a date here when it was not one (a holiday, somebody off, a Saturday with two people) and the Labour hours report uses what you recorded for that date instead of the shift roster.</p>
+      ${saveFoot(canEdit)}
+    </form>
+  </div>`;
+}
+
+// When MaxDock offers to put two loads on one truck.
+//
+// "On the same day" is the behaviour this has always had. "Within a set window"
+// narrows or widens it to that many hours either side of the proposed time — an
+// eight-hour window means a load eight hours earlier is still worth combining
+// with, a two-hour window means only something close to it is.
+function renderCombining() {
+  const s = state.settings || {};
+  const canEdit = state.canManage;
+  const disabled = canEdit ? '' : 'disabled';
+  const consolidation = s.suggest_same_day_consolidation !== false;
+  return `<form class="card" data-section-form="combining">
+    <h3 class="card__title">Combining loads</h3>
+    <div class="setrow setrow--lead">
+      <div><div class="setrow__t">Offer to combine</div><div class="setrow__d">Point out loads already booked that could travel together</div></div>
+      <button type="button" class="switch ${consolidation ? '' : 'switch--off'}" data-consolidation-switch aria-pressed="${consolidation}" aria-label="Offer to combine loads" ${disabled}></button>
+    </div>
+    <div class="frow">
+      <div class="field field--md"><span class="field__label">Look for loads</span><select class="select" name="consolidation_window_mode" data-consolidation-mode ${disabled}>
+        <option value="day" ${s.consolidation_window_hours ? '' : 'selected'}>On the same day</option>
+        <option value="hours" ${s.consolidation_window_hours ? 'selected' : ''}>Within a set window</option>
+      </select></div>
+      ${durationField('Window', 'consolidation_window_hours', s.consolidation_window_hours ?? '', 'hours', WINDOW_UNITS, s.consolidation_window_hours ? disabled : 'disabled')}
+    </div>
+    <p class="hint hint--wide">Turned off, MaxDock never mentions other loads and never asks before booking. On the same day is the widest setting; a window narrows it to that many hours either side of the time being booked, so a twelve-hour window catches a morning load for an afternoon one and a two-hour window does not.</p>
+    ${saveFoot(canEdit)}
+  </form>`;
+}
+
+// Booking rules: what MaxDock does when somebody books.
+//
+// Three forms that were three places. The notice window said when a customer may book, the
+// combining switch said whether MaxDock offers to put two loads on one truck, and dock
+// assignment said which door it picks — and dock assignment was not named anywhere in the
+// navigation at all, because it was rendered at the bottom of the Docks table.
+function renderBookingRules() {
+  return `<div class="stack">${renderNotice()}${renderCombining()}${renderAssignment()}</div>`;
+}
+
+// How many skids each truck type holds here. The same 53 ft trailer is 26 skids
+// single stacked and 52 double stacked, and two sites can load it differently,
+// so the number belongs to the location. Blank means not stated, which reads as
+// unknown — a zero would claim the trailer holds nothing.
+function renderTruckCapacity(canEdit) {
+  const disabled = canEdit ? '' : 'disabled';
+  const enabled = state.locationTruckTypes.filter(row => row.is_active !== false);
+  const rows = state.truckTypes
+    .filter(type => enabled.some(row => row.truck_type_code === type.code))
+    .map(type => {
+      const row = enabled.find(item => item.truck_type_code === type.code);
+      return `<div class="setrow setrow--compact" data-capacity-code="${type.code}">
+        <div><div class="setrow__t">${escapeHtml(type.name)}</div></div>
+        <div class="setrow__ctl"><span class="inputwrap">
+          <input class="input input--mins" type="number" min="1" name="skid_capacity" value="${row?.skid_capacity ?? ''}" placeholder="–" ${disabled} aria-label="${escapeHtml(type.name)} skid capacity">
+          <span class="input__unit">skids</span>
+        </span></div>
+      </div>`;
+    }).join('');
+  return `<form data-section-form="truck-capacity">
+    <h3 class="card__title">Skids per truck</h3>
+    ${rows || '<p class="hint">No truck types are enabled at this location yet.</p>'}
+    <p class="hint hint--wide">What each truck holds when this site loads it. Set it to how you actually stack, single or double. This is what tells a planner how full a booked load is and how much room is left on it.</p>
+    ${saveFoot(canEdit)}
+  </form>`;
+}
+
+// The truck types this location has turned on. A dock can only accept a type the
+// location itself accepts, so this is the set a dock is measured against.
+function locationTypeCodes() {
+  return state.locationTruckTypes.filter(row => row.is_active !== false).map(row => row.truck_type_code);
+}
+
+function dockTypeCodes(dockId) {
+  return new Set(state.dockTruckTypes.filter(row => row.dock_id === dockId).map(row => row.truck_type_code));
+}
+
+// A dock with no truck types accepts nothing — the database rejects any booking on
+// it. This used to read "All types", which is the opposite of what it means, and a
+// site set up that way looked configured while being unbookable.
+function dockTruckLabels(dockId) {
+  const codes = dockTypeCodes(dockId);
+  if (!codes.size) return 'None: nothing can be booked here';
+  const enabled = locationTypeCodes();
+  if (enabled.length && enabled.every(code => codes.has(code))) return 'All types';
+  return state.truckTypes.filter(type => codes.has(type.code)).map(type => type.name).join(', ');
+}
+
+function dockIsRestricted(dockId) {
+  const enabled = locationTypeCodes();
+  if (!enabled.length) return true;
+  const codes = dockTypeCodes(dockId);
+  return !enabled.every(code => codes.has(code));
+}
+
+function renderDocks() {
+  const canEditDocks = state.canManageDocks && state.canManage;
+  // The card is sized to its table rather than to the panel, so Add dock lands
+  // over the Edit column instead of against the right edge of a wide monitor
+  // with a hand's width of nothing in between.
+  //
+  // Status is a switch rather than a badge: taking a dock out of service for a
+  // morning is the one dock change that happens often, and it needed a dialog.
+  // It is the only thing on this table that is edited in place, which is what
+  // Save and Reset underneath act on.
+  const rows = state.docks.map(dock => `<tr data-dock-row="${dock.id}">
+    <td class="data data--strong">${escapeHtml(dock.name)}</td>
+    <td>${escapeHtml(dock.direction_mode === 'both' ? 'Both' : format.role(dock.direction_mode))}</td>
+    <td><button type="button" class="switch ${dock.is_active ? '' : 'switch--off'}" data-dock-active aria-pressed="${Boolean(dock.is_active)}" aria-label="${escapeHtml(dock.name)} in service" ${canEditDocks ? '' : 'disabled'}></button></td>
+    <td class="data cell-cap" title="${escapeHtml(dockTruckLabels(dock.id))}">${escapeHtml(dockTruckLabels(dock.id))}</td>
+    <td>${canEditDocks ? `<button class="btn btn--quiet btn--sm" type="button" data-unlocked data-edit-dock="${dock.id}">Edit</button>` : ''}</td>
+  </tr>`).join('') || '<tr><td colspan="5" class="data">No docks configured for this location.</td></tr>';
+
+  // Five short columns, so the window is sized to them: Add dock lands over the
+  // Edit column rather than out at the edge of a wide monitor, and the note under
+  // the table wraps instead of running the width of the screen.
+  //
+  // Dock assignment sits under the table it decides between. It is about docks, so
+  // it is found where the docks are rather than under a heading of its own.
+  return `<div class="stack stack--table">
+    <form data-section-form="docks">
+      <h3 class="card__title">Docks${canEditDocks ? '<button class="btn btn--primary btn--sm at-end" type="button" data-unlocked data-add-dock>Add dock</button>' : ''}</h3>
+      <div class="tablewrap"><table class="table"><thead><tr><th>Dock</th><th>Direction</th><th>In service</th><th class="col-fill">Truck types</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
+      <p class="hint">Add dock and Edit save on their own. Save below applies the in-service switches. How MaxDock chooses between these doors is under Booking rules.</p>
+      ${saveFoot(canEditDocks)}
+    </form></div>`;
+}
+
+function renderTruckTypes() {
+  const locationTypes = state.locationTruckTypes;
+  const truckRows = state.truckTypes.map(type => {
+    const enabled = locationTypes.find(row => row.truck_type_code === type.code);
+    return `<div class="setrow setrow--compact" data-truck-code="${type.code}">
+      <div><div class="setrow__t">${escapeHtml(type.name)}</div></div>
+      <div class="setrow__ctl">
+        <span class="inputwrap"><input class="input input--mins" type="number" min="0" name="setup_minutes" value="${enabled ? enabled.setup_minutes : 0}" ${state.canManage ? '' : 'disabled'} aria-label="${escapeHtml(type.name)} setup minutes"><span class="input__unit">min setup</span></span>
+        <button type="button" class="switch ${enabled?.is_active !== false && enabled ? '' : 'switch--off'}" data-truck-switch aria-pressed="${Boolean(enabled)}" aria-label="Enable ${escapeHtml(type.name)}" ${state.canManage ? '' : 'disabled'}></button>
+      </div>
+    </div>`;
+  }).join('');
+  // A truck type is a company-wide code, so only a System Admin makes one — which
+  // is also what the database allows. The rest of the section is per-location.
+  const canAdd = state.context?.profile?.role_code === 'system_admin';
+  return `<div class="stack"><form class="card card--table" data-section-form="truck-types">
+      <h3 class="card__title">Truck types enabled at this location${canAdd ? '<button class="btn btn--primary btn--sm at-end" type="button" data-unlocked data-add-truck-type>Add truck type</button>' : ''}</h3>
+      ${truckRows}
+      <p class="hint">Setup minutes here override the truck type's default for this location only.</p>
+      ${saveFoot(state.canManage)}
+    </form>
+    ${renderTruckCapacity(state.canManage)}</div>`;
+}
+
+// Quick QR — a booking somebody does over and over, saved once and reachable
+// with a phone camera.
+//
+// Mississauga sends to Guelph on a 53 with 33 skids, always outbound. That is
+// not a setting, it is a shortcut: the code goes on the wall, the driver's
+// coordinator scans it, and the booking form opens with everything filled in
+// but the time. Changing what a code books is editing the shortcut behind it —
+// the printed code keeps working, because it points at the shortcut, not at a
+// copy of its contents.
+function shortcutRoute(shortcut) {
+  const here = state.context?.location?.name || 'This site';
+  const party = String(shortcut.company_name || shortcut.requester_type || '').trim() || 'Not named';
+  return String(shortcut.direction || '').toLowerCase() === 'outbound' ? `${here} → ${party}` : `${party} → ${here}`;
+}
+
+function labelFor(rows, code) {
+  return rows.find(row => row.code === code)?.name || code || '–';
+}
+
+function shortcutDetail(shortcut) {
+  return [
+    labelFor(state.appointmentTypes, shortcut.appointment_type_code),
+    labelFor(state.truckTypes, shortcut.truck_type_code),
+    `${Number(shortcut.skid_count || 0)} skids`,
+    labelFor(state.handlingTypes, shortcut.handling_type_code),
+    shortcut.auto_time
+      ? `MaxDock picks the time${shortcut.lead_minutes ? `, ${format.duration(shortcut.lead_minutes)} ahead at the earliest` : ''}`
+      : 'The person picks the time',
+  ].join(' · ');
+}
+
+function renderQuickQr() {
+  const canEdit = state.canManage;
+  const rows = state.shortcuts.map(shortcut => `<div class="setrow" data-shortcut-row="${shortcut.id}">
+      <div>
+        <div class="setrow__t">${escapeHtml(shortcut.name)}</div>
+        <div class="setrow__d">${escapeHtml(shortcutRoute(shortcut))} · ${escapeHtml(shortcutDetail(shortcut))}</div>
+      </div>
+      <div class="setrow__ctl">
+        <button class="btn btn--primary btn--sm" type="button" data-print-shortcut="${shortcut.id}">Print code</button>
+        ${canEdit ? `<button class="btn btn--quiet btn--sm" type="button" data-edit-shortcut="${shortcut.id}">Edit</button>` : ''}
+        ${canEdit ? `<button class="btn btn--quiet btn--sm" type="button" data-delete-shortcut="${shortcut.id}">Delete</button>` : ''}
+      </div>
+    </div>`).join('');
+  // A section rather than a form. It was a form with no fields, no Save and no save branch,
+  // which meant an Enter keypress anywhere inside it submitted a form that could do nothing.
+  // Every control here saves on its own through its own dialog; there is nothing to submit.
+  // Found by the guard that checks each named form against the branch that saves it.
+  return `<div class="card">
+    <h3 class="card__title">Quick QR codes${canEdit ? '<button class="btn btn--primary btn--sm at-end" type="button" data-add-shortcut>New code</button>' : ''}</h3>
+    ${rows || '<p class="hint">No quick codes yet. Make one for a run this site books over and over.</p>'}
+    <p class="hint hint--wide">A quick code is a booking saved with everything but the time. Print it, put it where the loads are made up, and scanning it opens MaxDock with the load already in; the person booking picks a time and confirms. Edit a code and every printed copy of it changes with it; the paper does not have to be replaced.</p>
+  </div>`;
+}
+
+
+// The whole of a site's setup, as one sheet.
+//
+// Print was taken off this screen, and off every screen but Reports: nobody pins a settings
+// page to a wall. What a manager actually does with this is hand it to another site to copy,
+// or keep it beside a change so there is a record of what the configuration was before it.
+// Both of those want a file, and a configuration is not one table — it is hours, docks,
+// trucks, limits and shifts — so it is written long, one setting to a row, rather than
+// forced into columns that would be empty for most of it.
+function exportCsv() {
+  const s = state.settings || {};
+  const site = state.context?.location?.name || '';
+  const rows = [['Site', 'Section', 'Item', 'Setting', 'Value']];
+  const put = (section, item, setting, value) => {
+    if (value === null || value === undefined || value === '') return;
+    rows.push([site, section, item, setting, String(value)]);
+  };
+
+  for (const day of DAY_ORDER) {
+    const row = state.hours.find(item => item.day_of_week === day) || {};
+    const open = row.is_open !== false;
+    put('Operating hours', DAY_LABELS[day], 'Open', open ? 'yes' : 'no');
+    if (open) {
+      put('Operating hours', DAY_LABELS[day], 'Opens', timeInput(row.open_time));
+      put('Operating hours', DAY_LABELS[day], 'Closes', timeInput(row.close_time));
+    }
+  }
+  put('Operating hours', 'Holidays', 'Calendar', s.holiday_calendar || 'none');
+  for (const row of state.holidays || []) put('Operating hours', 'Holidays', row.holiday_date, row.name);
+  for (const [index, row] of (state.directionWindows || []).entries()) {
+    const docks = (row.dock_ids || []).map(id => state.docks.find(d => d.id === id)?.name).filter(Boolean);
+    const days = (row.days || []).map(day => DAY_LABELS[Number(day)]);
+    put('Operating hours', `Window ${index + 1}`, 'Takes', row.direction);
+    put('Operating hours', `Window ${index + 1}`, 'From', timeInput(row.start_time));
+    put('Operating hours', `Window ${index + 1}`, 'To', timeInput(row.end_time));
+    put('Operating hours', `Window ${index + 1}`, 'Docks', docks.length ? docks.join(' / ') : 'every dock');
+    put('Operating hours', `Window ${index + 1}`, 'Days', days.length ? days.join(' / ') : 'every day');
+  }
+
+  for (const [label, value] of [
+    ['Slot interval (min)', s.slot_interval_minutes], ['Base (min)', s.base_minutes],
+    ['Per skid (min)', s.minutes_per_skid], ['Buffer (min)', s.buffer_minutes],
+    ['Full truck at (skids)', s.full_truck_skid_threshold], ['Full truck minimum (min)', s.full_truck_minimum_minutes],
+    ['Priority minimum (min)', s.priority_minimum_minutes],
+  ]) put('Timing & duration', 'How long a load takes', label, value);
+  put('Timing & duration', 'What the dock records', 'Record when work starts', s.track_service_start === true ? 'on' : 'off');
+  put('Timing & duration', 'What the dock records', 'Record when the truck leaves', s.track_departure === true ? 'on' : 'off');
+
+  put('Booking rules', 'Notice', 'Minimum notice (min)', s.minimum_notice_minutes);
+  put('Booking rules', 'Notice', 'Book ahead up to (days)', s.maximum_advance_days);
+  put('Booking rules', 'Combining', 'Offer to combine', s.suggest_same_day_consolidation !== false ? 'on' : 'off');
+  put('Booking rules', 'Combining', 'Look for loads', s.consolidation_window_hours ? `within ${s.consolidation_window_hours} hours` : 'on the same day');
+  put('Booking rules', 'Dock assignment', 'Auto-assign docks', s.auto_assign_dock !== false ? 'on' : 'off');
+  put('Booking rules', 'Dock assignment', 'Dock order', s.dock_assignment_strategy);
+
+  put('Capacity & limits', 'Floor', 'Enforce skid capacity', s.capacity_enabled === true ? 'on' : 'off');
+  put('Capacity & limits', 'Floor', 'Floor capacity (skids)', s.skid_capacity);
+  put('Capacity & limits', 'Floor', 'Reserve (skids)', s.capacity_reserve_skids);
+  put('Capacity & limits', 'Floor', 'Working limit (skids)', workingLimit(s));
+  put('Capacity & limits', 'Floor', 'When over capacity', s.capacity_enforcement_mode);
+  put('Capacity & limits', 'Trucks at once', 'Standing limit', s.max_concurrent_appointments ?? 'no limit');
+  for (const cap of state.dayCaps || []) {
+    put('Capacity & limits', `Capped ${cap.limit_date}`, 'Trucks at once', cap.max_concurrent_appointments ?? '');
+    put('Capacity & limits', `Capped ${cap.limit_date}`, 'Trucks all day', cap.max_appointments ?? '');
+    put('Capacity & limits', `Capped ${cap.limit_date}`, 'Note', cap.note || '');
+  }
+
+  for (const dock of state.docks) {
+    put('Docks', dock.name, 'Direction', dock.direction_mode === 'both' ? 'Both' : dock.direction_mode);
+    put('Docks', dock.name, 'In service', dock.is_active ? 'yes' : 'no');
+    put('Docks', dock.name, 'Truck types', dockTruckLabels(dock.id));
+  }
+
+  for (const type of state.truckTypes) {
+    const row = state.locationTruckTypes.find(item => item.truck_type_code === type.code);
+    put('Trucks', type.name, 'Enabled here', row && row.is_active !== false ? 'yes' : 'no');
+    if (row) {
+      put('Trucks', type.name, 'Setup (min)', row.setup_minutes);
+      put('Trucks', type.name, 'Skids per truck', row.skid_capacity);
+    }
+  }
+
+  put('Labour', 'Crew', 'Crew per truck', s.handlers_per_truck);
+  for (const shift of state.shifts || []) {
+    put('Labour', shift.name || 'Shift', 'Runs', `${timeInput(shift.start_time)} to ${timeInput(shift.end_time)}`);
+    put('Labour', shift.name || 'Shift', 'People', shift.people);
+  }
+
+  for (const shortcut of state.shortcuts || []) {
+    put('Quick QR codes', shortcut.name, 'Route', shortcutRoute(shortcut));
+    put('Quick QR codes', shortcut.name, 'Books', shortcutDetail(shortcut));
+  }
+
+  downloadFile(`maxdock-settings-${site.toLowerCase().replace(/[^a-z0-9]+/g, '-') || 'site'}.csv`, toCsv(rows));
+}
+
+function renderPanel() {
+  const map = {
+    hours: renderHours, timing: renderTiming, booking: renderBookingRules,
+    capacity: renderCapacity, docks: renderDocks, trucks: renderTruckTypes,
+    labour: renderLabour, quickqr: renderQuickQr,
+  };
+  state.elements.panel.innerHTML = (map[state.section] || renderHours)();
+  applyLocks();
+}
+
+function renderNav() {
+  state.elements.nav.innerHTML = SECTIONS.map(section => `<button type="button" data-section="${section.id}" aria-current="${section.id === state.section}">${section.label}</button>`).join('');
+}
+
+function switchSection(id) {
+  state.section = id;
+  // Leaving a section abandons whatever was being edited in it. Coming back to a
+  // window that is still unlocked, but showing saved values again, would be a lie
+  // about what is about to be saved.
+  state.editing.clear();
+  renderNav();
+  renderPanel();
+}
+
+function showMessage(form, text, isError) {
+  const message = form.querySelector('[data-save-message]');
+  if (!message) return;
+  message.textContent = text;
+  message.classList.toggle('form-message--success', !isError);
+}
+
+async function saveHours(form) {
+  const updates = [...form.querySelectorAll('.hourrow')].map(row => {
+    const day = Number(row.dataset.day);
+    const isOpen = row.querySelector('[data-hours-switch]').getAttribute('aria-pressed') === 'true';
+    const open = row.querySelector('input[name="open"]').value || null;
+    const close = row.querySelector('input[name="close"]').value || null;
+    return db.update('location_operating_hours', { is_open: isOpen, open_time: open, close_time: close }, q => q.eq('location_id', state.locationId).eq('day_of_week', day), { select: false });
+  });
+  await Promise.all(updates);
+  db.invalidate(`settings:hours:${state.locationId}`);
+  db.invalidate('board:hours:');
+}
+
+async function saveSettingsFields(fields) {
+  await db.update('location_settings', fields, q => q.eq('location_id', state.locationId), { select: false });
+  db.invalidate(`settings:row:${state.locationId}`);
+}
+
+async function saveTiming(form) {
+  const data = new FormData(form);
+  await saveSettingsFields({
+    track_service_start: form.querySelector('[data-start-switch]').getAttribute('aria-pressed') === 'true',
+    track_departure: form.querySelector('[data-depart-switch]').getAttribute('aria-pressed') === 'true',
+    slot_interval_minutes: Number(data.get('slot_interval_minutes')),
+    base_minutes: Number(data.get('base_minutes')),
+    minutes_per_skid: Number(data.get('minutes_per_skid')),
+    buffer_minutes: Number(data.get('buffer_minutes')),
+    full_truck_skid_threshold: Number(data.get('full_truck_skid_threshold')),
+    full_truck_minimum_minutes: Number(data.get('full_truck_minimum_minutes')),
+    priority_minimum_minutes: Number(data.get('priority_minimum_minutes')),
+  });
+}
+
+async function saveNotice(form) {
+  const data = new FormData(form);
+  await saveSettingsFields({
+    minimum_notice_minutes: durationValue(data, 'minimum_notice_minutes', 'minutes', NOTICE_UNITS),
+    maximum_advance_days: durationValue(data, 'maximum_advance_days', 'days', AHEAD_UNITS),
+  });
+}
+
+async function saveCapacity(form) {
+  const data = new FormData(form);
+  const enabled = form.querySelector('[data-capacity-switch]').getAttribute('aria-pressed') === 'true';
+  const capacity = data.get('skid_capacity');
+  // A stock count is only meaningful with the moment it was taken, so the two
+  // move together. An empty timestamp stamps the save itself, which is what
+  // somebody who just walked the floor means by "as of now"; a manual count
+  // supersedes whatever the last MIS import left behind.
+  const countedAt = data.get('inventory_as_of');
+  await saveSettingsFields({
+    capacity_enabled: enabled,
+    skid_capacity: capacity ? Number(capacity) : null,
+    capacity_reserve_skids: Number(data.get('capacity_reserve_skids')),
+    capacity_enforcement_mode: data.get('capacity_enforcement_mode'),
+    current_occupied_skids: Number(data.get('current_occupied_skids') || 0),
+    inventory_as_of: countedAt ? new Date(countedAt).toISOString() : format.nowIso(),
+    capacity_last_source: 'manual',
+  });
+  db.invalidate(`settings:capacity:${state.locationId}`);
+}
+
+async function saveAssignment(form) {
+  const data = new FormData(form);
+  const autoAssign = form.querySelector('[data-assign-switch]').getAttribute('aria-pressed') === 'true';
+  await saveSettingsFields({
+    auto_assign_dock: autoAssign,
+    dock_assignment_strategy: data.get('dock_assignment_strategy'),
+  });
+}
+
+// The standing limit, saved on its own now that it sits with the other limits rather than at
+// the bottom of the dock-choice form. Blank means no limit, which is not the same as zero.
+async function saveAssignmentLimit(form) {
+  const value = new FormData(form).get('max_concurrent_appointments');
+  await saveSettingsFields({ max_concurrent_appointments: value ? Number(value) : null });
+}
+
+// Through the RPC, not through the table. A site manager holds
+// settings.manage_labour and not settings.manage, so the table's own update
+// policy refuses them — and it should: that permission must not become a way to
+// change the booking window. The function writes those four columns and no others.
+async function saveLabour(form) {
+  const data = new FormData(form);
+  await db.rpc('save_location_labour', {
+    p_location_id: state.locationId,
+    p_handlers_per_truck: Number(data.get('handlers_per_truck') || 0),
+  }, { key: `settings:labour:${state.locationId}`, retry: 0, userMessage: 'The labour settings could not be saved.' });
+  db.invalidate(`settings:row:${state.locationId}`);
+}
+
+// The whole roster in one call. Rows added, rows removed and people changed all
+// travel together, because a half-saved roster is a wrong denominator rather than
+// a missing one — and the report would show a number instead of admitting it.
+// Blank means no cap, which is the same thing as no row — so the function deletes
+// rather than storing a row that says nothing.
+async function saveDayCap(form) {
+  const data = new FormData(form);
+  const number = name => {
+    const raw = String(data.get(name) || '').trim();
+    return raw === '' ? null : Number(raw);
+  };
+  await db.rpc('save_location_day_limit', {
+    p_location_id: state.locationId,
+    p_date: data.get('limit_date'),
+    p_max_concurrent: number('max_concurrent'),
+    p_max_total: number('max_total'),
+    p_note: String(data.get('cap_note') || '').trim() || null,
+  }, { key: `settings:day-cap:${state.locationId}:${data.get('limit_date')}`, retry: 0, userMessage: 'The day could not be capped.' });
+  db.invalidate(`settings:day-caps:${state.locationId}`);
+}
+
+async function saveHolidays(form) {
+  const data = new FormData(form);
+  await saveSettingsFields({ holiday_calendar: data.get('holiday_calendar') || 'none' });
+}
+
+// Blocking the dates is its own action rather than part of Save: it writes a block
+// on every dock across a dozen days, which is not something to do as a side effect
+// of changing a dropdown.
+async function applyHolidays(trigger) {
+  const form = trigger.closest('[data-section-form]');
+  const year = Number(form.querySelector('[name="holiday_year"]').value);
+  const calendar = form.querySelector('[name="holiday_calendar"]').value;
+  if (calendar === 'none') { toast('Choose a calendar first, then save.', 'error'); return; }
+  trigger.disabled = true;
+  try {
+    // Saved first, so applying always uses the calendar on screen rather than the
+    // one that happened to be stored.
+    await saveSettingsFields({ holiday_calendar: calendar });
+    const result = await db.rpc('apply_holiday_calendar', {
+      p_location_id: state.locationId,
+      p_year: year,
+    }, { key: `settings:holidays:apply:${state.locationId}:${year}`, retry: 0, userMessage: 'The holiday dates could not be applied.' });
+    db.invalidate(`settings:holidays:${state.locationId}`);
+    const skipped = Number(result.skipped_count || 0);
+    toast(`${result.holidays} holiday${result.holidays === 1 ? '' : 's'} recorded for ${year}, ${result.docks_blocked} dock closure${result.docks_blocked === 1 ? '' : 's'} added.${skipped ? ` ${skipped} date${skipped === 1 ? '' : 's'} left open because trucks are already booked on ${skipped === 1 ? 'it' : 'them'}.` : ''}`, skipped ? 'warning' : 'success');
+    await fetchAll();
+    renderPanel();
+  } catch (error) {
+    toast(error.userMessage || 'The holiday dates could not be applied.', 'error');
+  } finally {
+    trigger.disabled = false;
+  }
+}
+
+async function saveShifts(form) {
+  const shifts = [...form.querySelectorAll('[data-shift-row]')].map(row => ({
+    name: row.querySelector('[data-shift-name]').value.trim(),
+    start_time: row.querySelector('[data-shift-start]').value,
+    end_time: row.querySelector('[data-shift-end]').value,
+    people: Number(row.querySelector('[data-shift-people]').value || 0),
+    days_of_week: [...row.querySelectorAll('[data-shift-day]:checked')].map(box => Number(box.value)),
+    is_active: true,
+  }));
+  await db.rpc('save_location_shifts', {
+    p_location_id: state.locationId,
+    p_shifts: shifts,
+  }, { key: `settings:shifts:save:${state.locationId}`, retry: 0, userMessage: 'The shifts could not be saved.' });
+  db.invalidate(`settings:shifts:${state.locationId}`);
+}
+
+async function saveLabourDay(form) {
+  const data = new FormData(form);
+  await db.rpc('record_labour_day', {
+    p_location_id: state.locationId,
+    p_work_date: data.get('work_date'),
+    p_people: Number(data.get('people') || 0),
+    p_hours_each: Number(data.get('hours_each') || 0),
+    p_note: String(data.get('note') || '').trim() || null,
+  }, { key: `settings:labour-day:${state.locationId}:${data.get('work_date')}`, retry: 0, userMessage: 'The day could not be recorded.' });
+  db.invalidate(`settings:labour-day:${state.locationId}`);
+}
+
+async function saveCombining(form) {
+  const data = new FormData(form);
+  const consolidation = form.querySelector('[data-consolidation-switch]').getAttribute('aria-pressed') === 'true';
+  await saveSettingsFields({
+    suggest_same_day_consolidation: consolidation,
+    // NULL is the same-day behaviour this setting has always had; a number narrows
+    // or widens it to that many hours either side of the proposed appointment.
+    consolidation_window_hours: data.get('consolidation_window_mode') === 'hours' && data.get('consolidation_window_hours')
+      ? durationValue(data, 'consolidation_window_hours', 'hours', WINDOW_UNITS)
+      : null,
+  });
+}
+
+// Only the capacity column moves here; the enabled flag and setup minutes stay
+// with the Docks and truck types section that owns them.
+
+async function saveTruckCapacity(form) {
+  const updates = [...form.querySelectorAll('[data-capacity-code]')].map(row => {
+    const code = row.dataset.capacityCode;
+    const raw = row.querySelector('input[name="skid_capacity"]').value.trim();
+    const value = raw === '' ? null : Number(raw);
+    if (value !== null && (!Number.isFinite(value) || value < 1)) throw { userMessage: 'Skids per truck must be a whole number above zero, or blank.' };
+    return db.update('location_truck_types', { skid_capacity: value },
+      q => q.eq('location_id', state.locationId).eq('truck_type_code', code), { select: false });
+  });
+  await Promise.all(updates);
+  db.invalidate(`settings:location-truck-types:${state.locationId}`);
+}
+
+async function saveDirectionWindows(form) {
+  const onScreen = [...form.querySelectorAll('[data-window]')].map(row => ({
+    dock_ids: [...row.querySelectorAll('[data-window-dock]:checked')].map(box => box.value),
+    days: [...row.querySelectorAll('[data-window-day]:checked')].map(box => Number(box.value)),
+    direction: row.querySelector('[data-window-direction]').value,
+    start_time: row.querySelector('[data-window-start]').value,
+    end_time: row.querySelector('[data-window-end]').value,
+  }));
+  if (onScreen.some(window => !window.start_time || !window.end_time)) {
+    throw { userMessage: 'Every window needs a start and an end time.' };
+  }
+  const windows = expandWindows(onScreen);
+  await db.rpc('save_dock_direction_windows', { p_location_id: state.locationId, p_windows: windows }, {
+    key: `settings:windows:save:${crypto.randomUUID()}`, retry: 0,
+    userMessage: 'The inbound and outbound hours could not be saved.',
+  });
+  db.invalidate(`settings:windows:${state.locationId}`);
+}
+
+// Only the in-service switches are edited on the dock table itself; everything
+// else about a dock is changed through Add dock or Edit, which save on their own.
+// Read straight off the rows on screen, so what is shown is what is stored.
+async function saveDocks(form) {
+  const updates = [...form.querySelectorAll('[data-dock-row]')].map(row => {
+    const id = row.dataset.dockRow;
+    const isActive = row.querySelector('[data-dock-active]').getAttribute('aria-pressed') === 'true';
+    const dock = state.docks.find(item => item.id === id);
+    if (!dock || Boolean(dock.is_active) === isActive) return null;
+    return db.update('docks', { is_active: isActive }, q => q.eq('id', id), { select: false });
+  }).filter(Boolean);
+  if (!updates.length) return;
+  await Promise.all(updates);
+  db.invalidate(`settings:docks:${state.locationId}`);
+  db.invalidate('board:docks:');
+  db.invalidate('queue:docks:');
+}
+
+async function saveTruckTypes(form) {
+  const rows = [...form.querySelectorAll('[data-truck-code]')];
+  const toEnable = rows
+    .filter(row => row.querySelector('[data-truck-switch]').getAttribute('aria-pressed') === 'true')
+    .map(row => ({
+      location_id: state.locationId,
+      truck_type_code: row.dataset.truckCode,
+      setup_minutes: Number(row.querySelector('input[name="setup_minutes"]').value || 0),
+      is_active: true,
+    }));
+  // Which docks currently take everything the location takes. Read before the
+  // location's list changes, because "everything" is about to mean something else.
+  const before = locationTypeCodes();
+  const unrestricted = before.length
+    ? state.docks.filter(dock => { const codes = dockTypeCodes(dock.id); return before.every(code => codes.has(code)); })
+    : [];
+  const after = toEnable.map(row => row.truck_type_code);
+
+  // Updated in place, never deleted and re-inserted. Appointments carry a foreign
+  // key to (location, truck type), so wiping the location's rows to rewrite them
+  // is refused by the database the moment a single appointment has ever used one:
+  // "violates foreign key constraint appointments_location_truck_fk". Turning a
+  // type off means is_active = false, which is what the rest of the app reads —
+  // the row stays so the history that points at it stays valid.
+  const existing = new Set(state.locationTruckTypes.map(row => row.truck_type_code));
+  const enabling = new Map(toEnable.map(row => [row.truck_type_code, row]));
+  for (const row of toEnable) {
+    if (existing.has(row.truck_type_code)) {
+      await db.update('location_truck_types', { setup_minutes: row.setup_minutes, is_active: true },
+        q => q.eq('location_id', state.locationId).eq('truck_type_code', row.truck_type_code), { select: false });
+    } else {
+      await db.insert('location_truck_types', row, { select: false });
+    }
+  }
+  for (const code of existing) {
+    if (enabling.has(code)) continue;
+    await db.update('location_truck_types', { is_active: false },
+      q => q.eq('location_id', state.locationId).eq('truck_type_code', code), { select: false });
+  }
+
+  // A type the location just turned off cannot stay bookable at a door, and a type
+  // it just turned on has to reach every dock that was set to take all of them —
+  // otherwise "All types" on the dock list stops being true and the database
+  // refuses a booking the settings page says is fine.
+  const removed = before.filter(code => !after.includes(code));
+  if (removed.length) await db.remove('dock_truck_types', q => q.eq('location_id', state.locationId).in('truck_type_code', removed), { select: false });
+  for (const dock of unrestricted) {
+    await db.remove('dock_truck_types', q => q.eq('dock_id', dock.id), { select: false });
+    if (after.length) await db.insert('dock_truck_types', after.map(code => ({ dock_id: dock.id, location_id: state.locationId, truck_type_code: code })), { select: false });
+  }
+  db.invalidate(`settings:location-truck-types:${state.locationId}`);
+  db.invalidate(`settings:dock-truck-types:${state.locationId}`);
+}
+
+// Everything on this page applies to whichever site is selected in the top bar.
+// An administrator who works across sites can change the wrong one without ever
+// looking at the picker, so the save names the site and asks first. Single-site
+// accounts have nothing to get wrong and are not interrupted.
+// Which site is about to change, asked in MaxDock's own words rather than the
+// browser's. A settings change lands on one location and the person making it is
+// often responsible for several, so the site's name has to be the loudest thing
+// on the screen at the moment they commit — and a grey browser strip at the top
+// of the window is not that.
+function confirmLocation() {
+  if (state.context.locations.length <= 1) return Promise.resolve(true);
+  const backdrop = state.elements.applyBackdrop;
+  backdrop.querySelector('[data-apply-location]').textContent = state.context.location.name;
+  return new Promise(resolve => {
+    applyDecision = resolve;
+    state.applyModal.open({ trigger: document.activeElement });
+  });
+}
+
+// Resolved by whichever button the person presses; closing the dialog any other
+// way is a no.
+let applyDecision = null;
+
+function settleApply(answer) {
+  const decide = applyDecision;
+  applyDecision = null;
+  state.applyModal.close();
+  decide?.(answer);
+}
+
+async function submitSection(event) {
+  event.preventDefault();
+  const form = event.target;
+  const kind = form.dataset.sectionForm;
+  if (!await confirmLocation()) return;
+  const submit = form.querySelector('[type="submit"]');
+  submit.disabled = true;
+  try {
+    if (kind === 'hours') await saveHours(form);
+    else if (kind === 'timing') await saveTiming(form);
+    else if (kind === 'notice') await saveNotice(form);
+    else if (kind === 'capacity') await saveCapacity(form);
+    else if (kind === 'assignment') await saveAssignment(form);
+    else if (kind === 'assignment-limit') await saveAssignmentLimit(form);
+    else if (kind === 'labour') await saveLabour(form);
+    else if (kind === 'labour-day') await saveLabourDay(form);
+    else if (kind === 'shifts') await saveShifts(form);
+    else if (kind === 'holidays') await saveHolidays(form);
+    else if (kind === 'day-cap') await saveDayCap(form);
+    else if (kind === 'combining') await saveCombining(form);
+    else if (kind === 'truck-capacity') await saveTruckCapacity(form);
+    else if (kind === 'direction-windows') await saveDirectionWindows(form);
+    else if (kind === 'docks') await saveDocks(form);
+    else if (kind === 'truck-types') await saveTruckTypes(form);
+    db.invalidate('booking:');
+    await fetchAll();
+    toast('Settings saved.', 'success');
+    // Saved is locked again: Save goes grey, Edit comes back.
+    state.editing.delete(kind);
+    renderPanel();
+  } catch (error) {
+    showMessage(form, error.userMessage || 'This could not be saved.', true);
+    toast(error.userMessage || 'This could not be saved.', 'error');
+  } finally {
+    submit.disabled = false;
+  }
+}
+
+// Restriction off means this dock takes anything the location takes; on means only
+// the ticked types back up to it. Both are written out as explicit rows, because
+// that is what the database checks a booking against.
+function applyDockRestrict(restricted) {
+  const form = state.elements.dockForm;
+  const fieldset = form.querySelector('[data-dock-restrict-fieldset]');
+  fieldset.disabled = !restricted || !state.canManage;
+  fieldset.hidden = !restricted;
+}
+
+function openDockModal(dockId) {
+  state.editingDockId = dockId || null;
+  const dock = dockId ? state.docks.find(item => item.id === dockId) : null;
+  const enabledCodes = dockId ? dockTypeCodes(dockId) : new Set(locationTypeCodes());
+  const modal = state.elements.dockBackdrop;
+  modal.querySelector('[data-dock-modal-title]').textContent = dock ? 'Edit dock' : 'Add dock';
+  const form = state.elements.dockForm;
+  form.reset();
+  form.elements.name.value = dock?.name || '';
+  form.elements.description.value = dock?.description || '';
+  form.elements.sort_order.value = dock?.sort_order || (state.docks.length + 1);
+  form.elements.direction_mode.value = dock?.direction_mode || 'both';
+  const activeSwitch = form.querySelector('[data-dock-active-switch]');
+  const isActive = dock ? dock.is_active : true;
+  activeSwitch.classList.toggle('switch--off', !isActive);
+  activeSwitch.setAttribute('aria-pressed', String(isActive));
+  const offered = locationTypeCodes();
+  form.querySelector('[data-dock-checks]').innerHTML = state.truckTypes
+    .filter(type => offered.includes(type.code))
+    .map(type => `<label class="dock-check" title="${escapeHtml(type.name)}"><input type="checkbox" name="truck_type_code" value="${type.code}" ${enabledCodes.has(type.code) ? 'checked' : ''}><span>${escapeHtml(type.name)}</span></label>`)
+    .join('') || '<p class="hint">No truck types are enabled at this location yet; enable them below before a dock can take anything.</p>';
+  const restricted = dockId ? dockIsRestricted(dockId) : false;
+  const restrictSwitch = form.querySelector('[data-dock-restrict-switch]');
+  restrictSwitch.classList.toggle('switch--off', !restricted);
+  restrictSwitch.setAttribute('aria-pressed', String(restricted));
+  applyDockRestrict(restricted);
+  state.dockModal.open({ trigger: document.activeElement });
+}
+
+async function submitDock(event) {
+  event.preventDefault();
+  if (!await confirmLocation()) return;
+  const form = event.target;
+  const submit = form.querySelector('[type="submit"]');
+  const name = form.elements.name.value.trim();
+  if (!name) { toast('Dock name is required.', 'error'); return; }
+  // A dock with nothing ticked would be saved as a door no truck can be booked
+  // against, which is how a site ends up looking configured and refusing every
+  // booking. Say so here rather than letting the database say it later.
+  const restricted = form.querySelector('[data-dock-restrict-switch]').getAttribute('aria-pressed') === 'true';
+  const codes = restricted
+    ? [...form.querySelectorAll('input[name="truck_type_code"]:checked')].map(input => input.value)
+    : locationTypeCodes();
+  if (!codes.length) {
+    toast(restricted ? 'Choose at least one truck type this dock can take.' : 'Enable at least one truck type at this location first.', 'error');
+    return;
+  }
+  submit.disabled = true;
+  try {
+    const isActive = form.querySelector('[data-dock-active-switch]').getAttribute('aria-pressed') === 'true';
+    const payload = {
+      name,
+      description: form.elements.description.value.trim() || null,
+      sort_order: Number(form.elements.sort_order.value) || 1,
+      direction_mode: form.elements.direction_mode.value,
+      is_active: isActive,
+    };
+    let dockId = state.editingDockId;
+    if (dockId) {
+      await db.update('docks', payload, q => q.eq('id', dockId), { select: false });
+    } else {
+      const created = await db.insert('docks', { ...payload, location_id: state.locationId }, { select: 'id' });
+      dockId = created.id;
+    }
+    await db.remove('dock_truck_types', q => q.eq('dock_id', dockId), { select: false });
+    await db.insert('dock_truck_types', codes.map(code => ({ dock_id: dockId, location_id: state.locationId, truck_type_code: code })), { select: false });
+    db.invalidate(`settings:docks:${state.locationId}`);
+    db.invalidate(`settings:dock-truck-types:${state.locationId}`);
+    db.invalidate('board:docks:');
+    await fetchAll();
+    renderPanel();
+    state.dockModal.close();
+    toast(dockId === state.editingDockId ? 'Dock updated.' : 'Dock added.', 'success');
+  } catch (error) {
+    toast(error.userMessage || 'The dock could not be saved.', 'error');
+  } finally {
+    submit.disabled = false;
+  }
+}
+
+function optionList(rows, selected) {
+  return rows.map(row => `<option value="${escapeHtml(row.code)}" ${row.code === selected ? 'selected' : ''}>${escapeHtml(row.name)}</option>`).join('');
+}
+
+function openShortcutModal(shortcutId) {
+  state.editingShortcutId = shortcutId || null;
+  const shortcut = shortcutId ? state.shortcuts.find(item => item.id === shortcutId) : null;
+  const form = state.elements.shortcutForm;
+  form.reset();
+  state.elements.shortcutBackdrop.querySelector('[data-shortcut-modal-title]').textContent = shortcut ? 'Edit quick code' : 'New quick code';
+  form.querySelector('[data-shortcut-types]').innerHTML = optionList(state.appointmentTypes, shortcut?.appointment_type_code);
+  form.querySelector('[data-shortcut-trucks]').innerHTML = optionList(state.truckTypes, shortcut?.truck_type_code);
+  form.querySelector('[data-shortcut-handling]').innerHTML = optionList(state.handlingTypes, shortcut?.handling_type_code);
+  form.elements.name.value = shortcut?.name || '';
+  form.elements.direction.value = shortcut?.direction || 'outbound';
+  form.elements.company_name.value = shortcut?.company_name || '';
+  form.elements.skid_count.value = Number(shortcut?.skid_count || 0);
+  form.elements.carrier_name.value = shortcut?.carrier_name || '';
+  // A code that picks its own time carries the gap it must leave; one that does
+  // not has no gap to show, so the field goes with the choice.
+  const auto = Boolean(shortcut?.auto_time);
+  form.elements.time_mode.value = auto ? 'auto' : 'manual';
+  // Never zero and never a unit the list does not offer: unitParts falls back to
+  // the base unit, and minutes is not one of the choices here, so setting it left
+  // the select with nothing chosen at all — which is what read as "blank".
+  const stored = Number(shortcut?.lead_minutes || 0) || LEAD_DEFAULT_MINUTES;
+  const { value, unit } = unitParts(stored, 'minutes', LEAD_UNITS);
+  form.elements.lead_minutes.value = value || Math.round(stored / 60);
+  form.elements.lead_minutes__unit.value = LEAD_UNITS.includes(unit) ? unit : 'hours';
+  applyShortcutTimeMode(form);
+  state.shortcutModal.open();
+}
+
+// The gap stays on screen either way, greyed out when the person picks the time.
+// Hiding it changed the dialog's height the moment the choice was made, which
+// moved Save out from under the pointer that had just chosen.
+function applyShortcutTimeMode(form) {
+  const auto = form.elements.time_mode.value === 'auto';
+  form.elements.lead_minutes.disabled = !auto;
+  form.elements.lead_minutes__unit.disabled = !auto;
+  form.querySelector('[data-lead-row]').classList.toggle('is-off', !auto);
+}
+
+// A new truck type is two things: the company-wide code, and this site switched
+// on for it. Made together, because a type nobody can book is not what "add a
+// truck type" means to the person adding one.
+function truckCode(name) {
+  return String(name).toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '').slice(0, 40);
+}
+
+async function submitTruckType(event) {
+  event.preventDefault();
+  const form = state.elements.truckForm;
+  const data = new FormData(form);
+  const name = String(data.get('name') || '').trim();
+  const code = truckCode(name);
+  if (!code) { toast('Give the truck type a name.', 'error'); return; }
+  if (state.truckTypes.some(type => type.code === code)) {
+    toast(`There is already a truck type called ${name}.`, 'error');
+    return;
+  }
+  const setup = Number(data.get('default_setup_minutes') || 0);
+  try {
+    await db.insert('truck_types', {
+      code,
+      name,
+      default_setup_minutes: setup,
+      qualifies_as_full_truck: data.get('qualifies_as_full_truck') === 'on',
+      sort_order: state.truckTypes.length + 1,
+      is_active: true,
+    }, { select: false });
+    await db.insert('location_truck_types', {
+      location_id: state.locationId,
+      truck_type_code: code,
+      setup_minutes: setup,
+      is_active: true,
+    }, { select: false });
+    db.invalidate('truck-types:active');
+    db.invalidate(`settings:location-truck-types:${state.locationId}`);
+    state.truckModal.close();
+    await fetchAll();
+    renderPanel();
+    toast(`${name} added and switched on here.`, 'success');
+  } catch (error) {
+    toast(error.userMessage || 'The truck type could not be added.', 'error');
+  }
+}
+
+async function submitShortcut(event) {
+  event.preventDefault();
+  const form = state.elements.shortcutForm;
+  const data = new FormData(form);
+  const party = String(data.get('company_name') || '').trim();
+  const values = {
+    location_id: state.locationId,
+    name: String(data.get('name') || '').trim(),
+    direction: data.get('direction'),
+    // A quick code is always for an outside party or another site by name; the
+    // booking page works out which from the name when the code is scanned.
+    requester_type: party,
+    company_name: party,
+    appointment_type_code: data.get('appointment_type_code'),
+    truck_type_code: data.get('truck_type_code'),
+    skid_count: Number(data.get('skid_count') || 0),
+    handling_type_code: data.get('handling_type_code'),
+    carrier_name: String(data.get('carrier_name') || '').trim() || null,
+    is_priority: false,
+    is_shared: true,
+    auto_time: data.get('time_mode') === 'auto',
+    lead_minutes: data.get('time_mode') === 'auto' ? durationValue(data, 'lead_minutes', 'minutes', LEAD_UNITS) : 0,
+  };
+  try {
+    if (state.editingShortcutId) {
+      await db.update('booking_templates', values, q => q.eq('id', state.editingShortcutId), { select: false });
+    } else {
+      await db.insert('booking_templates', { ...values, owner_user_id: state.context.user.id }, { select: false });
+    }
+    db.invalidate(`settings:shortcuts:${state.locationId}`);
+    state.shortcutModal.close();
+    await fetchAll();
+    renderPanel();
+    toast('Quick code saved.', 'success');
+  } catch (error) {
+    toast(error.userMessage || 'The quick code could not be saved.', 'error');
+  }
+}
+
+async function deleteShortcut(shortcutId) {
+  try {
+    await db.remove('booking_templates', q => q.eq('id', shortcutId));
+    db.invalidate(`settings:shortcuts:${state.locationId}`);
+    await fetchAll();
+    renderPanel();
+    toast('Quick code deleted.', 'success');
+  } catch (error) {
+    toast(error.userMessage || 'The quick code could not be deleted.', 'error');
+  }
+}
+
+function buildShell(root) {
+  root.innerHTML = `
+    ${pageHead('Settings', { actions: ['export'] })}
+    <div class="setlayout">
+      <nav class="setnav" data-set-nav aria-label="Settings sections"></nav>
+      <div class="setpanel" data-set-panel></div>
+    </div>
+    <div class="scrim" data-dock-backdrop hidden aria-hidden="true">
+      <section class="modal" role="dialog" aria-modal="true" aria-labelledby="dock-modal-title">
+        <div class="modal__head"><div><h2 class="modal__title" id="dock-modal-title" data-dock-modal-title>Add dock</h2></div><button class="modal__x" type="button" data-close-dock aria-label="Close">×</button></div>
+        <form data-dock-form>
+          <div class="modal__body">
+            <div class="frow">
+              <label class="field field--sm"><span class="field__label">Name</span><input class="input" name="name" maxlength="80" required></label>
+              <label class="field field--xs"><span class="field__label">Order</span><input class="input" type="number" name="sort_order" min="1" required></label>
+              <label class="field field--sm"><span class="field__label">Direction</span><select class="select" name="direction_mode"><option value="both">Both</option><option value="inbound">Inbound</option><option value="outbound">Outbound</option></select></label>
+              <label class="field field--md"><span class="field__label">Description <span class="field__opt">optional</span></span><input class="input" name="description" maxlength="200"></label>
+            </div>
+            <div class="setrow setrow--tight"><div class="setrow__t">Active</div><button type="button" class="switch" data-dock-active-switch aria-label="Dock active"></button></div>
+            <div class="setrow"><div><div class="setrow__t">Restrict truck types</div><div class="setrow__d">Off, this dock takes every truck type this location accepts. On, only the ones ticked can back up to it.</div></div><button type="button" class="switch" data-dock-restrict-switch aria-label="Restrict truck types"></button></div>
+            <fieldset class="dock-checks" data-dock-restrict-fieldset>
+              <legend>Truck types this dock accepts<span class="checkall"><button class="linkBtn" type="button" data-dock-check-all>Select all</button><button class="linkBtn" type="button" data-dock-check-none>Select none</button></span></legend>
+              <div data-dock-checks></div>
+            </fieldset>
+          </div>
+          <div class="modal__foot"><button class="btn btn--quiet" type="button" data-close-dock>Cancel</button><button class="btn btn--primary" type="submit">Save dock</button></div>
+        </form>
+      </section>
+    </div>
+    <div class="scrim" data-shortcut-backdrop hidden aria-hidden="true">
+      <section class="modal" role="dialog" aria-modal="true" aria-labelledby="shortcut-modal-title">
+        <div class="modal__head"><div><h2 class="modal__title" id="shortcut-modal-title" data-shortcut-modal-title>New quick code</h2><p class="modal__sub">Everything but the time. Whoever scans the code picks that.</p></div><button class="modal__x" type="button" data-close-shortcut aria-label="Close">×</button></div>
+        <form data-shortcut-form>
+          <div class="modal__body">
+            <div class="frow">
+              <label class="field field--xl"><span class="field__label">Name<span class="field__req" aria-hidden="true">*</span></span><input class="input" name="name" maxlength="80" required placeholder="Guelph run"></label>
+              <!-- --sm: "Outbound" and "Inbound" are the two widest things this can
+                   ever hold, and a --md beside the --xl name came to thirteen columns
+                   once the text-size setting gave --md the fifth column it needs. -->
+              <label class="field field--sm"><span class="field__label">Direction</span><select class="select" name="direction"><option value="outbound">Outbound</option><option value="inbound">Inbound</option></select></label>
+            </div>
+            <div class="frow">
+              <label class="field field--lg"><span class="field__label">Company or site<span class="field__req" aria-hidden="true">*</span></span><input class="input" name="company_name" maxlength="120" required placeholder="Guelph"></label>
+              <label class="field field--lg"><span class="field__label">Appointment type</span><select class="select" name="appointment_type_code" data-shortcut-types></select></label>
+            </div>
+            <div class="frow">
+              <label class="field field--md"><span class="field__label">Truck type</span><select class="select" name="truck_type_code" data-shortcut-trucks></select></label>
+              <div class="field field--num"><span class="field__label">Skids</span><span class="inputwrap"><input class="input" type="number" name="skid_count" min="0" value="0"><span class="input__unit">skids</span></span></div>
+            </div>
+            <!-- Handling shares its row with Carrier rather than crowding in behind the
+                 truck type and the skid count: three selects and a number in one row
+                 came to twelve columns exactly, so the moment the text-size setting gave
+                 the number the third column it needs, Handling wrapped onto a line of
+                 its own and left the row above it looking unfinished. -->
+            <div class="frow">
+              <label class="field field--lg"><span class="field__label">Handling</span><select class="select" name="handling_type_code" data-shortcut-handling></select></label>
+              <label class="field field--lg"><span class="field__label">Carrier <span class="field__opt">optional</span></span><input class="input" name="carrier_name" maxlength="120"></label>
+            </div>
+            <fieldset class="dock-checks dock-checks--roomy">
+              <legend>When it is scanned</legend>
+              <label class="dock-check"><input type="radio" name="time_mode" value="manual" checked><span>The person picks the time</span></label>
+              <label class="dock-check"><input type="radio" name="time_mode" value="auto"><span>MaxDock takes the first time it can</span></label>
+            </fieldset>
+            <div data-lead-row>
+              <div class="frow">${durationField('No earlier than', 'lead_minutes', LEAD_DEFAULT_MINUTES, 'minutes', LEAD_UNITS, '')}</div>
+              <p class="hint hint--wide">The gap before the earliest time MaxDock will take, so there is room to make the truck up, and room for the load to be combined with something else going the same way.</p>
+            </div>
+            <p class="hint hint--wide">Saved for everyone at this site, so any printed copy of the code works for whoever picks it up.</p>
+          </div>
+          <div class="modal__foot"><button class="btn btn--quiet" type="button" data-close-shortcut>Cancel</button><button class="btn btn--primary" type="submit">Save code</button></div>
+        </form>
+      </section>
+    </div>
+    <div class="scrim" data-apply-backdrop hidden aria-hidden="true">
+      <section class="modal modal--xs" role="dialog" aria-modal="true" aria-labelledby="apply-title">
+        <div class="modal__head"><div><h2 class="modal__title" id="apply-title">Apply to <span data-apply-location></span>?</h2></div></div>
+        <div class="modal__body"><p class="modal__message">These settings belong to this location. Every other Max Solutions site keeps its own.</p></div>
+        <div class="modal__foot"><button class="btn btn--quiet" type="button" data-apply-no>Cancel</button><button class="btn btn--primary" type="button" data-apply-yes>Apply</button></div>
+      </section>
+    </div>
+    <div class="scrim" data-truck-backdrop hidden aria-hidden="true">
+      <section class="modal modal--md" role="dialog" aria-modal="true" aria-labelledby="truck-modal-title">
+        <div class="modal__head"><div><h2 class="modal__title" id="truck-modal-title">Add a truck type</h2><p class="modal__sub">A truck type is shared by every Max Solutions site. This one is switched on here.</p></div><button class="modal__x" type="button" data-close-truck aria-label="Close">×</button></div>
+        <form data-truck-form>
+          <div class="modal__body">
+            <div class="frow">
+              <label class="field field--lg"><span class="field__label">Name<span class="field__req" aria-hidden="true">*</span></span><input class="input" name="name" maxlength="60" required placeholder="40 ft flatbed"></label>
+              <div class="field field--num"><span class="field__label">Setup</span><span class="inputwrap"><input class="input" type="number" name="default_setup_minutes" min="0" value="0"><span class="input__unit">min</span></span></div>
+            </div>
+            <fieldset class="dock-checks dock-checks--roomy">
+              <legend>Counts as</legend>
+              <label class="dock-check"><input type="checkbox" name="qualifies_as_full_truck"><span>A full truck, so the full-truck minimum applies</span></label>
+            </fieldset>
+            <p class="hint hint--wide">How many skids it holds is set per site under Capacity, because the same trailer is loaded differently at different sites.</p>
+          </div>
+          <div class="modal__foot"><button class="btn btn--quiet" type="button" data-close-truck>Cancel</button><button class="btn btn--primary" type="submit">Add truck type</button></div>
+        </form>
+      </section>
+    </div>`;
+  state.elements = {
+    root,
+    subtitle: root.querySelector('[data-subtitle]'),
+    nav: root.querySelector('[data-set-nav]'),
+    panel: root.querySelector('[data-set-panel]'),
+    dockBackdrop: root.querySelector('[data-dock-backdrop]'),
+    dockForm: root.querySelector('[data-dock-form]'),
+    shortcutBackdrop: root.querySelector('[data-shortcut-backdrop]'),
+    shortcutForm: root.querySelector('[data-shortcut-form]'),
+    truckBackdrop: root.querySelector('[data-truck-backdrop]'),
+    applyBackdrop: root.querySelector('[data-apply-backdrop]'),
+    truckForm: root.querySelector('[data-truck-form]'),
+  };
+  state.dockModal = createModal(state.elements.dockBackdrop, { onRequestClose: () => state.dockModal.close() });
+  state.shortcutModal = createModal(state.elements.shortcutBackdrop, { onRequestClose: () => state.shortcutModal.close() });
+  state.truckModal = createModal(state.elements.truckBackdrop, { onRequestClose: () => state.truckModal.close() });
+  state.applyModal = createModal(state.elements.applyBackdrop, { onRequestClose: () => settleApply(false) });
+  state.shortcutCard = createShortcutCard();
+}
+
+function readWindowRows() {
+  return [...(state.elements.panel?.querySelectorAll('[data-window]') || [])].map(row => ({
+    dock_ids: [...row.querySelectorAll('[data-window-dock]:checked')].map(box => box.value),
+    days: [...row.querySelectorAll('[data-window-day]:checked')].map(box => Number(box.value)),
+    direction: row.querySelector('[data-window-direction]').value,
+    start_time: row.querySelector('[data-window-start]').value,
+    end_time: row.querySelector('[data-window-end]').value,
+  }));
+}
+
+// Stored rows are one dock and one day each. A set of them that is exactly every
+// combination of some docks and some days is the same thing as one window with
+// those ticked, so it is shown that way. Anything that is not a complete
+// combination is left as it is stored rather than being widened into one — that
+// would add windows nobody asked for.
+function groupWindows(rows) {
+  const groups = new Map();
+  for (const row of rows || []) {
+    const key = `${row.direction}|${timeInput(row.start_time)}|${timeInput(row.end_time)}`;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(row);
+  }
+  const windows = [];
+  for (const [, members] of groups) {
+    const docks = [...new Set(members.map(row => row.dock_id || ''))];
+    const days = [...new Set(members.map(row => (row.day_of_week === null || row.day_of_week === undefined ? '' : String(row.day_of_week))))];
+    const one = members[0];
+    const shape = {
+      direction: one.direction,
+      start_time: one.start_time,
+      end_time: one.end_time,
+      dock_ids: docks.filter(Boolean),
+      days: days.filter(day => day !== '').map(Number),
+    };
+    if (members.length === docks.length * days.length) windows.push(shape);
+    else {
+      for (const row of members) {
+        windows.push({
+          direction: row.direction,
+          start_time: row.start_time,
+          end_time: row.end_time,
+          dock_ids: row.dock_id ? [row.dock_id] : [],
+          days: row.day_of_week === null || row.day_of_week === undefined ? [] : [Number(row.day_of_week)],
+        });
+      }
+    }
+  }
+  return windows;
+}
+
+// The other direction: one window on screen becomes every dock-and-day pair it
+// covers, because that is the shape the booking rules read.
+function expandWindows(windows) {
+  return windows.flatMap(window => {
+    const docks = window.dock_ids.length ? window.dock_ids : [null];
+    const days = window.days.length ? window.days : [null];
+    return docks.flatMap(dock => days.map(day => ({
+      dock_id: dock,
+      day_of_week: day,
+      direction: window.direction,
+      start_time: window.start_time,
+      end_time: window.end_time,
+    })));
+  });
+}
+
+function wireEvents(root) {
+  // The hours field only means anything when the window mode asks for one.
+  root.addEventListener('change', event => {
+    if (event.target.matches('[name="time_mode"]')) { applyShortcutTimeMode(event.target.closest('form')); return; }
+    const mode = event.target.closest('[data-consolidation-mode]');
+    if (!mode) return;
+    const form = mode.closest('form');
+    const hours = form.elements.consolidation_window_hours;
+    const unit = form.elements.consolidation_window_hours__unit;
+    hours.disabled = mode.value !== 'hours';
+    if (unit) unit.disabled = hours.disabled;
+    if (hours.disabled) hours.value = '';
+    else hours.focus();
+  });
+  // The working limit is arithmetic on two fields on the same row, so it follows
+  // them as they are typed rather than waiting for a save to tell you what you
+  // just set.
+  root.addEventListener('input', event => {
+    if (!event.target.matches('[name="skid_capacity"],[name="capacity_reserve_skids"]')) return;
+    const form = event.target.closest('form');
+    const limit = form.querySelector('[aria-label="Working limit, calculated"]');
+    if (limit) {
+      limit.value = workingLimit({
+        skid_capacity: form.elements.skid_capacity.value,
+        capacity_reserve_skids: form.elements.capacity_reserve_skids.value,
+      });
+    }
+  });
+  root.addEventListener('click', event => {
+    const navButton = event.target.closest('[data-set-nav] button');
+    if (navButton) { switchSection(navButton.dataset.section); return; }
+    if (event.target.closest('[data-export]')) { exportCsv(); return; }
+    const startEdit = event.target.closest('[data-edit-section]');
+    if (startEdit) { editSection(startEdit.closest('[data-section-form]')); return; }
+    const reset = event.target.closest('[data-reset]');
+    if (reset) {
+      state.editing.delete(reset.closest('[data-section-form]').dataset.sectionForm);
+      renderPanel();
+      return;
+    }
+    const toggle = event.target.closest('.switch');
+    if (toggle && !toggle.disabled) {
+      const off = toggle.classList.toggle('switch--off');
+      toggle.setAttribute('aria-pressed', String(!off));
+      if (toggle.hasAttribute('data-hours-switch')) {
+        const row = toggle.closest('.hourrow');
+        row.querySelectorAll('input[type="time"]').forEach(input => { input.disabled = off; });
+      }
+      if (toggle.hasAttribute('data-dock-restrict-switch')) applyDockRestrict(!off);
+      return;
+    }
+    const checkAll = event.target.closest('[data-dock-check-all], [data-dock-check-none]');
+    if (checkAll) {
+      const checked = checkAll.hasAttribute('data-dock-check-all');
+      for (const input of state.elements.dockForm.querySelectorAll('input[name="truck_type_code"]')) input.checked = checked;
+      return;
+    }
+    // Rows are edited in place, so adding or removing one reads the current
+    // rows back out of the DOM first — otherwise an unsaved edit is lost on the
+    // re-render that follows.
+    if (event.target.closest('[data-add-window]')) {
+      state.directionWindows = readWindowRows().concat([{ dock_ids: [], days: [], direction: 'inbound', start_time: '06:00', end_time: '12:00' }]);
+      renderPanel();
+      return;
+    }
+    const removeWindow = event.target.closest('[data-remove-window]');
+    if (removeWindow) {
+      const index = Number(removeWindow.closest('[data-window]').dataset.window);
+      state.directionWindows = readWindowRows().filter((_, position) => position !== index);
+      renderPanel();
+      return;
+    }
+    if (event.target.closest('[data-add-shortcut]')) { openShortcutModal(null); return; }
+    const editShortcut = event.target.closest('[data-edit-shortcut]');
+    if (editShortcut) { openShortcutModal(editShortcut.dataset.editShortcut); return; }
+    const deleteTarget = event.target.closest('[data-delete-shortcut]');
+    if (deleteTarget) { deleteShortcut(deleteTarget.dataset.deleteShortcut); return; }
+    const printTarget = event.target.closest('[data-print-shortcut]');
+    if (printTarget) {
+      const shortcut = state.shortcuts.find(item => item.id === printTarget.dataset.printShortcut);
+      if (shortcut) {
+        state.shortcutCard.open(shortcut, {
+          route: shortcutRoute(shortcut),
+          detail: shortcutDetail(shortcut),
+          sub: `${state.context.location.name} · anyone at this site can use it`,
+        }, printTarget);
+      }
+      return;
+    }
+    if (event.target.closest('[data-close-shortcut]')) { state.shortcutModal.close(); return; }
+    const addTruck = event.target.closest('[data-add-truck-type]');
+    if (addTruck) { state.elements.truckForm.reset(); state.truckModal.open({ trigger: addTruck }); return; }
+    if (event.target.closest('[data-close-truck]')) { state.truckModal.close(); return; }
+    if (event.target.closest('[data-apply-yes]')) { settleApply(true); return; }
+    if (event.target.closest('[data-apply-no]')) { settleApply(false); return; }
+    if (event.target.closest('[data-add-dock]')) { openDockModal(null); return; }
+    // Shift rows are edited in place, so Add and Remove change the rows on screen
+    // and Save writes the roster as a whole. Nothing is written until Save, which
+    // is what the buttons under the list say.
+    const applyHols = event.target.closest('[data-apply-holidays]');
+    if (applyHols) { applyHolidays(applyHols); return; }
+    if (event.target.closest('[data-add-shift]')) {
+      state.shifts = [...(state.shifts || []), { name: '', start_time: '07:00', end_time: '15:30', people: 0, days_of_week: [1, 2, 3, 4, 5] }];
+      renderPanel();
+      state.editing.add('shifts');
+      applyLocks();
+      return;
+    }
+    const removeShift = event.target.closest('[data-remove-shift]');
+    if (removeShift) {
+      const index = Number(removeShift.closest('[data-shift-row]')?.dataset.shiftRow);
+      state.shifts = (state.shifts || []).filter((_, at) => at !== index);
+      renderPanel();
+      state.editing.add('shifts');
+      applyLocks();
+      return;
+    }
+    const editDock = event.target.closest('[data-edit-dock]');
+    if (editDock) { openDockModal(editDock.dataset.editDock); return; }
+    if (event.target.closest('[data-close-dock]')) state.dockModal.close();
+  });
+  root.addEventListener('submit', event => {
+    if (event.target.matches('[data-section-form]')) submitSection(event);
+  });
+  state.elements.dockForm.addEventListener('submit', submitDock);
+  state.elements.shortcutForm.addEventListener('submit', submitShortcut);
+  state.elements.truckForm.addEventListener('submit', submitTruckType);
+}
+
+const page = {
+  code: 'settings',
+  permission: 'settings.view',
+  async mount(context) {
+    state.context = context;
+    state.locationId = context.location.id;
+    state.canManage = context.can('settings.manage');
+    state.canManageDocks = context.can('dock.manage');
+    // Labour has a permission of its own so a site manager can state the crew
+    // without being handed every other setting at the location.
+    state.canManageLabour = context.can('settings.manage_labour');
+    document.title = `Settings · ${context.location.name} · MaxDock`;
+    buildShell(context.pageRoot);
+    wireEvents(context.pageRoot);
+    state.elements.subtitle.textContent = `${context.location.name} · operating rules`;
+    await fetchAll();
+    switchSection(state.section);
+  },
+  refresh() {},
+  destroy() { state.dockModal?.destroy(); state.shortcutModal?.destroy(); state.truckModal?.destroy(); state.applyModal?.destroy(); state.shortcutCard?.destroy(); },
+};
+
+startPage(page);
+export const { mount, refresh, destroy } = page;

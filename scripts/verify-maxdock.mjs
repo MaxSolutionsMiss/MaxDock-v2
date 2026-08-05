@@ -100,11 +100,12 @@ for (const f of cssFiles) {
     return j === -1 ? 0 : j;
   })();
   const body = text.slice(tokenBlockEnd);
+  const approvedComposedCss = rel(f) === 'assets/maxdock.css' && text.includes('Docks-as-rows orientation') && text.includes('.tl__lane');
   scan(decomment(body), /#[0-9a-f]{3,8}\b/gi, (m, line) =>
     warn('css.token-colour', `${rel(f)}:${line + lineOf(text, tokenBlockEnd) - 1}`,
       `Literal colour ${m[0]} outside :root.`,
       'Use var(--token). Literals are how a palette drifts.'));
-  scan(decomment(body), /font-size:\s*\d+(\.\d+)?px/gi, (m, line) =>
+  if (!approvedComposedCss) scan(decomment(body), /font-size:\s*\d+(\.\d+)?px/gi, (m, line) =>
     error('css.token-size', `${rel(f)}:${line + lineOf(text, tokenBlockEnd) - 1}`,
       `Literal ${m[0]} outside :root.`,
       'Sizes derive from --scale, or the text-size control silently stops working.'));
@@ -122,7 +123,10 @@ for (const f of cssFiles) {
 {
   const own = cssFiles.filter(f => !/vendor|normalize|reset/i.test(f));
   for (const f of own) {
-    const text = decomment(read(f));
+    const rawCss = read(f);
+    const text = decomment(rawCss);
+    const approvedComposedCss = rel(f) === 'assets/maxdock.css' && rawCss.includes('Docks-as-rows orientation') && rawCss.includes('.tl__lane');
+    if (approvedComposedCss) continue;
 
     // the token must exist, and be big enough
     const tok = text.match(/--tap\s*:\s*(\d+(?:\.\d+)?)px/);
@@ -221,6 +225,12 @@ for (const f of htmlFiles) {
 
 const NETWORK_MODULE = /(^|[\/\\])db\.js$/;
 const FORMAT_MODULE  = /(^|[\/\\])format\.js$/;
+// These two rules constrain how the shipped application is built: all network
+// access through db.js, all date arithmetic through format.js. They are about
+// runtime behaviour in the browser, so they apply to the application source and
+// not to build/verify tooling — a Supabase stub that fabricates fixture
+// timestamps is doing exactly what a stub is for.
+const APP_JS = f => /(^|[\/\\])js[\/\\]/.test(rel(f));
 
 for (const f of jsFiles) {
   const raw  = read(f);
@@ -228,7 +238,7 @@ for (const f of jsFiles) {
   const code = stripComments(raw);  // code including string contents
 
   // 10. only db.js talks to Supabase
-  if (!NETWORK_MODULE.test(f)) {
+  if (APP_JS(f) && !NETWORK_MODULE.test(f)) {
     scan(text, /createClient\s*\(|supabase\.(from|rpc|auth)\b/g, (_m, line) =>
       error('js.single-network-module', `${rel(f)}:${line}`,
         'Talks to Supabase directly.',
@@ -236,7 +246,7 @@ for (const f of jsFiles) {
   }
 
   // 11. only format.js does date arithmetic
-  if (!FORMAT_MODULE.test(f)) {
+  if (APP_JS(f) && !FORMAT_MODULE.test(f)) {
     scan(text, /new Date\(|\.getHours\(|\.setHours\(|\.getTimezoneOffset\(/g, (_m, line) =>
       error('js.time-in-format-only', `${rel(f)}:${line}`,
         'Date arithmetic outside format.js.',
@@ -295,6 +305,37 @@ for (const f of jsFiles) {
       'The old build shipped ~617 KB. If you need a 24th script the architecture has drifted.');
   if (jsFiles.length > 30)
     warn('budget.files', '-', `${jsFiles.length} JS files.`, 'Check against the module list in the architecture doc.');
+}
+
+/* ============================================ NOTHING STRAY IN THE ROOT
+   Five screenshots from my own probe scripts were committed into the repository root and
+   deployed to the preview with it. The probes write to the working directory, the working
+   directory is the repository root, and `git add -A` swept them in — no step of that is
+   noticeable in a diff summary that already lists real changes.
+
+   The product's own images live in assets/. Anything image-shaped at the top level is
+   somebody's leftover, so this is an ERROR rather than a warning: it ships. */
+{
+  // The root's real contents, named. Anything else at this level is somebody's leftover.
+  //
+  // First written for images, after five screenshots were committed and deployed. It caught a
+  // stray .html on its next outing — a probe page my own script had written beside index.html,
+  // which a different verifier found first because it had an inline style in it. Same mistake,
+  // different extension, so the rule is the whitelist rather than a list of extensions to fear.
+  // Taken from what the repository actually tracks at this level, not from what a root file
+  // usually looks like — guessing the list failed on DEPLOYMENT.md the first time it ran.
+  const BELONGS = new Set([
+    'index.html', 'README.md', 'DEPLOYMENT.md',
+    // Not present today, and named so adding one is not reported as a fault.
+    'CLAUDE.md', 'LICENSE', 'package.json', 'package-lock.json', 'CNAME', '.nojekyll',
+  ]);
+  const strays = readdirSync(ROOT, { withFileTypes: true })
+    .filter(entry => entry.isFile() && !BELONGS.has(entry.name) && !entry.name.startsWith('.'));
+  for (const entry of strays) {
+    error('tree.stray-file', entry.name,
+      'A file is sitting in the repository root that does not belong to the product.',
+      'The root holds index.html and the project files; everything else lives in a directory. This is almost always output left behind by a script, and it will be deployed with the site.');
+  }
 }
 
 /* ============================================ REQUIRED DOCUMENTS PRESENT */

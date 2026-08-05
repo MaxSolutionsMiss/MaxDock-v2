@@ -7,7 +7,9 @@
   <title>Sign in · MaxDock</title>
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="assets/maxdock.css">
-  <link rel="icon" href="assets/logo-knockout.png">
+  <link rel="icon" href="assets/favicon.ico" sizes="any">
+  <link rel="icon" type="image/png" href="assets/favicon.png">
+  <link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
 </head>
 <body>
   <a class="skip-link" href="#login-main">Skip to sign in</a>
@@ -20,11 +22,11 @@
         <span class="login-brand__name">MaxDock</span>
       </div>
         <h2 class="login-card__title">Sign in</h2>
-        <p class="login-card__intro">Use the email and password assigned to your MaxDock account.</p>
+        <p class="login-card__intro">Use the username and password assigned to your MaxDock account.</p>
         <form id="sign-in-form">
           <div class="field field--lg">
-            <label class="field__label" for="email">Email</label>
-            <input class="input" id="email" name="email" type="email" autocomplete="username" required>
+            <label class="field__label" for="email">Username</label>
+            <input class="input" id="email" name="email" type="text" autocomplete="username" required>
           </div>
           <div class="field field--lg">
             <label class="field__label" for="password">Password</label>
@@ -32,15 +34,14 @@
 
               <input class="input" id="password" name="password" type="password" autocomplete="current-password" required>
 
-              <button class="passwordReveal" type="button" data-password-reveal="password" aria-label="Show password"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"></path><circle cx="12" cy="12" r="2.75"></circle></svg></button>
+              <button class="passwordReveal" type="button" data-password-reveal="password" aria-label="Show password" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"></path><circle cx="12" cy="12" r="2.75"></circle><path data-reveal-slash d="M4 20 20 4"></path></svg></button>
 
             </div>
-            <p class="field__hint">Contact a MaxDock administrator when you do not know the email assigned to your account.</p>
           </div>
+          <div class="login-forgot"><button class="text-link" id="forgot-link" type="button">Forgot your password?</button></div>
           <p class="form-message" id="sign-in-message" aria-live="polite"></p>
           <div class="form-actions form-actions--stack">
             <button class="btn btn--primary btn--block" id="sign-in-submit" type="submit">Sign in</button>
-            <button class="text-link" id="forgot-link" type="button">Forgot your password?</button>
           </div>
         </form>
         <div class="login-divider">A system by</div>

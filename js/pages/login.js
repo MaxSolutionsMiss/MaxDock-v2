@@ -43,10 +43,20 @@ function initialisePasswordReveal() {
   for (const button of document.querySelectorAll('[data-password-reveal]')) {
     const input = document.getElementById(button.dataset.passwordReveal);
     if (!input) continue;
+    // The icon says what the password is doing now, not what the button will do:
+    // a struck-through eye while it is hidden, a plain eye while it is showing.
+    // Hidden is the state the field starts in and the one it returns to.
+    const slash = button.querySelector('[data-reveal-slash]');
+    const sync = () => {
+      const hidden = input.type === 'password';
+      if (slash) slash.hidden = !hidden;
+      button.setAttribute('aria-label', hidden ? 'Show password' : 'Hide password');
+      button.setAttribute('aria-pressed', String(!hidden));
+    };
+    sync();
     button.addEventListener('click', () => {
-      const show = input.type === 'password';
-      input.type = show ? 'text' : 'password';
-      button.setAttribute('aria-label', show ? 'Hide password' : 'Show password');
+      input.type = input.type === 'password' ? 'text' : 'password';
+      sync();
     });
   }
 }
@@ -66,7 +76,7 @@ signInForm.addEventListener('submit', async event => {
     const context = await loadSignedInContext();
     if (context) await redirectAfterAuth(context);
   } catch (error) {
-    setMessage('sign-in-message', error.userMessage || 'The email or password is incorrect.');
+    setMessage('sign-in-message', error.userMessage || 'The email/username or password is incorrect.');
     document.getElementById('password').focus();
   } finally {
     signInButton.disabled = false;
@@ -74,10 +84,12 @@ signInForm.addEventListener('submit', async event => {
 });
 
 document.getElementById('forgot-link').addEventListener('click', () => {
-  const email = document.getElementById('email').value.trim();
-  document.getElementById('reset-email').value = email;
+  const identifier = document.getElementById('email').value.trim();
   setMessage('forgot-message', '');
   showPanel('forgot');
+  // Password reset always needs a real email address, even for accounts that sign in
+  // with a username, so only prefill it when what was typed already looks like one.
+  if (identifier.includes('@')) document.getElementById('reset-email').value = identifier;
 });
 
 document.getElementById('back-to-sign-in').addEventListener('click', () => showPanel('signIn'));

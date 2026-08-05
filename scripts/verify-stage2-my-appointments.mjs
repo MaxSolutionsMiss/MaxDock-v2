@@ -36,11 +36,88 @@ if (!failures.length) {
   check(!/\bDate\s*\.|new\s+Date\s*\(/.test(page), 'js/pages/my-appointments.js', 'Page code must not perform date work outside format.js.');
   check(!/\b(?:dock_id|dock_name|counterpart_dock_id|block_reason|after_hours_confirmed_by)\b/.test(page), 'js/pages/my-appointments.js', 'An internal scheduling field appears in the customer-facing page module.');
   check(!/db\.select\s*\(\s*['"]appointments['"]/.test(page), 'js/pages/my-appointments.js', 'The page must not query the appointments table directly.');
+  // Changing a booking is one server call that re-checks the window with the load
+  // as it will be. A page that edited the fields and moved the time separately
+  // could leave a truck booked for longer than the slot it holds.
+  check(/update_my_appointment/.test(page), 'js/pages/my-appointments.js', 'Editing an appointment must go through the single update RPC.');
+  check(/data-edit-skids/.test(page) && /data-edit-truck/.test(page) && /data-edit-type/.test(page), 'js/pages/my-appointments.js', 'The edit dialog must cover the load, not only the time.');
+  check(!/reschedule_my_appointment/.test(page), 'js/pages/my-appointments.js', 'Two ways to move an appointment is one too many — use the update RPC.');
   check(/poll\.suspend/.test(modal) && /poll\.resume/.test(modal), 'js/ui/modal.js', 'Opening a modal must suspend polling and closing it must resume polling.');
   check(/event\.key\s*!==\s*['"]Tab['"]/.test(modal) && /event\.key\s*===\s*['"]Escape['"]/.test(modal), 'js/ui/modal.js', 'The modal must trap Tab and support Escape.');
   check(/returnFocus/.test(modal), 'js/ui/modal.js', 'The modal must restore focus after closing.');
   check(/nowEpoch\(\)/.test(format), 'js/format.js', 'Current-time arithmetic must be provided by format.js.');
-  check(/\.appointment-card__actions/.test(css) && /\.metric-grid/.test(css), 'assets/maxdock.css', 'Stage 2 appointment layout styles are missing.');
+  check(/\.card/.test(css) && /\.kpis/.test(css) && /\.table/.test(css), 'assets/maxdock.css', 'Approved composed appointment layout styles are missing.');
+
+  // ── The check-in code belongs to whoever holds the booking ──────────────────
+  //
+  // It lived only on the dock board, which is the one screen an outside company cannot open,
+  // so a customer whose driver had lost the code had to telephone the plant. That is the call
+  // this product exists to remove. The database was never the obstacle:
+  // get_appointment_check_in_token already admits the creator and anybody whose email matches
+  // the requester, not only staff holding appointment.view. This screen simply never asked.
+  check(/get_appointment_check_in_token/.test(page), 'js/pages/my-appointments.js',
+    'My appointments never asks for the check-in code, so the people who cannot open the dock board have no way to get it to a driver.');
+  check(/renderQr\(/.test(page), 'js/pages/my-appointments.js',
+    'The check-in code is fetched and then never drawn.');
+  check(/navigator\.share/.test(page), 'js/pages/my-appointments.js',
+    'There is no way to pass an appointment on from the screen that holds it.');
+  // Share must carry the check-in link rather than the page: a link to My appointments is
+  // useless to a driver with no MaxDock account, and the token link works in anybody's hands.
+  // Read out of the share handler itself rather than by proximity. A window of characters
+  // matched checkInUrl in the handler *above* this one, so replacing the share link with the
+  // current page URL left this green -- the precise fault it exists to catch.
+  const shareBody = page.slice(page.indexOf("share.addEventListener('click'"), page.indexOf('element.append(head'));
+  check(/checkInUrl\(currentRecord\)/.test(shareBody), 'js/pages/my-appointments.js',
+    'Share does not send the check-in link, so it hands somebody a page they cannot open.');
+  // A share the person cancelled is them changing their mind, not a fault to report at them.
+  check(/AbortError/.test(page), 'js/pages/my-appointments.js',
+    'A share the person cancelled is reported back to them as a failure.');
+
+  // ── A booking does not disappear on the day it belongs to ───────────────────
+  //
+  // isUpcoming used to read "not in a terminal status AND the start time has not passed", and
+  // it took a card out from under the person who had just acted on it, two ways at once.
+  // Marking a load Shipped sets status completed, which counted as terminal, so it vanished the
+  // moment the truck pulled away -- on the road, due today, and no longer findable by whoever
+  // scanned it. Separately, a truck booked at 09:00 and being unloaded at 09:30 had already
+  // failed the start-time test, so a load standing at the dock was not upcoming either.
+  check(!/TERMINAL_STATUSES/.test(page), 'js/pages/my-appointments.js',
+    'A set of terminal statuses decides what is upcoming again, which is what made a load disappear the moment somebody marked it Shipped.');
+  check(/format\.inputDate\(record\.start_at, location\) === format\.todayInput\(location\)/.test(page),
+    'js/pages/my-appointments.js',
+    'A load that has started or finished today is not kept in view for the rest of its day, so acting on a booking makes it vanish.');
+  // Cancelled is the one thing held back, and that is not a disappearance: it has its own view
+  // and its own count, which is where somebody goes looking for it.
+  check(/normaliseStatus\(record\.status\) === 'cancelled'\) return false/.test(page),
+    'js/pages/my-appointments.js',
+    'Cancelled bookings are mixed into Upcoming, so the list somebody works from fills with loads that are not happening.');
+
+  // ── Paperwork can be attached after the booking ─────────────────────────────
+  //
+  // A bill of lading is not cut when somebody reserves a door two days out, so a booking screen
+  // with no way back to it forces the whole thing through email. The bucket and the row have to
+  // move together: the object first so a row never points at a file that is not there, and the
+  // path has to carry the site and the appointment because both bucket policies read them.
+  check(/appointment-documents/.test(page), 'js/pages/my-appointments.js',
+    'The person who made the booking has no way to attach paperwork to it after the fact.');
+  check(/db\.storage\.upload\(/.test(page), 'js/pages/my-appointments.js',
+    'Documents cannot be uploaded from the one screen an outside company can open.');
+  check(/db\.storage\.signedUrl\(/.test(page), 'js/pages/my-appointments.js',
+    'A document can be attached and then never opened again — the bucket is private, so a link has to be signed on demand.');
+  // Read the path out of the upload itself. A window of characters matched the appointment id
+  // in the neighbouring activity call, so a path missing its site segment still passed.
+  const uploadBody = page.slice(page.indexOf('async function uploadDocument'), page.indexOf('async function openDocument'));
+  check(/\$\{locationId\}\/\$\{currentRecord\.appointment_id\}\//.test(uploadBody), 'js/pages/my-appointments.js',
+    'The storage path does not lead with the site and then the booking, which is what both bucket policies read — every upload would be refused.');
+  check(/db\.storage\.upload[\s\S]*db\.insert\('appointment_documents'/.test(uploadBody), 'js/pages/my-appointments.js',
+    'The row is written before the file lands, so a failed upload leaves a document in the list that cannot be opened.');
+  // Size is checked here as well as at the bucket, because a person who picked a 30 MB photo
+  // should be told before they wait for the upload to fail.
+  check(/DOC_MAX_BYTES/.test(uploadBody), 'js/pages/my-appointments.js',
+    'Nothing checks the file size before the upload starts.');
+  const removeBody = page.slice(page.indexOf('async function removeDocument'), page.indexOf('docsToggle.addEventListener'));
+  check(/db\.remove\('appointment_documents'[\s\S]*db\.storage\.remove\(/.test(removeBody), 'js/pages/my-appointments.js',
+    'Removing takes the object away before the row, so a failure in between leaves a line in the list that opens nothing.');
 }
 
 console.log('\nMaxDock Stage 2 My Appointments verification');

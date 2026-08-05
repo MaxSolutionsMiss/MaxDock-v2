@@ -1,0 +1,718 @@
+import { startPage } from '../router.js';
+import { db } from '../db.js';
+import { toast } from '../ui/toast.js';
+import { pageHead } from '../ui/pagehead.js';
+import { format } from '../format.js';
+import { canScan, createReader } from '../ui/qr-scan.js';
+import { createAppointmentDetails } from '../ui/appointment-details.js';
+
+// Receiving.
+//
+// A receiver stands at the dock with a phone and scans the QR on the paperwork.
+// There are two ways in and both land here:
+//
+//   1. The phone's own camera app reads the code and opens this page with the
+//      token in the query string. Every phone can do this, with nothing loaded
+//      and no permission to grant, so it stays the route the printed code is
+//      built around.
+//   2. In-app scanning, for a receiver who would rather stay in MaxDock. This
+//      works on every browser that can open a camera, the iPad at the dock
+//      included. It used to be offered only where the browser had its own
+//      barcode API, which meant Android and almost nowhere else; the camera was
+//      never the missing part, only the decode, so that is the only part that
+//      falls back. See js/ui/qr-scan.js.
+//
+//   3. A typed booking number, for paperwork that will not scan. Everything past
+//      the lookup works from the appointment's id, so all three routes converge
+//      on the same screen and the same status controls.
+//
+// Whichever way in, the load is shown before anything changes, so a wrong scan
+// is caught by the person holding the phone.
+
+const state = {
+  context: null,
+  appointment: null,
+  matches: [],
+  scanner: null,
+  // Which of the optional steps this site has turned on, keyed by location. A site the
+  // receiver has not visited yet is simply not in here, and an absent answer means off.
+  clock: new Map(),
+  details: null,
+  mode: 'desk',
+  elements: {},
+};
+
+// What a receiver can set from the dock, in the order the truck moves through
+// them. "Loading" or "Unloading" depends on which way the load is going — the
+// same word for both would be wrong half the time.
+//
+// Only Departed is gated here, and that is the point rather than an oversight. This screen
+// has always offered Loading/Unloading, so hiding it behind a switch that ships off would
+// take away something the dock uses today — the exact opposite of "with the toggles off,
+// nothing changes". The Start switch governs the places that did not have the action at all,
+// which are the queue and the appointment window, and whether the recorded time is shown.
+// Setting in_progress here stamps the service clock either way, which costs nothing and is
+// invisible until a site asks to see it.
+//
+// Departed is the odd one and deliberately so. It is not a status: the load stays complete and
+// only gains the time it pulled off the door, so nothing that reads status — the board colours,
+// the queue filters, every scorecard — sees any difference.
+//
+// With one exception, added deliberately and worth naming here because the sentence above used
+// to end "at all". On a Max-to-Max movement the counterpart site reads this same row, and
+// format.movementStatus turns a completed load with a departure time into "En route" on that
+// site's board. It still writes no status and still touches no scorecard; it gives the other
+// end the one fact it had no way to learn.
+// A movement between two Max sites, which is one appointment row carrying both ends.
+const isInternal = record => Boolean(record?.requester_location_id);
+
+const STATUS_STEPS = [
+  { id: 'arrived', label: 'At the dock' },
+  { id: 'in_progress', label: direction => (direction === 'outbound' ? 'Loading' : 'Unloading') },
+  // "Complete" said that something finished without saying what. The same tap means two
+  // different events depending on which way the load is going, and the person tapping it knows
+  // which one they just did: an outbound load has been put on a truck and sent, an inbound one
+  // has been taken off and taken in. Shipped and Received are what they would write on paper.
+  { id: 'completed', label: direction => (direction === 'outbound' ? 'Shipped' : 'Received') },
+  // There is no fourth button, and that is the whole design rather than something missing.
+  //
+  // An inbound load never departs: the truck arrives here, is unloaded, and Received is the end
+  // of it. Offering Departed on an inbound was offering an event that does not happen.
+  //
+  // An outbound load does depart, but not as a separate tap. Somebody scans it as the truck
+  // pulls away -- that moment IS Shipped -- so asking them to press Complete and then walk back
+  // to the phone to press Departed is asking for a second visit nobody will make. Shipped is
+  // the departure, and the load reads En route from then on.
+];
+
+
+const stepLabel = (step, direction, record) => (typeof step.label === 'function' ? step.label(direction, record) : step.label);
+
+// The site's two switches, read the same way the operations queue reads its labour numbers.
+// Cached per location for a minute: a receiver stands at one dock for a shift, and this must
+// not become a second request on every scan.
+async function clockFor(locationId) {
+  if (!locationId) return {};
+  if (state.clock.has(locationId)) return state.clock.get(locationId);
+  const row = await db.select('location_settings', query => query
+    .select('track_service_start,track_departure').eq('location_id', locationId).maybeSingle(),
+  { key: `receiving:clock:${locationId}`, cache: 60000 }).catch(() => null);
+  const value = {
+    track_service_start: row?.track_service_start === true,
+    track_departure: row?.track_departure === true,
+  };
+  state.clock.set(locationId, value);
+  return value;
+}
+
+// Which steps this load can actually be put into, at this site, right now.
+function stepsFor(record) {
+  const clock = state.clock.get(record.location_id) || {};
+  return STATUS_STEPS.filter(step => {
+    // Departure is a per-site switch that ships off, which is right for a customer's load:
+    // once it is off the door MaxDock has no further claim on it. An internal movement is the
+    // exception, and the reason is not a preference -- the other Max site is reading this same
+    // row to know whether the truck has set off, and there is nothing else on it that says so.
+    // Withholding the button behind a switch would leave that site guessing.
+    if (step.needs && clock[step.needs] !== true && !(step.id === 'departed' && isInternal(record))) return false;
+    // Departed only means something once the load is finished, and the RPC refuses it
+    // otherwise. Offering a button that is guaranteed to fail is worse than not offering it.
+    if (step.after && String(record.status || '') !== step.after) return false;
+    return true;
+  });
+}
+
+const escapeHtml = value => String(value ?? '').replace(/[&<>'"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[char]));
+
+// Where the person holding the phone is standing, as far as MaxDock knows: the site in the top
+// bar. A receiver covering one site has it printed there; one covering several has it selected.
+const hereNow = () => state.context?.location || null;
+
+// A load that belongs to another site, on a screen somebody is holding at this one.
+//
+// It is worth being exact about which case this is, because there are two and only one of them
+// needs the database. This is the easy one: the load came back from the ordinary lookup, so the
+// receiver does have access to that site — they are simply at the wrong door of the two or more
+// they cover. Everything needed to notice that is already on the page.
+//
+// The other case, where the receiver has no access to that site at all, cannot be noticed here
+// because the lookup returns nothing to compare. That one is handled in lookup(), and it is the
+// only reason a new function exists in the database.
+function elsewhere(record) {
+  const here = hereNow();
+  if (!here?.id || !record?.location_id) return null;
+  if (record.location_id === here.id) return null;
+  return { belongsTo: record.location_name || 'another site', here: here.name || '' };
+}
+
+// One sentence, in the words the owner used: this load belongs to Guelph. The site standing at
+// is named too when it is known, because "belongs to Guelph" is only alarming once you have
+// registered that you are not at Guelph.
+const wrongSiteLine = (reference, belongsTo, here) =>
+  `${escapeHtml(reference || 'This load')} belongs to <b>${escapeHtml(belongsTo)}</b>${here ? `. You are at ${escapeHtml(here)}` : ''}.`;
+
+// The head of a load card, in the stop colour. Used twice: on its own for a load this receiver
+// cannot open at all, and above the load's own head for one they can.
+const wrongSiteBand = (reference, belongsTo, here) => `
+  <div class="rload__top rload__top--stop">
+    <div class="rload__ref">Wrong location</div>
+    <div class="rload__sum">${wrongSiteLine(reference, belongsTo, here)}</div>
+  </div>`;
+
+
+function tokenFromUrl() {
+  const value = new URL(globalThis.location.href).searchParams.get('t');
+  return /^[0-9a-f-]{36}$/i.test(String(value || '')) ? value : null;
+}
+
+// The QR carries a full URL so a phone camera can open it. Older codes carried
+// "MAXDOCK|id|reference"; those are read too rather than rejected, so paperwork
+// already printed keeps working — the reference goes down the typed-code path.
+function tokenFromScan(text) {
+  const raw = String(text || '').trim();
+  if (/^[0-9a-f-]{36}$/i.test(raw)) return raw;
+  try {
+    const parsed = new URL(raw);
+    const value = parsed.searchParams.get('t');
+    if (/^[0-9a-f-]{36}$/i.test(String(value || ''))) return value;
+  } catch { /* not a URL, fall through */ }
+  return null;
+}
+
+// The fixed part of this year's references, filled in for them. Every reference
+// is MXD-<year>-<serial>, so the only thing that varies between two loads booked
+// this year is the serial — and that is all a receiver should have to key. The
+// prefix stays editable rather than being a locked adornment, because a code
+// from last year is still a code somebody may need to look up in January.
+const referencePrefix = () => `MXD-${new Date().getFullYear()}-`;
+
+// What a receiver types off the paperwork. Anything from two digits up, with or
+// without the prefix and the dashes, because nobody standing at a dock types
+// punctuation. The prefix is prefilled, so in practice this receives the whole
+// reference and the serial is what they actually touched.
+function referenceFromInput(text) {
+  const raw = String(text || '').trim();
+  const digits = raw.replace(/\D/g, '');
+  // The prefix alone is not a search — the year's digits would match everything.
+  if (raw.replace(/[^0-9a-z]/gi, '').toUpperCase() === referencePrefix().replace(/[^0-9a-z]/gi, '').toUpperCase()) return null;
+  return digits.length >= 2 ? raw : null;
+}
+
+// One panel, two ways in. Scanning and typing a code are two ways of doing the
+// same job, so they are halves of one thing with a rule and the word between
+// them rather than two cards that could be mistaken for two steps. On a phone
+// they stack and the rule turns with them.
+// Opened from the home screen icon rather than from a browser tab. The manifest asks for
+// standalone, so this is true exactly when somebody installed it and tapped the icon —
+// which is the one context where the office's rail and top bar are in the way.
+const isApp = () => Boolean(globalThis.matchMedia?.('(display-mode: standalone)')?.matches)
+  || globalThis.navigator?.standalone === true;
+
+// The app's whole first screen: two buttons and nothing else. No list, no counts, no menu.
+// Somebody opening this has already decided which one they want before the phone is out of
+// their pocket, and every pixel spent on anything else is a pixel they have to look past.
+//
+// Neither button does the work. Scan opens the camera, Find reveals the number field — the
+// same two routes the desk screen shows side by side, one at a time because a phone held in
+// one hand has room for one.
+function renderHome(message = '') {
+  state.elements.host.className = 'rapp rapp--home';
+  // The camera sits above the buttons. Underneath them it opened below the fold, so the one
+  // thing somebody is aiming was the one thing they had to scroll to find — and the bottom of
+  // it was cut off. It is first in the source and first on the screen.
+  state.elements.host.innerHTML = `
+      <div class="recv__stage rapp__stage" data-stage hidden><video class="recv__video" data-video playsinline muted></video><div class="recv__frame" aria-hidden="true"></div></div>
+      <button class="rapp__btn" type="button" data-scan${canScan() ? '' : ' disabled'}>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3h7v2.2H5.2V10H3zM14 3h7v7h-2.2V5.2H14zM3 14h2.2v4.8H10V21H3zM18.8 14H21v7h-7v-2.2h4.8z"/><path d="M6.6 6.6h4v4h-4zM13.4 6.6h4v4h-4zM6.6 13.4h4v4h-4zM13.4 13.4h4v4h-4z" class="rapp__dim"/></svg>
+        <b>Scan</b>
+        <small>${canScan() ? 'Point at the QR on the paperwork' : 'This browser cannot open a camera here'}</small>
+      </button>
+      <button class="rapp__btn rapp__btn--alt" type="button" data-find>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10.6 2.4a8.2 8.2 0 1 1 0 16.4 8.2 8.2 0 0 1 0-16.4zm0 2.4a5.8 5.8 0 1 0 0 11.6 5.8 5.8 0 0 0 0-11.6z"/><path d="M16.3 15.1 22 20.8l-1.7 1.7-5.7-5.7z"/></svg>
+        <b>Find</b>
+        <small>Type the booking number</small>
+      </button>
+      ${message ? `<p class="form-message">${escapeHtml(message)}</p>` : ''}`;
+}
+
+// The number pad, reached from Find. The prefix is furniture — it is filled in and the caret
+// sits after it, so the first key pressed is the first digit that matters.
+function renderFind(message = '') {
+  state.elements.host.className = '';
+  state.elements.host.innerHTML = `
+    <div class="rapp">
+      <label class="field__label rapp__cap" for="recv-token">Booking number</label>
+      <input class="input input--jumbo rapp__in" id="recv-token" data-token value="${referencePrefix()}" placeholder="${referencePrefix()}000071" autocomplete="off" inputmode="text" enterkeyhint="search">
+      <p class="hint hint--flush">Just the digits after the last dash. The year is filled in and can be changed for an older load.</p>
+      <button class="btn btn--primary btn--block btn--jumbo" type="button" data-lookup>Find this load</button>
+      <button class="btn btn--quiet btn--block btn--jumbo" type="button" data-home>Back</button>
+      ${message ? `<p class="form-message">${escapeHtml(message)}</p>` : ''}
+    </div>`;
+  const box = state.elements.host.querySelector('[data-token]');
+  if (box) { box.focus(); box.setSelectionRange(box.value.length, box.value.length); }
+}
+
+// A load booked into a site this receiver does not cover. There is nothing here to act on and
+// nothing to correct on this phone, so the screen says the one thing that helps — which site —
+// and offers the way back. No status buttons: the whole point is that this load is not theirs.
+//
+// The desk does not get this screen. There a coordinator has the sentence in front of them and a
+// board they can go and look at, so the message goes through the ordinary idle path rather than
+// taking over the page; see lookup().
+function renderWrongSite(reference, belongsTo) {
+  const here = hereNow()?.name || '';
+  // Nothing on this screen can be acted on, so nothing may be left loaded behind it. A held
+  // appointment here would be the previous load, and the next tap would land on that one.
+  state.appointment = null;
+  state.matches = [];
+  state.elements.host.className = '';
+  state.elements.host.innerHTML = `
+    <div class="rapp">
+      <section class="card rload">
+        ${wrongSiteBand(reference, belongsTo, here)}
+        <p class="hint">Send the driver to ${escapeHtml(belongsTo)}. Nothing has been recorded against this load.</p>
+      </section>
+      <button class="btn btn--quiet btn--block btn--jumbo" type="button" data-home>Back</button>
+    </div>`;
+}
+
+// One door onto the first screen, so the app and the desk cannot drift into two idle states.
+function renderStart(message = '') {
+  if (state.mode === 'app') renderHome(message);
+  else renderIdle(message);
+}
+
+function renderIdle(message = '') {
+  state.elements.host.className = '';
+  state.elements.host.innerHTML = `
+    <div class="recv">
+      <section class="card recv__panel">
+        <div class="recv__box recv__box--scan">
+          <span class="recv__mark"><svg class="recv__ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"></rect><rect x="14" y="3" width="7" height="7" rx="1"></rect><rect x="3" y="14" width="7" height="7" rx="1"></rect><path d="M14 14h3v3h-3zM20 14v3M14 20h7"></path></svg></span>
+          <h3 class="card__title">Scan the code</h3>
+          <p class="hint">Point your phone camera at the QR code on the driver's paperwork.</p>
+          <span class="field__label recv__cap">QR code</span>
+          ${canScan()
+            ? '<div class="form-actions"><button class="btn btn--primary btn--block btn--jumbo" type="button" data-scan>Open the camera</button></div>'
+            : '<p class="hint hint--flush">This browser cannot open a camera here. Use the phone’s own camera app on the code, and it will open MaxDock here.</p>'}
+          <div class="recv__stage" data-stage hidden><video class="recv__video" data-video playsinline muted></video><div class="recv__frame" aria-hidden="true"></div></div>
+        </div>
+        <div class="recv__or"><span class="tag tag--quiet">or</span></div>
+        <div class="recv__box recv__box--type">
+          <span class="recv__mark"><svg class="recv__ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="6" width="19" height="12" rx="2"></rect><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M6 14h12"></path></svg></span>
+          <h3 class="card__title">Enter the booking number</h3>
+          <p class="hint">Type the number off the paperwork; the rest is already filled in.</p>
+          <label class="field__label recv__cap" for="recv-token">Booking number</label>
+          <input class="input input--jumbo" id="recv-token" data-token value="${referencePrefix()}" placeholder="${referencePrefix()}000071" autocomplete="off" inputmode="text" enterkeyhint="search">
+          <div class="form-actions"><button class="btn btn--quiet btn--block" type="button" data-lookup>Find the appointment</button></div>
+        </div>
+      </section>
+      ${message ? `<p class="form-message">${escapeHtml(message)}</p>` : ''}
+    </div>`;
+}
+
+function detail(label, value) {
+  return `<div class="confirmgrid__cell"><span class="confirmgrid__l">${escapeHtml(label)}</span><span class="confirmgrid__v">${escapeHtml(value ?? '–')}</span></div>`;
+}
+
+// More than one load can end in the same few digits. Rather than guess, the
+// receiver is shown the candidates and picks — reference, time and company are
+// enough to tell them apart at a glance.
+function renderMatches(records) {
+  state.elements.host.className = '';
+  state.matches = records;
+  state.elements.host.innerHTML = `
+    <section class="card recv">
+      <h3 class="card__title">${records.length} loads match that number</h3>
+      <p class="hint">Pick the one at your dock, or type more digits.</p>
+      <div class="recv__picks">
+        ${records.map((record, index) => {
+          const location = { timezone: record.location_timezone };
+          return `<button class="recv__pick" type="button" data-pick="${index}">
+            <span class="recv__pick-ref data">${escapeHtml(record.booking_reference)}</span>
+            <span class="recv__pick-when">${escapeHtml(format.shortDateInput(format.inputDate(record.start_at, location), location))} · ${escapeHtml(format.time(record.start_at, location))}</span>
+            <span class="recv__pick-who">${escapeHtml(record.company_name || record.carrier_name || format.role(record.direction))}</span>
+          </button>`;
+        }).join('')}
+      </div>
+      <div class="form-actions"><button class="btn btn--quiet" type="button" data-again>Start again</button></div>
+    </section>`;
+}
+
+// The status chooser the owner asked for: whatever the truck is doing, the
+// receiver says so in one tap. Every step stays available rather than only the
+// next one, because a receiver who forgot to scan on arrival is standing there
+// with a loaded truck and needs Complete, not a lecture about order.
+// The one thing to do to this load next, rather than every thing that could be done to it.
+//
+// The desk screen offers the whole ladder and marks where the truck is, which is right at a
+// desk. On a phone held in one hand beside a running truck it is four targets where there is
+// only ever one correct answer, and three of them are wrong answers sitting the same distance
+// from the thumb. This returns the step after the current one, and the rest stay one tap away
+// behind "Something else" for the case where a receiver has to correct a mis-tap.
+function nextStep(record) {
+  const steps = stepsFor(record);
+  const at = steps.findIndex(step => step.id === String(record.status || ''));
+  return steps[at + 1] || null;
+}
+
+function statusButtons(record, { lead = 'current' } = {}) {
+  const current = String(record.status || '');
+  const next = nextStep(record);
+  return stepsFor(record).map(step => {
+    const label = stepLabel(step, record.direction, record);
+    const isCurrent = step.id === current;
+    // On the desk the filled button says where the truck is. On a phone that highlights the
+    // one button nobody needs to press, so there the filled one is the step to reach for —
+    // every step is still offered and still one tap away.
+    const filled = lead === 'next' ? step.id === next?.id : isCurrent;
+    return `<button class="btn ${filled ? 'btn--primary' : 'btn--quiet'}" type="button" data-status="${step.id}" ${isCurrent ? 'aria-current="true"' : ''}>${escapeHtml(label)}</button>`;
+  }).join('');
+}
+
+// What has already been recorded on this load, in the order it happened. Only the parts the
+// site has turned on, and only once there is something to show: a line reading "started —"
+// tells a receiver nothing except that the screen has a feature they are not using.
+function clockLine(record, location) {
+  const clock = state.clock.get(record.location_id) || {};
+  const parts = [];
+  if (clock.track_service_start && record.service_started_at) {
+    parts.push(`work started ${format.timestamp(record.service_started_at, location)}`);
+  }
+  if (clock.track_departure && record.departed_at) {
+    parts.push(`left ${format.timestamp(record.departed_at, location)}`);
+  }
+  if (!parts.length) return '';
+  return `<p class="hint hint--flush">${escapeHtml(parts.join(' · '))}.</p>`;
+}
+
+function renderAppointment(record) {
+  state.elements.host.className = '';
+  const location = { timezone: record.location_timezone };
+  const when = `${format.time(record.start_at, location)}–${format.time(record.end_at, location)}`;
+  const booked = `${format.shortDateInput(format.inputDate(record.start_at, location), location)} · ${when}`;
+  const seen = record.already_checked_in
+    ? `<p class="form-message form-message--success">First seen ${escapeHtml(format.timestamp(record.checked_in_at, location))}${record.driver_name ? ` · driver ${escapeHtml(record.driver_name)}` : ''}.</p>`
+    : '';
+  const driver = `<label class="field field--md"><span class="field__label">Driver <span class="field__opt">optional</span></span><input class="input" data-driver maxlength="120" autocomplete="name" value="${escapeHtml(record.driver_name || '')}"></label>`;
+  // A receiver who covers both sites can open this load and is still standing at the wrong door.
+  // The steps stay available rather than being taken away: a truck that turned up at the wrong
+  // site is a decision for the office, and the person at the door may well be told to take it.
+  // What they must not do is take it without noticing, which is what this is for.
+  const away = elsewhere(record);
+
+  if (state.mode === 'app') {
+    // The reference and the one line that says what this load is, then the facts that need a
+    // label to make sense. Two columns rather than one: the shared grid asks for 160px a
+    // column, which two of will not fit a 375px phone, so every fact became its own row and
+    // the card ran to twice the screen.
+    state.elements.host.innerHTML = `
+      <section class="card rload">
+        ${away ? wrongSiteBand(record.booking_reference, away.belongsTo, away.here) : ''}
+        <div class="rload__top">
+          <div class="rload__ref">${escapeHtml(record.booking_reference || 'Appointment')}<span class="status status--${escapeHtml(String(record.status || ''))}">${escapeHtml(format.role(record.status))}</span></div>
+          <div class="rload__sum">${escapeHtml([record.company_name, format.role(record.direction), `${record.skid_count ?? '–'} skids`].filter(Boolean).join(' · '))}</div>
+        </div>
+        <div class="confirmgrid">
+          ${detail('Dock', record.dock_name)}
+          ${detail('Booked', booked)}
+          ${detail('Truck', record.truck_type)}
+          ${detail('Carrier', record.carrier_name)}
+        </div>
+        ${seen}
+        ${clockLine(record, location)}
+        ${driver}
+        <div class="form-actions"><button class="btn btn--quiet" type="button" data-details>Full details</button></div>
+      </section>
+      <div class="rbar">
+        <div class="rbar__steps">${statusButtons(record, { lead: 'next' })}</div>
+        <button class="btn btn--quiet btn--block" type="button" data-again>Back</button>
+      </div>`;
+    return;
+  }
+
+  state.elements.host.innerHTML = `
+    <section class="card recv">
+      <h3 class="card__title">${escapeHtml(record.booking_reference || 'Appointment')}<span class="status status--${escapeHtml(String(record.status || ''))}">${escapeHtml(format.role(record.status))}</span></h3>
+      ${away ? `<p class="form-message">Wrong location. ${wrongSiteLine(record.booking_reference, away.belongsTo, away.here)}</p>` : ''}
+      <div class="confirmgrid">
+        ${detail('Location', record.location_name)}
+        ${detail('Dock', record.dock_name)}
+        ${detail('Booked', booked)}
+        ${detail('Direction', format.role(record.direction))}
+        ${detail('Company', record.company_name)}
+        ${detail('Carrier', record.carrier_name)}
+        ${detail('Truck', record.truck_type)}
+        ${detail('Skids', record.skid_count)}
+        ${detail('PO / BOL / job', record.external_reference)}
+      </div>
+      ${seen}
+      ${clockLine(record, location)}
+      ${driver}
+      <fieldset class="recv__steps"><legend>Where is this truck?</legend>${statusButtons(record)}</fieldset>
+      <div class="form-actions"><button class="btn btn--quiet" type="button" data-details>Full details</button><button class="btn btn--quiet" type="button" data-again>Scan another</button></div>
+    </section>`;
+}
+
+function showResult(rows, emptyMessage) {
+  const records = Array.isArray(rows) ? rows : [rows].filter(Boolean);
+  if (!records.length) { renderIdle(emptyMessage); return; }
+  if (records.length === 1) {
+    state.appointment = records[0];
+    // Awaited rather than drawn twice. A set of buttons that appears and then rearranges is
+    // exactly the moment somebody presses the wrong one.
+    clockFor(records[0].location_id).then(() => {
+      if (state.appointment === records[0]) renderAppointment(records[0]);
+    });
+    renderAppointment(records[0]);
+    return;
+  }
+  renderMatches(records);
+}
+
+// Which site a scanned load belongs to, when the ordinary lookup found nothing.
+//
+// Nothing found has two causes that look identical on a phone: the code is not a MaxDock code at
+// all, or it is a perfectly good load booked into a site this receiver does not cover. Telling
+// them apart is the whole feature, so it costs a second request — but only on the miss, which is
+// the rare path, and never on a scan that worked.
+//
+// This hands back two columns and no more, and it is deliberately wrapped: if the function is
+// absent, because this build is running against a database the migration has not reached, the
+// answer is simply "no site" and the screen falls back to the message it always showed.
+async function siteFor(token) {
+  const rows = await db.rpc('lookup_appointment_site_by_check_in_token', { p_token: token }, {
+    key: `receiving:site:${token}`, cache: 0, retry: 0,
+  }).catch(() => null);
+  const row = (Array.isArray(rows) ? rows : [rows]).filter(Boolean)[0];
+  return row?.location_name ? row : null;
+}
+
+async function lookup(token) {
+  if (!token) { toast('That code is not a MaxDock appointment code.', 'error'); return; }
+  try {
+    const rows = await db.rpc('lookup_appointment_by_check_in_token', { p_token: token }, {
+      key: `receiving:lookup:${token}`, cache: 0, retry: 1,
+      userMessage: 'That appointment could not be looked up.',
+    });
+    if (!(Array.isArray(rows) ? rows : [rows]).filter(Boolean).length) {
+      const site = await siteFor(token);
+      if (site) {
+        if (state.mode === 'app') { renderWrongSite(site.booking_reference, site.location_name); return; }
+        renderStart(`Wrong location. ${site.booking_reference || 'That load'} belongs to ${site.location_name}. Send the driver there.`);
+        return;
+      }
+    }
+    showResult(rows, 'That code does not match an appointment at a location you can receive for.');
+  } catch (error) {
+    renderStart(error.userMessage || error.message || 'That appointment could not be looked up.');
+  }
+}
+
+async function lookupByReference(code) {
+  if (!code) { toast('Enter at least the last two digits of the booking number.', 'error'); return; }
+  try {
+    const rows = await db.rpc('lookup_appointment_by_reference', { p_code: code }, {
+      key: `receiving:ref:${code}`, cache: 0, retry: 1,
+      userMessage: 'That booking number could not be looked up.',
+    });
+    showResult(rows, 'No load with that number is booked around today at a location you can receive for.');
+  } catch (error) {
+    renderStart(error.userMessage || error.message || 'That booking number could not be looked up.');
+  }
+}
+
+// Re-reads the appointment after the change so the screen shows what the server
+// actually holds, not what the tap was meant to do.
+async function refreshCurrent() {
+  const record = state.appointment;
+  if (!record) return;
+  const rows = await db.rpc('lookup_appointment_by_reference', { p_code: record.booking_reference }, {
+    key: `receiving:refresh:${record.appointment_id}:${Date.now()}`, cache: 0, retry: 1,
+  }).catch(() => null);
+  const fresh = (Array.isArray(rows) ? rows : []).find(row => row.appointment_id === record.appointment_id);
+  // The lookup returns the shape it always returned; extending it would have meant dropping
+  // and recreating a SECURITY DEFINER function, which also drops its grants, and the whole
+  // point of this change is that it stays easy to reverse. So the departure time, which only
+  // the status RPC hands back, is carried across the refetch rather than lost by it.
+  if (fresh) {
+    const merged = record.departed_at ? { ...fresh, departed_at: record.departed_at } : fresh;
+    state.appointment = merged;
+    renderAppointment(merged);
+  }
+}
+
+async function setStatus(status) {
+  const record = state.appointment;
+  if (!record) return;
+  const buttons = [...state.elements.host.querySelectorAll('[data-status]')];
+  for (const button of buttons) button.disabled = true;
+  try {
+    const result = await db.rpc('receive_appointment', {
+      p_appointment_id: record.appointment_id,
+      p_status: status,
+      p_driver_name: state.elements.host.querySelector('[data-driver]')?.value || null,
+    }, { key: `receiving:status:${crypto.randomUUID()}`, retry: 0 });
+    db.invalidate('queue:schedule:');
+    db.invalidate('board:schedule:');
+    const step = STATUS_STEPS.find(item => item.id === status);
+    toast(`${result.booking_reference} · ${stepLabel(step, record.direction, record).toLowerCase()}.`, 'success');
+    // Departure is not a status, so a refetch cannot show it. The RPC hands it back and it is
+    // held on the record the panel is drawing from.
+    if (result.departed_at) state.appointment = { ...record, departed_at: result.departed_at };
+    await refreshCurrent();
+  } catch (error) {
+    toast(error.userMessage || error.message || 'That status could not be set.', 'error');
+    for (const button of buttons) button.disabled = false;
+  }
+}
+
+// Camera scanning, where the browser can do it. Stopped on every exit path — a
+// page that walks away leaving the camera light on is the fastest way to lose an
+// operator's trust in an app they are holding.
+// The Scan button is the stop control while the camera is up. There is nowhere else on this
+// screen to put one, and a camera somebody cannot close is the fastest way to lose their
+// trust in an app that asked for it.
+function scanLabel(title, note) {
+  const button = state.elements?.host?.querySelector('[data-scan]');
+  if (!button) return;
+  const strong = button.querySelector('b');
+  const small = button.querySelector('small');
+  if (strong) strong.textContent = title;
+  if (small) small.textContent = note;
+}
+
+async function startScanner() {
+  const stage = state.elements.host.querySelector('[data-stage]');
+  const video = state.elements.host.querySelector('[data-video]');
+  if (!stage || !video) return;
+  let stream = null;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+    // Claimed before the first await after it, so a second press or a page change while the
+    // decoder is still being fetched has something to stop and the camera cannot be left on.
+    state.scanner = { stream, stopped: false, timer: 0 };
+    stage.hidden = false;
+    scanLabel('Stop', 'Close the camera');
+    video.srcObject = stream;
+    await video.play();
+    // Where the browser has no detector this fetches the decoder, which is why it is here
+    // and not at the top of the file. By now the camera is already showing, so the wait
+    // happens behind a picture rather than behind a button that looks stuck.
+    const reader = await createReader();
+    if (state.scanner?.stopped) { stopScanner(); return; }
+    // Paced rather than run every frame. Reading pixels costs real time on a tablet, and a
+    // scan that lands within a tenth of a second of the code being in shot is instant to
+    // the person holding it; running sixty times a second would only heat the device.
+    const tick = async () => {
+      if (state.scanner?.stopped) return;
+      try {
+        const token = tokenFromScan(await reader.read(video));
+        if (token) { stopScanner(); await lookup(token); return; }
+      } catch { /* a frame that cannot be read is not an error worth showing */ }
+      if (state.scanner && !state.scanner.stopped) state.scanner.timer = globalThis.setTimeout(tick, 100);
+    };
+    tick();
+  } catch (error) {
+    stopScanner();
+    if (stream) for (const track of stream.getTracks()) track.stop();
+    stage.hidden = true;
+    video.srcObject = null;
+    toast(error?.name === 'NotAllowedError' ? 'MaxDock needs camera access to scan.' : 'The camera could not be started.', 'error');
+  }
+}
+
+function stopScanner() {
+  scanLabel('Scan', 'Point at the QR on the paperwork');
+  // The picture goes with the camera. This only ever ran on a successful read, which navigated
+  // away in the same breath, so a dead stage on screen never showed; now that Stop is something
+  // somebody presses, leaving it up is a frozen last frame of a camera they just turned off.
+  const stage = state.elements?.host?.querySelector('[data-stage]');
+  const video = state.elements?.host?.querySelector('[data-video]');
+  if (stage) stage.hidden = true;
+  if (video) video.srcObject = null;
+  if (!state.scanner) return;
+  state.scanner.stopped = true;
+  if (state.scanner.timer) globalThis.clearTimeout(state.scanner.timer);
+  for (const track of state.scanner.stream.getTracks()) track.stop();
+  state.scanner = null;
+}
+
+function submitCode(root) {
+  const typed = root.querySelector('[data-token]')?.value;
+  // A pasted check-in link or a full token still works here; anything else is
+  // treated as a booking number, which is what a receiver actually types.
+  const token = tokenFromScan(typed);
+  if (token) { lookup(token); return; }
+  lookupByReference(referenceFromInput(typed));
+}
+
+function wireEvents(root) {
+  root.addEventListener('click', event => {
+    if (event.target.closest('[data-scan]')) { if (state.scanner && !state.scanner.stopped) stopScanner(); else startScanner(); return; }
+    if (event.target.closest('[data-find]')) { renderFind(); return; }
+    if (event.target.closest('[data-home]')) { renderStart(); return; }
+    if (event.target.closest('[data-lookup]')) { submitCode(root); return; }
+    const status = event.target.closest('[data-status]');
+    if (status) { setStatus(status.dataset.status); return; }
+    // The same window the board and the queue open, rather than a fourth idea of what an
+    // appointment looks like. Documents, the activity log and the combining trail are all
+    // there already; duplicating a thinner version of them here is how four screens end up
+    // disagreeing about one load.
+    const details = event.target.closest('[data-details]');
+    if (details && state.appointment) {
+      state.details = state.details || createAppointmentDetails({ location: state.context.location });
+      state.details.open(state.appointment, { trigger: details, canEdit: false });
+      return;
+    }
+    const pick = event.target.closest('[data-pick]');
+    if (pick) {
+      state.appointment = state.matches[Number(pick.dataset.pick)];
+      if (state.appointment) renderAppointment(state.appointment);
+      return;
+    }
+    if (event.target.closest('[data-again]')) { state.appointment = null; state.matches = []; renderStart(); }
+  });
+  // A phone keyboard offers Go, not a button press. Typing a number and hitting
+  // it is the whole interaction for a receiver who is not scanning.
+  root.addEventListener('keydown', event => {
+    if (event.key !== 'Enter' || !event.target.matches('[data-token]')) return;
+    event.preventDefault();
+    submitCode(root);
+  });
+}
+
+const page = {
+  code: 'receiving',
+  permission: 'appointment.check_in',
+  // Read by the router before the shell is built, so an installed app never draws the rail.
+  get chrome() { return isApp() ? 'app' : 'desk'; },
+  async mount(context) {
+    state.context = context;
+    state.mode = isApp() ? 'app' : 'desk';
+    document.title = state.mode === 'app' ? 'Receiving' : 'Receiving · MaxDock';
+    // The app has no page head either. The title bar of a one-screen app is the screen.
+    context.pageRoot.innerHTML = state.mode === 'app'
+      ? '<div data-receiving-host></div>'
+      : `${pageHead('Receiving', { subtitle: 'Scan a truck in at the dock' })}<div data-receiving-host></div>`;
+    state.elements = { host: context.pageRoot.querySelector('[data-receiving-host]') };
+    wireEvents(context.pageRoot);
+    const token = tokenFromUrl();
+    if (token) { await lookup(token); return; }
+    renderStart();
+    // Caret after the prefix, so the first key they press is the first digit
+    // that matters rather than a correction to text MaxDock filled in.
+    const box = state.elements.host.querySelector('[data-token]');
+    if (box) { box.focus(); box.setSelectionRange(box.value.length, box.value.length); }
+  },
+  // The camera stops when the page does. An app that walks away leaving the
+  // camera light on is the fastest way to lose the trust of somebody holding it.
+  destroy() {
+    stopScanner();
+    state.details?.destroy();
+    state.details = null;
+  },
+};
+
+startPage(page);
+export const { mount, refresh, destroy } = page;

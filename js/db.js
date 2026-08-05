@@ -140,6 +140,32 @@ export const db = Object.freeze({
     }, { ...options, cache: 0, retry: options.retry ?? 0 });
   },
 
+  // Files, for the one thing in MaxDock that is a file: the paperwork attached to an
+  // appointment. Three operations and no more — put one in, get a link to read it, take one
+  // out — routed through the same `execute` as every other call so a dropped connection is
+  // reported the same way and retried on the same terms.
+  storage: Object.freeze({
+    async upload(bucket, path, file, options = {}) {
+      return execute(`storage:upload:${path}`, () => client.storage.from(bucket).upload(path, file, {
+        contentType: file.type || 'application/octet-stream',
+        upsert: false,
+      }), { ...options, cache: 0, retry: options.retry ?? 0 });
+    },
+    // A signed URL rather than a public one. The bucket is private, and a document is a
+    // customer's bill of lading — the link is good for a few minutes and for one reader.
+    async signedUrl(bucket, path, seconds = 300, options = {}) {
+      const data = await execute(`storage:sign:${path}:${crypto.randomUUID()}`,
+        () => client.storage.from(bucket).createSignedUrl(path, seconds),
+        { ...options, cache: 0, retry: options.retry ?? 1 });
+      return data?.signedUrl || '';
+    },
+    async remove(bucket, paths, options = {}) {
+      return execute(`storage:remove:${paths.join(',')}`,
+        () => client.storage.from(bucket).remove(paths),
+        { ...options, cache: 0, retry: 0 });
+    },
+  }),
+
   async edge(functionName, body, options = {}) {
     const key = options.key || stableKey(`edge:${functionName}`, body);
     return execute(key, () => client.functions.invoke(functionName, { body }), options);
@@ -169,10 +195,38 @@ export const db = Object.freeze({
       if (error) throw normalizeError(error, 'Your MaxDock session could not be restored.');
       return data.session;
     },
-    async signIn(email, password) {
-      const { data, error } = await client.auth.signInWithPassword({ email, password });
-      if (error) throw normalizeError(error, 'The email or password is incorrect.');
-      return data;
+    async signIn(identifier, password) {
+      const trimmed = String(identifier || '').trim();
+      const fallbackMessage = 'The email/username or password is incorrect.';
+
+      if (trimmed.includes('@')) {
+        const { data, error } = await client.auth.signInWithPassword({ email: trimmed, password });
+        if (error) throw normalizeError(error, fallbackMessage);
+        return data;
+      }
+
+      // Usernames are resolved to an email and verified entirely server-side by the
+      // maxdock-invite-user edge function, so the real email address is never sent to the browser.
+      const { data, error } = await client.functions.invoke('maxdock-invite-user', {
+        body: { action: 'username_login', username: trimmed, password },
+      });
+      if (error || !data?.accessToken || !data?.refreshToken) {
+        let message = fallbackMessage;
+        try {
+          const body = await error?.context?.json?.();
+          if (body?.error) message = body.error;
+        } catch {
+          // Use the generic fallback message.
+        }
+        throw { code: 'MAXDOCK_LOGIN_FAILED', message, retryable: false, userMessage: message, status: 401, cause: error };
+      }
+
+      const { data: sessionData, error: sessionError } = await client.auth.setSession({
+        access_token: data.accessToken,
+        refresh_token: data.refreshToken,
+      });
+      if (sessionError) throw normalizeError(sessionError, 'MaxDock signed you in, but your session could not be restored. Try again.');
+      return sessionData;
     },
     async signOut() {
       const { error } = await client.auth.signOut();

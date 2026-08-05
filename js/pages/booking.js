@@ -5,8 +5,34 @@ import { startPage } from '../router.js';
 import { createModal } from '../ui/modal.js';
 import { renderQr } from '../ui/qr.js';
 import { toast } from '../ui/toast.js';
+import { truckUpgrade, upgradeMessage } from '../truck-ladder.js';
+import { truckFill } from '../ui/truckfill.js';
 
-const STEPS = Object.freeze(['Load', 'Vehicle', 'Time', 'Contact', 'Confirm']);
+// Three steps, not five.
+//
+// Load and Vehicle were one question split in two: what is on the truck and what truck it is.
+// They fit on one screen and nobody thinks of them separately.
+//
+// Contact was worse. It is prefilled from the signed-in profile -- name, email, and the company
+// off the account -- and there is no anonymous booking, so for every single user it showed two
+// already-correct fields and a Continue button. A whole step spent confirming what MaxDock
+// already knew. It is folded into Confirm, where it reads as part of the summary and can still
+// be corrected by the one person in a hundred whose name is on somebody else's screen.
+const STEPS = Object.freeze(['Load & truck', 'Time', 'Confirm']);
+
+// The steps by name, because the numbers have now drifted twice and the second time nobody
+// could book an appointment.
+//
+// Five steps became three and three call sites were left counting the old ones: setStep
+// suspended polling on the wrong step and returned before the slot fetch, and findSlots asked
+// validateStep(1) -- which after the merge *is* the time step -- so looking for times began by
+// refusing to look until a time had been chosen. A date, an empty list, and no way past it.
+//
+// Two more survived that fix, and one of them mattered: attemptBooking validated step 4, which
+// no longer exists, so the last gate before a booking is submitted matched no branch and
+// returned nothing. Every numeric step index in this module is now one of these three names,
+// and scripts/verify-stage3-booking.mjs fails the build if a bare number comes back.
+const STEP = Object.freeze({ LOAD: 0, TIME: 1, CONFIRM: 2 });
 const TERMINAL_STATUSES = new Set(['completed', 'cancelled', 'no_show']);
 const SLOT_SUSPENSION = 'booking-slot-picker';
 const CUSTOMER_SLOT_PROJECTION = 'slot_start, slot_end, recommendation_rank, recommendation_score, capacity_warning, alternative_date';
@@ -35,16 +61,30 @@ function clean(value) {
   return String(value ?? '').trim();
 }
 
+const escapeHtml = value => String(value ?? '').replace(/[&<>'"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[char]));
+
 function isStaff() {
   return !context.customerShell;
 }
 
 function currentLocation() {
+  if (context.customerShell && state?.form?.destination_location_id) {
+    const chosen = context.locations.find(location => location.id === state.form.destination_location_id);
+    if (chosen) return chosen;
+  }
   return context.location;
 }
 
+// The counterpart can be any active Max Solutions site, so it is resolved from
+// the directory first and only then from this account's own assignments. Getting
+// this wrong meant the receiving site's timezone fell back to the booking site's
+// and the confirmation named the counterpart "Max Solutions".
 function counterpartLocation() {
-  return context.locations.find(location => location.id === state.form.requester_location_id) || null;
+  const id = state.form.requester_location_id;
+  if (!id) return null;
+  return (state.reference?.maxLocations || []).find(location => location.id === id)
+    || context.locations.find(location => location.id === id)
+    || null;
 }
 
 function receivingLocation() {
@@ -74,6 +114,7 @@ function createInitialForm() {
     location_id: context.location.id,
     direction: 'inbound',
     movement_kind: 'external',
+    destination_location_id: null,
     requester_type: customer ? clean(context.profile.external_party_type) || 'Customer' : 'Customer',
     company_name: customer ? clean(context.profile.organization_name) : '',
     requester_location_id: null,
@@ -94,24 +135,30 @@ function createInitialForm() {
     after_hours_acknowledged: false,
     requester_name: clean(context.profile.full_name),
     requester_email: clean(context.profile.contact_email || context.user.email),
-    save_template: false,
     template_name: '',
+    repeat_on: false,
+    repeat_days: [],
+    repeat_interval_weeks: 1,
+    repeat_until: '',
   };
 }
 
-async function loadEnabledRows(mappingTable, codeColumn, masterTable, locationId) {
+// extraColumns are read from the per-location mapping row and merged onto the
+// master row, so a location's own settings (a trailer's skid capacity, say)
+// travel with the option instead of needing a second round trip.
+async function loadEnabledRows(mappingTable, codeColumn, masterTable, locationId, extraColumns = '') {
   const mappings = await db.select(mappingTable, query => query
-    .select(codeColumn)
+    .select(extraColumns ? `${codeColumn}, ${extraColumns}` : codeColumn)
     .eq('location_id', locationId)
     .eq('is_active', true), {
-    key: `booking:${mappingTable}:${locationId}`,
+    key: `booking:${mappingTable}:${locationId}${extraColumns ? ':full' : ''}`,
     cache: 300000,
     retry: 1,
     userMessage: 'The enabled booking options could not be loaded.',
   });
   const codes = (mappings || []).map(row => row[codeColumn]);
   if (!codes.length) return [];
-  return db.select(masterTable, query => query
+  const rows = await db.select(masterTable, query => query
     .select('code, name, sort_order')
     .in('code', codes)
     .eq('is_active', true)
@@ -121,12 +168,17 @@ async function loadEnabledRows(mappingTable, codeColumn, masterTable, locationId
     retry: 1,
     userMessage: 'The enabled booking options could not be loaded.',
   });
+  if (!extraColumns) return rows;
+  const byCode = new Map((mappings || []).map(row => [row[codeColumn], row]));
+  return (rows || []).map(row => ({ ...byCode.get(row.code), ...row }));
 }
 
+// Your own templates and the shared ones for the sites you can see. The row-level
+// policy decides which of those you are allowed to read; this asks for both and
+// lets it answer, rather than trying to state the rule twice.
 async function loadTemplates() {
   return db.select('booking_templates', query => query
-    .select('id, owner_user_id, location_id, name, direction, requester_type, company_name, appointment_type_code, truck_type_code, skid_count, handling_type_code, is_priority, carrier_name, preferred_start_time, preferred_end_time, created_at, updated_at')
-    .eq('owner_user_id', context.user.id)
+    .select('id, owner_user_id, location_id, name, is_shared, direction, requester_type, company_name, appointment_type_code, truck_type_code, skid_count, handling_type_code, is_priority, carrier_name, auto_time, lead_minutes, preferred_start_time, preferred_end_time, created_at, updated_at')
     .order('updated_at', { ascending: false }), {
     key: `booking:templates:${context.user.id}`,
     cache: 30000,
@@ -139,10 +191,10 @@ async function loadReferenceData() {
   const locationId = currentLocation().id;
   const requests = [
     loadEnabledRows('location_appointment_types', 'appointment_type_code', 'appointment_types', locationId),
-    loadEnabledRows('location_truck_types', 'truck_type_code', 'truck_types', locationId),
+    loadEnabledRows('location_truck_types', 'truck_type_code', 'truck_types', locationId, 'skid_capacity'),
     loadEnabledRows('location_handling_types', 'handling_type_code', 'handling_types', locationId),
     db.select('location_settings', query => query
-      .select('slot_interval_minutes, suggest_same_day_consolidation')
+      .select('slot_interval_minutes, suggest_same_day_consolidation, consolidation_window_hours, maximum_advance_days')
       .eq('location_id', locationId)
       .single(), {
       key: `booking:settings:${locationId}`,
@@ -170,6 +222,17 @@ async function loadReferenceData() {
         retry: 1,
         userMessage: 'Operating hours could not be loaded.',
       }),
+      // Every active Max Solutions site, not only the ones this account is
+      // assigned to. A coordinator is assigned one site, so filtering the
+      // counterpart picker by assignment left it with nothing to choose and
+      // Max-to-Max could not be booked at all. The booking RPCs only ever
+      // required access to the location being booked, never to the counterpart.
+      db.rpc('list_active_location_directory', {}, {
+        key: 'booking:location-directory',
+        cache: 300000,
+        retry: 1,
+        userMessage: 'The Max Solutions location list could not be loaded.',
+      }),
     );
   }
 
@@ -182,55 +245,46 @@ async function loadReferenceData() {
     templates: result[4] || [],
     externalCompanies: isStaff() ? result[5] || [] : [],
     operatingHours: isStaff() ? result[6] || [] : [],
+    maxLocations: isStaff() ? result[7] || [] : [],
   };
 }
 
 function buildShell() {
   const root = context.pageRoot;
+  const customer = context.customerShell;
   root.innerHTML = `
-    <div class="page__head">
+    <div class="modal__head">
       <div>
-        <h1 class="page__title">Book appointment</h1>
-        <p class="page__sub">${currentLocation().name} · Complete five short steps</p>
+        <h2 class="modal__title" id="booking-modal-title">${customer ? 'Book a shipment' : 'Book appointment'}</h2>
+        <span class="modal__sub">${currentLocation().name}${customer ? ' · Sending to Max Solutions' : ''}</span>
       </div>
+      <button class="modal__x" type="button" data-action="close-booking" aria-label="Close booking">×</button>
     </div>
-    <nav class="booking-steps" data-booking-steps aria-label="Booking progress"></nav>
-    <div class="booking-layout">
-      <section class="panel booking-workspace" aria-live="polite">
-        <div data-booking-step></div>
-        <p class="form-message" data-booking-message aria-live="polite"></p>
-        <div class="booking-actions" data-booking-actions></div>
-      </section>
-      <aside class="booking-side" aria-label="Booking summary and templates">
-        <section class="panel booking-summary" data-booking-summary></section>
-        <section class="panel booking-templates">
-          <div class="panel__head">
-            <div>
-              <h2 class="panel__title">Booking templates</h2>
-              <p class="panel__sub">Reuse common load and vehicle details.</p>
-            </div>
-          </div>
-          <div data-booking-templates></div>
-        </section>
-      </aside>
+    <nav class="steps" data-booking-steps aria-label="Booking progress"></nav>
+    <div class="modal__body">
+      <div data-booking-step></div>
+      <p class="form-message" data-booking-message aria-live="polite"></p>
     </div>
-    <div class="modal-backdrop" data-consolidation-modal hidden aria-hidden="true">
-      <section class="modal modal--wide" role="dialog" aria-modal="true" aria-labelledby="consolidation-title">
-        <h2 class="modal__title" id="consolidation-title">Another appointment already exists that day</h2>
-        <p class="modal__message">Combining loads may reduce handling and truck movements. MaxDock will never combine them automatically.</p>
-        <div class="consolidation-list" data-consolidation-list></div>
-        <div class="modal__actions modal__actions--three">
-          <button class="btn btn--quiet" type="button" data-action="view-existing">View existing appointment</button>
-          <button class="btn btn--quiet" type="button" data-action="combine-load">Go back and combine</button>
-          <button class="btn btn--primary" type="button" data-action="continue-separately">Continue separately</button>
+    <div class="modal__foot" data-booking-actions></div>
+    <div class="scrim" data-consolidation-modal hidden aria-hidden="true">
+      <section class="modal" role="dialog" aria-modal="true" aria-labelledby="consolidation-title">
+        <div class="modal__head"><div><h2 class="modal__title" id="consolidation-title">Combine this with a load you already have?</h2></div></div>
+        <div class="modal__body">
+          <p class="modal__message">Combining saves a truck movement and a handling, and it is usually the right answer. It is never required, and MaxDock will never do it on its own: booking separately is one press and needs no reason.</p>
+          <div data-consolidation-list></div>
+        </div>
+        <div class="modal__foot">
+          <button class="btn btn--quiet" type="button" data-action="view-existing">View the existing one</button>
+          <button class="btn btn--quiet" type="button" data-action="continue-separately">No, book it separately</button>
+          <button class="btn btn--primary" type="button" data-action="combine-load">Yes, choose loads to combine</button>
         </div>
       </section>
     </div>
-    <div class="modal-backdrop" data-template-delete-modal hidden aria-hidden="true">
+    <div class="scrim" data-template-delete-modal hidden aria-hidden="true">
       <section class="modal" role="dialog" aria-modal="true" aria-labelledby="template-delete-title">
-        <h2 class="modal__title" id="template-delete-title">Delete this booking template?</h2>
-        <p class="modal__message">The template will be removed. Existing appointments are not affected.</p>
-        <div class="modal__actions">
+        <div class="modal__head"><div><h2 class="modal__title" id="template-delete-title">Delete this booking template?</h2></div></div>
+        <div class="modal__body"><p class="modal__message">The template will be removed. Existing appointments are not affected.</p></div>
+        <div class="modal__foot">
           <button class="btn btn--quiet" type="button" data-action="dismiss-template-delete">Keep template</button>
           <button class="btn btn--danger" type="button" data-action="confirm-template-delete">Delete template</button>
         </div>
@@ -242,12 +296,13 @@ function buildShell() {
     step: root.querySelector('[data-booking-step]'),
     message: root.querySelector('[data-booking-message]'),
     actions: root.querySelector('[data-booking-actions]'),
-    summary: root.querySelector('[data-booking-summary]'),
-    templates: root.querySelector('[data-booking-templates]'),
     consolidationBackdrop: root.querySelector('[data-consolidation-modal]'),
     consolidationList: root.querySelector('[data-consolidation-list]'),
     deleteBackdrop: root.querySelector('[data-template-delete-modal]'),
   };
+
+  root.querySelector('[data-action="close-booking"]').addEventListener('click', () => context.onClose?.());
+  hosts.step.tabIndex = -1;
 
   sameDayModal = createModal(hosts.consolidationBackdrop, {
     initialFocus: '[data-action="view-existing"]',
@@ -282,55 +337,95 @@ function selectedName(rows, code, fallback = 'Not selected') {
 function renderSteps() {
   hosts.steps.replaceChildren();
   STEPS.forEach((label, index) => {
-    const button = element('button', 'booking-step', '');
+    const button = element('button', 'step', `${index + 1} · ${label}`);
     button.type = 'button';
     button.dataset.action = 'go-step';
     button.dataset.step = String(index);
     button.disabled = Boolean(state.confirmation) || index > state.maxStep;
+    if (index === state.step) button.classList.add('step--now');
+    else if (index < state.step) button.classList.add('step--done');
     button.setAttribute('aria-current', index === state.step ? 'step' : 'false');
     button.setAttribute('aria-label', `Step ${index + 1}: ${label}`);
-    const number = element('span', 'booking-step__number', String(index + 1));
-    const text = element('span', 'booking-step__label', label);
-    button.append(number, text);
     hosts.steps.append(button);
   });
 }
 
+// The QR is a link to Receiving carrying this appointment's own check-in token,
+// so the phone's own camera app opens it — the only route that works on iOS,
+// where the browser has no barcode reader at all. The booking reference is
+// printed on every document in the load and could never be what checks a truck
+// in, so it is deliberately not what the code carries.
+async function renderCheckInCode(result) {
+  const host = hosts.step.querySelector('[data-qr]');
+  if (!host) return;
+  // Through the RPC, not off the table. Reading the column directly needed
+  // appointment.view, which a customer booking their own shipment does not have —
+  // so the one account that most needs a code to hand a driver never got one.
+  let token = null;
+  try {
+    token = await db.rpc('get_appointment_check_in_token', { p_appointment_id: result.appointment_id }, {
+      key: `booking:token:${result.appointment_id}`, cache: 0, retry: 1,
+    });
+  } catch { token = null; }
+  if (!token) {
+    host.innerHTML = '<p class="hint">The check-in code is not available for this booking yet.</p>';
+    return;
+  }
+  const url = new URL('receiving.html', globalThis.location.href);
+  url.searchParams.set('t', token);
+  renderQr(host, url.href, { label: `Check-in code for MaxDock appointment ${result.booking_reference}` });
+}
+
+function renderQuickRebook() {
+  if (!state.reference.templates.length) return '';
+  const items = state.reference.templates.slice(0, 6).map(template => {
+    const location = context.locations.find(item => item.id === template.location_id);
+    const mine = template.owner_user_id === context.user.id;
+    return `<div class="rebook"><div class="integ__ico">${escapeHtml(template.name.slice(0, 1).toUpperCase())}</div>
+      <div class="rebook__body"><div class="rebook__ref">${escapeHtml(template.name)}${template.is_shared ? ' <span class="tag tag--ok">Shared</span>' : ''}</div><div class="rebook__det">${escapeHtml(location?.name || 'Location')} · ${escapeHtml(selectedName(state.reference.truckTypes, template.truck_type_code, template.truck_type_code))} · ${Number(template.skid_count || 0)} skids</div></div>
+      <button class="btn btn--primary btn--sm" type="button" data-action="use-template" data-template-id="${escapeHtml(template.id)}">Use</button>
+      ${mine ? `<button class="btn btn--quiet btn--sm" type="button" data-action="delete-template" data-template-id="${escapeHtml(template.id)}">Delete</button>` : ''}</div>`;
+  }).join('');
+  return `<div class="grouplabel">Quick book: saved shortcuts</div><div>${items}</div><p class="hint">Fills this booking in from a saved shortcut. Quick QR codes for the wall are made under Settings › Quick QR.</p>`;
+}
+
 function renderLoadStep() {
   const customer = context.customerShell;
+  const staff = isStaff();
+  const maxToMax = !customer && state.form.movement_kind === 'max';
+  // What you are asked for depends on who you are and what kind of movement it is.
+  // A Max-to-Max transfer goes to another Max Solutions site, so it asks which one
+  // and never asks for a company — there is no outside party. An external movement
+  // is the opposite. A customer is already known, so it asks neither.
+  // Two rows, each filling the twelve columns exactly. Who is sending decides the
+  // first row; what is moving is always the second, so an operator books the same
+  // way every time whatever kind of movement it is.
   hosts.step.innerHTML = `
-    <div class="booking-section-head">
-      <div><span class="booking-kicker">Step 1 of 5</span><h2 class="booking-title">Load</h2></div>
-      <p>Tell MaxDock what is moving and where it is going.</p>
+    ${renderQuickRebook()}
+    ${customer ? `<div class="frow">
+      <div class="field field--full"><span class="field__label">Sending to<span class="field__req" aria-hidden="true">*</span></span><select class="select" data-field="destination_location_id"></select></div>
+    </div>` : ''}
+    ${customer ? '' : `<div class="frow">
+      <div class="field field--${maxToMax ? 'md' : 'sm'}"><span class="field__label">Direction</span><select class="select" data-field="direction">
+        <option value="inbound" ${state.form.direction === 'inbound' ? 'selected' : ''}>Inbound</option>
+        <option value="outbound" ${state.form.direction === 'outbound' ? 'selected' : ''}>Outbound</option>
+      </select></div>
+      <div class="field field--${maxToMax ? 'md' : 'sm'}"><span class="field__label">Movement</span><select class="select" data-field="movement_kind">
+        <option value="external" ${state.form.movement_kind === 'external' ? 'selected' : ''}>External</option>
+        <option value="max" ${state.form.movement_kind === 'max' ? 'selected' : ''}>Max-to-Max</option>
+      </select></div>
+      ${maxToMax
+        ? `<div class="field field--md"><span class="field__label">${state.form.direction === 'outbound' ? 'Sending to' : 'Receiving from'}<span class="field__req" aria-hidden="true">*</span></span><select class="select" data-field="requester_location_id"></select></div>`
+        : `<div class="field field--sm"><span class="field__label">Company type<span class="field__req" aria-hidden="true">*</span></span><select class="select" data-field="requester_type"></select></div>
+           <div class="field field--sm"><span class="field__label">Company</span><input class="input" data-field="company_name" list="company-directory" maxlength="120" autocomplete="organization"><datalist id="company-directory"></datalist></div>`}
+    </div>`}
+    <div class="frow">
+      <div class="field field--${customer ? 'lg' : 'md'}"><span class="field__label">Appointment type<span class="field__req" aria-hidden="true">*</span></span><select class="select" data-field="appointment_type_code"></select></div>
+      <div class="field field--num"><span class="field__label">Skids<span class="field__req" aria-hidden="true">*</span></span><input class="input" data-field="skid_count" type="number" min="0" max="9999" inputmode="numeric"></div>
+      <div class="field field--md"><span class="field__label">PO / BOL / job<span class="field__req" aria-hidden="true">*</span></span><input class="input" data-field="external_reference" maxlength="20" autocomplete="off"></div>
+      ${staff ? `<div class="field field--num"><span class="field__label">Priority</span><select class="select" data-field="is_priority"><option value="">No</option><option value="1" ${state.form.is_priority ? 'selected' : ''}>Yes</option></select></div>` : ''}
     </div>
-    ${customer ? '<div class="inline-note">Customer bookings are inbound to the selected MaxDock location and remain within normal operating hours.</div>' : `
-      <div class="field field--full">
-        <span class="field__label">Direction</span>
-        <div class="choice-row" role="group" aria-label="Appointment direction">
-          <button class="choice-card" type="button" data-action="set-direction" data-value="inbound" aria-pressed="${state.form.direction === 'inbound'}"><strong>Inbound</strong><span>Receiving at ${currentLocation().name}</span></button>
-          <button class="choice-card" type="button" data-action="set-direction" data-value="outbound" aria-pressed="${state.form.direction === 'outbound'}"><strong>Outbound</strong><span>Shipping from ${currentLocation().name}</span></button>
-        </div>
-      </div>
-      <div class="field field--full">
-        <span class="field__label">Movement</span>
-        <div class="choice-row" role="group" aria-label="Movement type">
-          <button class="choice-card" type="button" data-action="set-movement" data-value="external" aria-pressed="${state.form.movement_kind === 'external'}"><strong>External</strong><span>Customer, vendor or carrier</span></button>
-          <button class="choice-card" type="button" data-action="set-movement" data-value="max" aria-pressed="${state.form.movement_kind === 'max'}"><strong>Max-to-Max</strong><span>Reserve both Max Solutions docks</span></button>
-        </div>
-      </div>`}
-    <div class="fieldFlow">
-      ${!customer && state.form.movement_kind === 'external' ? `
-        <label class="field field--md"><span class="field__label">External party type</span><select class="select" data-field="requester_type"></select></label>
-        <label class="field field--md"><span class="field__label">Company or organisation</span><input class="input" data-field="company_name" list="company-directory" maxlength="120" autocomplete="organization"><datalist id="company-directory"></datalist></label>` : ''}
-      ${!customer && state.form.movement_kind === 'max' ? `
-        <label class="field field--md"><span class="field__label">Other Max Solutions location</span><select class="select" data-field="requester_location_id"></select><span class="field__hint">The same time will be reserved at both facilities.</span></label>` : ''}
-      <label class="field field--md"><span class="field__label">Appointment type</span><select class="select" data-field="appointment_type_code"></select></label>
-    </div>
-    <div class="fieldFlow">
-      <label class="field field--xs"><span class="field__label">Number of skids</span><input class="input" data-field="skid_count" type="number" min="0" max="9999" inputmode="numeric"></label>
-      <label class="field field--sm"><span class="field__label">PO / BOL / job number</span><input class="input data" data-field="external_reference" maxlength="120" autocomplete="off"></label>
-    </div>
-    ${isStaff() ? '<label class="check-row field--full"><input type="checkbox" data-field="is_priority"><span><strong>Priority load</strong><small>Apply the location’s configured priority timing rule.</small></span></label>' : ''}`;
+    ${customer ? '<p class="hint">Your company and contact details are already on file.</p>' : ''}`;
 
   if (!customer && state.form.movement_kind === 'external') {
     addOptions(hosts.step.querySelector('[data-field="requester_type"]'), EXTERNAL_PARTIES, state.form.requester_type);
@@ -345,14 +440,31 @@ function renderLoadStep() {
   if (!customer && state.form.movement_kind === 'max') {
     addOptions(
       hosts.step.querySelector('[data-field="requester_location_id"]'),
-      context.locations
+      (state.reference.maxLocations || [])
         .filter(location => location.id !== currentLocation().id)
         .map(location => ({ value: location.id, label: location.name })),
       state.form.requester_location_id,
-      'Choose a Max Solutions location',
+      'Choose a location',
     );
   }
-  addOptions(hosts.step.querySelector('[data-field="appointment_type_code"]'), state.reference.appointmentTypes, state.form.appointment_type_code, 'Choose an appointment type');
+  const destination = hosts.step.querySelector('[data-field="destination_location_id"]');
+  if (destination) {
+    addOptions(
+      destination,
+      context.locations.map(location => ({ value: location.id, label: location.name })),
+      currentLocation().id,
+      'Choose a location',
+    );
+    // The select comes up showing a site, so the form has to agree with it. It did
+    // not: the field stayed empty until the vendor changed the dropdown, and
+    // Continue refused with "choose the location you are sending to" while the
+    // location it wanted was on screen in front of them.
+    if (!state.form.destination_location_id && destination.value) {
+      state.form.destination_location_id = destination.value;
+      state.form.location_id = destination.value;
+    }
+  }
+  addOptions(hosts.step.querySelector('[data-field="appointment_type_code"]'), state.reference.appointmentTypes, state.form.appointment_type_code, 'Choose one');
   const skids = hosts.step.querySelector('[data-field="skid_count"]');
   skids.value = String(state.form.skid_count ?? 0);
   const reference = hosts.step.querySelector('[data-field="external_reference"]');
@@ -360,25 +472,48 @@ function renderLoadStep() {
   const company = hosts.step.querySelector('[data-field="company_name"]');
   if (company) company.value = state.form.company_name;
   const priority = hosts.step.querySelector('[data-field="is_priority"]');
-  if (priority) priority.checked = state.form.is_priority;
+  if (priority) priority.value = state.form.is_priority ? '1' : '';
 }
 
-function renderVehicleStep() {
-  hosts.step.innerHTML = `
-    <div class="booking-section-head">
-      <div><span class="booking-kicker">Step 2 of 5</span><h2 class="booking-title">Vehicle</h2></div>
-      <p>Select only the vehicle and handling types enabled at this location.</p>
+// How full the trailer is, in the destination's own numbers. The skid capacity
+// of a truck type is set per location under Settings › Locations and docks, so a
+// site that double-stacks says so and its trailers hold more.
+function trailerFullness() {
+  const capacity = truckCapacity();
+  if (!capacity) return '';
+  const skids = combinedSkids();
+  const free = capacity - skids;
+  const truck = selectedName(state.reference.truckTypes, state.form.truck_type_code) || 'This truck';
+  if (free < 0) return `${truck} holds ${capacity} skids · ${skids} booked · ${-free} over`;
+  return `${truck} holds ${capacity} skids · ${skids} booked · room for ${free} more`;
+}
+
+function renderFullness() {
+  const note = context.pageRoot.querySelector('[data-fullness]');
+  if (!note) return;
+  const text = trailerFullness();
+  note.textContent = text;
+  note.hidden = !text;
+}
+
+// Appended to the load step rather than owning a screen. `append` is not optional in
+// practice -- nothing calls this on its own any more -- but it is a parameter rather than an
+// assumption so the function still says what it does to the next person reading it.
+function renderVehicleStep({ append = false } = {}) {
+  const markup = `
+    <div class="frow">
+      <div class="field field--md"><span class="field__label">Truck type<span class="field__req" aria-hidden="true">*</span></span><select class="select" data-field="truck_type_code"></select></div>
+      <div class="field field--md"><span class="field__label">Handling<span class="field__req" aria-hidden="true">*</span></span><select class="select" data-field="handling_type_code"></select></div>
+      <div class="field field--md"><span class="field__label">Carrier or courier</span><input class="input" data-field="carrier_name" maxlength="120" autocomplete="organization"></div>
     </div>
-    <div class="fieldFlow">
-      <label class="field field--md"><span class="field__label">Truck type</span><select class="select" data-field="truck_type_code"></select></label>
-      <label class="field field--md"><span class="field__label">Handling</span><select class="select" data-field="handling_type_code"></select></label>
-      <label class="field field--md"><span class="field__label">Carrier or courier</span><input class="input" data-field="carrier_name" maxlength="120" autocomplete="organization"></label>
-    </div>
-    <label class="field field--full"><span class="field__label">Notes</span><textarea class="input booking-textarea" data-field="notes" maxlength="1000" rows="4"></textarea><span class="field__hint">Add handling instructions only. Do not include passwords or sensitive personal information.</span></label>`;
-  addOptions(hosts.step.querySelector('[data-field="truck_type_code"]'), state.reference.truckTypes, state.form.truck_type_code, 'Choose a truck type');
-  addOptions(hosts.step.querySelector('[data-field="handling_type_code"]'), state.reference.handlingTypes, state.form.handling_type_code, 'Choose a handling type');
+    <p class="hint hint--wide section-gap" data-fullness hidden></p>
+`;
+  if (append) hosts.step.insertAdjacentHTML('beforeend', markup);
+  else hosts.step.innerHTML = markup;
+  addOptions(hosts.step.querySelector('[data-field="truck_type_code"]'), state.reference.truckTypes, state.form.truck_type_code, 'Choose one');
+  addOptions(hosts.step.querySelector('[data-field="handling_type_code"]'), state.reference.handlingTypes, state.form.handling_type_code, 'Choose one');
   hosts.step.querySelector('[data-field="carrier_name"]').value = state.form.carrier_name;
-  hosts.step.querySelector('[data-field="notes"]').value = state.form.notes;
+  renderFullness();
 }
 
 function renderSlotCards() {
@@ -387,106 +522,95 @@ function renderSlotCards() {
   host.replaceChildren();
 
   if (state.slotLoading) {
-    host.append(element('div', 'slot-state', 'Finding capacity-ready times…'));
+    host.append(element('p', 'hint', 'Finding capacity-ready times…'));
     return;
   }
   if (state.slotError) {
-    const card = element('div', 'slot-state slot-state--error');
-    card.append(element('strong', '', 'Times could not be loaded'), element('span', '', state.slotError));
-    host.append(card);
+    const message = element('p', 'form-message', state.slotError);
+    host.append(message);
     return;
   }
   if (!state.slots.length) {
-    host.append(element('div', 'slot-state', 'Choose a date and select “Find available times”.'));
+    host.append(element('p', 'hint hint--wide', selectedMatches().length
+      ? `Nothing at ${currentLocation().name} fits ${combinedSkids()} skids in one window. Untick a load to book it separately, or try another date.`
+      : 'Choose a date and select “Find available times”.'));
     return;
   }
 
-  const group = element('div', 'slot-grid');
+  // How long this load holds a door, in the destination's own words. The server
+  // already worked it out — base plus minutes per skid, the truck's setup time,
+  // the appointment and handling adjustments, the buffer, then any full-truck or
+  // priority minimum, rounded up to the slot interval — and every slot below is
+  // sized to it. Showing it is why a fifty-skid trailer sees fewer times than a
+  // four-skid van, which otherwise looks like the list is broken.
+  const first = state.slots[0];
+  const minutes = format.minutesBetween(first.slot_start, first.slot_end);
+  if (minutes > 0) {
+    const note = element('p', 'hint hint--flush');
+    note.append(
+      `This load needs ${format.duration(minutes)} at the dock`,
+      element('span', '', ` · ${combinedSkids()} skids · ${selectedName(state.reference.truckTypes, state.form.truck_type_code) || 'selected truck'}`),
+      '. Every time below has that much room at ',
+      element('strong', '', currentLocation().name),
+      '.',
+    );
+    host.append(note);
+  }
+
+  const group = element('div', 'slotpick');
   group.setAttribute('role', 'radiogroup');
   group.setAttribute('aria-label', 'Available appointment times');
   for (const slot of state.slots) {
     const selected = state.form.selected_slot?.slot_start === slot.slot_start;
-    const button = element('button', 'slot-card');
+    const button = element('button', '', `${format.time(slot.slot_start, receivingLocation())}`);
     button.type = 'button';
     button.dataset.action = 'select-slot';
     button.dataset.slot = slot.slot_start;
     button.setAttribute('role', 'radio');
     button.setAttribute('aria-checked', String(selected));
-    if (selected) button.classList.add('slot-card--selected');
-
-    const time = element('strong', 'slot-card__time', `${format.time(slot.slot_start, receivingLocation())}–${format.time(slot.slot_end, receivingLocation())}`);
-    const date = element('span', 'slot-card__date', format.date(slot.slot_start, receivingLocation()));
-    const reason = element('span', 'slot-card__reason', context.customerShell
-      ? (slot.alternative_date ? 'Next available date' : 'Available appointment time')
-      : clean(slot.recommendation_reason) || 'Compatible dock available');
-    button.append(time, date, reason);
-
+    button.setAttribute('aria-pressed', String(selected));
+    const label = [format.date(slot.slot_start, receivingLocation())];
     if (!context.customerShell) {
-      const details = element('span', 'slot-card__meta');
-      details.textContent = state.form.movement_kind === 'max'
-        ? `${clean(slot.recommended_dock_name) || 'Origin dock'} · ${clean(slot.counterpart_dock_name) || 'Destination dock'}`
-        : `${slot.available_docks || 1} compatible ${Number(slot.available_docks) === 1 ? 'dock' : 'docks'}`;
-      button.append(details);
+      label.push(state.form.movement_kind === 'max'
+        ? `${clean(slot.recommended_dock_name) || 'Origin dock'} / ${clean(slot.counterpart_dock_name) || 'Destination dock'}`
+        : `${slot.available_docks || 1} compatible ${Number(slot.available_docks) === 1 ? 'dock' : 'docks'}`);
     }
-    if (slot.capacity_warning) button.append(element('span', 'slot-card__warning', 'Capacity warning'));
+    if (slot.capacity_warning) label.push('Capacity warning');
+    button.title = label.join(' · ');
     group.append(button);
   }
   host.append(group);
+  host.append(element('p', 'hint', 'Live refresh won\'t move this list while you\'re choosing a time.'));
 }
 
 function renderTimeStep() {
   const staff = isStaff();
   hosts.step.innerHTML = `
-    <div class="booking-section-head">
-      <div><span class="booking-kicker">Step 3 of 5</span><h2 class="booking-title">Time</h2></div>
-      <p>MaxDock calculates duration and dock compatibility. Customers never see internal dock assignments.</p>
-    </div>
-    <div class="fieldFlow">
-      <label class="field field--sm"><span class="field__label">Requested date</span><input class="input" data-field="date" type="date" min="${format.inputDate(null, receivingLocation())}"></label>
-      <label class="field field--sm"><span class="field__label">Preferred start</span><input class="input" data-field="preferred_start_time" type="time"></label>
-      <label class="field field--sm"><span class="field__label">Preferred end</span><input class="input" data-field="preferred_end_time" type="time"></label>
+    <div class="frow">
+      <div class="field field--md"><span class="field__label">Requested date<span class="field__req" aria-hidden="true">*</span></span><input class="input" data-field="date" type="date" min="${format.inputDate(null, receivingLocation())}"></div>
+      <div class="field field--xl field-action"><p class="hint hint--flush">Pick a date, then choose one of the available times below.</p></div>
     </div>
     ${staff ? `
-      <label class="check-row after-hours-toggle"><input type="checkbox" data-field="after_hours"><span><strong>Request an after-hours time</strong><small>Staff only. The booking RPC verifies the time and records your confirmation.</small></span></label>
+      <label class="check-row check-row--spaced"><input type="checkbox" data-field="after_hours"><span><strong>Request an after-hours time</strong><small>Staff only. The booking RPC verifies the time and records your confirmation.</small></span></label>
       ${state.form.after_hours ? `
-        <div class="after-hours-panel">
-          <label class="field field--sm"><span class="field__label">Custom start time</span><input class="input" data-field="custom_time" type="time" step="${Math.max(1, Number(state.reference.settings.slot_interval_minutes || 30)) * 60}"></label>
+        <div class="inline-note inline-note--warning">
+          <div class="field field--sm"><span class="field__label">Custom start time</span><input class="input" data-field="custom_time" type="time" step="${Math.max(1, Number(state.reference.settings.slot_interval_minutes || 30)) * 60}"></div>
           <label class="check-row"><input type="checkbox" data-field="after_hours_acknowledged"><span><strong>I confirm this appointment may be outside operating hours</strong><small>This explicit acknowledgement is required before MaxDock sends the override to the booking RPC.</small></span></label>
         </div>` : ''}` : ''}
+    <div data-combine-shelf></div>
     ${!state.form.after_hours ? `
-      <div class="slot-toolbar">
-        <div><strong>Available times</strong><span>Ranked by capacity, compatibility and preferred window.</span></div>
-        <button class="btn btn--primary" type="button" data-action="find-slots">Find available times</button>
-      </div>
+      <div class="grouplabel">Available · ${state.form.date ? format.longDateInput(state.form.date, receivingLocation()) : 'choose a date'}</div>
       <div data-slot-list></div>` : ''}`;
 
   hosts.step.querySelector('[data-field="date"]').value = state.form.date;
-  hosts.step.querySelector('[data-field="preferred_start_time"]').value = state.form.preferred_start_time;
-  hosts.step.querySelector('[data-field="preferred_end_time"]').value = state.form.preferred_end_time;
   const afterHours = hosts.step.querySelector('[data-field="after_hours"]');
   if (afterHours) afterHours.checked = state.form.after_hours;
   const customTime = hosts.step.querySelector('[data-field="custom_time"]');
   if (customTime) customTime.value = state.form.custom_time;
   const acknowledged = hosts.step.querySelector('[data-field="after_hours_acknowledged"]');
   if (acknowledged) acknowledged.checked = state.form.after_hours_acknowledged;
+  renderCombinePicker();
   renderSlotCards();
-}
-
-function renderContactStep() {
-  hosts.step.innerHTML = `
-    <div class="booking-section-head">
-      <div><span class="booking-kicker">Step 4 of 5</span><h2 class="booking-title">Contact</h2></div>
-      <p>These details identify the requester and are included in the confirmation draft.</p>
-    </div>
-    <div class="fieldGrid fieldGrid--2">
-      <label class="field field--md"><span class="field__label">Requester name</span><input class="input" data-field="requester_name" maxlength="120" autocomplete="name"></label>
-      <label class="field field--lg"><span class="field__label">Requester email</span><input class="input" data-field="requester_email" type="email" maxlength="180" autocomplete="email"></label>
-      ${state.form.movement_kind === 'external' ? '<label class="field field--md"><span class="field__label">Company or organisation</span><input class="input" data-field="company_name" maxlength="120" autocomplete="organization"></label>' : ''}
-    </div>`;
-  hosts.step.querySelector('[data-field="requester_name"]').value = state.form.requester_name;
-  hosts.step.querySelector('[data-field="requester_email"]').value = state.form.requester_email;
-  const company = hosts.step.querySelector('[data-field="company_name"]');
-  if (company) company.value = state.form.company_name;
 }
 
 function summaryRows() {
@@ -498,37 +622,119 @@ function summaryRows() {
   const route = state.form.movement_kind === 'max' && counterpart
     ? (state.form.direction === 'inbound' ? `${counterpart.name} → ${location.name}` : `${location.name} → ${counterpart.name}`)
     : (state.form.direction === 'inbound' ? `${clean(state.form.company_name) || state.form.requester_type} → ${location.name}` : `${location.name} → ${clean(state.form.company_name) || state.form.requester_type}`);
+  const combined = selectedMatches();
+  const capacity = truckCapacity();
   return [
     ['Route', route],
     ['Appointment type', type],
-    ['Vehicle', truck],
+    ['Vehicle', truck + (capacity ? ` · ${capacity} skid trailer` : '')],
     ['Handling', handling],
-    ['Skids', String(state.form.skid_count ?? 0)],
+    ['Skids', `${state.form.skid_count ?? 0} skids${combined.length ? ` · ${combinedSkids()} skids on the truck` : ''}`],
     ['PO / BOL / job', clean(state.form.external_reference) || 'Not entered'],
     ['Date', selectedDate() || 'Not selected'],
     ['Time', selectedTime() || 'Not selected'],
     ['Requester', clean(state.form.requester_name) || 'Not entered'],
+    ...(combined.length
+      ? [['Combined with', combined.map(match => clean(match.booking_reference) || 'Existing appointment').join(', ')]]
+      : []),
   ];
 }
 
+// A repeating booking is a pattern, not a set of appointments. The pattern is
+// declared once here and MaxDock generates ordinary appointments from it, each
+// with its own reference and its own cancel button — because the truck changing
+// on one Thursday is the normal case on a dock, not a break in the schedule.
+const WEEKDAYS = Object.freeze([
+  { value: 1, label: 'Mon' }, { value: 2, label: 'Tue' }, { value: 3, label: 'Wed' },
+  { value: 4, label: 'Thu' }, { value: 5, label: 'Fri' }, { value: 6, label: 'Sat' },
+  { value: 0, label: 'Sun' },
+]);
+
+function repeatDates() {
+  return format.repeatingDates({
+    from: selectedDate(),
+    until: state.form.repeat_until,
+    days: state.form.repeat_days,
+    intervalWeeks: state.form.repeat_interval_weeks,
+  });
+}
+
+// How far ahead this site will take a booking at all. Mississauga's window is ten
+// days, so "every Wednesday until Christmas" books one Wednesday and the booking
+// function refuses the rest — correctly, and until now silently. The repeat says
+// so before anything is booked, and the date field will not go past it.
+function bookingWindowEnd() {
+  const days = Number(state.reference.settings.maximum_advance_days || 0);
+  if (!days) return '';
+  return format.addDaysInput(format.todayInput(receivingLocation()), days);
+}
+
+function renderRepeat() {
+  const host = hosts.step.querySelector('[data-repeat]');
+  if (!host) return;
+  const on = state.form.repeat_on;
+  const dates = on ? repeatDates() : [];
+  const windowEnd = bookingWindowEnd();
+  host.innerHTML = `
+    <label class="check-row check-row--spaced"><input type="checkbox" data-field="repeat_on" ${on ? 'checked' : ''}><span><strong>Repeat this booking</strong><small>MaxDock books each date separately, so any one of them can be changed or cancelled on its own.</small></span></label>
+    ${on ? `
+      <div class="frow">
+        <div class="field field--sm"><span class="field__label">Repeat</span><select class="select" data-field="repeat_interval_weeks">
+          <option value="1" ${Number(state.form.repeat_interval_weeks) === 1 ? 'selected' : ''}>Every week</option>
+          <option value="2" ${Number(state.form.repeat_interval_weeks) === 2 ? 'selected' : ''}>Every 2 weeks</option>
+          <option value="3" ${Number(state.form.repeat_interval_weeks) === 3 ? 'selected' : ''}>Every 3 weeks</option>
+          <option value="4" ${Number(state.form.repeat_interval_weeks) === 4 ? 'selected' : ''}>Every 4 weeks</option>
+        </select></div>
+        <div class="field field--md"><span class="field__label">Until<span class="field__req" aria-hidden="true">*</span></span><input class="input" type="date" data-field="repeat_until" min="${escapeHtml(selectedDate() || '')}" ${windowEnd ? `max="${escapeHtml(windowEnd)}"` : ''} value="${escapeHtml(state.form.repeat_until)}"></div>
+      </div>
+      <div class="grouplabel">On these days</div>
+      <div class="daypick">${WEEKDAYS.map(day => `<label class="check-row"><input type="checkbox" data-repeat-day="${day.value}" ${state.form.repeat_days.includes(day.value) ? 'checked' : ''}><span>${day.label}</span></label>`).join('')}</div>
+      <p class="hint hint--wide">${dates.length
+        ? `${dates.length} appointment${dates.length === 1 ? '' : 's'} at ${escapeHtml(selectedTime() || 'the chosen time')}, first on ${escapeHtml(dates[0])}, last on ${escapeHtml(dates[dates.length - 1])}. Any date with no room is skipped and reported, the rest still book.`
+        : 'Pick the days and a last date to see which appointments this will book.'}</p>
+      ${windowEnd ? `<p class="inline-note${dates.some(date => date > windowEnd) ? ' inline-note--warning' : ''}">${escapeHtml(currentLocation().name)} takes bookings up to ${Number(state.reference.settings.maximum_advance_days)} days ahead, to ${escapeHtml(windowEnd)}.${dates.some(date => date > windowEnd) ? ' Dates after that will be skipped. Raise the booking window under Settings › Booking window &amp; notice to schedule further out.' : ''}</p>` : ''}` : ''}`;
+}
+
 function renderConfirmStep() {
+  const external = state.form.movement_kind === 'external';
   hosts.step.innerHTML = `
-    <div class="booking-section-head">
-      <div><span class="booking-kicker">Step 5 of 5</span><h2 class="booking-title">Confirm</h2></div>
-      <p>Review the booking before reserving the dock${state.form.movement_kind === 'max' ? 's' : ''}.</p>
-    </div>
-    <div class="confirm-grid" data-confirm-grid></div>
+    <p class="hint hint--lead">Review the booking before reserving the dock${state.form.movement_kind === 'max' ? 's' : ''}.</p>
+    <div class="card" data-confirm-grid></div>
+    <div class="section-gap" data-repeat></div>
     ${state.form.after_hours ? '<div class="inline-note inline-note--warning"><strong>After-hours override</strong><span>Your acknowledgement will be recorded with the booking.</span></div>' : ''}
-    <label class="check-row save-template-row"><input type="checkbox" data-field="save_template"><span><strong>Save these load and vehicle details as a template</strong><small>Contact information, notes and PO/BOL/job numbers are not saved.</small></span></label>
-    ${state.form.save_template ? '<label class="field field--md"><span class="field__label">Template name</span><input class="input" data-field="template_name" maxlength="80" placeholder="Example: Weekly Haleon inbound"></label>' : ''}`;
+    <div class="frow">
+      <label class="field field--full"><span class="field__label">Notes <span class="field__opt">optional</span></span><textarea class="input" data-field="notes" maxlength="1000" rows="2" placeholder="Handling instructions only. No passwords or personal information."></textarea></label>
+    </div>
+    ${/* Who is booking, which used to be a step of its own. It is filled in from the account
+        before this screen is drawn, so it sits here as two small fields somebody can correct
+        rather than a page they have to walk through agreeing with themselves. The company is
+        offered only where MaxDock does not already know it. */ ''}
+    <div class="frow">
+      <div class="field field--${external ? 'sm' : 'md'}"><span class="field__label">Booked by<span class="field__req" aria-hidden="true">*</span></span><input class="input" data-field="requester_name" maxlength="120" autocomplete="name"></div>
+      <div class="field field--${external ? 'md' : 'lg'}"><span class="field__label">Email<span class="field__req" aria-hidden="true">*</span></span><input class="input" data-field="requester_email" type="email" maxlength="180" autocomplete="email"></div>
+      ${external ? '<div class="field field--sm"><span class="field__label">Company</span><input class="input" data-field="company_name" maxlength="120" autocomplete="organization"></div>' : ''}
+    </div>
+    <div class="frow">
+      <label class="field field--full"><span class="field__label">Save as a shortcut <span class="field__opt">optional</span></span><input class="input" data-field="template_name" maxlength="80" placeholder="Name it: “Mississauga to Guelph”, “Weekly board run”"></label>
+    </div>`;
 
   const grid = hosts.step.querySelector('[data-confirm-grid]');
+  // Two columns of label-and-value pairs rather than one full-width row each: the
+  // summary was a tall ladder with the label at one edge and the value at the
+  // other, which is the empty middle the owner objected to.
+  grid.className = 'card confirmgrid';
   for (const [label, value] of summaryRows()) {
-    const item = element('div', 'confirm-item');
-    item.append(element('span', 'confirm-item__label', label), element('strong', 'confirm-item__value', value));
-    grid.append(item);
+    const cell = element('div', 'confirmgrid__cell');
+    cell.append(element('span', 'confirmgrid__l', label), element('strong', 'confirmgrid__v', value));
+    grid.append(cell);
   }
-  hosts.step.querySelector('[data-field="save_template"]').checked = state.form.save_template;
+  renderRepeat();
+  hosts.step.querySelector('[data-field="notes"]').value = state.form.notes;
+  hosts.step.querySelector('[data-field="requester_name"]').value = state.form.requester_name;
+  hosts.step.querySelector('[data-field="requester_email"]').value = state.form.requester_email;
+  const company = hosts.step.querySelector('[data-field="company_name"]');
+  if (company) company.value = state.form.company_name;
+  // Naming it is what saves it — a separate checkbox asked the same question twice.
   const name = hosts.step.querySelector('[data-field="template_name"]');
   if (name) name.value = state.form.template_name;
 }
@@ -538,7 +744,7 @@ function confirmationText(result) {
   const truck = selectedName(state.reference.truckTypes, state.form.truck_type_code);
   return [
     `MaxDock appointment ${result.booking_reference}`,
-    `${currentLocation().name} — ${format.timestamp(result.start_at, receivingLocation())}`,
+    `${currentLocation().name} · ${format.timestamp(result.start_at, receivingLocation())}`,
     `${state.form.direction === 'inbound' ? 'Inbound' : 'Outbound'} · ${type} · ${truck} · ${state.form.skid_count} skids`,
     `PO / BOL / job: ${state.form.external_reference}`,
     `Requester: ${state.form.requester_name} <${state.form.requester_email}>`,
@@ -547,40 +753,99 @@ function confirmationText(result) {
   ].join('\n');
 }
 
+// A series confirms as a list of what was booked and what was not. There is no
+// one reference to show and no one QR code to print, because there is no one
+// appointment — every date is its own booking on My appointments.
+function renderSeriesConfirmation() {
+  const result = state.confirmation;
+  const booked = result.booked || [];
+  const skipped = result.skipped || [];
+  hosts.step.innerHTML = `
+    <div class="booked">
+      <span class="tag ${skipped.length ? 'tag--warn' : 'tag--ok'}">✓ ${booked.length} appointment${booked.length === 1 ? '' : 's'} booked</span>
+      <h3 class="booked__ref">${escapeHtml(currentLocation().name)}</h3>
+      <p class="hint">${skipped.length ? `${skipped.length} date${skipped.length === 1 ? '' : 's'} had no room and ${skipped.length === 1 ? 'was' : 'were'} skipped. Book ${skipped.length === 1 ? 'it' : 'them'} separately at another time.` : 'Every date in the pattern was booked.'}</p>
+    </div>
+    <div class="card" data-series-list></div>
+    <div class="booked__actions">
+      <button class="btn btn--quiet" type="button" data-action="book-another">Book another</button>
+      <a class="btn btn--primary" href="my-appointments.html">View my appointments</a>
+    </div>`;
+  const list = hosts.step.querySelector('[data-series-list]');
+  for (const entry of booked) {
+    const row = element('div', 'setrow');
+    row.append(
+      element('div', '', `${entry.date} · ${format.time(entry.start_at, receivingLocation())}`),
+      element('strong', 'data', entry.booking_reference || ''),
+    );
+    list.append(row);
+  }
+  for (const entry of skipped) {
+    const row = element('div', 'setrow');
+    const left = element('div');
+    left.append(element('div', '', entry.date), element('div', 'setrow__d', entry.reason || 'No room that day'));
+    row.append(left, element('span', 'tag tag--warn', 'Skipped'));
+    list.append(row);
+  }
+}
+
+// How full the truck ended up, drawn as the truck.
+//
+// This was a progress bar, and a bar is the wrong picture for this question. A planner
+// deciding whether one more load would fit is not asking "what percentage"; they are asking
+// whether there is room at the doors, and a trailer with two skids of space left answers
+// that before the caption is read. It is the same drawing the combine dialog and the truck
+// fullness report use, from the same module, so a booking and the report about it cannot
+// show the load two different ways.
+//
+// It draws for everybody who can reach this step, staff or customer. The room left in a
+// truck is not privileged information — it is the thing the person booking most needs to
+// know, and it is the whole argument for combining.
+function fullnessFigure(skidsWanted = null, capacityWanted = null) {
+  const merged = state.merged;
+  const capacity = Number(capacityWanted ?? merged?.truck_capacity ?? truckCapacity() ?? 0);
+  if (!capacity) return '';
+  const skids = Number(skidsWanted ?? merged?.skid_count ?? combinedSkids());
+  return `<div class="fullness fullness--fig">${truckFill({
+    skids,
+    capacity,
+    code: state.form.truck_type_code,
+    label: selectedName(state.reference.truckTypes, state.form.truck_type_code) || '',
+  })}</div>`;
+}
+
 function renderConfirmation() {
   const result = state.confirmation;
+  if (result?.series_id) { renderSeriesConfirmation(); return; }
   const text = confirmationText(result);
   hosts.step.innerHTML = `
-    <div class="booking-success">
-      <span class="booking-success__mark" aria-hidden="true">✓</span>
-      <span class="booking-kicker">Appointment booked</span>
-      <h2 class="booking-success__title">${result.booking_reference}</h2>
-      <p>${currentLocation().name} · ${format.timestamp(result.start_at, receivingLocation())}</p>
+    <div class="booked">
+      <span class="tag tag--ok">✓ Appointment booked</span>
+      <h3 class="booked__ref">${result.booking_reference}</h3>
+      <p class="hint">${currentLocation().name} · ${format.timestamp(result.start_at, receivingLocation())}</p>
+      ${state.merged ? `<p class="hint hint--wide">${state.merged.absorbed_count} load${state.merged.absorbed_count === 1 ? '' : 's'} combined onto this one and cancelled: ${escapeHtml((state.merged.absorbed || []).map(row => row.booking_reference).join(', '))}. One truck now carries ${state.merged.skid_count} skids.</p>` : ''}
     </div>
-    <div class="confirmation-layout">
-      <div class="confirmation-details" data-confirmation-details></div>
-      <div class="confirmation-qr">
+    <div class="frow">
+      <div class="card field--xl" data-confirmation-details></div>
+      <div class="card field--md booked__qr">
         <div class="qr-frame" data-qr></div>
-        <strong>QR check-in code</strong>
-        <span>Generated locally in this browser. Stage 8 will connect scanning to the secure check-in token workflow.</span>
+        <p class="hint">QR check-in code<br>Generated locally in this browser.</p>
       </div>
     </div>
-    <div class="confirmation-actions">
+    <div class="booked__actions">
       <button class="btn btn--quiet" type="button" data-action="copy-confirmation">Copy confirmation</button>
       <a class="btn btn--quiet" data-email-draft>Open email draft</a>
+      <button class="btn btn--quiet" type="button" data-action="book-another">Book another</button>
       <a class="btn btn--primary" href="my-appointments.html">View my appointments</a>
-      <button class="btn btn--ghost" type="button" data-action="book-another">Book another</button>
     </div>`;
 
   const details = hosts.step.querySelector('[data-confirmation-details]');
   for (const [label, value] of summaryRows()) {
-    const item = element('div', 'confirm-item');
-    item.append(element('span', 'confirm-item__label', label), element('strong', 'confirm-item__value', value));
-    details.append(item);
+    const row = element('div', 'setrow');
+    row.append(element('div', 'setrow__d', label), element('strong', '', value));
+    details.append(row);
   }
-  renderQr(hosts.step.querySelector('[data-qr]'), `MAXDOCK|${result.appointment_id}|${result.booking_reference}`, {
-    label: `QR code for MaxDock appointment ${result.booking_reference}`,
-  });
+  renderCheckInCode(result);
   const subject = encodeURIComponent(`MaxDock appointment ${result.booking_reference}`);
   const body = encodeURIComponent(text);
   hosts.step.querySelector('[data-email-draft]').href = `mailto:${encodeURIComponent(state.form.requester_email)}?subject=${subject}&body=${body}`;
@@ -594,10 +859,8 @@ function renderStep() {
     return;
   }
   switch (state.step) {
-    case 0: renderLoadStep(); break;
-    case 1: renderVehicleStep(); break;
-    case 2: renderTimeStep(); break;
-    case 3: renderContactStep(); break;
+    case 0: renderLoadStep(); renderVehicleStep({ append: true }); break;
+    case 1: renderTimeStep(); break;
     default: renderConfirmStep(); break;
   }
 }
@@ -605,71 +868,25 @@ function renderStep() {
 function renderActions() {
   hosts.actions.replaceChildren();
   if (state.confirmation) return;
-  if (state.step > 0) {
-    const back = element('button', 'btn btn--quiet', 'Back');
-    back.type = 'button';
-    back.dataset.action = 'back';
-    hosts.actions.append(back);
-  }
-  const spacer = element('span', 'booking-actions__spacer');
-  hosts.actions.append(spacer);
-  const primary = element('button', 'btn btn--primary', state.step === 4 ? 'Book appointment' : 'Continue');
+  const back = element('button', 'btn btn--quiet', state.step > 0 ? 'Back' : 'Cancel');
+  back.type = 'button';
+  back.dataset.action = state.step > 0 ? 'back' : 'close-booking';
+  hosts.actions.append(back);
+  // The button says how many bookings it is about to make. "Book appointment" on
+  // a control that creates nine of them is the wrong promise.
+  const repeatCount = state.form.repeat_on ? repeatDates().length : 0;
+  const bookLabel = repeatCount > 1 ? `Book ${repeatCount} appointments` : 'Book appointment';
+  const primary = element('button', 'btn btn--primary', state.step === STEPS.length - 1 ? bookLabel : 'Continue');
   primary.type = 'button';
-  primary.dataset.action = state.step === 4 ? 'book' : 'continue';
+  primary.dataset.action = state.step === STEPS.length - 1 ? 'book' : 'continue';
   primary.disabled = state.busy;
   hosts.actions.append(primary);
-}
-
-function renderSummary() {
-  hosts.summary.replaceChildren();
-  const head = element('div', 'panel__head');
-  const heading = element('div');
-  heading.append(element('h2', 'panel__title', 'Current booking'), element('p', 'panel__sub', currentLocation().name));
-  head.append(heading);
-  hosts.summary.append(head);
-  const list = element('dl', 'summary-list');
-  for (const [label, value] of summaryRows().slice(0, 8)) {
-    const row = element('div', 'summary-list__row');
-    row.append(element('dt', '', label), element('dd', '', value));
-    list.append(row);
-  }
-  hosts.summary.append(list);
-}
-
-function renderTemplates() {
-  hosts.templates.replaceChildren();
-  if (!state.reference.templates.length) {
-    hosts.templates.append(element('p', 'templates-empty', 'No saved templates yet. Save one from the Confirm step.'));
-    return;
-  }
-  const list = element('div', 'template-list');
-  for (const template of state.reference.templates) {
-    const card = element('article', 'template-card');
-    const location = context.locations.find(item => item.id === template.location_id);
-    const title = element('strong', 'template-card__name', template.name);
-    const meta = element('span', 'template-card__meta', `${location?.name || 'Location'} · ${selectedName(state.reference.truckTypes, template.truck_type_code, template.truck_type_code)}`);
-    const actions = element('div', 'template-card__actions');
-    const use = element('button', 'btn btn--quiet', 'Use');
-    use.type = 'button';
-    use.dataset.action = 'use-template';
-    use.dataset.templateId = template.id;
-    const remove = element('button', 'btn btn--ghost', 'Delete');
-    remove.type = 'button';
-    remove.dataset.action = 'delete-template';
-    remove.dataset.templateId = template.id;
-    actions.append(use, remove);
-    card.append(title, meta, actions);
-    list.append(card);
-  }
-  hosts.templates.append(list);
 }
 
 function renderAll() {
   renderSteps();
   renderStep();
   renderActions();
-  renderSummary();
-  renderTemplates();
 }
 
 function setMessage(message) {
@@ -686,23 +903,31 @@ function clearSlotSelection() {
 
 function validateStep(step = state.step) {
   const form = state.form;
-  if (step === 0) {
+  if (step === STEP.LOAD) {
+    if (context.customerShell && context.locations.length > 1 && !form.destination_location_id) return 'Choose the Max Solutions location you are sending to.';
     if (!form.appointment_type_code) return 'Choose an appointment type.';
     if (!state.reference.appointmentTypes.some(item => item.code === form.appointment_type_code)) return 'Choose an appointment type enabled at this location.';
+    if (!clean(String(form.skid_count ?? ''))) return 'Enter the skid count.';
     if (Number(form.skid_count) < 0 || !Number.isFinite(Number(form.skid_count))) return 'Enter a valid skid count.';
     if (!clean(form.external_reference)) return 'Enter the PO, BOL or job number.';
     if (form.movement_kind === 'max' && !form.requester_location_id) return 'Choose the other Max Solutions location.';
-    if (form.movement_kind === 'max' && !context.hasLocation(form.requester_location_id)) return 'Choose a Max Solutions location assigned to your account.';
-    if (form.movement_kind === 'external' && !clean(form.requester_type)) return 'Choose the external party type.';
+    if (form.movement_kind === 'external' && !clean(form.requester_type)) return 'Choose the company type.';
   }
-  if (step === 1) {
+  // The truck is on the same step as the load now, so it is checked with it.
+  if (step === STEP.LOAD) {
     if (!form.truck_type_code) return 'Choose a truck type.';
     if (!state.reference.truckTypes.some(item => item.code === form.truck_type_code)) return 'Choose a truck type enabled at this location.';
     if (!form.handling_type_code) return 'Choose a handling type.';
     if (!state.reference.handlingTypes.some(item => item.code === form.handling_type_code)) return 'Choose a handling type enabled at this location.';
   }
-  if (step === 2) {
+  if (step === STEP.TIME) {
     if (!form.date) return 'Choose a requested date.';
+    // A time cannot be chosen for a load that will not fit the truck. This used to print
+    // "4 over" in amber beside a list of times and let the person pick one, which books a
+    // truck that cannot carry what is on it — a problem discovered at the dock, by a
+    // driver. Either take the bigger trailer or leave a load out of the run.
+    const over = currentUpgrade();
+    if (over) return upgradeMessage(over);
     if (form.after_hours) {
       if (!isStaff()) return 'Customer appointments cannot be booked after hours.';
       if (!form.custom_time) return 'Choose the custom start time.';
@@ -711,34 +936,58 @@ function validateStep(step = state.step) {
       return 'Choose one available appointment time.';
     }
   }
-  if (step === 3) {
+  // Contact lives on Confirm now, so it is checked there rather than on a step of its own.
+  if (step === STEP.CONFIRM) {
     if (!clean(form.requester_name)) return 'Enter the requester name.';
     if (!clean(form.requester_email) || !form.requester_email.includes('@')) return 'Enter a valid requester email.';
   }
-  if (step === 4 && form.save_template && !clean(form.template_name)) return 'Enter a name for the booking template.';
+  if (step === STEP.CONFIRM && form.repeat_on) {
+    if (!form.repeat_days.length) return 'Choose at least one day for the repeat.';
+    if (!form.repeat_until) return 'Choose the last date for the repeat.';
+    if (form.after_hours) return 'A repeating booking cannot use an after-hours time.';
+  }
   return '';
 }
 
 function setStep(next) {
   const target = Math.max(0, Math.min(STEPS.length - 1, Number(next)));
-  if (state.step === 2 && target !== 2) poll.resume(SLOT_SUSPENSION);
+  if (state.step === STEP.TIME && target !== STEP.TIME) poll.resume(SLOT_SUSPENSION);
   state.step = target;
   state.maxStep = Math.max(state.maxStep, target);
-  if (target === 2) poll.suspend(SLOT_SUSPENSION);
+  // Time is step 1 now that Load and Vehicle share a screen. These two lines still said 2,
+  // which is Confirm: polling was left running underneath the slot picker and suspended on
+  // the summary instead, and — the part that mattered — arriving at Time returned before the
+  // fetch below, so the times were never asked for. A date with an empty list under it and
+  // "Choose one available appointment time." on Continue, with no way past it. Nobody could
+  // book an appointment.
+  if (target === STEP.TIME) poll.suspend(SLOT_SUSPENSION);
   renderAll();
-  hosts.step.querySelector('h2')?.focus?.();
+  hosts.step.focus();
+  if (target !== STEP.TIME) return;
+  // An after-hours request never asks for slots, so it would never reach the
+  // code that looks for loads to combine with. Ask for them directly.
+  if (state.form.after_hours) loadCombinable().then(renderCombinePicker);
+  else if (!state.slots.length) findSlots();
+  else renderCombinePicker();
 }
 
 async function findSlots(options = {}) {
-  const loadError = validateStep(0);
-  const vehicleError = validateStep(1);
-  if (loadError || vehicleError) {
-    setMessage(loadError || vehicleError);
+  // What the times depend on is the load and the truck, and both are step 0 now. This
+  // asked step 1 as well, which since the merge *is* the time step — so looking for times
+  // began by refusing to look until a time had been chosen, and answered every request with
+  // "Choose one available appointment time." over an empty list.
+  const loadError = validateStep(STEP.LOAD);
+  if (loadError) {
+    setMessage(loadError);
     return [];
   }
   state.slotLoading = true;
   state.slotError = '';
   if (!options.quiet) renderTimeStep();
+  // Loads that could travel together are found before the times are, because a
+  // combined load needs a longer window and the times have to reflect that.
+  if (!options.keepCombinable) await loadCombinable();
+  if (!options.quiet) renderCombinePicker();
 
   const routed = state.form.movement_kind === 'max';
   const rpcName = routed ? 'list_routed_appointment_slots' : 'list_capacity_aware_appointment_slots';
@@ -749,7 +998,7 @@ async function findSlots(options = {}) {
     p_direction: state.form.direction,
     p_appointment_type_code: state.form.appointment_type_code,
     p_truck_type_code: state.form.truck_type_code,
-    p_skid_count: Number(state.form.skid_count || 0),
+    p_skid_count: combinedSkids(),
     p_handling_type_code: state.form.handling_type_code,
     p_is_priority: isStaff() && Boolean(state.form.is_priority),
     p_preferred_start_time: state.form.preferred_start_time || null,
@@ -776,7 +1025,9 @@ async function findSlots(options = {}) {
     return [];
   } finally {
     state.slotLoading = false;
-    if (!options.quiet && state.step === 2) renderTimeStep();
+    // Drawing what came back, on the step that asked for it — 1 since Load and Vehicle
+    // merged. Left at 2 the times would arrive and never be painted.
+    if (!options.quiet && state.step === STEP.TIME) renderTimeStep();
   }
 }
 
@@ -787,7 +1038,7 @@ async function slotStillAvailable() {
   const match = rows.find(slot => slot.slot_start === selected);
   if (!match) {
     state.form.selected_slot = null;
-    setStep(2);
+    setStep(STEP.TIME);
     toast('That time was just taken. Choose another available time.', 'error');
     return false;
   }
@@ -806,10 +1057,24 @@ function partyMatches(record) {
   return clean(record.company_name).toLowerCase() === company;
 }
 
-async function findSameDayAppointments() {
+// Two loads are combinable if they land close enough together. "Close enough" is
+// the same calendar day by default, or a window of N hours either side when the
+// location has configured one.
+function withinConsolidationWindow(startAt, targetDate, timezone, sameDayOnly) {
+  const hours = Number(state.reference.settings.consolidation_window_hours || 0);
+  // The picker runs before a time is chosen, so an hours-either-side window has
+  // nothing to measure from. It offers the whole day and the narrower window
+  // still applies to the guard that runs at submit.
+  if (!hours || sameDayOnly) return format.sameLocalDate(startAt, targetDate, { timezone });
+  const target = state.form.selected_slot?.slot_start || `${targetDate}T${selectedTime() || '00:00'}`;
+  return Math.abs(format.minutesBetween(target, startAt)) <= hours * 60;
+}
+
+async function findSameDayAppointments(options = {}) {
   if (!state.reference.settings.suggest_same_day_consolidation) return [];
   const targetDate = selectedDate();
   if (!targetDate) return [];
+  const sameDayOnly = Boolean(options.sameDayOnly);
 
   if (context.customerShell) {
     const rows = await db.rpc('list_my_appointments', {}, {
@@ -821,7 +1086,7 @@ async function findSameDayAppointments() {
       !TERMINAL_STATUSES.has(clean(record.status).toLowerCase())
       && record.location_name === currentLocation().name
       && clean(record.direction).toLowerCase() === state.form.direction
-      && format.sameLocalDate(record.start_at, targetDate, { timezone: record.location_timezone })
+      && withinConsolidationWindow(record.start_at, targetDate, record.location_timezone, sameDayOnly)
     );
   }
 
@@ -834,7 +1099,7 @@ async function findSameDayAppointments() {
     record.entry_kind === 'appointment'
     && !TERMINAL_STATUSES.has(clean(record.status).toLowerCase())
     && clean(record.display_direction || record.direction).toLowerCase() === state.form.direction
-    && format.sameLocalDate(record.start_at, targetDate, currentLocation())
+    && withinConsolidationWindow(record.start_at, targetDate, currentLocation().timezone, sameDayOnly)
     && partyMatches(record)
   );
 }
@@ -842,17 +1107,154 @@ async function findSameDayAppointments() {
 function renderConsolidationMatches(matches) {
   hosts.consolidationList.replaceChildren();
   for (const match of matches.slice(0, 4)) {
-    const item = element('article', 'consolidation-item');
-    const reference = element('strong', 'data', match.booking_reference || 'Existing appointment');
-    const when = element('span', '', `${format.date(match.start_at, currentLocation())} · ${format.time(match.start_at, currentLocation())}`);
-    const detail = element('span', '', `${match.skid_count ?? 0} skids · ${clean(match.carrier_name) || 'Carrier not listed'}`);
-    item.append(reference, when, detail);
-    hosts.consolidationList.append(item);
+    const row = element('div', 'setrow');
+    const left = element('div');
+    left.append(
+      element('strong', 'data', match.booking_reference || 'Existing appointment'),
+      element('div', 'setrow__d', `${format.date(match.start_at, currentLocation())} · ${format.time(match.start_at, currentLocation())}`),
+    );
+    const right = element('span', 'setrow__d', `${match.skid_count ?? 0} skids · ${clean(match.carrier_name) || 'Carrier not listed'}`);
+    row.append(left, right);
+    hosts.consolidationList.append(row);
   }
 }
 
+// ---------------------------------------------------------------------------
+// Combining loads
+//
+// The same-day matches are offered on the Time step, where they can change the
+// answer: ticking one adds its skids to this load, and the times below are
+// re-fetched for the combined skid count. Nothing is merged in the database —
+// MaxDock records which references travel together in the appointment notes and
+// leaves the existing appointments exactly as they are.
+// ---------------------------------------------------------------------------
+
+function matchKey(record) {
+  return String(record.id || record.appointment_id || record.booking_reference || '');
+}
+
+function selectedMatches() {
+  return state.combineMatches.filter(match => state.combineSelected.includes(matchKey(match)));
+}
+
+function combinedSkids() {
+  return Number(state.form.skid_count || 0)
+    + selectedMatches().reduce((total, match) => total + Number(match.skid_count || 0), 0);
+}
+
+// Does the combined run fit the truck that is booked, and if not, which truck does.
+// One call site's worth of logic, asked from three places — the picker that shows the
+// offer, the button that takes it, and the gate that stops a time being chosen for a load
+// that cannot travel.
+function currentUpgrade() {
+  return truckUpgrade(state.reference.truckTypes, state.form.truck_type_code, combinedSkids());
+}
+
+function truckCapacity() {
+  const truck = (state.reference.truckTypes || []).find(row => row.code === state.form.truck_type_code);
+  const capacity = Number(truck?.skid_capacity || 0);
+  return capacity > 0 ? capacity : 0;
+}
+
+async function loadCombinable() {
+  state.combineMatches = [];
+  if (!state.form.date) {
+    state.combineSelected = [];
+    return;
+  }
+  state.combineLoading = true;
+  try {
+    state.combineMatches = await findSameDayAppointments({ sameDayOnly: true });
+  } catch {
+    state.combineMatches = [];
+  } finally {
+    state.combineLoading = false;
+  }
+  const live = new Set(state.combineMatches.map(matchKey));
+  state.combineSelected = state.combineSelected.filter(key => live.has(key));
+}
+
+function combineSummary() {
+  const chosen = selectedMatches();
+  if (!chosen.length) return '';
+  const capacity = truckCapacity();
+  const total = combinedSkids();
+  // The bar beside this says how full the trailer is, so this line says what
+  // combining does instead of repeating the count: one truck, and the loads that
+  // were ticked stop existing as separate appointments.
+  const parts = [`One truck, ${total} skids, ${chosen.length + 1} appointments`];
+  if (!capacity) parts.push('No trailer capacity is set for this truck type');
+  else if (total > capacity) parts.push(`${total - capacity} skid${total - capacity === 1 ? '' : 's'} over the ${capacity}-skid trailer`);
+  parts.push(`${chosen.length === 1 ? 'The ticked load is' : 'The ticked loads are'} cancelled onto this booking when you confirm`);
+  return parts.join(' · ');
+}
+
+function renderCombinePicker() {
+  const shelf = hosts.step.querySelector('[data-combine-shelf]');
+  if (!shelf) return;
+  if (state.combineLoading) {
+    shelf.innerHTML = '<p class="hint hint--flush">Checking that day for loads you could combine with…</p>';
+    return;
+  }
+  if (!state.combineMatches.length) {
+    shelf.replaceChildren();
+    return;
+  }
+  const upgrade = currentUpgrade();
+  shelf.innerHTML = `
+    <div class="grouplabel">Combine with</div>
+    <p class="hint hint--flush hint--wide">${state.combineMatches.length} other ${state.form.direction} load${state.combineMatches.length === 1 ? '' : 's'} already booked that day. Tick the ones travelling with this shipment: their skids move onto this booking, they are cancelled, and the times below are recalculated for the combined load.</p>
+    <div class="pickgroup">
+      ${state.combineMatches.map(match => {
+        const key = matchKey(match);
+        const checked = state.combineSelected.includes(key);
+        return `<label class="check-row"><input type="checkbox" data-combine="${escapeHtml(key)}"${checked ? ' checked' : ''}><span><strong>${escapeHtml(match.booking_reference || 'Existing appointment')} · ${escapeHtml(format.time(match.start_at, currentLocation()))}</strong><small>${Number(match.skid_count || 0)} skids · ${escapeHtml(clean(match.carrier_name) || 'Carrier not listed')}${match.company_name ? ` · ${escapeHtml(match.company_name)}` : ''}</small></span></label>`;
+      }).join('')}
+    </div>
+    ${selectedMatches().length ? `${fullnessFigure(combinedSkids(), truckCapacity())}
+      <p class="inline-note${upgrade ? ' inline-note--warning' : ''}">${escapeHtml(upgrade ? upgradeMessage(upgrade) : combineSummary())}</p>
+      ${upgrade && upgrade.fits ? `<div class="form-actions">
+        <button class="btn btn--primary" type="button" data-action="upgrade-truck">Change to a ${escapeHtml(upgrade.fits.name)}</button>
+      </div><p class="hint hint--flush hint--wide">Changing the trailer changes how long the load holds a door, so the times below are worked out again. Nothing is booked until you confirm.</p>` : ''}` : ''}`;
+}
+
+// What has to happen whenever the set of ticked loads changes, however it changed:
+// the truck is now carrying more, so it needs a longer window, so the times have
+// to be asked for again. Returns the warning to show, or '' when there is none.
+// The chosen time is re-checked rather than thrown away — clearing it silently
+// sent the user back to the time step with nothing selected and no idea why.
+async function recheckCombinedSlots() {
+  if (state.form.after_hours) {
+    renderCombinePicker();
+    return '';
+  }
+  const wanted = state.form.selected_slot?.slot_start || null;
+  clearSlotSelection();
+  const slots = await findSlots({ keepCombinable: true });
+  if (!wanted) return '';
+  const stillThere = slots.find(slot => slot.slot_start === wanted);
+  if (stillThere) {
+    state.form.selected_slot = stillThere;
+    renderTimeStep();
+    return '';
+  }
+  return `${combinedSkids()} skids no longer fits at that time. Choose another time below.`;
+}
+
+async function toggleCombine(key, checked) {
+  state.combineSelected = checked
+    ? [...new Set([...state.combineSelected, key])]
+    : state.combineSelected.filter(entry => entry !== key);
+  // Ticking a load is a decision, and the wizard must not ask about these loads
+  // again at the end. It used to, which put the user in a loop: choose loads,
+  // come back, get asked the same question, choose loads again.
+  state.combineReviewed = true;
+  const warning = await recheckCombinedSlots();
+  if (warning) setMessage(warning);
+}
+
 async function saveTemplate() {
-  if (!state.form.save_template) return null;
+  if (!clean(state.form.template_name)) return null;
   const values = {
     owner_user_id: context.user.id,
     location_id: currentLocation().id,
@@ -879,6 +1281,51 @@ async function saveTemplate() {
   return saved;
 }
 
+// Nothing in the database merges two appointments, and nothing should — each one
+// keeps its own reference, its own requester and its own audit trail. What the
+// combined booking carries is the note that says which loads travel together, so
+// the dock, the board and the confirmation all read the same thing.
+function combinedNotes() {
+  const notes = clean(state.form.notes);
+  const references = selectedMatches()
+    .map(match => clean(match.booking_reference))
+    .filter(Boolean);
+  if (!references.length) return notes || null;
+  const line = `Combined load, travelling with ${references.join(', ')}.`;
+  return notes ? `${notes}\n${line}` : line;
+}
+
+// The series carries the load details as defaults and the pattern beside them.
+// The server books each date through the ordinary booking function, so the
+// notice period, the capacity check, the direction windows and the dock
+// selection all apply exactly as they would to a single booking.
+function seriesArgs() {
+  const routed = state.form.movement_kind === 'max';
+  return {
+    p_location_id: currentLocation().id,
+    p_name: clean(state.form.template_name) || null,
+    p_direction: state.form.direction,
+    p_requester_type: routed ? counterpartLocation()?.name || 'Max Solutions' : state.form.requester_type,
+    p_company_name: routed ? counterpartLocation()?.name || null : clean(state.form.company_name) || null,
+    p_requester_location_id: routed ? state.form.requester_location_id : null,
+    p_appointment_type_code: state.form.appointment_type_code,
+    p_truck_type_code: state.form.truck_type_code,
+    p_skid_count: Number(state.form.skid_count || 0),
+    p_handling_type_code: state.form.handling_type_code,
+    p_is_priority: isStaff() && Boolean(state.form.is_priority),
+    p_requester_name: clean(state.form.requester_name),
+    p_requester_email: clean(state.form.requester_email).toLowerCase(),
+    p_external_reference: clean(state.form.external_reference),
+    p_carrier_name: clean(state.form.carrier_name) || null,
+    p_notes: combinedNotes(),
+    p_start_time: selectedTime(),
+    p_days_of_week: state.form.repeat_days,
+    p_interval_weeks: Number(state.form.repeat_interval_weeks || 1),
+    p_starts_on: selectedDate(),
+    p_ends_on: state.form.repeat_until || null,
+  };
+}
+
 function bookingArgs() {
   const routed = state.form.movement_kind === 'max';
   return {
@@ -898,7 +1345,7 @@ function bookingArgs() {
     p_company_name: routed ? counterpartLocation()?.name || null : clean(state.form.company_name) || null,
     p_requester_location_id: routed ? state.form.requester_location_id : null,
     p_carrier_name: clean(state.form.carrier_name) || null,
-    p_notes: clean(state.form.notes) || null,
+    p_notes: combinedNotes(),
     p_after_hours_confirmed: isStaff() && state.form.after_hours && state.form.after_hours_acknowledged,
   };
 }
@@ -910,11 +1357,33 @@ async function submitBooking() {
   try {
     if (!(await slotStillAvailable())) return;
     const routed = state.form.movement_kind === 'max';
-    const result = await db.rpc(routed ? 'book_routed_appointment' : 'book_appointment', bookingArgs(), {
-      key: `booking:create:${crypto.randomUUID()}`,
-      retry: 0,
-      userMessage: 'The appointment could not be booked.',
-    });
+    const result = state.form.repeat_on
+      ? await db.rpc('create_appointment_series', seriesArgs(), {
+        key: `booking:series:${crypto.randomUUID()}`,
+        retry: 0,
+        userMessage: 'The repeating booking could not be created.',
+      })
+      : await db.rpc(routed ? 'book_routed_appointment' : 'book_appointment', bookingArgs(), {
+        key: `booking:create:${crypto.randomUUID()}`,
+        retry: 0,
+        userMessage: 'The appointment could not be booked.',
+      });
+    // The loads that were ticked are merged onto the appointment just booked: the
+    // skids move across, the window grows to what the combined load needs, and the
+    // others are cancelled pointing at this one. Done after the booking rather
+    // than instead of it, because the merge needs an appointment to merge onto.
+    if (!result.series_id && selectedMatches().length) {
+      try {
+        const merged = await db.rpc('merge_appointments', {
+          p_keep_id: result.appointment_id,
+          p_absorb_ids: selectedMatches().map(match => matchKey(match)),
+        }, { key: `booking:merge:${crypto.randomUUID()}`, retry: 0, userMessage: 'The loads could not be combined.' });
+        state.merged = merged;
+        db.invalidate('appointments:mine');
+      } catch (mergeError) {
+        toast(mergeError.userMessage || 'The appointment was booked, but the loads could not be combined.', 'error');
+      }
+    }
     try {
       await saveTemplate();
     } catch (templateError) {
@@ -923,7 +1392,9 @@ async function submitBooking() {
     state.confirmation = result;
     poll.resume(SLOT_SUSPENSION);
     renderAll();
-    toast(`Appointment ${result.booking_reference} booked.`, 'success');
+    toast(result.series_id
+      ? `${result.booked_count} appointment${result.booked_count === 1 ? '' : 's'} booked.`
+      : `Appointment ${result.booking_reference} booked.`, 'success');
   } catch (error) {
     setMessage(error.userMessage || 'The appointment could not be booked. Review the details and try again.');
   } finally {
@@ -933,14 +1404,24 @@ async function submitBooking() {
 }
 
 async function attemptBooking() {
-  const error = validateStep(4);
+  // Every step, not one index. This read validateStep(4) after the wizard went to three steps,
+  // so it matched no branch and returned nothing: the last gate before a booking is submitted
+  // was checking nothing at all, and a repeat with no days chosen would have gone to the
+  // server. Walking the whole list cannot go stale, and a final gate should be re-checking
+  // everything anyway -- a person can go back and empty a field after passing its step.
+  const error = STEPS.map((label, index) => validateStep(index)).find(Boolean) || '';
   if (error) {
     setMessage(error);
     return;
   }
-  if (!state.sameDayAccepted) {
+  if (!state.sameDayAccepted && !state.combineReviewed) {
     try {
-      const matches = await findSameDayAppointments();
+      // Loads already ticked on the Time step are a decision, not a surprise —
+      // only the ones left unticked are worth stopping the booking for. And once
+      // the picker has been opened at all, the question has been asked: coming
+      // back to the end of the wizard must not ask it a second time.
+      const chosen = new Set(state.combineSelected);
+      const matches = (await findSameDayAppointments()).filter(match => !chosen.has(matchKey(match)));
       if (matches.length) {
         state.sameDayMatches = matches;
         renderConsolidationMatches(matches);
@@ -955,7 +1436,37 @@ async function attemptBooking() {
   await submitBooking();
 }
 
-function applyTemplate(template) {
+// A quick code set to choose its own time takes the first slot the destination
+// can actually take the load, no earlier than the lead its code carries. The lead
+// is the point: it leaves room to make the truck up, and room for the load to be
+// combined with something else already going that way. The slot search already
+// walks forward a week, so a lead of a day lands on tomorrow without anything
+// here knowing what a day is.
+async function continueWithAutoTime() {
+  setMessage('Finding the first time this load can go…');
+  const slot = await autoPickSlot(state.autoTime);
+  if (!slot) {
+    setStep(STEP.TIME);
+    setMessage(`Nothing is free ${format.duration(Number(state.autoTime.lead_minutes || 0))} from now or later. Choose a time below.`);
+    return;
+  }
+  state.maxStep = STEPS.length - 1;
+  setStep(STEPS.length - 1);
+  setMessage('');
+  toast(`Time chosen: ${format.timestamp(slot.slot_start, receivingLocation())}.`, 'success');
+}
+
+async function autoPickSlot(template) {
+  const earliest = format.afterNow(template.lead_minutes);
+  state.form.date = format.inputDate(earliest, receivingLocation());
+  const slots = await findSlots({ quiet: true });
+  const slot = (slots || []).find(item => format.isAtOrAfter(item.slot_start, earliest));
+  if (!slot) return null;
+  state.form.selected_slot = slot;
+  return slot;
+}
+
+async function applyTemplate(template) {
   if (!template) return;
   if (template.location_id !== currentLocation().id) {
     const url = new URL(globalThis.location.href);
@@ -980,9 +1491,14 @@ function applyTemplate(template) {
   state.form.preferred_end_time = clean(template.preferred_end_time).slice(0, 5);
   clearSlotSelection();
   state.step = 0;
-  state.maxStep = Math.max(state.maxStep, 1);
+  state.maxStep = Math.max(state.maxStep, STEP.TIME);
   renderAll();
-  toast(`Template “${template.name}” loaded.`, 'success');
+  // Remembered rather than acted on now: the time is chosen once the load has
+  // been described, which is the step after this one.
+  state.autoTime = template.auto_time ? { lead_minutes: Number(template.lead_minutes || 0) } : null;
+  toast(template.auto_time
+    ? `“${template.name}” loaded. MaxDock will pick the time.`
+    : `Template “${template.name}” loaded.`, 'success');
 }
 
 async function removeTemplate() {
@@ -1000,11 +1516,20 @@ async function removeTemplate() {
     db.invalidate('booking:templates:');
     deleteTemplateModal.close();
     deleteTemplateId = null;
-    renderTemplates();
+    if (state.step === STEP.LOAD) renderStep();
     toast('Booking template deleted.', 'success');
   } catch (error) {
     toast(error.userMessage || 'The booking template could not be deleted.', 'error');
   }
+}
+
+async function reloadReferenceForLocation() {
+  try {
+    state.reference = await loadReferenceData();
+  } catch (error) {
+    toast(error.userMessage || 'This location’s booking options could not be loaded.', 'error');
+  }
+  renderStep();
 }
 
 function updateField(target) {
@@ -1013,26 +1538,63 @@ function updateField(target) {
   const previous = state.form[field];
   let value = target.type === 'checkbox' ? target.checked : target.value;
   if (field === 'skid_count') value = Number(value || 0);
+  // Priority is a yes/no select now rather than a checkbox, so an empty string
+  // means no — without this the form would store "" and read it as truthy nowhere
+  // but compare unequal on every re-render.
+  if (field === 'is_priority') value = Boolean(value);
   state.form[field] = value;
 
   const slotFields = new Set([
-    'date', 'preferred_start_time', 'preferred_end_time', 'after_hours', 'custom_time',
+    'date', 'after_hours', 'custom_time',
     'appointment_type_code', 'truck_type_code', 'skid_count', 'handling_type_code', 'is_priority', 'requester_location_id',
   ]);
-  if (slotFields.has(field) && previous !== value) clearSlotSelection();
+  const slotFieldChanged = slotFields.has(field) && previous !== value;
+  if (slotFieldChanged) clearSlotSelection();
+  if (field === 'truck_type_code' || field === 'skid_count') renderFullness();
+  if (field.startsWith('repeat_')) {
+    // Ticking Repeat opens the pattern controls, and every control inside it
+    // changes which dates the summary line names.
+    if (field === 'repeat_on' && value && !state.form.repeat_days.length && selectedDate()) {
+      state.form.repeat_days = [format.dayOfWeek(selectedDate())];
+    }
+    renderRepeat();
+    renderActions();
+    return;
+  }
   if (field === 'after_hours' && !value) {
     state.form.custom_time = '';
     state.form.after_hours_acknowledged = false;
   }
-  if (field === 'save_template' || field === 'after_hours') renderStep();
-  renderSummary();
+  if (field === 'destination_location_id') {
+    state.form.location_id = currentLocation().id;
+    state.form.appointment_type_code = '';
+    state.form.truck_type_code = '';
+    state.form.handling_type_code = '';
+    state.form.date = format.inputDate(null, currentLocation());
+    clearSlotSelection();
+    reloadReferenceForLocation();
+    return;
+  }
+  if (field === 'after_hours' || field === 'movement_kind' || field === 'direction') renderStep();
+  // Turning after-hours back off has to re-fetch: switching it on cleared the
+  // slot list, and this branch used to exclude the very field that emptied it, so
+  // the times never came back until the date was changed.
+  if (slotFieldChanged && state.step === STEP.TIME && !state.form.after_hours) findSlots();
 }
 
 async function handleAction(button) {
   const action = button.dataset.action;
-  if (action === 'continue') {
+  if (action === 'close-booking') {
+    context.onClose?.();
+  } else if (action === 'continue') {
     const error = validateStep();
     if (error) setMessage(error);
+    // A quick code told to choose its own time skips the time step: the load is
+    // described, so MaxDock takes the first slot the destination can take it,
+    // no earlier than the code's lead. It happens here rather than when the code
+    // is scanned because until the load is described there is nothing to look a
+    // time up for.
+    else if (state.step === STEP.LOAD && state.autoTime) await continueWithAutoTime();
     else setStep(state.step + 1);
   } else if (action === 'back') {
     setStep(state.step - 1);
@@ -1054,25 +1616,53 @@ async function handleAction(button) {
     state.form.selected_slot = state.slots.find(slot => slot.slot_start === button.dataset.slot) || null;
     state.sameDayAccepted = false;
     renderTimeStep();
-    renderSummary();
   } else if (action === 'book') {
     await attemptBooking();
   } else if (action === 'view-existing') {
     globalThis.location.assign('my-appointments.html?view=upcoming');
   } else if (action === 'combine-load') {
+    // Back to the Time step, where the loads are listed with a tick box beside
+    // each one. It used to land on step one with nothing to tick and a red line
+    // telling the user to work it out themselves.
+    //
+    // The loads the prompt just asked about arrive ticked. Pressing this button
+    // is the answer "combine them" — it landed on an unticked list, and pressing
+    // Book again booked separately without asking, because the question counted
+    // as answered. The booking succeeded, so it read as a successful combine
+    // while both trucks stayed on the board. Unticking is still there for anyone
+    // who wants only some of them.
     sameDayModal.close();
     state.sameDayAccepted = false;
-    state.step = 0;
-    state.maxStep = Math.max(state.maxStep, 4);
+    state.combineReviewed = true;
+    state.combineSelected = [...new Set([...state.combineSelected, ...(state.sameDayMatches || []).map(matchKey)])];
+    state.step = STEP.CONFIRM;
+    state.maxStep = STEPS.length - 1;
     renderAll();
-    setMessage('Review the existing appointment and adjust the skid count or reference to combine the load.');
-    hosts.step.querySelector('[data-field="skid_count"]')?.focus();
+    // Ticked loads mean a longer truck window, so the times are asked for again
+    // here exactly as they are when a box is ticked by hand.
+    const warning = await recheckCombinedSlots();
+    const count = selectedMatches().length;
+    setMessage(warning || (count
+      ? `${count} load${count === 1 ? '' : 's'} ticked to travel on this truck. Untick anything that should stay on its own, then book.`
+      : ''));
+    hosts.step.querySelector('[data-combine]')?.focus();
+  } else if (action === 'upgrade-truck') {
+    // Take the bigger trailer. Everything downstream of the truck has to be worked out
+    // again — the window it holds a door for, and therefore which times are free — so this
+    // is the same path a hand-changed truck type takes rather than a shortcut past it.
+    const upgrade = currentUpgrade();
+    if (upgrade?.fits) {
+      state.form.truck_type_code = upgrade.fits.code;
+      renderAll();
+      const warning = await recheckCombinedSlots();
+      setMessage(warning || `Changed to a ${upgrade.fits.name}. ${combinedSkids()} skids of ${upgrade.fits.skid_capacity}. Pick a time below.`);
+    }
   } else if (action === 'continue-separately') {
     state.sameDayAccepted = true;
     sameDayModal.close();
     await submitBooking();
   } else if (action === 'use-template') {
-    applyTemplate(state.reference.templates.find(template => template.id === button.dataset.templateId));
+    await applyTemplate(state.reference.templates.find(template => template.id === button.dataset.templateId));
   } else if (action === 'delete-template') {
     deleteTemplateId = button.dataset.templateId;
     deleteTemplateModal.open({ trigger: button });
@@ -1099,6 +1689,12 @@ async function handleAction(button) {
       slotError: '',
       sameDayMatches: [],
       sameDayAccepted: false,
+      autoTime: null,
+      merged: null,
+      combineMatches: [],
+      combineSelected: [],
+      combineReviewed: false,
+      combineLoading: false,
       confirmation: null,
       busy: false,
     };
@@ -1107,7 +1703,27 @@ async function handleAction(button) {
 }
 
 function bindInteractions() {
-  const onInput = event => updateField(event.target);
+  // A checkbox fires both input and change; the combine picker re-fetches times,
+  // so it answers to change alone rather than doing the round trip twice.
+  const onInput = event => {
+    const combineKey = event.target.dataset?.combine;
+    if (combineKey !== undefined) {
+      if (event.type === 'change') toggleCombine(combineKey, event.target.checked);
+      return;
+    }
+    const repeatDay = event.target.dataset?.repeatDay;
+    if (repeatDay !== undefined) {
+      if (event.type !== 'change') return;
+      const day = Number(repeatDay);
+      state.form.repeat_days = event.target.checked
+        ? [...new Set([...state.form.repeat_days, day])].sort((a, b) => a - b)
+        : state.form.repeat_days.filter(entry => entry !== day);
+      renderRepeat();
+      renderActions();
+      return;
+    }
+    updateField(event.target);
+  };
   const onClick = event => {
     const button = event.target.closest('[data-action]');
     if (!button) return;
@@ -1126,7 +1742,7 @@ async function applyRequestedTemplate() {
   const templateId = new URLSearchParams(globalThis.location.search).get('template');
   if (!templateId) return;
   const template = state.reference.templates.find(item => item.id === templateId);
-  if (template) applyTemplate(template);
+  if (template) await applyTemplate(template);
 }
 
 const page = {
@@ -1135,7 +1751,7 @@ const page = {
 
   async mount(pageContext) {
     context = pageContext;
-    document.title = 'Book appointment · MaxDock';
+    if (!context.onClose) document.title = 'Book appointment · MaxDock';
     const reference = await loadReferenceData();
     state = {
       step: 0,
@@ -1147,6 +1763,12 @@ const page = {
       slotError: '',
       sameDayMatches: [],
       sameDayAccepted: false,
+      autoTime: null,
+      merged: null,
+      combineMatches: [],
+      combineSelected: [],
+      combineReviewed: false,
+      combineLoading: false,
       confirmation: null,
       busy: false,
     };
@@ -1178,6 +1800,6 @@ const page = {
   },
 };
 
-startPage(page);
+if (globalThis.location.pathname.endsWith('book.html')) startPage(page);
 
 export const { mount, refresh, destroy } = page;

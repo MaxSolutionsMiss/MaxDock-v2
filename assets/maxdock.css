@@ -1,607 +1,2058 @@
-:root {
-  --dock: #0788CF;
-  --dock-hover: #0878B6;
-  --dock-deep: #04699E;
-  --dock-wash: #E4F1FA;
-  --ground: #F4F6F7;
-  --surface: #FFFFFF;
-  --surface-sunk: #EFF2F4;
-  --ink: #16202A;
-  --ink-muted: #5D6B76;
-  --ink-faint: #84919B;
-  --rule: #DCE2E6;
-  --rule-strong: #C9D2D8;
-  --signal: #A96000;
-  --signal-wash: #FDF2E2;
-  --ok: #1D7A4A;
-  --stop: #B3261E;
-  --stop-wash: #FBEAE9;
-  --rail: #16202A;
-  --rail-ink: #A8B4BE;
-  --rail-label: #6B7A86;
-  --white: #FFFFFF;
-  --overlay: rgba(22, 32, 42, 0.62);
-  --rail-rule: rgba(255, 255, 255, 0.08);
-  --rail-hover: rgba(255, 255, 255, 0.06);
-  --font-ui: "IBM Plex Sans", system-ui, sans-serif;
-  --font-data: "IBM Plex Mono", ui-monospace, monospace;
-  --scale: 1;
-  --t-micro: calc(10.5px * var(--scale));
-  --t-small: calc(12px * var(--scale));
-  --t-base: calc(13px * var(--scale));
-  --t-lead: calc(15px * var(--scale));
-  --t-title: calc(19px * var(--scale));
-  --t-metric: calc(26px * var(--scale));
-  --s1: 4px;
-  --s2: 8px;
-  --s3: 12px;
-  --s4: 16px;
-  --s5: 24px;
-  --s6: 32px;
-  --s7: 48px;
-  --radius: 5px;
-  --radius-lg: 7px;
-  --rail-w: 196px;
-  --topbar-h: 52px;
-  --tap: 44px;
-  --shadow-overlay: 0 12px 32px rgba(22, 32, 42, 0.16), 0 2px 6px rgba(22, 32, 42, 0.08);
-  --motion: 0.12s;
+/* MaxDock composed page set — shared stylesheet
+   Docks-as-rows orientation. Rail without Book appointment. */
+:root{
+  --brand-blue:#0082CB; --dock:#0082CB; --dock-hover:#006BA8; --dock-wash:#E4F1FA; --dock-deep:#00527E;
+  --ground:#F6F8F9; --surface:#FFFFFF; --surface-sunk:#EFF2F4; --rule:#DCE2E6; --rule-strong:#C2CBD1;
+  --ink:#16202A; --ink-muted:#55636E; --ink-faint:#8A959E;
+  --signal:#B8690E; --signal-wash:#FDF2E2; --ok:#1B7A4B; --ok-wash:#E6F2EC;
+  --warn:#8A6D00; --warn-wash:#FBF3D8; --stop:#B3261E; --stop-wash:#FBEAE9;
+  --rail:#16202A; --rail-ink:#A8B4BE; --rail-rule:rgba(255,255,255,.08); --rail-label:#6B7A86;
+  /* One face throughout. The monospace on references, dates and the board reads as
+     the wrong voice for this product. Tabular figures come from
+     font-variant-numeric on body, so columns of numbers still line up. */
+  --font-ui:'IBM Plex Sans',system-ui,sans-serif; --font-data:var(--font-ui);
+  --scale:1;
+  /* Raised one step across the board: 13px base reads small for a screen an
+     operator works from all day, and every other size is derived from it. */
+  --t-micro:calc(11.5px*var(--scale)); --t-small:calc(13px*var(--scale)); --t-base:calc(14.5px*var(--scale));
+  --t-lead:calc(17px*var(--scale)); --t-title:calc(21px*var(--scale)); --t-metric:calc(27px*var(--scale));
+  --s1:4px; --s2:8px; --s3:12px; --s4:16px; --s5:24px; --s6:32px; --s7:48px;
+  --radius:5px; --radius-lg:7px; --rail-w:196px; --topbar-h:52px; --tap:44px; --motion:.12s;
+  /* Every interactive control in the portal is this tall — buttons, inputs,
+     selects, tabs and icon buttons alike. One number, so a row of mixed controls
+     is bottom-aligned without anyone arranging it. */
+  --ctl-h:36px;
+  --shadow-overlay:0 12px 32px rgba(22,32,42,.16),0 2px 6px rgba(22,32,42,.08);
+  --chart-a:#0082CB; --chart-b:#1B7A4B; --chart-track:#E7ECEF;
+}
+html[data-text="large"]{--scale:1.15; --rail-w:214px}
+html[data-text="larger"]{--scale:1.32; --rail-w:236px}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;height:100%}
+body{background:var(--ground);color:var(--ink);font-family:var(--font-ui);font-size:var(--t-base);line-height:1.45;font-variant-numeric:tabular-nums}
+@media (prefers-reduced-motion:reduce){*{transition:none}}
+
+.shell{display:grid;grid-template-columns:var(--rail-w) 1fr;height:100vh;overflow:hidden}
+/* The rail is its own query container, so one set of rules covers both ways it
+   ends up narrow: the reader closed it, or the screen is too small to hold it
+   open. Without that the collapsed treatment had to be written twice and the two
+   copies would drift. */
+.rail{background:var(--rail);color:var(--rail-ink);display:flex;flex-direction:column;overflow-y:auto;container:rail/inline-size}
+.rail__brand{display:flex;align-items:center;gap:10px;height:var(--topbar-h);padding:0 var(--s4);border-bottom:1px solid var(--rail-rule)}
+.rail__mark{width:32px;height:32px;border-radius:7px;background:var(--dock);display:grid;place-items:center;flex:none;padding:5px 4px}
+.rail__mark svg,.rail__mark img{width:100%;height:100%;object-fit:contain;display:block}
+.rail__name{color:#fff;font-weight:600;letter-spacing:-.01em}
+.rail__group{padding:var(--s4) var(--s2) var(--s1)}
+.rail__label{font-size:var(--t-micro);text-transform:uppercase;letter-spacing:.09em;color:var(--rail-label);padding:0 var(--s3) var(--s2);font-weight:600}
+.rail__link{display:flex;align-items:center;gap:var(--s3);padding:0 var(--s3);min-height:var(--tap);margin:1px var(--s1);border-radius:var(--radius);color:var(--rail-ink);text-decoration:none;font-size:var(--t-base);white-space:nowrap;cursor:pointer}
+.rail__link:hover{background:rgba(255,255,255,.06);color:#fff}
+.rail__link[aria-current="page"]{background:var(--dock);color:#fff;font-weight:500}
+.rail__icon{width:16px;height:16px;flex:none;stroke:currentColor;fill:none;stroke-width:1.7}
+.rail__foot{margin-top:auto;padding:var(--s3) var(--s4);border-top:1px solid var(--rail-rule);font-size:var(--t-small);color:var(--rail-label)}
+.rail__foot strong{color:#fff;font-weight:600;display:block}
+/* Closed: the marks only, a little larger because they are now the whole label,
+   in the same places at the same spacing so the muscle memory survives. The name
+   under the logo and the name in the footer are both said again in the top bar,
+   so neither is clipped to fit — they are simply not repeated. */
+html[data-rail="mini"]{--rail-w:64px}
+@container rail (max-width:120px){
+  .rail__brand{padding:0;justify-content:center}
+  .rail__name{display:none}
+  .rail__label{display:none}
+  .rail__link{justify-content:center;padding:0;gap:0}
+  .rail__link span{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+  .rail__icon{width:20px;height:20px}
+  .rail__foot{display:none}
+}
+/* Closing the sidebar belongs to the sidebar, a row below the logo rather than
+   beside it — the mark is the company's and nothing shares its line. It rides at
+   the end of the first section heading, quiet against the dark, and the heading
+   row survives the rail closing even though its words do not: otherwise the way
+   back out would vanish the moment it was used. 32px is the smallest a control
+   may be and still be comfortably hit. */
+.rail__labelrow{display:flex;align-items:center;gap:var(--s2);min-height:32px}
+.rail__labelrow .rail__label{flex:1;min-width:0;padding-bottom:0}
+.rail__collapse{width:32px;height:32px;flex:none;display:grid;place-items:center;border:none;background:none;border-radius:var(--radius);color:var(--rail-label);cursor:pointer}
+.rail__collapse svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.7}
+.rail__collapse:hover{background:rgba(255,255,255,.08);color:#fff}
+@container rail (max-width:120px){.rail__labelrow{justify-content:center;padding-bottom:var(--s1)}}
+
+.main{display:flex;flex-direction:column;overflow:hidden;min-width:0}
+.top{height:var(--topbar-h);background:var(--surface);border-bottom:1px solid var(--rule);display:flex;align-items:center;gap:var(--s4);padding:0 var(--s5);flex:none}
+.top__loc{min-width:150px;max-width:220px}
+.top__loc--fixed{display:inline-flex;align-items:center;font-size:var(--t-base);font-weight:700;white-space:nowrap;min-width:0}
+.top__date{font-family:var(--font-data);font-size:var(--t-small);color:var(--ink-muted);white-space:nowrap}
+.top__spacer{flex:1}
+.seg{display:inline-flex;border:1px solid var(--rule-strong);border-radius:var(--radius);overflow:hidden;background:var(--surface)}
+.controls__lead>.btn+.seg{margin-left:var(--s5)}
+.seg button{font-family:inherit;font-size:var(--t-small);font-weight:600;border:none;background:transparent;color:var(--ink-muted);min-height:var(--ctl-h);height:var(--ctl-h);padding:0 10px;cursor:pointer;border-right:1px solid var(--rule)}
+.seg button:last-child{border-right:none}
+.seg button[aria-pressed="true"]{background:var(--dock);color:#fff}
+.top__conn{display:flex;align-items:center;gap:6px;font-size:var(--t-small);color:var(--ink-muted);white-space:nowrap}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--ok)}
+.bulkbar{display:flex;align-items:center;gap:var(--s2);padding:var(--s2) var(--s4);background:var(--dock-wash);border-bottom:1px solid var(--rule);flex:none}
+.notif{position:relative;display:flex;align-items:center}
+.notif__btn{width:var(--ctl-h);height:var(--ctl-h);border:1px solid var(--rule-strong);background:var(--surface);border-radius:var(--radius);cursor:pointer;color:var(--ink-muted);display:grid;place-items:center;position:relative}
+.notif__btn:hover{color:var(--ink);background:var(--surface-sunk)}
+.notif__btn svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+/* The count sits dead centre of its circle. Centring a line box is not the same
+   as centring a digit: the box reserves room under the baseline for descenders,
+   which digits do not use, so the number rode high. The box is collapsed to the
+   digit itself (line-height:1) and then centred, with the inherited letter
+   spacing cleared so the gap after the last digit cannot push it left. */
+.notif__dot{position:absolute;top:-5px;right:-5px;min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:var(--stop);color:#fff;font-size:var(--t-micro);font-weight:700;letter-spacing:0;text-indent:0;font-variant-numeric:tabular-nums;display:flex;align-items:center;justify-content:center;line-height:1;padding-top:1px}
+/* The list scrolls inside the panel rather than growing the panel: twenty
+   notifications made a dialog taller than the screen with its buttons off the
+   bottom. Two thirds of the window is the ceiling. */
+.notif__list{max-height:min(52vh,520px);overflow-y:auto}
+.notif__item{padding:var(--s3) 0;border-bottom:1px solid var(--rule)}
+/* A notice carries the same status chip the board and My appointments carry, not
+   a colour of its own — one status is one colour and one shape wherever it is
+   seen. */
+.notif__item:last-child{border-bottom:none}
+.notif__item--unread{border-left:3px solid var(--dock);padding-left:var(--s3);margin-left:calc(var(--s3) * -1)}
+.notif__itemhead{display:flex;align-items:baseline;gap:var(--s2);margin-bottom:2px}
+.notif__itemhead b{font-size:var(--t-base)}
+.notif__itemhead .sub{margin-left:auto;white-space:nowrap}
+.notif__item p{margin:0;font-size:var(--t-small);color:var(--ink-muted)}
+.who{display:flex;align-items:center;gap:var(--s3);white-space:nowrap;margin-left:var(--s3)}
+.avatar{width:28px;height:28px;border-radius:50%;background:var(--dock-wash);color:var(--dock-deep);display:grid;place-items:center;font-size:var(--t-small);font-weight:600}
+.who__name{font-size:var(--t-small);font-weight:600;line-height:1.2}
+.linkBtn{font-family:inherit;font-size:var(--t-small);color:var(--dock);background:none;border:none;cursor:pointer;white-space:nowrap;min-height:var(--ctl-h);padding:0 var(--s1);display:inline-flex;align-items:center}
+
+/* The page scrolls when its content is taller than the window. It did not, so a
+   settings panel ended below the fold with no way to reach it. Screens that scroll
+   internally — the board's timeline — opt out with .page--fixed. */
+.page{display:flex;flex-direction:column;flex:1;min-height:0;overflow-y:auto;padding:var(--s4) var(--s5) var(--s5)}
+.page--fixed{overflow-y:hidden}
+/* Wraps rather than pushing its actions past the edge. Unwrapped, Book appointment
+   sat 309px outside the viewport on a phone — present in the DOM, unreachable. */
+.pagehead{display:flex;align-items:center;gap:var(--s3) var(--s4);margin-bottom:var(--s3);flex:none;flex-wrap:wrap}
+.pagehead__title{font-size:var(--t-title);font-weight:600;letter-spacing:-.015em;margin:0}
+.pagehead__sub{font-size:var(--t-small);color:var(--ink-muted);margin:1px 0 0}
+/* align-items:center, because this row now holds fields as well as buttons. Stretched, a
+   select or a search box would grow to the tallest thing in the row and stop being --ctl-h,
+   which is the one number that makes a mixed row of controls line up without arranging it. */
+/* align-items:center, because this row now holds fields as well as buttons. Stretched, a
+   select or a search box would grow to the tallest thing in the row and stop being --ctl-h,
+   which is the one number that makes a mixed row of controls line up without arranging it.
+
+   flex:1 1 auto with the contents pushed to the end, rather than a left margin of auto. Left
+   to size itself, a wrapping flex container measured 633px against 974px of free row and
+   wrapped its own contents onto a second line — the queue's head came out 80px tall on a
+   1440 with three hundred pixels of empty space beside it. Growing it hands that space to
+   the row it belongs to; end-justified, every other page's buttons sit exactly where they
+   sat. The auto margin is what has to go: it and flex-grow are two answers to the same
+   question and the margin wins. */
+.pagehead__actions{flex:1 1 auto;display:flex;flex-wrap:wrap;align-items:center;justify-content:flex-end;gap:var(--s2)}
+.btn{font-family:inherit;font-size:var(--t-base);font-weight:500;border-radius:var(--radius);border:1px solid transparent;padding:0 14px;min-height:var(--ctl-h);height:var(--ctl-h);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:7px;white-space:nowrap}
+.btn svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.7}
+.btn--primary{background:var(--dock);color:#fff} .btn--primary:hover{background:var(--dock-hover)}
+.btn--quiet{background:var(--surface);color:var(--ink);border-color:var(--rule-strong)} .btn--quiet:hover{background:var(--surface-sunk)}
+.btn--sm{padding:0 10px;font-size:var(--t-small)}
+.btn--block{width:100%}
+
+/* Hit areas on the controls that are deliberately compact.
+   ------------------------------------------------------
+   The compact strip runs at --ctl-h, 36px, and a few square controls at 32. Both sit under
+   the 44 this design's own --tap token sets as the floor, and the floor is not decoration:
+   this is used on an iPad standing at a dock, sometimes by somebody wearing gloves, and a
+   receiver who has to stab twice at Complete is a receiver who stops using the screen. The
+   stylesheet has been exempt from the checker's tap-target rule since the approved
+   composition landed, which is how a whole control family sat 8px short with nothing
+   failing.
+
+   What is NOT the fix: making the controls 44px tall. The compact strip is the approved
+   visual design, the board needs its height to fit ten to fifteen doors on one screen, and
+   growing it would push the schedule off the bottom to solve something nobody can see.
+
+   So the drawn control keeps every pixel it has, and a transparent ::after centred on it
+   carries the area the finger needs. Nothing moves and nothing looks different.
+
+   Vertical only, except where the control is square. That is why there are two rules rather
+   than one: measured across the board and the queue, horizontal neighbours in a control
+   strip sit 0 to 8px apart, so widening every control would lay one control's invisible
+   area over the control beside it and hand its clicks to whichever paints last. Vertically
+   the same strips have 28px or more above and below. The square controls each sit alone in
+   a corner of the chrome rather than in a run of buttons, so they can take the width too.
+   scripts/verify-tap-targets.mjs asks the browser who actually receives a click at every
+   control's centre, and fails the build if the answer is ever a different control. */
+.btn, .iconbtn, .linkBtn, .notif__btn, .modal__x, .seg button, .tabs button,
+.rail__collapse, .searchbox__go{position:relative}
+.btn::after, .linkBtn::after, .seg button::after, .tabs button::after{
+  content:'';position:absolute;left:0;right:0;top:50%;height:var(--tap);transform:translateY(-50%)}
+.iconbtn::after, .notif__btn::after, .modal__x::after,
+.rail__collapse::after, .searchbox__go::after{
+  content:'';position:absolute;top:50%;left:50%;width:var(--tap);height:var(--tap);transform:translate(-50%,-50%)}
+/* The icon-only buttons in a page-head band take height and not width, and this is the one
+   place the 44 could not be had in both directions. They sit in a packed run whose column is
+   sized to its contents, so a 44px-wide area on a 36px button hangs four pixels past the band
+   and CI measures exactly that: "controls__lead needs 4px more than the 299px column".
+   The area is real even though nothing is drawn in it, and the rule is right to count it.
+   Two ways out were tried and both were worse. Padding the band and pulling it back with a
+   negative margin does keep every child in place, but margin-inline overwrites the
+   margin-left:auto that pushes these actions to the right, and the whole group jumped 668px
+   across the page. Widening the buttons themselves changes the drawn design, which is the one
+   thing this was not allowed to do. So they are 36 by 44: comfortably past the 24px floor with
+   spacing, short of the 44 square, and short of it for a stated reason rather than by
+   accident. Every square control that sits alone in the chrome still gets the full 44. */
+.btn--icon::after,
+.controls .iconbtn::after{
+  content:'';position:absolute;left:0;right:0;top:50%;width:auto;height:var(--tap);transform:translateY(-50%)}
+
+
+/* A wrapping flex row, not three grid columns. `auto minmax(0,1fr) auto` let the outer
+   tracks take their content and handed the filters the remainder — 66px on the dock board
+   at 1024px, which overflowed across the actions and left the button under them
+   unclickable. A pixel breakpoint is the wrong shape of answer: the tracks grow with the
+   type ramp, so the same starvation came back at 1280 with Larger text. Flex wrap needs no
+   threshold. It was rejected first time because the utilities lost the line and left white
+   beside the filters — that was the filters not taking the slack, and `flex:1 1 0` here
+   with `margin-left:auto` there is the missing half. */
+.controls{display:flex;flex-wrap:wrap;align-items:end;gap:var(--s2) var(--s3);padding:var(--s2) var(--s3);background:var(--surface);border:1px solid var(--rule);border-radius:var(--radius-lg);margin-bottom:var(--s3)}
+/* The band's two fixed anchors: the page's context control and its operational
+   actions at the start, output and view controls at the far right. Everything
+   between is that page's own filters. */
+.controls__lead{display:flex;align-items:end;gap:var(--s2) var(--s3);flex-wrap:wrap;flex:0 0 auto}
+.controls__lead .btn{white-space:nowrap}
+/* The filters take the slack and wrap inside themselves. Left as loose children
+   they competed with the right-hand group for the same line, so the utilities
+   dropped to a row of their own and left a band of empty white above them. */
+/* flex:1 1 auto, and the `auto` is the whole point. With flex-basis:0 the filters have no
+   base size, so a line always "fits" — the group shrank to 67px and overflowed instead of
+   anything wrapping, which is the same starvation the grid had by a different route. Basis
+   auto means the group's real width counts towards the line, so the line overflows, the
+   utilities wrap, and the filters get the rest of line one. */
+.controls__filters{display:flex;align-items:end;gap:var(--s2) var(--s3);flex-wrap:wrap;flex:1 1 auto;min-width:0}
+/* Wraps and shrinks. Four controls in a row came to 302px whatever the screen, so on a
+   390px phone the group hung 22px outside the band it was in. The date box is the part with
+   give in it, and the steppers keep their tap size. */
+.datenav{display:flex;align-items:center;gap:var(--s1);flex-wrap:wrap;min-width:0}
+.datenav .input--date{flex:1 1 8em;min-width:0}
+.iconbtn{width:var(--ctl-h);min-height:var(--ctl-h);height:var(--ctl-h);border:1px solid var(--rule-strong);background:var(--surface);border-radius:var(--radius);cursor:pointer;color:var(--ink-muted);font-size:16px;display:grid;place-items:center}
+.input,.select,textarea{font-family:inherit;font-size:var(--t-base);color:var(--ink);background:var(--surface);border:1px solid var(--rule-strong);border-radius:var(--radius);padding:0 10px;min-height:var(--ctl-h)}
+textarea{padding:8px 10px;min-height:70px;resize:vertical}
+.input--date{font-family:var(--font-data)}
+/* Selects and text inputs cannot do this, and it is worth writing down why so nobody
+   spends an afternoon on it again. They are replaced elements: the browser does not
+   generate ::before or ::after for them at all. Checked rather than assumed — with the rule
+   above applied to a select, a click three pixels below the box lands on the element behind
+   it, while the same click on a button lands on the button.
+
+   So for those two the hit area only grows where there is no mouse to be precise with. On
+   any pointing device the strip is exactly as it was drawn and approved; on a touch screen,
+   which is the device this rule exists for and the one with no hover and no cursor, the
+   control-strip selects and the location selector become properly tappable. Scoped to the
+   control strips rather than every field in the product, so a booking form keeps its
+   density. */
+@media (pointer:coarse){
+  .ctrl-field .select, .ctrl-field .input, .controls .select, .controls .input,
+  .datenav .input--date, .top__loc{min-height:var(--tap);height:auto}
+}
+/* A file input sizes itself to its browser-drawn button, which grew past every
+   other control once the reader turned the text size up. Pinned to the same
+   height, with the button sized inside it. */
+.input[type=file]{height:var(--ctl-h);padding:0 8px;display:flex;align-items:center;font-size:var(--t-small);overflow:hidden}
+.input[type=file]::file-selector-button{font-family:inherit;font-size:var(--t-small);font-weight:500;height:calc(var(--ctl-h) - 12px);padding:0 10px;margin-right:var(--s2);border:1px solid var(--rule-strong);border-radius:var(--radius);background:var(--surface-sunk);color:var(--ink);cursor:pointer}
+/* Label above its control, not beside it: side by side the two filters ran into
+   each other, and the uppercase label competed with the select next to it for the
+   same horizontal space. */
+.ctrl-field{display:flex;flex-direction:column;align-items:stretch;gap:3px;min-width:10.4em}
+.ctrl-field label,.ctrl-field>span{font-size:var(--t-micro);text-transform:uppercase;letter-spacing:.07em;color:var(--ink-muted);font-weight:600}
+/* Label beside the control instead of above it, for bands that are a single
+   line of their own — the whole row then shares one centre line. */
+.ctrl-field--inline{flex-direction:row;align-items:center;gap:var(--s2);min-width:0}
+/* A search box at a stated width rather than whatever the browser's default input
+   size works out to. 15.4em is the previous 203px plus the ten per cent asked for,
+   and stating it means the dock board band lays out the same at every text size
+   instead of drifting with the font metrics. */
+/* 15.4em is the width it *wants* — the previous 203px plus the ten per cent asked for —
+   but it has to be allowed to give some of it back. Pinned with flex:0 0 auto it could not
+   shrink, so at 1024px it overflowed the filters column of the controls grid and sat on
+   top of Block dock time, which stopped being clickable. A stated preferred width with a
+   floor is the whole fix: full width where there is room, narrower where there is not, and
+   never wider than its own column. */
+.ctrl-field--find{flex:0 1 15.4em;min-width:11em}
+/* The head version: no stacked caption above the box, so the field is exactly one control
+   tall and the row it shares with Export and Full screen stays one line. 14em rather than the
+   20 it started at, which is the thirty per cent the owner asked for once the direction select
+   left the row: with the whole title line to itself a wide box read as a search page rather
+   than as one control among four. Still wide enough for its placeholder and for the fifteen
+   characters of a booking reference, which is the thing it is mostly used on.
+
+   Written here rather than up beside .pagehead__actions where it is used, and that is the
+   whole point: --bare and --find are both one class, so whichever is written last wins. Up
+   there it lost its width to --find and the field came out at the band's 15.4em with the
+   placeholder cut off at "Reference, company, P". Below the rule it modifies, it wins. */
+.ctrl-field--bare{flex:0 1 14em;min-width:11em}
+.ctrl-field--bare .searchbox{height:var(--ctl-h)}
+.searchbox{position:relative;display:flex;width:100%;min-width:0}
+.searchbox .input{flex:1 1 auto;min-width:0;padding-right:calc(var(--ctl-h) + 4px)}
+/* Two glyphs in one corner otherwise: the browser draws its own clear × for a
+   type=search field, and it lands exactly where the magnifier is. */
+.searchbox .input::-webkit-search-cancel-button{-webkit-appearance:none;appearance:none}
+/* Inside the box, and two pixels shorter than it on every edge, so the field is
+   still exactly --ctl-h tall and nothing sticks out of it. Ruled off *and* sunk: on a white
+   field a bare glyph read as decoration on the input rather than as the thing you press, and
+   the row it now shares with Export and Full screen is a row of pressable things. The tint is
+   the same one every quiet button takes on hover, so it is the panel grey of this product
+   and not a colour introduced for one control. */
+.searchbox__go{position:absolute;top:2px;right:2px;width:calc(var(--ctl-h) - 4px);height:calc(var(--ctl-h) - 4px);
+  display:grid;place-items:center;border:none;border-left:1px solid var(--rule);background:var(--surface-sunk);color:var(--ink-muted);
+  border-radius:0 3px 3px 0;cursor:pointer}
+.searchbox__go svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round}
+.searchbox__go:hover{color:var(--dock-deep);background:var(--dock-wash)}
+.searchbox .input:focus-visible+.searchbox__go{border-left-color:var(--dock)}
+/* A list of ticks behind a control shaped exactly like the selects beside it, for the
+   places one answer is not enough — which sites a report covers. The button carries
+   .select for its border, height and arrow, so the band keeps one control height.
+   Absolute rather than a popover element: it has to sit inside a controls band that
+   already scrolls and wraps, and anchor positioning is not yet safe to rely on. */
+.multipick{position:relative;display:flex}
+.multipick__btn{text-align:left;cursor:pointer;min-width:11em;max-width:16em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.multipick__menu{position:absolute;top:calc(100% + 4px);left:0;z-index:30;min-width:100%;width:max-content;max-width:min(20em,80vw);
+  max-height:min(52vh,380px);overflow:auto;display:grid;gap:1px;padding:var(--s2);
+  background:var(--surface);border:1px solid var(--rule-strong);border-radius:var(--radius);box-shadow:var(--shadow-overlay)}
+.multipick__menu .dock-check{padding:0 var(--s2);border-radius:var(--radius)}
+.multipick__menu .dock-check:hover{background:var(--surface-sunk)}
+.multipick__rule{height:1px;background:var(--rule);margin:3px 0}
+/* Controls at their own width on one line, bottom aligned — for the places a
+   grid column would only stretch a button across half a page. */
+.inline-controls{display:flex;flex-wrap:wrap;align-items:end;gap:var(--s3)}
+.recv{max-width:940px;display:grid;gap:var(--s3)}
+/* One panel, halved. Two ways of starting the same job, so they are ruled apart
+   rather than boxed apart, and both halves stand the same height. */
+/* The padding belongs to each half, not to the panel: put it on the panel and the
+   halves only get air on their outer edge, with the divider hard against them. On
+   the halves, every section stands in the same half inch of white whichever side
+   of the rule it is on. */
+/* Shared rows, laid into each half with `subgrid`, so the two sides line up by
+   construction. Two separate grids could not: one half has a labelled field where the other
+   has a button, and the headings wrap differently at different widths. A browser without
+   subgrid ignores the declaration and gets auto rows — a stack that still reads right. */
+.recv__panel{display:grid;grid-template-columns:1fr auto 1fr;grid-template-rows:auto auto auto auto auto auto;gap:0;padding:0}
+/* Row four is the caption and row five the control, on both sides — so each half names what
+   it wants ("QR code", "Booking number") and Open the camera shares the booking box's row,
+   which makes their top edges the same edge at every width and text size.
+   The caption cannot be a wrapping <label> as fields elsewhere are: a subgrid shares rows
+   only with its own children, and a margin on a subgrid item insets the tracks it
+   inherited. A <label for> beside the input is two items, which is what two rows need. */
+.recv__box--scan .recv__stage{grid-row:6}
+.recv__box--type .form-actions{grid-row:6}
+/* Top of the row, not the middle of it. Row five is as tall as the jumbo input, and a
+   36px button centred in it landed halfway down — which is what the drift was. */
+.recv__box .form-actions{align-self:start}
+.recv__box--type .input{width:100%}
+/* Each half is a card in its own right — a tinted mark, a heading, the words, the
+   control — so a receiver holding a phone under a dock light can tell the two
+   apart before reading either. */
+.recv__box{display:grid;grid-row:1/-1;grid-template-rows:subgrid;gap:var(--s2);align-content:start;justify-items:start;min-width:0;padding:var(--s6)}
+.recv__or{grid-row:1/-1}
+/* The panel's halves are grid cells, not a stack: the card's own vertical rhythm
+   would push the second heading a row's air below the first. */
+.recv .recv__panel>*+*{margin-top:0}
+.recv__ico{width:30px;height:30px;color:var(--dock);flex:none}
+.recv__mark{width:60px;height:60px;border-radius:var(--radius-lg);background:var(--dock-wash);display:grid;place-items:center;margin-bottom:var(--s3)}
+.recv__box .card__title{font-size:var(--t-lead)}
+.recv__box .form-actions,.recv__box .field{width:100%;margin-top:var(--s3)}
+.recv__cap{grid-row:4;align-self:end}
+.recv__box--scan .form-actions,.recv__box--type .input{grid-row:5;margin-top:0}
+/* Twice the height and twice the text of every other control, and the one place in
+   MaxDock that is exempt from the single control height on purpose. This is typed by a
+   receiver standing at a dock with gloves on, often one-handed, reading a number off a
+   sheet of paper in bad light — the field where a mis-key costs the most is the field
+   that should be hardest to mis-key. Centred and spaced out in the data face, because
+   MXD-2026-000071 is a code being copied, not a sentence being written. */
+/* Left, not centred. Centred, the prefilled MXD-2026- sat in the middle of the box with
+   white on both sides and read as the whole value — there was nothing to say the digits go
+   after it. Against the left edge, the prefix is where a person starts reading and the
+   empty half of the box is visibly the part they fill in. */
+.input--jumbo{min-height:calc(var(--ctl-h)*2);height:calc(var(--ctl-h)*2);font-family:var(--font-data);font-size:calc(var(--t-base)*2);
+  font-weight:600;letter-spacing:.03em;text-align:left;padding:0 var(--s4)}
+/* And Open the camera stands the same height as the box across from it. Top alignment
+   alone left a 36px button beside a 72px field, which lines up on one edge and looks
+   wrong on the other three — and the argument for the big field is the argument for the
+   big button: this is the one screen used one-handed, at a dock, wearing gloves. */
+.btn--jumbo{min-height:calc(var(--ctl-h)*2);font-size:var(--t-lead)}
+.recv__or{display:grid;grid-template-rows:1fr auto 1fr;justify-items:center;gap:var(--s3);padding:var(--s6) 0}
+.recv__or::before,.recv__or::after{content:"";width:1px;background:var(--rule)}
+@media (max-width:720px){
+  /* Stacked, so the shared rows have to go with the shared columns — both halves span
+     every row, and in one column that would lay the second on top of the first. */
+  .recv__panel{grid-template-columns:minmax(0,1fr);grid-template-rows:none}
+  .recv__box{grid-row:auto;grid-template-rows:none}
+  .recv__cap,.recv__box--scan .form-actions,.recv__box--type .input,
+  .recv__box--scan .recv__stage,.recv__box--type .form-actions{grid-row:auto}
+  .recv__or{grid-row:auto}
+  .recv__box{padding:var(--s5)}
+  .recv__or{grid-template-rows:none;grid-template-columns:1fr auto 1fr;align-items:center;width:100%;padding:0 var(--s5)}
+  .recv__or::before,.recv__or::after{width:auto;height:1px}
+}
+/* MaxDock Receiving, installed. Two buttons and nothing else.
+   Sized for the conditions rather than for a design grid: gloves on, one hand, bad light, a
+   truck running three metres away. There are only ever two targets, so there is nothing to be
+   precise about, and they take the whole screen.
+   The page has to be told to fill: at phone widths the shell sets .page{flex:none} so office
+   screens size to their content and scroll, which is right for them and leaves the app's two
+   buttons stacked at the top of an empty screen. */
+[data-chrome="app"]{grid-template-columns:1fr}
+[data-chrome="app"] .top{padding-inline:var(--s3)}
+[data-chrome="app"] .page{padding:var(--s3);flex:1 1 0}
+/* The phone rules hide the site and the name to buy room in a bar carrying nine other things.
+   This bar carries three, and they are the three the app is supposed to show: who you are,
+   where you are, and a way out. */
+[data-chrome="app"] .top__date,[data-chrome="app"] .who__name{display:inline}
+/* The router focuses the page after mount so a screen reader lands on the content, and the
+   browser draws its own ring for that. On a phone the page is the whole screen, so the app
+   opened inside what looked like an error box. Suppressed here only: every control inside
+   still takes the application's own focus ring, and the first of them is the Scan button. */
+[data-chrome="app"] .page:focus{outline:none}
+.rapp{display:grid;gap:var(--s3);max-width:30em;margin-inline:auto;align-content:start}
+/* Only the two-button screen stretches. The number pad below it has five children and would
+   share the screen between them, which is a keypad the size of a wall. */
+/* The camera is a third row of the same grid, so nothing has to be told what to do when it
+   opens: two rows share the screen, three rows share the screen. Hidden it is not a row at
+   all. That is why there is no scanning state here — the layout was already the answer.
+   The min-height floor goes because a row that cannot shrink is a row that pushes the last
+   button off the bottom, which is the whole complaint. */
+.rapp--home{flex:1;grid-auto-rows:minmax(0,1fr);align-content:stretch;max-height:46em}
+.rapp--home .rapp__btn{min-height:0}
+/* Two classes, not one. .recv__stage sets aspect-ratio:1 and is declared later in this file,
+   so a single-class override loses to it and the stage kept its square height — overflowing
+   its grid row and sitting on top of the Scan button. Here the row decides the height. */
+.rapp--home .rapp__stage{aspect-ratio:auto;min-height:0}
+.rapp__btn{display:grid;justify-items:center;gap:4px;padding:var(--s5) var(--s4);
+  min-height:clamp(116px,22vh,168px);border:2px solid var(--dock);
+  border-radius:var(--radius-lg);background:var(--dock);color:#fff;font:inherit;cursor:pointer;
+  text-align:center;transition:background var(--motion),border-color var(--motion)}
+.rapp__btn b{font-size:calc(27px*var(--scale));font-weight:660;letter-spacing:-.015em;line-height:1.1}
+.rapp__btn small{font-size:var(--t-lead);opacity:.9;line-height:1.25}
+.rapp__btn svg{width:38px;height:38px;fill:currentColor}
+/* No hover state. On a touch screen :hover sticks after the tap, so the button somebody just
+   pressed sits in its pressed colour as though it were still selected — on the primary device
+   for this app that is a defect, not a nicety. The cursor and the focus ring carry it on a Mac. */
+.rapp__btn--alt{background:var(--surface);color:var(--dock)}
+.rapp__btn--alt small{color:var(--ink-muted);opacity:1}
+.rapp__btn:disabled{background:var(--surface-sunk);border-color:var(--rule-strong);
+  color:var(--ink-faint);cursor:default}
+.rapp__btn:focus-visible{outline:3px solid var(--dock-deep);outline-offset:2px}
+.rapp__in{font-variant-numeric:tabular-nums;letter-spacing:.04em}
+/* The action bar on a load, pinned to the bottom of the app.
+   Measured before it was written: on an iPhone SE the first status button sat 6px below the
+   fold, so on the smallest phone anybody at a dock is holding, the one thing a receiver came
+   to do was just off screen — and it looked like there was nothing more to do. Trimming the
+   detail above it would have cleared the fold by about ninety pixels and been undone by the
+   next field somebody added. Pinned, the action does not move whatever grows above it, and it
+   sits where a thumb already rests on a hand that is also holding paperwork.
+   Sticky rather than fixed: .page is the scroller, so this stays part of the layout and cannot
+   cover the content it is measured against. The inset keeps it clear of the home indicator. */
+.rbar{position:sticky;bottom:0;z-index:2;display:grid;gap:var(--s2);
+  margin:var(--s3) calc(var(--s3) * -1) calc(var(--s3) * -1);padding:var(--s3);
+  padding-bottom:calc(var(--s3) + env(safe-area-inset-bottom,0px));
+  background:var(--surface);border-top:1px solid var(--rule);touch-action:manipulation}
+.rbar__steps{display:grid;gap:var(--s2)}
+.rbar .btn{min-height:52px;font-size:var(--t-lead)}
+/* Two columns on a phone. The shared grid asks 160px a column, which two of do not fit a
+   375px screen, so every fact became its own row and the card ran to twice the viewport. */
+[data-chrome="app"] .confirmgrid{grid-template-columns:repeat(auto-fit,minmax(118px,1fr));padding:var(--s2) var(--s3)}
+/* The reference and the one line that says what the load is, over the facts that need a label. */
+.rload__top{padding:var(--s3);background:var(--dock-wash);border-bottom:1px solid var(--rule)}
+.rload__ref{display:flex;align-items:center;gap:var(--s2);flex-wrap:wrap;
+  font-family:var(--font-data);font-size:var(--t-lead);font-weight:700;letter-spacing:.01em}
+.rload__sum{margin-top:2px;font-size:var(--t-small);color:var(--ink-muted)}
+/* The same band in the stop colour, for a load that belongs to another site. One modifier
+   rather than a warning block of its own: it is the head of a load card either way, and the
+   only thing that changes is which of the two things it is announcing. */
+.rload__top--stop{background:var(--stop-wash);border-bottom-color:var(--stop);color:var(--stop)}
+.rload>.card__title{display:none}
+
+.recv__stage{position:relative;margin-top:var(--s2);border-radius:var(--radius-lg);overflow:hidden;background:#000;aspect-ratio:1}
+.recv__video{width:100%;height:100%;object-fit:cover;display:block}
+.recv__frame{position:absolute;inset:14%;border:3px solid #fff;border-radius:var(--radius-lg);box-shadow:0 0 0 100vmax rgba(0,0,0,.35)}
+/* Where the truck is, in one tap. Wide targets because this is used one-handed
+   on a phone at a dock door, and the buttons keep the standard control height so
+   they match every other button in the application. */
+.recv__steps{border:none;padding:var(--s3) 0 0;margin:var(--s3) 0 0;border-top:1px solid var(--rule);display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:var(--s2)}
+.recv__steps>legend{padding:0;margin-bottom:var(--s2);font-size:var(--t-micro);text-transform:uppercase;letter-spacing:.07em;color:var(--ink-muted);font-weight:600}
+/* One code can end in the same digits as another. The candidates are rows, not a
+   dropdown — a receiver reads reference, time and company and taps one. */
+.recv__picks{display:grid;gap:var(--s2)}
+.recv__pick{font-family:inherit;font-size:var(--t-base);text-align:left;background:var(--surface);border:1px solid var(--rule-strong);border-radius:var(--radius);padding:var(--s2) var(--s3);cursor:pointer;display:grid;grid-template-columns:auto 1fr;gap:2px var(--s3);align-items:baseline;color:var(--ink)}
+.recv__pick:hover{background:var(--surface-sunk);border-color:var(--dock)}
+.recv__pick-ref{font-weight:600;color:var(--dock-deep)}
+.recv__pick-when{color:var(--ink-muted);font-size:var(--t-small);justify-self:end}
+.recv__pick-who{grid-column:1/-1;color:var(--ink-muted);font-size:var(--t-small);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.inline-controls .field{flex:0 1 auto;min-width:0}
+/* Explanatory prose stops at a readable measure rather than running the width
+   of a wall display. */
+.hint--measure{max-width:82ch}
+/* Explanatory text under a row of fields runs the width of those fields rather
+   than stopping at a reading measure — a short column of prose under a wide row
+   leaves a ragged hole to its right. */
+.hint--wide{max-width:none}
+/* margin-left:auto rather than a third column: it holds the utilities against the right
+   edge of whichever line they end up on, so the band keeps its shape when it wraps. */
+.controls__end{margin-left:auto;display:flex;flex-wrap:wrap;align-items:end;gap:var(--s2)}
+
+/* Cards wrap to fit rather than being forced into a fixed column count. At 768px the
+   old repeat(5,1fr) squeezed them to 55-104px wide; on a wide screen the same rule
+   stretched them into empty horizontal slabs. */
+/* The metric strip and the panels under it share one column grid, so the edge
+   between the list and the side column lands on a card boundary rather than
+   somewhere arbitrary. --kpi-cols comes from the visible card count, so the strip
+   fills its row whichever cards are off. */
+/* Every row of cards the same height. A grid sizes each row to its own contents,
+   so once the strip wrapped, a row whose labels ran to two lines stood taller
+   than the row below it and the strip looked ragged. 1fr on the implicit rows
+   makes them all as tall as the tallest. */
+.kpis{display:grid;gap:var(--s3);margin-bottom:var(--s3);flex:none;grid-template-columns:repeat(var(--kpi-cols,4),minmax(0,1fr));grid-auto-rows:1fr}
+/* A report's sections come from eight different render functions and none should have to
+   know what is above it, so the air belongs to the container: the host had no rule at all
+   and panels sat hard against each other. The strip's own bottom margin goes, or it would
+   double against the gap.
+
+   The gap is the same --s3 the page head, the controls bar and the metric strip already
+   use, so every band down a report is the same distance from the last. It was --s5 while
+   everything above it was --s3, which read as one wide gap and two narrow ones on a page
+   that is meant to be a single stack. */
+.reportstack{display:grid;gap:var(--s3);align-content:start}
+.reportstack>.kpis{margin-bottom:0}
+/* The head of the section that opens a report view. It carries the view's mark and name
+   above that section's own title — a band of its own above the card put two headings and
+   the same date line twice on a page showing one report. Two rows, the mark spanning both. */
+.panel__head--lead{display:grid;grid-template-columns:auto minmax(0,1fr) auto;column-gap:var(--s3);align-items:center;padding-block:var(--s3)}
+.panel__head--lead .panel__mark{grid-row:1/3;border-radius:var(--radius-lg)}
+.panel__eyebrow{grid-column:2}
+.panel__head--lead .panel__title{grid-column:2;line-height:1.2}
+.panel__head--lead .panel__actions{grid-column:3;grid-row:1/3}
+/* The paperwork on an appointment. A row per document: what kind it is, what it is called and
+   how big, and the two things anybody wants to do with it. Deliberately plain — a thumbnail of
+   a PDF is a lot of work to say what the file name already says. */
+.doclist{list-style:none;margin:0;padding:0;display:grid;gap:2px}
+.docrow{display:grid;grid-template-columns:auto minmax(0,1fr);align-items:start;gap:2px var(--s2);padding:var(--s2);border-radius:var(--radius)}
+/* A sheet of paper, edged in the colour of what it is. The three ruled lines that were drawn
+   inside it were decoration on a 26px box — the file name says what the file is. */
+.docrow__k{grid-row:1/3;width:22px;height:28px;border-radius:3px;border:1px solid var(--rule-strong);border-left-width:3px;background:var(--surface);flex:none}
+.docrow__k--pdf{border-left-color:var(--stop)} .docrow__k--image{border-left-color:var(--dock)} .docrow__k--sheet{border-left-color:var(--ok)}
+.docrow__n{min-width:0;display:grid;gap:1px}
+.docrow__n b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}
+.docrow__n span{font-size:var(--t-micro);color:var(--ink-muted)}
+.docrow__a{grid-column:2;display:flex;gap:var(--s3)}
+/* The appointment window, landscape.
+   A monitor is wider than it is tall and this window used to be one column you scrolled
+   through twice — the code, the paperwork, the booking and the history in a single stack. The
+   two things a person *does* here are scan and attach, so they take one side; the booking is
+   what they read, so it takes the other; the history is a long list and goes underneath at
+   full width. One column again below 760px, where there is no width to share. */
+/* The four quarters, with a rule down the middle and one between the two boxes on each
+   side, so a reader can see where the paperwork stops and the load begins rather than
+   inferring it from a gap. The direction badge and the big number reuse the marks and the
+   flex row the window already has, so this is four rules rather than a second vocabulary. */
+.apptcols{display:grid;grid-template-columns:minmax(0,20em) minmax(0,1fr);gap:var(--s4)}
+.apptcols__side,.apptcols__main,.apptdocs{min-width:0}
+.apptcols__side{display:grid;align-content:start;padding-right:var(--s4);border-right:1px solid var(--rule)}
+/* The direction sits between the number and the route: small, because the two words
+   beside it say the same thing and this is the glance version. */
+/* The number is one thing to read and the direction is another, so they are two groups
+   with air between them rather than three items in a row at even spacing. */
+.modal__head--load{gap:var(--s5)}
+.apptway{display:flex;align-items:center;gap:var(--s2);min-width:0}
+.apptdir{width:1.9em;height:1.9em;flex:none;border-radius:50%;display:grid;place-items:center;background:var(--dock-wash);color:var(--dock-deep)}
+.apptdir svg{width:1.1em;height:1.1em;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+.apptdir--out{background:var(--ok-wash);color:var(--ok)}
+/* One row per event, reading across: when, what, who. Three stacked lines each meant four
+   events filled the column; across, the times line up in a column of their own to be
+   scanned and four take a quarter of the room. */
+.logrow{display:grid;grid-template-columns:auto auto minmax(0,1fr) auto;align-items:baseline;gap:var(--s2) var(--s3);padding:var(--s2) 0;border-bottom:1px solid var(--rule);font-size:var(--t-small)}
+.logrow:last-child{border-bottom:none}
+.logrow .wdot{align-self:center}
+.logrow__t{color:var(--ink-muted);font-family:var(--font-data);white-space:nowrap}
+.logrow__w{min-width:0;font-weight:600}
+.logrow__b{color:var(--ink-muted);white-space:nowrap}
+/* The picker and its button on one row, the limit under them, then what is attached. The
+   button wrapped to a line of its own and floated there, which is what made this corner
+   look unfinished. */
+.docadd{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:var(--s2)}
+.docadd .input{min-width:0}
+.modal__head--load .modal__title{font-size:var(--t-metric)}
+.modal__head--load .modal__sub{font-size:var(--t-title);color:var(--ink)}
+/* Big enough to read off a phone held at arm's length, which is the whole job of it. */
+.qrbox,.apptdocs,.docbox{display:grid;gap:var(--s2)}
+.qrbox{justify-items:center}
+.qrbox .qr-frame{width:100%;max-width:210px;margin:0}
+.qrbox__c,.apptdocs .watch__t{margin:0}
+.qrbox__c{font-size:var(--t-micro);color:var(--ink-muted);text-align:center}
+/* The file box takes the room and the button keeps its own width, so the pair sits on one
+   line at this column's width instead of wrapping under itself. */
+@media (max-width:760px){
+  .apptcols{grid-template-columns:minmax(0,1fr)}
+}
+/* The customize control belongs to the cards, so it sits at the end of their row
+   at their height, not in the page header where nothing said what it applied to.
+   Its own narrow column, shared by the panels below, so the side column still
+   starts on a card boundary. */
+@media (max-width:900px){.kpis{grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}}
+/* One rounded outline carrying a single accent edge, rather than a detached top rule
+   floating above the card — the treatment v1 settled on at DB66. */
+/* The colour bar is the card's whole identity from across a room — the number is
+   read second and the label third. Six pixels, not three: at three it read as a
+   border, at six it reads as a marker, which is what it is for. */
+.kpi{background:var(--surface);border:1px solid var(--rule);border-left:6px solid var(--rule-strong);border-radius:var(--radius-lg);padding:var(--s2) var(--s3) var(--s2) var(--s4);min-width:0;display:flex;align-items:center;flex-wrap:wrap;gap:0 var(--s3);min-height:0;container-type:inline-size}
+/* The number leads and its name sits beside it, both centred on the card's own height
+   rather than on a shared baseline — a baseline pins a two-line label to the top and
+   leaves the space under it empty. Stacked, the label cost a line of height to say what
+   the number says anyway. Side by side and centred, the card is half as tall and the
+   figure 40% bigger, which is what carries across a room. Every metric card is this. */
+.kpi__label{font-size:var(--t-micro);text-transform:uppercase;letter-spacing:.03em;color:var(--ink-muted);font-weight:600;min-width:0;white-space:normal;overflow-wrap:anywhere}
+.kpi__value{font-family:var(--font-data);font-size:calc(var(--t-metric) * 1.4);font-weight:600;line-height:1.05;letter-spacing:-.02em;font-variant-numeric:tabular-nums;order:-1}
+/* A narrow card gives the figure back what the label needs, rather than pushing
+   the label off the end of it. Reports draws six cards on one row and the text
+   size is the reader's to set, so the same card has to hold at 260px and at
+   150px — it compresses, it never scrolls and it never clips. */
+@container (max-width:250px){.kpi__value{font-size:calc(var(--t-metric) * 1.15)}}
+@container (max-width:205px){.kpi__value{font-size:var(--t-metric)}}
+@container (max-width:165px){.kpi__value{font-size:calc(var(--t-metric) * .82)}.kpi__label{letter-spacing:0}}
+.kpi__value span{font-size:var(--t-small);font-weight:500;color:var(--ink-muted);margin-left:2px}
+.kpi--ok{border-left-color:var(--ok)} .kpi--ok .kpi__value{color:var(--ok)}
+.kpi--signal{border-left-color:var(--signal)} .kpi--signal .kpi__value{color:var(--signal)}
+.kpi--out{border-left-color:var(--dock)} .kpi--out .kpi__value{color:var(--dock-deep)}
+.kpi--stop{border-left-color:var(--stop)} .kpi--stop .kpi__value{color:var(--stop)}
+
+/* ===== DOCK BOARD — docks as ROWS, time across the TOP, frozen headers ===== */
+.board{background:var(--surface);border:1px solid var(--rule);border-radius:var(--radius-lg);display:flex;flex-direction:column;flex:1;min-height:0;overflow:hidden}
+/* Date on the left, legend in the middle, granularity on the right — three
+   columns rather than a flex row, so the legend sits centred in the band and on
+   the same centre line as the Timeline control instead of crowding it. */
+.board__head{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;gap:var(--s2) var(--s3);padding:var(--s2) var(--s4);border-bottom:1px solid var(--rule);flex:none;min-height:calc(var(--ctl-h) + var(--s4))}
+.board__title{font-weight:600;font-size:var(--t-lead);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* Title and stamp in one cell, so the head stays the three columns it has always been and
+   the legend and timeline controls do not move. */
+.board__lead{display:flex;align-items:baseline;gap:var(--s3);min-width:0}
+.board__legend{display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:var(--s1) var(--s3);font-size:var(--t-small);color:var(--ink-muted)}
+/* Both view controls sit together at the right of the band, so the head is one
+   title, one legend, one group of controls rather than three things wrapping. */
+.board__gran{justify-self:end;display:flex;align-items:center;gap:var(--s3);flex-wrap:wrap}
+/* Too narrow for three columns: the legend takes its own line rather than
+   squeezing the date and the control off the band. */
+@media (max-width:860px){
+  .board__head{grid-template-columns:minmax(0,1fr) auto}
+  .board__legend{grid-column:1/-1;justify-content:flex-start}
+}
+.lg{display:inline-flex;align-items:center;gap:5px}
+.lg::before{content:"";width:9px;height:9px;border-radius:2px;background:var(--c)}
+/* The timeline scrolls its lanes internally and never overflows sideways —
+   the board is always compressed to fit the window. */
+.board__scroll{flex:1;min-height:0;overflow:hidden;container-type:inline-size;container-name:board}
+/* Timeline. Every lane spans the same window and every block is placed by its own
+   start and end, so a four-hour call looks four times a one-hour call. The day is
+   compressed to fit: these screens are broadcast on wall displays where nobody can
+   scroll, so nothing overflows sideways at any width. */
+/* One line unit inside a block, and a row tall enough for the five it can ask for:
+   the clock, two lines of company, two of detail. Derived from the type tokens, not
+   a magic number, so it holds when the text size goes up. */
+.tl{display:flex;flex-direction:column;min-height:0;height:100%;--tl-label:clamp(110px,10vw,190px);--tl-scale:1;--tl-type:calc(clamp(var(--t-base), .95vw, calc(var(--t-base) * 1.7)) * var(--tl-scale));--tl-line:calc(var(--tl-type) * 1.35);--tl-lines:4;--tl-row:calc(var(--tl-line) * var(--tl-lines) + 14px)}
+.tl__ruler{display:grid;grid-template-columns:var(--tl-label) minmax(0,1fr);border-bottom:1px solid var(--rule-strong);background:var(--surface-sunk);flex:none}
+.tl__corner{padding:6px var(--s3);font-size:var(--t-micro);text-transform:uppercase;letter-spacing:.07em;color:var(--ink-muted);font-weight:600;border-right:1px solid var(--rule-strong);display:flex;align-items:center}
+.tl__scale{position:relative;height:26px}
+/* The tick is a 1px box with a background, so padding-left widened the painted
+   box: every pixel of "gap" was another pixel of gridline. The line is a hairline
+   pseudo-element now and the padding is ordinary background. */
+.tl__scale .tl__tick{top:0;height:100%;width:var(--tl-slot,0);display:flex;align-items:center;justify-content:center;background:none;font-size:calc(var(--tl-type) * .9);color:var(--ink-muted);font-variant-numeric:tabular-nums;white-space:nowrap}
+.tl__lanes{flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column}
+/* Lanes take the height they need, then share what is left rather than leaving
+   half the panel blank — a five-dock board drew a short strip above empty white.
+   Capped at twice the row height so a two-dock site gets no giant bands. */
+.tl__lane{display:grid;grid-template-columns:var(--tl-label) minmax(0,1fr);border-bottom:1px solid var(--rule);flex:var(--rows,1) 1 auto;min-height:calc(var(--tl-row) * var(--rows,1));max-height:calc(var(--tl-row) * var(--rows,1) * 2)}
+/* Fit to the window: every dock on screen at once, whatever the screen is. The
+   lanes share the height going instead of claiming the height they want, and the
+   type inside them is stepped down by measurement until the facts fit. A board on
+   a wall cannot be scrolled by the person reading it from across the floor. */
+.tl[data-fit="window"] .tl__lanes{overflow-y:hidden}
+.tl[data-fit="window"] .tl__lane{flex:var(--rows,1) 1 0;min-height:0;max-height:none}
+.tl__lane:last-child{border-bottom:none}
+/* Where the day has got to. A hairline down every lane and the word in the ruler, so it does
+   not rest on colour: the board's washes already mean inbound, outbound, priority and blocked,
+   and a fifth hue would read as a fifth kind of load. Ink is unmistakably not a status.
+   It sits above the ticks and below nothing that can be clicked, and takes no pointer events
+   so a block underneath it is still one target rather than two. */
+.tl__now{position:absolute;top:0;bottom:0;width:2px;background:var(--ink);opacity:.55;z-index:2;pointer-events:none}
+/* A caret at the foot of the ruler rather than a pill on it. The pill was centred in a 26px
+   ruler, which is exactly where the hour labels are, so it sat on top of one of them and left
+   ":00" showing beside it — a defect where a refinement was intended. The caret is ten pixels
+   wide, points at the line, and obscures nothing. It carries its own label for anyone not
+   reading the shape. */
+.tl__nowlab{position:absolute;bottom:0;transform:translateX(-50%);z-index:3;pointer-events:none;
+  width:0;height:0;border-left:5px solid transparent;border-right:5px solid transparent;
+  border-top:6px solid var(--ink);opacity:.75}
+
+.tl__label{padding:6px var(--s3);border-right:1px solid var(--rule-strong);background:var(--surface-sunk);display:flex;flex-direction:column;justify-content:center;min-width:0}
+.tl__label strong{font-size:calc(var(--tl-type) * 1.05);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tl__label small{font-size:calc(var(--tl-type) * .85);color:var(--ink-faint)}
+.tl__track{position:relative;min-width:0;overflow:hidden}
+.tl__tick{position:absolute;top:0;bottom:0;width:1px;background:var(--rule)}
+.tl__tick--major{background:var(--rule-strong)}
+.tl__scale .tl__tick::before{content:"";position:absolute;left:0;top:0;bottom:0;width:1px;background:var(--rule-strong)}
+.tl__idle{position:absolute;inset:0;display:flex;align-items:center;padding-left:var(--s3);font-size:var(--t-small);color:var(--ink-faint)}
+/* Blocks are absolutely placed, so their box is the appointment's real extent. */
+/* A line grid with the stack centred, so a lane taller than its text gives the
+   surplus to both sides and a fact has room to take a second line. Rows are
+   min-content so a wrapped fact grows its own row, not the one below it. */
+.tlb{position:absolute;border-radius:4px;border-left:3px solid;padding:3px 6px;overflow:hidden;cursor:pointer;display:grid;grid-auto-rows:min-content;align-content:center;line-height:var(--tl-line);min-width:10px}
+.tlb>*{min-width:0;overflow-wrap:anywhere}
+/* A fact wraps onto as many lines as it needs and is never abbreviated. Half a
+   reference and an ellipsis tells nobody anything; the whole reference over two
+   lines is what they walked up to the board for. What does not fit is dropped
+   whole by fitTimelineBlocks, not trimmed. */
+.tlb__l{font-size:calc(var(--tl-type) * .9);color:var(--ink-muted);grid-row:span 1}
+.tlb__l--key{font-size:var(--tl-type);font-weight:700;color:inherit;font-variant-numeric:tabular-nums}
+.tlb--in{background:var(--dock-wash);border-left-color:var(--dock)}
+.tlb--out{background:var(--ok-wash);border-left-color:var(--ok)}
+.tlb--pri{background:var(--signal-wash);border-left-color:var(--signal)}
+.tlb--done{background:var(--surface-sunk);border-left-color:var(--rule-strong);color:var(--ink-muted)}
+.tlb--blk{background:repeating-linear-gradient(45deg,var(--surface-sunk),var(--surface-sunk) 5px,#E4E9EC 5px,#E4E9EC 10px);border-left-color:var(--rule-strong);color:var(--ink-muted);cursor:default}
+.tlb:focus-visible{outline:2px solid var(--dock);outline-offset:1px}
+/* Narrower boards ask for fewer lines. Which lines a block actually keeps is
+   measured — see fitTimelineBlocks — because a half-hour call is a narrow box on
+   the widest monitor there is. */
+@container board (max-width:900px){.tl{--tl-lines:3}}
+@container board (max-width:640px){.tl{--tl-lines:2}}
+
+/* ===== tables (My appts, Reports, Users) ===== */
+.panel{background:var(--surface);border:1px solid var(--rule);border-radius:var(--radius-lg);display:flex;flex-direction:column;min-height:0;overflow:hidden}
+.panel--fill{flex:1}
+.panel__head{display:flex;align-items:center;gap:var(--s3);padding:var(--s2) var(--s4);border-bottom:1px solid var(--rule);flex:none}
+.panel__title{font-weight:600;font-size:var(--t-lead);margin:0}
+.panel__actions{margin-left:auto;display:flex;gap:var(--s2);align-items:center}
+.panel__scroll{overflow:auto;flex:1;min-height:0}
+.panel__body{padding:var(--s3) var(--s4);flex:none;border-bottom:1px solid var(--rule)}
+.panel__body:last-child{border-bottom:none}
+.table{width:100%;border-collapse:collapse}
+.tablewrap{overflow-x:auto;}
+.table th{position:sticky;top:0;font-size:var(--t-micro);text-transform:uppercase;letter-spacing:.07em;color:var(--ink-muted);font-weight:600;text-align:left;padding:var(--s2) var(--s2);background:var(--surface-sunk);border-bottom:1px solid var(--rule);white-space:nowrap}
+/* Without this the widest content column absorbs all the slack and the columns
+   after it are flung to the far edge of the screen. Marking the actions column as
+   the one that fills packs every data column against its neighbour instead. */
+.table th.col-fill{width:100%}
+.table td{padding:7px var(--s2);border-bottom:1px solid var(--rule);vertical-align:middle;white-space:nowrap}
+/* Nothing in a row wraps. A long list elides at the end of its line rather than
+   stacking, so every row is the same height and the table keeps its shape. The
+   full value is in the cell's title attribute and on the record itself. */
+.table td.cell-elide{max-width:0;width:100%;overflow:hidden;text-overflow:ellipsis}
+/* Two lines, and the third is elided. One line was a rule made for short values:
+   an account with ten sites pushed the row action off the screen, and the second
+   line of the same cell was free height that every other row in the table was
+   already paying for. Two is the whole allowance — the row cannot grow past it. */
+.table td.cell-wrap2{white-space:normal;overflow:hidden;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;line-clamp:2;line-height:1.3}
+/* The figures under a date: quieter, tighter, and one line of their own. They
+   qualify the line above rather than competing with it. */
+/* A row that opens. Closed it carries the four things somebody scanning a list
+   wants — who, what they sign in as, what they are, whether they are on — and the
+   rest is a click away under it. Everything on one line made the row as wide as
+   the monitor and pushed the row action off the end of it. */
+.userrow__end{display:flex;align-items:center;justify-content:flex-end;gap:var(--s2);white-space:nowrap}
+.userrow__toggle svg{transition:transform var(--motion)}
+.userrow.is-open{background:var(--surface-sunk)}
+.userrow.is-open .userrow__toggle svg{transform:rotate(180deg)}
+.userrow.is-open>td{border-bottom-color:transparent}
+.usermore>td{padding:0 var(--s2) var(--s3);background:var(--surface-sunk)}
+/* Sized to the longest label rather than split into equal columns, so "Time in
+   MaxDock" and "Email" both read as one label and one value, and the strip wraps
+   instead of running off the side. */
+/* An account's details are the same kind of thing as an appointment's, so they are the
+   same .confirmgrid: label above value, even columns, one rhythm. Sized to their longest
+   value instead, five site names wrapped to three lines beside a two-word value and left
+   a lone row with half a screen of space next to it. This only adds the reveal and more
+   air between columns than a dialog needs, a table row being the wider of the two. */
+.userdetail{grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:var(--s3) var(--s5);animation:slidein var(--motion) ease-out}
+/* A table cell does not wrap, which is right for a row of a schedule and wrong for a
+   grid of prose inside one — the values ran straight over each other. */
+.userdetail .confirmgrid__v{white-space:normal}
+@keyframes slidein{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){.userdetail{animation:none}.userrow__toggle svg{transition:none}}
+/* A table of five short columns has no business spanning a wide monitor: the row
+   action ends up a hand's width from the last thing it acts on. Capped, the
+   columns stay together and the eliding cell still shrinks below it. */
+/* The table hugs its columns so the row action follows the last one. The card is
+   capped, not sized to content: a scrolling wrapper contributes nothing to a
+   max-content parent — the trap that collapsed this card to its title twice. */
+.card--table{max-width:min(100%,720px)}
+.card--table .table{width:auto}
+/* Seven day boxes on one line, sized to the word inside them, wrapping only when
+   the dialog is too narrow to hold a week. */
+.daypick{display:flex;flex-wrap:wrap;gap:var(--s2) var(--s3)}
+.daypick .check-row{flex:0 0 auto}
+/* The code beside what it is for, rather than a panel of its own. Smaller than
+   the confirmation's copy and left-aligned, because here it sits inside a list
+   of facts rather than being the point of the screen. */
+/* The card that gets printed and taped to a wall: a code big enough to scan from
+   arm's length and, beside it, the run it books in words — because somebody has
+   to be able to tell one card from another without a phone. */
+.shortcut{display:flex;align-items:center;gap:var(--s4);flex-wrap:wrap;padding:var(--s4);border:1px solid var(--rule-strong);border-radius:var(--radius-lg);background:var(--surface)}
+.shortcut .qr-frame{flex:none;width:180px;margin:0}
+.shortcut__body{min-width:0;flex:1 1 220px}
+.shortcut__title{font-size:calc(var(--t-base) * 1.15);font-weight:700}
+.shortcut__det{color:var(--ink-muted);font-size:var(--t-small);margin:var(--s1) 0 var(--s2)}
+.shortcut-print{padding:var(--s5);background:var(--surface)}
+.shortcut-print .shortcut{border-width:2px}
+/* How full the truck ended up. The count alone does not tell a planner whether one
+   more load would have fitted; the bar does, without being read. */
+.fullness{display:grid;gap:3px;margin-top:var(--s3)}
+/* The booking dialog draws the trailer here rather than a bar; report tables still draw
+   the bar, so the block stays and the figure gets its own centring. */
+.fullness--fig{justify-items:center;gap:0}
+.fullness__bar{height:9px;border-radius:99px;background:var(--surface-sunk);border:1px solid var(--rule-strong);overflow:hidden}
+.fullness__bar>span{display:block;height:100%;background:var(--ok)}
+.fullness__t{font-size:var(--t-small);color:var(--ink-muted);font-variant-numeric:tabular-nums}
+.fullness--over .fullness__bar>span{background:var(--stop)}
+/* Capped rather than filling: the cell takes what it needs up to a limit and the
+   row's action stays beside it, with an empty .col-fill header taking the rest. */
+.table td.cell-cap{max-width:24ch;overflow:hidden;text-overflow:ellipsis}
+.table tr:last-child td{border-bottom:none}
+.table tbody tr:hover{background:var(--dock-wash)}
+.data{font-family:var(--font-data);font-size:var(--t-small)}
+.data--strong{font-weight:600;color:var(--ink)}
+.sub{display:block;font-size:var(--t-small);color:var(--ink-faint)}
+.tag{display:inline-flex;align-items:center;font-size:var(--t-micro);font-weight:600;text-transform:uppercase;letter-spacing:.05em;padding:2px 7px;border-radius:3px;white-space:nowrap}
+.tag--ok{background:var(--ok-wash);color:var(--ok)} .tag--pri{background:var(--signal-wash);color:var(--signal)}
+.tag--stop{background:var(--stop-wash);color:var(--stop)} .tag--quiet{background:var(--surface-sunk);color:var(--ink-muted)}
+/* Between good and bad — a partner worth a conversation, not an escalation. */
+.tag--warn{background:var(--signal-wash);color:var(--signal)}
+
+/* segmented filter tabs */
+.tabs{display:inline-flex;background:var(--surface-sunk);border-radius:var(--radius);padding:2px}
+.tabs button{font-family:inherit;font-size:var(--t-small);font-weight:500;border:none;background:none;color:var(--ink-muted);min-height:var(--ctl-h);height:var(--ctl-h);padding:0 14px;border-radius:4px;cursor:pointer}
+.tabs button[aria-pressed="true"]{background:var(--surface);color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.08)}
+
+/* next appointment strip */
+
+/* ===== MODAL ===== */
+/* "safe center" so a dialog taller than the screen anchors to the top and stays
+   scrollable — plain centring pushes its head above the viewport, where nothing
+   can reach it. */
+.scrim{position:fixed;inset:0;background:rgba(22,32,42,.45);display:grid;justify-items:center;align-items:safe center;overflow-y:auto;padding:var(--s5);z-index:50}
+.modal{background:var(--surface);border-radius:var(--radius-lg);box-shadow:var(--shadow-overlay);width:min(760px,100%);max-height:calc(100dvh - 48px);display:flex;flex-direction:column;overflow:hidden}
+/* Four dialog widths, named. A dialog that holds one question should not be as
+   wide as one that holds a form, and picking the number inline meant four
+   dialogs had four different answers. Wide is for a dialog holding a table. */
+.modal--wide{width:min(1000px,100%)}
+.modal--md{width:min(560px,100%)}
+.modal--sm{width:min(460px,100%)}
+.modal--xs{width:min(420px,100%)}
+.modal__head{display:flex;align-items:center;gap:var(--s3);padding:var(--s3) var(--s4);border-bottom:1px solid var(--rule);flex:none}
+.modal__title{font-size:var(--t-lead);font-weight:600;margin:0}
+.modal__sub{font-size:var(--t-small);color:var(--ink-muted)}
+.modal__x{margin-left:auto;width:var(--ctl-h);height:var(--ctl-h);border:none;background:none;border-radius:var(--radius);cursor:pointer;color:var(--ink-muted);font-size:20px;display:grid;place-items:center}
+.modal__x:hover{background:var(--surface-sunk)}
+.steps{display:flex;gap:2px;padding:0 var(--s4);border-bottom:1px solid var(--rule);flex:none}
+.step{flex:1;font:inherit;font-size:var(--t-micro);text-transform:uppercase;letter-spacing:.06em;font-weight:600;color:var(--ink-faint);padding:8px 0 7px;border:none;border-bottom:2px solid transparent;background:none;text-align:center;cursor:pointer}
+.step:disabled{cursor:default}
+.step--done{color:var(--ok)} .step--now{color:var(--dock);border-bottom-color:var(--dock)}
+/* min-height:0 is what makes the scroll work: a flex child will not shrink below
+   its content without it, so the dialog grew past its own max-height and pushed
+   the action row off the bottom of the screen instead of scrolling. */
+/* Most dialogs wrap their body and footer in a form, so the form — not the body —
+   is the dialog's flex child. Without this the form refuses to shrink, the body
+   never gets a chance to scroll, and the action row is pushed off the screen. */
+.modal>form{display:flex;flex-direction:column;flex:1 1 auto;min-height:0}
+.modal__body{padding:var(--s4);overflow-y:auto;flex:1 1 auto;min-height:0}
+.modal__foot{display:flex;flex-wrap:wrap;gap:var(--s2);padding:var(--s3) var(--s4);border-top:1px solid var(--rule);background:var(--surface-sunk);flex:none}
+.modal__foot .btn--primary{margin-left:auto}
+/* A switch that belongs with the footer's buttons rather than above them, and
+   stands exactly as tall as they do — every control on a row is one height. */
+.check-row.check-row--inline{margin:0;padding:0 var(--s2) 0 0;border:0;background:none;align-items:center;min-height:var(--ctl-h);height:var(--ctl-h)}
+
+.field{display:flex;flex-direction:column;gap:4px}
+.field__label,.panel__eyebrow{font-size:var(--t-micro);text-transform:uppercase;letter-spacing:.07em;color:var(--ink-muted);font-weight:600}
+/* The same lettering as a field label, but heading a group rather than naming an
+   input. It was .field__label with an inline margin on three booking steps, so a
+   heading and a field caption were the same class saying different things. */
+.grouplabel{font-size:var(--t-micro);text-transform:uppercase;letter-spacing:.07em;color:var(--ink-muted);font-weight:600;display:block;margin:var(--s4) 0 var(--s2)}
+.grouplabel:first-child{margin-top:0}
+.field__opt{text-transform:none;letter-spacing:0;font-weight:400;color:var(--ink-faint)}
+/* Required is marked, optional is spelled out — between them every field on a
+   form says which it is without the operator having to submit and find out. */
+.field__req{color:var(--stop);margin-left:2px;font-weight:700}
+/* The field being edited is visible at a glance — the owner asked for the outline
+   v1 had. Applied once here rather than per control. */
+.input:focus-visible,.select:focus-visible,textarea:focus-visible{outline:2px solid var(--dock);outline-offset:1px;border-color:var(--dock)}
+/* Keyboard focus: one ring, and a visible one on the rail.
+   Measured before writing this, and it corrected what the change was for. Buttons and links
+   were not unfocusable — the browser was drawing its own ring on all of them, a 1px near-black
+   outline. Two things were wrong with that rather than one thing missing. It did not match the
+   ring the fields, timeline blocks and queue rows already used, so focus looked like two
+   different ideas depending on what you had landed on. And on the dark rail a near-black 1px
+   outline on navy is effectively no ring at all, which is the one place it genuinely could not
+   be seen. So this is the fields' own treatment applied everywhere, and the rail's own ink on
+   the rail. The offset is outside the control: these sit on white, and an inset ring on a
+   filled primary button reads as a border on the button rather than as focus. */
+.btn:focus-visible,.iconbtn:focus-visible,.linkBtn:focus-visible,.notif__btn:focus-visible,
+.modal__x:focus-visible,.seg button:focus-visible,.tabs button:focus-visible,
+.setnav button:focus-visible,.switch:focus-visible,.choice button:focus-visible,
+.slotpick button:focus-visible,a:focus-visible{outline:2px solid var(--dock);outline-offset:2px;border-radius:var(--radius)}
+/* On the dark rail the blue sinks into the navy. The ring there is the rail's own ink, and
+   inset so it cannot be clipped by the rail's edge. */
+.rail a:focus-visible,.rail button:focus-visible{outline:2px solid var(--rail-ink);outline-offset:-2px}
+.field .input,.field .select,.field textarea{width:100%;min-width:0}
+.input[type="file"]{padding:6px 8px;min-width:0}
+.field--xs{max-width:120px} .field--sm{max-width:180px} .field--md{max-width:280px} .field--lg{max-width:420px}
+/* Form rows share one 12-column grid. Previously .frow was flex with per-field
+   max-widths, so every row distributed leftover space differently and no two rows
+   lined up — fields also stopped at their cap and left the rest of the row empty. */
+.frow{display:grid;grid-template-columns:repeat(12,1fr);gap:var(--s3) var(--s4);align-items:end}
+.frow>*{grid-column:span 4;min-width:0}
+.frow>.field{max-width:none}
+.frow>.field--xs{grid-column:span 2;min-width:6em}
+.frow>.field--sm{grid-column:span 3;min-width:9em}
+.frow>.field--md{grid-column:span 4;min-width:13.5em}
+.frow>.field--lg{grid-column:span 6;min-width:19em}
+.frow>.field--xl{grid-column:span 8;min-width:25em}
+/* A field is sized by what goes in it. A two-digit minute count had the same width
+   as a company name, which is the "long fields for two numbers" the owner called
+   out — and a bare number with no unit beside it tells you nothing. */
+.inputwrap{display:flex;align-items:stretch;min-width:0}
+/* A control that acts on a field rather than labelling it stands apart from it,
+   at the same gap the fields either side of it use. Glued to the input the way a
+   unit chip is, Suggest read as part of the password rather than a button. */
+.withaction{display:flex;align-items:stretch;gap:var(--s4);min-width:0}
+.withaction .input{min-width:0}
+.inputwrap .input{border-top-right-radius:0;border-bottom-right-radius:0;min-width:0}
+.input__unit{display:flex;align-items:center;min-height:var(--ctl-h);padding:0 10px;border:1px solid var(--rule-strong);border-left:none;border-radius:0 var(--radius) var(--radius) 0;background:var(--surface-sunk);color:var(--ink-muted);font-size:var(--t-small);white-space:nowrap}
+/* Same shape as a fixed unit label, but the unit is the manager's to pick. */
+.unitsel{width:auto;flex:none;border-left:none;border-radius:0 var(--radius) var(--radius) 0;background:var(--surface-sunk);color:var(--ink-muted);font-size:var(--t-small);padding:0 4px 0 6px}
+.field .unitsel{width:auto}
+.frow>.field--num{grid-column:span 2;min-width:8.6em}
+/* A number with its unit as a choice needs room for the widest unit word. */
+.frow>.field--dur{grid-column:span 3;min-width:10.4em}
+.frow>.field--num .input{text-align:left;min-width:4em}
+/* An em floor scales with the type setting; the twelve columns do not, so at large a
+   two-column field is narrower than its own floor and pushes the grid out. It takes
+   another column — but only these, and never a .field-action: a button has no text to
+   fit, and widening one took [xl][action] past twelve and wrapped it onto a line of its
+   own. A row that then came to more than twelve was re-sized in its own markup, rather
+   than by trimming a floor the select in it needs. */
+html[data-text="large"] .frow>.field--num,html[data-text="larger"] .frow>.field--num{grid-column:span 3}
+html[data-text="larger"] .frow>.field--dur{grid-column:span 4}
+html[data-text="larger"] .frow>.field--md:not(.field-action){grid-column:span 5}
+/* A date and time reads as one value or it reads as nothing. Below this the
+   browser clips the minutes off the end rather than shrinking the text. */
+.input[type="datetime-local"]{min-width:14.2em}
+.frow>.field--full{grid-column:1/-1}
+/* A control acting on the field beside it sits on that field's baseline, not the
+   row's top, or it floats above its label. Alignment only: the width comes from a
+   field-- class, since a span baked in here overrode the element's own and left
+   the row half empty. */
+/* No floor: a button sizes itself, so a --md worn only to claim columns has no text to
+   protect and its 13.5em pushed the row out at larger. */
+.frow>.field-action{align-self:end;min-width:0}
+/* One name for "this control sits at the end of its band" — the same declaration
+   was inline on six pages, which is how one control drifts to a different offset
+   on each. Dialog feet place their own primary button. */
+.at-end{margin-left:auto}
+/* The find box on My appointments shares the controls band with the view
+   switcher, so it must not swallow the whole row the way a lone search field in
+   a filter band can. */
+/* Beside the count, not below it: the label sits inline so the whole band stays
+   one line high. */
+.appointment-search{flex-direction:row;align-items:center;gap:var(--s2);min-width:0;max-width:320px}
+.appointment-search .input{max-width:210px}
+/* A heading that opens a new subject inside a dialog body or card. */
+/* The stock count is its own subject inside the capacity card: a number somebody
+   walked the floor for, and the moment they took it. Ruled off from the limits
+   above it so the two are not read as one set of numbers. */
+/* One window to a line, read left to right as a sentence: which dock, which day,
+   which direction, from when, to when. Sized to its controls rather than spread
+   across the card. */
+/* Two cards abreast where the panel has the width for it. The dock table is
+   five short columns and the truck list is a name and a number, so stacking them
+   left half the panel empty and pushed the second card below the fold. */
+.dirlist{display:grid;gap:var(--s4)}
+/* A window is a direction and a time, then the docks and days it applies to. Its
+   parts span the tick grid rather than sitting in its columns. */
+.dirwin{max-width:820px}
+.dirwin>fieldset{grid-column:1/-1}
+.dirwin>legend{display:flex;align-items:center;gap:var(--s2)}
+/* Dock 1 and Monday are short: a column wide enough for a truck type wastes half
+   a row each, and a window is twelve ticks. */
+.dirwin .pickgroup{--check-col:118px}
+.countset{border:none;border-top:1px solid var(--rule);padding:var(--s4) 0 0;margin:var(--s4) 0 0}
+.countset>legend{padding:0;font-size:var(--t-micro);text-transform:uppercase;letter-spacing:.07em;color:var(--ink-muted);font-weight:600}
+/* Keyed to the container, not the viewport: a dialog is a fixed 760px wide however
+   large the window is, so a viewport media query collapsed rows that had room. */
+/* A ruled part of a stack is a container too. It was not, so field rows inside it
+   stopped collapsing on a phone: a container query with no container above it
+   never matches, and a twelve-column row stayed twelve columns at 390px. */
+.modal__body,.card,.stack>*{container-type:inline-size}
+@container (max-width:560px){
+  .frow{grid-template-columns:repeat(6,1fr)}
+  .frow>*,.frow>.field--md,.frow>.field--lg,.frow>.field--xl{grid-column:span 6}
+  .frow>.field--num{grid-column:span 2}
+  .frow>.field--xs{grid-column:span 2}
+  .frow>.field--sm{grid-column:span 3}
+}
+/* Below this a two-up row cannot hold a label and its control without clipping.
+   The span classes are listed explicitly: .frow>* alone loses to .frow>.field--xs
+   on specificity, so the single-column rule would never have applied. */
+/* Their floors come off with them: a field owning the row cannot be pushed by anything,
+   so the floor only overflows — --xl's 25em against a 390px phone's 342px dialog is the
+   37px six of them scrolled by. Not min(Xem,100%): a cyclic percentage is dropped. */
+@container (max-width:380px){
+  .frow>*,
+  .frow>.field--xs,.frow>.field--sm,.frow>.field--md,
+  .frow>.field--lg,.frow>.field--xl,.frow>.field--full{grid-column:1/-1;min-width:0}
+  .frow>.field--num{grid-column:span 3}
+}
+.choice{display:grid;grid-template-columns:1fr 1fr;gap:var(--s2)}
+.choice button{font-family:inherit;text-align:left;padding:9px 12px;border:1px solid var(--rule-strong);border-radius:var(--radius);background:var(--surface);cursor:pointer;min-height:var(--tap)}
+.choice button strong{display:block;font-size:var(--t-base);color:var(--ink)}
+.choice button small{font-size:var(--t-small);color:var(--ink-muted)}
+.choice button[aria-pressed="true"]{border-color:var(--dock);background:var(--dock-wash)}
+.choice button[aria-pressed="true"] strong{color:var(--dock-deep)}
+.slotpick{display:grid;grid-template-columns:repeat(auto-fill,minmax(76px,1fr));gap:var(--s2)}
+.slotpick button{font-family:var(--font-data);font-size:var(--t-base);min-height:var(--tap);border:1px solid var(--rule-strong);background:var(--surface);border-radius:var(--radius);cursor:pointer}
+.slotpick button:hover{border-color:var(--dock);background:var(--dock-wash)}
+.slotpick button[aria-pressed="true"]{background:var(--dock);border-color:var(--dock);color:#fff}
+.slotpick button:disabled{background:var(--surface-sunk);color:var(--ink-faint);cursor:not-allowed;text-decoration:line-through}
+.hint{font-size:var(--t-small);color:var(--ink-muted);margin:var(--s2) 0 0}
+/* Prose that opens a step, above the fields rather than under one. */
+.hint--lead{margin:0 0 var(--s4)}
+.hint--flush{margin:0}
+
+/* settings + reports specifics */
+/* Three short trends side by side rather than one tall block of bars: truckloads,
+   skid movement and booked dock time, each with its own total and unit. The table
+   below is where the exact numbers are read; this is only the shape. */
+.trends{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:var(--s3)}
+.trend{border:1px solid var(--rule);border-radius:var(--radius);padding:var(--s3);display:flex;flex-direction:column;gap:var(--s2);min-width:0}
+.trend__head{display:flex;align-items:baseline;justify-content:space-between;gap:var(--s2);min-width:0}
+.trend__label{font-size:var(--t-micro);text-transform:uppercase;letter-spacing:.03em;color:var(--ink-muted);font-weight:600;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.trend__total{font-family:var(--font-data);font-size:var(--t-lead);font-weight:600;line-height:1.1;white-space:nowrap}
+.trend__total span{font-family:var(--font-ui);font-size:var(--t-micro);font-weight:500;color:var(--ink-muted);margin-left:3px}
+.trend__plot{display:flex;align-items:flex-end;gap:1px;height:52px}
+.trend__col{flex:1 1 0;min-width:0;display:flex;flex-direction:column;justify-content:flex-end;height:100%}
+.trend__bar{width:100%;background:var(--dock);border-radius:2px 2px 0 0;min-height:1px}
+.trend__bar--alt{background:var(--ok);border-radius:0}
+.trend__col .trend__bar:last-child{border-radius:0 0 2px 2px}
+.trend__col .trend__bar:only-child{border-radius:2px 2px 0 0}
+.trend__axis{display:flex;justify-content:space-between;gap:var(--s2);font-size:var(--t-micro);color:var(--ink-faint);white-space:nowrap;font-variant-numeric:tabular-nums}
+/* One width, not each menu's own. max-content sized this column to its longest
+   label, so the nine-item Settings menu stood 225px wide and the two-item Users
+   menu 127px — the same component in two sizes, which is what made the second one
+   look like a different thing bolted on. 15.5em is the widest label the product
+   has ("Booking window & notice") with its padding, in em so it grows with the
+   text-size setting rather than clipping at 1.32×. */
+.setlayout{display:grid;grid-template-columns:15.5em minmax(0,1fr);gap:var(--s4);align-items:start}
+.setnav{display:flex;flex-direction:column;gap:2px;background:var(--surface);border:1px solid var(--rule);border-radius:var(--radius-lg);padding:var(--s2);align-self:start}
+/* Ellipsis rather than clip, so a label longer than any of today's degrades legibly
+   instead of being cut mid-word. */
+.setnav button{font-family:inherit;text-align:left;font-size:var(--t-base);color:var(--ink-muted);background:none;border:none;border-radius:var(--radius);padding:8px var(--s3);cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-height:32px}
+.setnav button:hover{background:var(--surface-sunk);color:var(--ink)}
+.setnav button[aria-current="true"]{background:var(--dock-wash);color:var(--dock-deep);font-weight:600}
+.setpanel{min-width:0;max-width:1040px}
+.card{background:var(--surface);border:1px solid var(--rule);border-radius:var(--radius-lg);padding:var(--s4)}
+/* Stacked cards space themselves rather than each page choosing a gap. */
+.setpanel>.card+.card{margin-top:var(--s4)}
+/* A card sized to what is in it. A table of five short columns stretched to the
+   full panel left a hand's width of empty card and threw the title's action out
+   to an edge nothing else reached. */
+/* Capped, not shrink-wrapped: width:max-content collapsed the card to the width
+   of its title, because a scroll container contributes nothing to a max-content
+   parent. A ceiling takes the empty space off a wide monitor without asking the
+   card to measure itself. */
+/* One window to a settings section, parts divided by a hairline rather than each
+   in a box of its own. Each part keeps its own form and Save — they save
+   independently, and nested forms are not legal HTML. */
+/* Settings is a column of rules, not a spreadsheet. Left to fill a wide monitor
+   the window put a truck's name at one edge and its number at the other with
+   half a metre of nothing between them. */
+.stack{background:var(--surface);border:1px solid var(--rule);border-radius:var(--radius-lg);max-width:900px}
+/* A window whose widest part is a five-column table. Narrower than a form window,
+   with the table filling it so the action above the table and the action in its
+   last column share one right edge — and the note under it wraps rather than
+   running the width of a monitor. */
+.stack--table{max-width:620px}
+/* Two panels of short number fields, sized to them rather than to the monitor. */
+.stack--narrow{max-width:680px}
+.stack--table .table{width:100%}
+.stack>*{padding:var(--s4);margin:0;border:0;border-radius:0;background:none;max-width:none}
+.stack>*+*{border-top:1px solid var(--rule)}
+.card__title .btn{margin-left:auto}
+/* One vertical rhythm inside cards, dialogs and wizard steps. A .frow spaces its
+   children but had no margin of its own, so two stacked rows crowded — the second
+   row's label sat on the first row's control. Setting rows are excluded: they are
+   a bordered list and space themselves. */
+   A settings section is a form inside the card, so the rhythm has to reach into
+   it: without that the rule stopped at the form and every stacked row inside a
+   settings section crowded, which is exactly where it showed. */
+.card>*+*,.modal__body>*+*,[data-booking-step]>*+*,[data-section-form]>*+*{margin-top:var(--s4)}
+.card>.card__title+*,.modal__body>.card__title+*,[data-section-form]>.card__title+*{margin-top:0}
+.card>.setrow+.setrow,.modal__body>.setrow+.setrow,[data-booking-step]>.setrow+.setrow,[data-section-form]>.setrow+.setrow{margin-top:0}
+/* A row of fields under another row of fields needs more air than two blocks do,
+   because what lands beside the first row's controls is the second row's LABELS.
+   At the block rhythm they read as one crowded group — the owner has caught this
+   twice, on Timing & duration and on Labour. Two classes, so it wins over the
+   block rule wherever a .frow follows a .frow: this is the norm, not an
+   exception, and it holds in cards, dialogs and wizard steps alike. */
+.frow+.frow{margin-top:var(--s5)}
+/* Pairs, close together, two or three across — not one row per value with the
+   label and the value pushed to opposite edges. */
+.confirmgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:var(--s2) var(--s4);padding:var(--s3)}
+.confirmgrid__cell{display:flex;flex-direction:column;gap:0;min-width:0}
+.confirmgrid__l{font-size:var(--t-micro);text-transform:uppercase;letter-spacing:.03em;color:var(--ink-muted);font-weight:600}
+.confirmgrid__v{font-size:var(--t-base);font-weight:600;overflow-wrap:anywhere}
+.card__title{font-size:var(--t-base);font-weight:600;margin:0 0 var(--s3);display:flex;align-items:center;gap:var(--s2)}
+.card__title .btn{margin-left:auto}
+.hours{display:flex;flex-direction:column;gap:6px}
+.hourrow{display:grid;grid-template-columns:90px 150px 150px auto;gap:var(--s2);align-items:center;justify-content:start}
+.hourrow .input{width:150px}
+/* Time inputs have a wide intrinsic minimum, so on a phone a day, two of them and
+   a switch cannot share one line — the row pushed the whole page sideways. The day
+   takes its own line and the two times split the next. */
+@media (max-width:600px){
+  .hourrow{grid-template-columns:minmax(0,1fr) minmax(0,1fr) auto}
+  .hourrow .input{width:auto}
+  .hourrow .day{grid-column:1/-1}
+}
+.hourrow .day{font-size:var(--t-small);font-weight:600}
+.switch{width:44px;height:32px;border:none;background:none;padding:0;position:relative;cursor:pointer;flex:none}
+.switch::before{content:"";position:absolute;left:4px;top:6px;width:36px;height:20px;border-radius:20px;background:var(--dock)}
+.switch::after{content:"";position:absolute;top:8px;left:22px;width:16px;height:16px;border-radius:50%;background:#fff;transition:left var(--motion)}
+.switch--off::before{background:var(--rule-strong)} .switch--off::after{left:6px}
+.switch:disabled{cursor:default;opacity:.55}
+
+/* Full-screen wall display. Read from across a shop floor, not from a desk: every
+   size is a clamp() against the viewport, so one markup works on a laptop and on a
+   mounted screen. One lane per dock, so a door is found by position rather than by
+   reading every row. */
+.wall{min-height:100vh;background:#F1F5F8;color:var(--ink);padding:clamp(12px,1.4vw,28px);display:flex;flex-direction:column;gap:clamp(10px,1vw,20px)}
+.wall__head{display:flex;align-items:center;gap:var(--s4);flex:none}
+.wall__title{font-size:clamp(22px,2vw,40px);font-weight:700;letter-spacing:-.015em}
+.wall__sub{font-size:clamp(13px,1vw,20px);color:var(--ink-muted);margin-top:2px}
+.wall__clock{margin-left:auto;font-size:clamp(24px,2.2vw,44px);font-weight:600;font-variant-numeric:tabular-nums}
+.wall__body{flex:1;min-height:0;background:var(--surface);border:1px solid var(--rule);border-radius:10px;overflow:hidden;container-type:inline-size;container-name:board}
+/* Wall type is one step up from the operator screen — same timeline, read from
+   across a room rather than from a desk. */
+.wall .tl{--tl-label:clamp(120px,10vw,240px)}
+/* The board caps lane growth so a small site does not get enormous bands; the
+   wall has no such cap — filling the screen is the whole point of a wall display. */
+.wall .tl__lane{flex:var(--rows,1) 1 0;min-height:clamp(56px,7vh,150px);max-height:none}
+.wall .tlb{padding:clamp(4px,.5vw,10px) clamp(6px,.7vw,14px)}
+.wall .tl__label strong{font-size:clamp(16px,1.3vw,28px)}
+.wall .tl__label small{font-size:clamp(11px,.75vw,16px)}
+.wall .tl__scale{height:clamp(28px,3vh,44px)}
+.wall .tl__scale .tl__tick{font-size:clamp(12px,.9vw,18px)}
+.wall .tlb__l--key{font-size:clamp(13px,1vw,22px)}
+.wall .tlb__l{font-size:clamp(12px,.9vw,19px)}
+
+/* ===== additions: icon buttons, rail admin-at-bottom, queue, data, fullscreen ===== */
+.btn--icon{padding:0;width:var(--ctl-h);color:var(--ink-muted)}
+.btn--icon svg{width:16px;height:16px}
+.btn--icon:hover{color:var(--ink)}
+/* rail admin pinned lower */
+.rail__spacer{flex:1}
+.rail__group--admin,.rail__group--ruled{border-top:1px solid var(--rail-rule)}
+.rail__group--admin{margin-top:var(--s2);padding-top:var(--s3)}
+/* A ruled group with no heading needs the hairline to read as a break, but not a
+   heading's worth of air under it. Receiving and Settings are modules like the
+   ones above them, so the hairline is the whole separation — the extra air read
+   as a gap between sections. */
+.rail__group--ruled{margin-top:var(--s1);padding-top:var(--s2);padding-bottom:0}
+/* queue rows */
+.statusdot{display:inline-flex;align-items:center;gap:6px}
+.statusdot::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--c)}
+/* data integration cards */
+/* A connection is a short statement, not a banner: sized to the sentence it
+   carries with its state beside it, rather than stretched the width of the page
+   with the tag flung to the far edge. */
+.integ{display:flex;flex-wrap:wrap;align-items:center;gap:var(--s2) var(--s3);padding:var(--s2) var(--s3);border:1px solid var(--rule);border-radius:var(--radius);margin-bottom:var(--s2);max-width:760px}
+.integ>div{min-width:0;flex:1 1 12rem}
+.integ__ico{width:36px;height:36px;border-radius:8px;background:var(--dock-wash);color:var(--dock-deep);display:grid;place-items:center;flex:none;font-weight:700}
+.integ__name{font-weight:600}
+.integ__meta{font-size:var(--t-small);color:var(--ink-muted);max-width:56ch}
+.integ__st{margin-left:auto;flex:none;display:flex;align-items:center;gap:var(--s3)}
+/* The connection's own settings, opened under the row they belong to rather than
+   behind a separate nav item an administrator has to know exists. */
+.integ__panel{max-width:760px;margin:calc(var(--s2) * -1) 0 var(--s4);padding:var(--s3);border:1px solid var(--rule);border-top:none;border-radius:0 0 var(--radius) var(--radius);background:var(--surface-sunk)}
+/* locked field (role-aware booking) */
+.locked{position:relative}
+.locked .input,.locked .select{background:var(--surface-sunk);color:var(--ink-muted);pointer-events:none}
+.choice button[aria-pressed="true"][disabled]{opacity:1;cursor:default}
+.choice button[disabled]:not([aria-pressed="true"]){display:none}
+/* rebook card */
+.rebook{border:1px solid var(--rule);border-radius:var(--radius-lg);padding:var(--s3);display:flex;align-items:center;gap:var(--s3);margin-bottom:var(--s2)}
+.rebook__body{flex:1;min-width:0}
+.rebook__ref{font-family:var(--font-data);font-weight:600;font-size:var(--t-small)}
+.rebook__det{font-size:var(--t-small);color:var(--ink-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* Operations queue components — approved page-3-queue.html */
+/* The morning rundown: the figures a supervisor would otherwise read off the board
+   one at a time, in one band above the queue. */
+/* The queue is a fixed-height page, so nothing here can scroll off the bottom: the card
+   has to give way itself. It shrinks between a floor and a ceiling and scrolls as one
+   piece. Letting its body be the flexible part instead crushed that body to zero height at
+   every width below 1440, which left the Combine action laid out but clipped and
+   unclickable — the only way into combining from this page. */
+/* The day at a glance is a strip of cards, not a tinted panel with cards inside it. The
+   gradient and the blue border made a box around a box: everything on this page already
+   sits on the page background, and the card is the unit. */
+/* One outline around the whole glance: the title, the figures, and the three groups
+   under them. Giving each group its own card made a page of nothing but metric cards,
+   which is a lot of border for what is really one summary. The card is the outer box; the
+   groups inside it are columns with a rule between them. */
+/* The card yields height to the table below it — the queue is a fixed-height screen and the
+   rows are what it is for — but it has to yield by shrinking, not by letting its contents out.
+   overflow:visible meant everything past the card's share of the page was drawn *outside its own
+   border*, over the table underneath: at 1280px the Combine link sat beneath the table's sticky
+   header, painted on the card and impossible to press, and a third of the brief was reading as
+   loose text over the rows. The card scrolls what does not fit, the same as the panel beneath
+   it, so a border always contains what belongs to it. */
+.brief{background:var(--surface);border:1px solid var(--dock);border-radius:var(--radius-lg);padding:var(--s3) var(--s4);margin-bottom:var(--s3);display:flex;flex-direction:column;gap:var(--s3);flex:0 1 auto;min-height:8em;overflow:auto;container-type:inline-size}
+/* The mark, the site's name and Share on one line, and on a phone at Larger text they do
+   not fit on one line. They wrapped nowhere and scrolled the card sideways instead, which
+   is a horizontal scrollbar on the one card the page opens with. Share drops to its own
+   line, and the title is allowed to shrink so it wraps rather than pushing. */
+.brief__head{display:flex;align-items:center;gap:var(--s2);flex-wrap:wrap}
+.brief__head .brief__t{min-width:0;flex:1 1 8em}
+/* The day picker sits between the title and the share link, sized to its content: the title
+   takes the slack, so the control stays the same width whatever the site is called. */
+.brief__head .datenav{flex:none}
+.brief__head .datenav .input--date{flex:0 0 9.5em}
+.brief__head .linkBtn{margin-left:0}
+/* Nothing but the grid the cards sit on: the cards themselves are .kpi, the same
+   element the strip above uses. They had their own type scale and their own bar
+   width, so two rows of numbers on one screen looked like two applications. */
+.brieffigs{display:grid;grid-template-columns:repeat(auto-fit,minmax(168px,1fr));gap:var(--s2);grid-auto-rows:1fr}
+/* Separate points, not one running line — the owner has to be able to pick a fact
+   out of this at a glance in a morning meeting. */
+/* The brief reads across the card, not down one edge of it: four named columns,
+   each answering one kind of question, on a card that is as wide as the screen. */
+/* The column minimum is in em, not px: at Larger text a 260px column still holds 260px
+   of much bigger letters, which is how a bullet ended up six lines of nineteen characters.
+   In em the column grows with the type and the characters per line stay put. */
+/* A rule between the columns, so four groups of grey text read as four groups rather
+   than as one paragraph that happens to have gaps in it. The first column in each row has
+   nothing to its left, which is what the :first-child and the wrap-aware nth rule are for
+   — a plain +* would draw a line down the left of a wrapped row. */
+/* Three cards across, each as wide as three of the metric cards above them, so the two
+   rows read as one strip rather than as a strip and a paragraph. They are the same card:
+   same surface, same border, same accent down the left. */
+/* Container queries, not media queries, and in em. The column count has to answer "is
+   there room for this text" rather than "how wide is the window": a px breakpoint keeps
+   three columns at Larger text on a window that has not grown, which is how a bullet ends
+   up six lines of nineteen characters. Measured against the card in its own type size.
+
+   Two columns start at 52em rather than 44. A column has to hold the widest thing in it,
+   and the widest thing is now a pair of booking references under a combining bullet. At 44
+   the card split in two at 684px, giving each column 218px of text, where the reference
+   wrapped and took the sentence above it with it: one width in the whole range where that
+   bullet went to six lines while every other width drew it in three. The number is the
+   content's, so it moves when the content does.
+
+   Three columns start at 72em rather than 66, for the same reason one breakpoint up: at 66
+   a 1280 laptop drew three 225px columns and wrapped the sentence again. 72 is the smallest
+   value that clears it while keeping three columns on a 1440, which is the window most of
+   this is looked at on; going further only costs 1440 its third column for nothing. */
+/* Four sections, laid out as four. It used to step 1 -> 2 -> 3 columns, and the card carries
+   four groups, so the widest screens put three across and dropped the fourth onto a row of its
+   own where the band's max-height cut it in half. Two columns and two rows is the shape the
+   content actually has: every quadrant gets half the width, which the combining references need,
+   and nothing wraps into a row that is not there. */
+.briefcols{display:grid;grid-template-columns:minmax(0,1fr);gap:var(--s3)}
+@container (min-width:40em){.briefcols{grid-template-columns:repeat(2,minmax(0,1fr));row-gap:var(--s4)}}
+/* Four across, on one line. Two-by-two fixed the clipping but it is still two sections of two,
+   and the card is four things: trucks, labour, combining, attention. Side by side they compare;
+   stacked they read as two unrelated pairs. */
+@container (min-width:58em){.briefcols{grid-template-columns:repeat(4,minmax(0,1fr))}}
+/* No mark. A drawing in a gutter above each heading told the four columns apart from across
+   a desk and cost about forty pixels of a card that has a ceiling and scrolls when it is
+   reached: on a laptop the last bullet of the fourth column fell below that line, so the one
+   thing on this card worth acting on had to be scrolled to. The heading carries the job now —
+   see .briefcol__t — and the column is a heading over its points, nothing else. */
+/* align-content, not only align-items. The columns are stretched to the tallest of the four,
+   and a grid whose rows are auto-sized spreads its spare height *between* those rows by
+   default — so a column with one bullet sat halfway down its box and no two headings in the
+   row started their points at the same height. It read as vertically centred because it was.
+   Every section now begins at the top of the row and the slack falls to the bottom. */
+.briefcol{padding-left:var(--s4);border-left:1px solid var(--rule);display:grid;grid-template-columns:minmax(0,1fr);align-items:start;align-content:start;min-width:0}
+/* The rule divides the two columns, so it belongs on the right-hand one of each pair rather
+   than on everything after the first. With one column there is no pair and no rule. */
+.briefcol:first-child{border-left:none;padding-left:0}
+/* The rule divides columns, so it belongs on every one after the first of its row. At two
+   columns that is the even ones; at four it is everything but the first. */
+@container (min-width:40em){
+  .briefcol:nth-child(odd){border-left:none;padding-left:0}
+  .briefcol:nth-child(even){border-left:1px solid var(--rule);padding-left:var(--s3)}
+}
+@container (min-width:58em){
+  /* Both nth-child selectors, not a bare .briefcol: the two-column rule above is
+     `.briefcol:nth-child(odd)` and that is more specific than `.briefcol`, so it kept winning
+     however this was ordered. Columns one and three lost their border, which is why the line
+     between Labour and Combining went missing. */
+  .briefcol:nth-child(odd),.briefcol:nth-child(even){border-left:1px solid var(--rule);padding-left:var(--s3)}
+  .briefcol:first-child{border-left:none;padding-left:0}
+}
+/* The heading is what tells the four sections apart, so it is a heading rather than the
+   caption it used to be: body size instead of caption size — a quarter larger — uppercase,
+   tracked, and in MaxDock blue. Colour is what carries it. A rule under each heading did the
+   same job and cost four more lines on a card that already has three verticals and a border,
+   and four lines drawn to say "these are headings" is a lot of drawing for something the
+   headings can say themselves. Blue is the one thing on this card that is not grey. */
+.briefcol__t{font-size:var(--t-base);line-height:1.2;text-transform:uppercase;letter-spacing:.05em;color:var(--dock);font-weight:700;margin:0 0 var(--s2)}
+.briefpoints{margin:0;padding-left:1.1em;display:grid;gap:2px}
+.briefpoints li{font-size:var(--t-small);color:var(--ink-muted)}
+/* The references under a combining bullet. A line of their own, smaller and fainter, so
+   they answer "which loads" without competing with the decision above them. */
+/* References and the action that acts on them, on one line under the bullet. They used to take
+   a line each, which on three combining lanes was six lines of chrome under three of content. */
+/* overflow-wrap, not word-break. They read alike and behave nothing alike inside a flex row:
+   word-break:break-word lets this line shrink to a single character, so the browser kept the
+   references and the Combine button on one line by squeezing the references into what was left
+   and breaking them mid-token — "MXD-2026-" on one line and "000146," on the next. A booking
+   reference is a thing somebody reads out over a radio and it must never be split. With
+   overflow-wrap the narrowest this can go is its longest word, so the button drops to its own
+   line first and the references wrap between themselves, which is the order that reads. */
+.briefpoint__s{display:flex;flex-wrap:wrap;align-items:baseline;gap:var(--s2);font-size:var(--t-micro);color:var(--ink-faint);overflow-wrap:break-word}
+.linkBtn--tight{font-size:var(--t-micro);padding:0}
+.brief__ico{width:32px;height:32px;border-radius:8px;background:var(--dock);color:#fff;display:grid;place-items:center;flex:none;font-weight:700;font-size:14px}
+/* The narrative scrolls inside the band. The queue is a fixed-height page, so a
+   band that grows without limit pushes the schedule off the bottom with nothing
+   left to scroll — the band gives way, not the page. */
+/* The reading sits clear of the figures: run together, the first bullet read as
+   a caption on the card above it.
+
+   Space, not a rule. The separation was a border across the full width of the card,
+   and with the four columns underneath already ruled off from each other by their own
+   verticals, that horizontal cut the card into two boxes — the figures above, the
+   reading below — when it is one card. The gap does the same job the line was doing
+   and draws nothing, so it is a shade tighter than the line's padding was: the four
+   blocks sit up closer to the figures without running into them. */
+/* Each part keeps its own height and the card scrolls past them, rather than the narrative being
+   crushed to a few pixels under figures that refuse to give. Scrolling the whole card keeps the
+   figures and the columns in one piece of reading. */
+.brief__body{flex:none;padding-top:8px}.brief__t{font-weight:600;margin-bottom:2px}.brief__x{color:var(--ink);font-size:var(--t-base)}.brief__x b{color:var(--dock-deep)}
+/* The queue below the strips: the day on the left, the heat map and the watch list on
+   the right. The side column was sized as one share of --kpi-cols, which tied how wide the
+   heat map is to how many metric cards happen to be switched on: turning two on took it
+   from a fifth of the page to a seventh and squeezed its caption to 53px. Those are
+   unrelated things. The side is now its own width and stops shrinking at one.
+
+   The floor is capped against the window as well as the text. In em alone it grew a third
+   at Larger text, on a window that had not grown at all, and pushed the table panel past
+   the bottom of a page that cannot scroll. */
+.split{display:grid;grid-template-columns:minmax(0,1fr) minmax(15em,20em);grid-template-rows:minmax(0,1fr);gap:var(--s3);flex:1;min-height:min(26em,40vh)}
+.split>*{min-height:0}
+.split>*:last-child{min-width:0;overflow-y:auto}
+.heat{background:var(--surface);border:1px solid var(--rule);border-radius:var(--radius-lg);padding:var(--s3) var(--s4);display:flex;flex-direction:column}
+.heat__t{font-size:var(--t-base);font-weight:600;margin:0 0 var(--s2);display:flex;align-items:center}.heat__t .btn{margin-left:auto}
+.heatgrid{display:grid;grid-template-columns:44px repeat(10,1fr);gap:2px}.heatgrid .hh{font-family:var(--font-data);font-size:9px;color:var(--ink-faint);text-align:center}.heatgrid .hd{font-family:var(--font-data);font-size:10px;color:var(--ink-muted);display:flex;align-items:center}.hc{height:20px;border-radius:2px;background:var(--dock);opacity:calc(var(--v)/var(--peak,5))}
+.watch{background:var(--surface);border:1px solid var(--rule);border-radius:var(--radius-lg);padding:var(--s3) var(--s4);overflow:auto}.watch__t{font-size:var(--t-base);font-weight:600;margin:0 0 var(--s3)}.watchitem{display:flex;gap:var(--s2);padding:var(--s2) 0;border-bottom:1px solid var(--rule);font-size:var(--t-small)}.watchitem:last-child{border:none}.watchitem b{display:block}.wdot{width:8px;height:8px;border-radius:50%;flex:none;margin-top:4px;background:var(--c)}
+
+/* Capacity components — approved page-5-settings.html */
+/* Title, explanation and switch on one line. The 220px title column forced the
+   explanation to wrap under it, so every toggle cost three lines of height for
+   one setting — and a page of them read as a stack of paragraphs rather than a
+   list of switches. */
+.setrow{display:grid;grid-template-columns:minmax(0,1fr) auto;justify-content:stretch;gap:var(--s3) var(--s4);align-items:center;padding:6px 0;border-bottom:1px solid var(--rule)}
+.setrow>div:first-child{display:flex;align-items:baseline;gap:var(--s3);min-width:0;flex-wrap:wrap}
+.setrow__d{min-width:0;overflow-wrap:anywhere}
+/* A single on/off with a one-word label does not need the 220px name column the
+   settings list uses — the switch sits beside the word. */
+.setrow--tight{grid-template-columns:auto auto;gap:var(--s3);border-bottom:none}
+/* A list of names each carrying one control: the names share a column so they
+   line up, and the control sits directly after the longest of them rather than
+   being flung to the far edge of the card. */
+.setrow.setrow--compact{grid-template-columns:minmax(0,22ch) max-content;justify-content:start;column-gap:var(--s4)}
+.setrow--compact .setrow__ctl{justify-content:flex-start}
+/* In a dialog the setting takes the width and its switch sits at the far edge. The
+   220px text column is right on a settings page, but in a 760px dialog it stranded
+   the switch a third of the way across. */
+.modal__body .setrow{grid-template-columns:minmax(0,1fr) auto;justify-content:stretch}
+.modal__body .setrow--tight{grid-template-columns:minmax(0,1fr) auto}
+/* A rule under a row whose section is closed is a line with nothing beneath it.
+   The divider belongs to the pair, so it goes when the pair is not shown. */
+/* A switch with nothing else on its row sits directly after the words it acts on.
+   Across a full-width card the stretched version parked it a hand's width away
+   from its own label, at the far edge of the screen. */
+.setrow.setrow--lead{grid-template-columns:max-content max-content;justify-content:start;column-gap:var(--s4)}
+.setrow:has(+ [hidden]){border-bottom:none}
+/* Fields that belong to the switch above them need to read as a group under it,
+   not as a line crammed against the rule. */
+.setrow+.frow{margin-top:var(--s4)}
+.setrow:last-of-type{border-bottom:none}
+/* A named group inside a settings card. Timing now carries two questions that are not about
+   how long a booking runs for, and dropping two switches under the duration fields with no
+   break read as though they belonged to the calculation above them. */
+.setgroup__t{font-size:var(--t-micro);text-transform:uppercase;letter-spacing:.07em;color:var(--ink-muted);font-weight:600;margin:var(--s4) 0 var(--s2);padding-top:var(--s3);border-top:1px solid var(--rule)}
+.setrow__ctl{display:flex;align-items:center;gap:var(--s3)}.setrow:last-child{border:none}.setrow__t{font-size:var(--t-base);font-weight:500;white-space:nowrap}.setrow__d{font-size:var(--t-small);color:var(--ink-muted)}
+
+/* Password reveal — approved production stylesheet */
+.passwordField{position:relative;display:flex;align-items:center}.passwordField .input{padding-right:calc(var(--tap) + 2px)}.passwordReveal{position:absolute;right:0;top:0;height:100%;width:var(--tap);display:flex;align-items:center;justify-content:center;border:none;background:none;color:var(--ink-muted);cursor:pointer;border-radius:var(--radius)}.passwordReveal:hover{color:var(--ink)}.passwordReveal svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.7}
+.passwordReveal[aria-pressed="true"]{color:var(--dock)}
+
+/* Shared shell primitives restored — dropped when the canonical stylesheet was replaced wholesale for Stage 4 */
+.skip-link{position:fixed;left:var(--s3);top:-100px;z-index:100;background:var(--surface);color:var(--ink);border:1px solid var(--rule-strong);border-radius:var(--radius);min-height:var(--tap);padding:var(--s2) var(--s3);display:inline-flex;align-items:center}
+.skip-link:focus{top:var(--s3)}
+.app-loading{min-height:100vh}
+.loading{min-height:100vh;display:grid;place-items:center;color:var(--ink-muted)}
+.loading__mark{width:42px;height:42px;margin:0 auto var(--s3);border-radius:10px;padding:7px 6px;background:var(--dock)}
+.loading__mark img{width:100%;height:100%;object-fit:contain}
+.loading__text{text-align:center}
+.board-loading{padding:var(--s5);text-align:center;color:var(--ink-muted)}
+/* The board's shape while its data is in flight. A line of centred text collapsed the panel
+   to one row and then the real board snapped it to full height, so the page arrived twice.
+   This holds the height and the structure so it arrives once. It reuses the ruler and lane
+   dimensions rather than restating them, which is also what keeps it inside the rule budget.
+   The pulse is opacity only, slow, and off for anyone who has asked for less motion: it
+   should read as "working" and not as an effect. No shimmer, no scale, no bounce. */
+.sk__ruler,.sk__lane{animation:skpulse 1.6s ease-in-out infinite;border-bottom:1px solid var(--rule)}
+.sk__ruler{height:26px;background:var(--surface-sunk)}
+.sk__lane{display:grid;grid-template-columns:var(--tl-label) minmax(0,1fr);height:var(--tl-row,54px)}
+.sk__label{border-right:1px solid var(--rule-strong);background:var(--surface-sunk)}
+@keyframes skpulse{0%,100%{opacity:1}50%{opacity:.55}}
+@media (prefers-reduced-motion:reduce){.sk__ruler,.sk__lane{animation:none;opacity:.8}}
+/* Choice groups flow into as many columns as fit instead of one item per line.
+   Seven locations used to occupy 243px of stacked rows. The wrapper div some
+   callers put around the options is display:contents so the options themselves
+   are the grid items either way. */
+.dock-checks{border:1px solid var(--rule);border-radius:var(--radius);padding:var(--s3);margin:0;--check-col:130px;
+  display:grid;grid-template-columns:repeat(auto-fill,minmax(var(--check-col,150px),1fr));gap:var(--s1) var(--s3)}
+/* The role editor's groups are ruled apart rather than boxed.
+   A <legend> is drawn in a notch in its fieldset's own border, and no amount of float, width or
+   grid participation reliably takes it out of there — on the role dialog every group heading sat
+   straddling the line above it. Dropping the border removes the notch, and with it the padding
+   the box needed: the same list is a third shorter, which is what makes room for more permissions
+   per role rather than a taller scroll. The rule above each heading does the separating. */
+.dock-checks--ruled{border:0;border-radius:0;padding:0;--check-col:190px;gap:0 var(--s3)}
+.dock-checks--ruled+.dock-checks--ruled{margin-top:var(--s3);padding-top:var(--s3);border-top:1px solid var(--rule)}
+.dock-checks--ruled>legend{margin-bottom:var(--s1)}
+.dock-checks--ruled .dock-check{min-height:26px}
+
+/* --- the role editor: a subject at a time
+   Twenty-seven permissions in one column was already a long window, and one permission per
+   report view took it past thirty. Past a certain length a list stops being a list and becomes
+   a search. The rail carries how much of each subject the role holds, which the old layout
+   could not say at all: "Reports and history 3 of 11" is the shape of a role in one line. */
+.rolegrid{display:grid;grid-template-columns:minmax(0,1fr);gap:var(--s3)}
+@media (min-width:44em){.rolegrid{grid-template-columns:15em minmax(0,1fr);gap:var(--s4)}}
+.rolerail{display:grid;align-content:start;gap:2px}
+.rolerail__b{display:flex;align-items:baseline;justify-content:space-between;gap:var(--s2);
+  min-height:var(--tap);padding:var(--s2) var(--s3);border:0;border-radius:var(--radius);
+  background:none;color:var(--ink);font:inherit;font-size:var(--t-small);text-align:left;cursor:pointer}
+.rolerail__b small{color:var(--ink-faint);font-size:var(--t-micro);font-variant-numeric:tabular-nums;white-space:nowrap}
+.rolerail__b:hover{background:var(--surface-sunk)}
+.rolerail__b[aria-selected="true"]{background:var(--dock-wash);color:var(--dock-deep);font-weight:600}
+.rolerail__b[aria-selected="true"] small{color:var(--dock-deep)}
+@media (min-width:44em){.rolepanel{border-left:1px solid var(--rule);padding-left:var(--s4)}}
+.rolepanel>.watch__t{margin-top:0}
+
+/* --- the marks on an appointment block
+   Ink, not colour: the block's wash already carries inbound, outbound, priority and blocked,
+   and two more hues would read as two more kinds of load. Black on any wash is plainly a mark
+   about the load rather than a category of it, and it means the priority flag still reads for
+   somebody who cannot tell the amber from the green.
+   Sized above the block's own text, because these are meant to be caught from across a room
+   rather than read — the ⧉ character they replace was whatever the font gave at 11px. */
+/* The marks are their own row above the reference, hard against the left edge.
+   They used to float right, which put them at the far end of whatever line the text
+   happened to start on — a different place on every block, and on a narrow block
+   sitting on top of the reference itself. A row of their own, left aligned, means the
+   eye finds them in the same corner on every block on the board. */
+.tlb__fs{display:flex;justify-content:flex-start;align-items:center;gap:var(--s1);margin-bottom:2px}
+.tlb__f{display:inline-grid;place-items:center;color:var(--ink)}
+.tlb__f svg{width:18px;height:18px;fill:currentColor;display:block}
+/* A bordered section is a bigger break than one field row after another, so it
+   gets more air above it than the form's own rhythm — the boxes were reading as
+   attached to the field directly above them. */
+.modal__body>fieldset,.card>fieldset,[data-booking-step]>fieldset{margin-top:var(--s5)}
+.dock-checks>legend{grid-column:1/-1;float:none;width:100%;padding:0;margin-bottom:var(--s3);
+  font-size:var(--t-micro);text-transform:uppercase;letter-spacing:.07em;color:var(--ink-muted);font-weight:600}
+.dock-checks>div{display:contents}
+.dock-checks[disabled]{opacity:.55}
+/* A setting that does not apply yet stays where it is, dimmed, so choosing an
+   option never changes the height of the dialog under the pointer. */
+.is-off{opacity:.5}
+/* Select all / none sit on the legend line, where the group they act on names
+   itself — a long tick list is otherwise cleared one box at a time. */
+.checkall{float:right;display:flex;gap:var(--s3);text-transform:none;letter-spacing:0}
+.checkall .linkBtn{min-height:0;padding:0}
+.dock-checks--roomy{--check-col:260px}
+/* Cards from two different strips are two groups, ruled apart and each named,
+   rather than one run of near-identical labels. */
+.pickgroup{--check-col:180px;border:none;padding:0;margin:0}
+/* One load per line: a reference, a time and a skid count do not fit in the
+   column width a truck type does, and the tail is the part being judged. */
+/* A group heading has to sit nearer the boxes it names than the group above it.
+   Equal air either side of the rule left "Appointment block" reading as the tail
+   of the metric cards. */
+/* The air goes above the rule, not below it. A heading with equal space either
+   side belongs to neither group; sitting just under the rule and just above its
+   own boxes, it plainly names what follows. */
+.pickgroup+.pickgroup{margin-top:var(--s5);padding-top:var(--s2);border-top:1px solid var(--rule-strong)}
+.pickgroup>legend{margin-bottom:2px}
+/* One box for "all of them", above the rule that separates it from the groups it
+   governs — a long list should not have to be cleared one tick at a time. */
+.pickall{font-weight:600;padding-bottom:var(--s3);margin-bottom:var(--s3);border-bottom:1px solid var(--rule-strong)}
+.dock-check{display:flex;align-items:center;gap:6px;min-height:32px;font-size:var(--t-small);white-space:nowrap;min-width:0}
+/* A shift is one line: what it is called, when it runs, how many people, which
+   days. The days are seven initials rather than seven words, because the row has
+   to sit beside the times and a manager reading a roster already knows which
+   letter is which — the full day name is on the control for a screen reader and
+   on hover. */
+.shiftrow{display:flex;align-items:end;flex-wrap:wrap;gap:var(--s2) var(--s3)}
+.shiftrow+.shiftrow,.apptcols__side>*+*,.section-gap{margin-top:var(--s4);padding-top:var(--s4);border-top:1px solid var(--rule)}
+.shiftrow>.field{max-width:none}
+.shiftrow>.btn{margin-bottom:2px}
+.daypicks{display:flex;gap:4px}
+.daypick{display:grid;place-items:center;min-width:32px;min-height:32px;border:1px solid var(--rule-strong);border-radius:var(--radius);font-size:var(--t-micro);font-weight:600;color:var(--ink-muted);cursor:pointer;position:relative}
+.daypick input{position:absolute;inset:0;opacity:0;cursor:pointer;margin:0}
+.daypick:has(input:checked){background:var(--dock);border-color:var(--dock);color:#fff}
+.daypick:has(input:disabled){cursor:default;opacity:.6}
+.sr{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+.dock-check span{overflow:hidden;text-overflow:ellipsis}
+/* One load on the run: whether it travels, whether it is the truck that keeps the
+   booking, and whether the whole run fits that truck. Three questions to a line and
+   in that order, because the middle one is the decision and the last one is what the
+   decision should be made on. The chosen truck is tinted and ruled so it reads as the
+   one surviving rather than as one more tick in a list. */
+/* Not a .dock-checks grid: that flattens its wrapper divs with display:contents so
+   the options themselves are the grid items, which is right for a list of ticks and
+   wrong for a list of rows that each carry three things. Same border and padding, so
+   it still reads as one bordered group. */
+.combinelist{border:1px solid var(--rule);border-radius:var(--radius);padding:var(--s2)}
+.combinerow{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px var(--s4);align-items:center;padding:var(--s2) var(--s3);border-radius:var(--radius);border:1px solid transparent}
+.combinerow+.combinerow{margin-top:2px}
+.combinerow--keeps{background:var(--dock-wash);border-color:var(--rule-strong)}
+/* Same 32px as the tick beside it: the radio is 19px, and the label is what a pointer
+   actually hits, so the label is what has to be worth hitting. */
+.combinerow__keep{display:flex;align-items:center;gap:6px;min-height:32px;font-size:var(--t-small);color:var(--ink-muted);white-space:nowrap;cursor:pointer}
+.combinerow--keeps .combinerow__keep{color:var(--ink);font-weight:600}
+.combinerow__keep:has(input:disabled){opacity:.5;cursor:default}
+.combinerow__note{grid-column:1/-1;font-size:var(--t-micro);color:var(--ink-muted)}
+input[type="checkbox"],input[type="radio"]{width:16px;height:16px;accent-color:var(--dock);flex:none;margin:0}
+.table input[type="checkbox"]{width:16px;height:16px}
+/* The whole cell toggles the row, not just the 16px box. */
+.cellcheck{display:flex;align-items:center;justify-content:center;min-height:32px;margin:-7px calc(var(--s2) * -1);padding:7px var(--s2);cursor:pointer}
+.broadcast{background:var(--rail);min-height:100vh}
+.field__hint{margin:0;font-size:var(--t-small);color:var(--ink-muted)}
+.login-card__sub{font-size:var(--t-small);color:var(--ink-muted)}
+body.modal-open{overflow:hidden}
+.modal__message{margin:var(--s2) 0 var(--s4);color:var(--ink-muted)}
+/* Primary action sits right, matching the modal footer, so Save is in the same
+   place whether it is in a card or a dialog. */
+/* Wraps like .modal__foot does: on a phone two full-width buttons will not sit
+   side by side, and unwrapped the confirm button ran past the dialog edge. */
+.form-actions{display:flex;flex-wrap:wrap;align-items:center;gap:var(--s2);margin-top:var(--s5)}
+/* Save sits next to Reset. Pushed to the opposite edge it read as a separate,
+   unrelated control on a wide card. */
+.form-actions>.btn--primary{margin-left:0}
+.modal__foot>.btn--primary{margin-left:auto}
+/* Reset, Save, Edit end every settings window, at the size Add dock is drawn at
+   above it. Three words of different lengths are three different widths unless
+   they are told otherwise, and a row of mismatched buttons is the first thing the
+   eye finds. */
+.form-actions--edit>.btn{min-width:82px;justify-content:center}
+/* An open section says so along its whole edge, not only by the state of a button at the
+   bottom of it. The owner could see "that little border" and wanted to be surer than that. */
+.secform--on{box-shadow:inset 4px 0 0 var(--dock);padding-left:var(--s3);border-radius:var(--radius)}
+.editflag{margin-right:auto;font-size:var(--t-micro);text-transform:uppercase;letter-spacing:.07em;font-weight:600;color:var(--dock-deep);background:var(--dock-wash);border-radius:var(--radius);padding:2px var(--s2)}
+.form-actions--stack{display:grid}
+.form-actions--stack>.btn--primary{margin-left:0}
+.form-message{min-height:1.5em;margin:var(--s3) 0 0;color:var(--stop);font-size:var(--t-small)}
+/* Held a blank line of reserved space on every form whether or not there was
+   anything to say — a visible dead band between the last field and the button. */
+.form-message:empty{display:none}
+.form-message--success{color:var(--ok)}
+/* Not everything in this slot is a refusal. The System Admin note explains which two ticks are
+   fixed and why; in the stop colour it read as an error on a dialog that is working normally. */
+.form-message--note{color:var(--ink-muted)}
+.text-link{min-height:var(--ctl-h);border:0;background:transparent;color:var(--dock-deep);padding:0 var(--s2);display:inline-flex;align-items:center;justify-content:center;cursor:pointer;text-decoration:underline;text-underline-offset:2px}
+.btn--danger{color:var(--stop);border-color:var(--rule-strong);background:var(--surface)}
+.field--full{max-width:none}
+/* A checkbox that opens a new subject rather than continuing the row above. */
+.check-row--spaced{margin-top:var(--s4)}
+.check-row{min-height:var(--tap);display:flex;align-items:flex-start;gap:var(--s3);padding:var(--s3);border:1px solid var(--rule);border-radius:var(--radius);background:var(--surface)}
+.check-row input{width:18px;height:18px;margin-top:2px;flex:none}
+.check-row span{display:grid;gap:2px}
+.check-row small{color:var(--ink-muted);font-size:var(--t-small)}
+.inline-note{margin-bottom:var(--s4);padding:var(--s3);border-left:3px solid var(--dock);background:var(--dock-wash);color:var(--dock-deep);border-radius:var(--radius)}
+.inline-note--warning{margin-top:var(--s4);border-left-color:var(--signal);background:var(--signal-wash);color:var(--signal);display:grid;gap:2px}
+.qr-frame{width:196px;max-width:100%;aspect-ratio:1;margin:0 auto;padding:var(--s2);border:1px solid var(--rule);border-radius:var(--radius);background:var(--surface)}
+/* The screen after a booking succeeds. It was assembled from six inline styles
+   and a .modal__foot stripped back to nothing, which is a component being used
+   for its layout and then argued with. */
+.booked{text-align:center;padding:var(--s4) 0}
+.booked .tag{font-size:var(--t-base);padding:4px 10px}
+.booked__ref{margin:var(--s2) 0;font-family:var(--font-data);font-size:var(--t-metric);color:var(--dock-deep)}
+.booked__qr{text-align:center}
+.booked__actions{display:flex;flex-wrap:wrap;gap:var(--s2);margin-top:var(--s4)}
+.booked__actions>.btn--primary{margin-left:auto}
+/* Setup minutes is two digits. Sized to that, not to the row. */
+.input--mins{width:74px}
+.qr-frame svg{width:100%;height:100%;display:block}
+
+/* Toast notifications — shared across every page via js/ui/toast.js */
+.toast-region{position:fixed;right:var(--s4);bottom:var(--s4);z-index:90;display:grid;gap:var(--s2);width:min(360px,calc(100vw - 32px))}
+.toast{background:var(--surface);border:1px solid var(--rule-strong);border-left:3px solid var(--dock);border-radius:var(--radius);padding:var(--s3);box-shadow:var(--shadow-overlay)}
+.toast--success{border-left-color:var(--ok)}
+.toast--error{border-left-color:var(--stop)}
+
+/* Empty/error/locked page states — shared across every page via js/ui/empty.js */
+.state{min-height:280px;display:grid;place-items:center;text-align:center}
+.state__content{max-width:500px}
+.state__icon,.panel__mark{width:44px;height:44px;border-radius:50%;display:grid;place-items:center;background:var(--dock-wash);color:var(--dock-deep)}
+.state__icon{margin:0 auto var(--s3)}
+.state__icon svg,.panel__mark svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.7}
+/* The report mark is knocked out of solid MaxDock blue rather than sat in a wash of it.
+   A pale disc with a dark mark in it is a decoration on the page; the same mark reversed
+   out of the brand blue is a plate, and it is the same object as the MaxDock tile in the
+   corner of the rail, which is what the owner is matching it to.
+
+   Only the report mark. .state__icon above keeps the wash: that badge introduces an empty
+   list or a failure, and a solid brand-blue disc shouts at somebody who has just been told
+   nothing is there. Same shape, opposite job.
+
+   The blue is --dock, the Max Solutions blue itself, not --dock-deep. White on it measures
+   4.15:1, comfortably past the 3:1 that a graphic needs. */
+.panel__mark{background:var(--dock);color:#fff}
+/* A mark is a filled silhouette, not an outline. At 22px in a badge with nothing else in
+   it an outline is faint and characterless, which is what the owner kept seeing. Two tones
+   from one colour: the second is the same currentColor at lower opacity, so a mark works
+   in the report head's blue and anywhere else it is dropped without a second variable. */
+.mk{fill:currentColor;stroke:none}
+.mk .mk__b{opacity:.42}
+/* Reversed, the second tone needs more of itself. 42% of a dark ink on a pale wash still
+   reads as a shape; 42% white on solid blue is most of the way back to the ground it sits
+   on, and the trailer band, the pallet foot and the second worker went missing at 22px.
+   55% puts them back at the same apparent separation the pale badge had. */
+.panel__mark .mk .mk__b{opacity:.55}
+/* A mark at the size of the line it belongs to, rather than in a badge of its own. A truck
+   type is a row in a settings list and a field in the appointment window; naming it and
+   drawing it beside each other is faster to find in a list of five than reading five names. */
+/* A tick that is fixed on rather than one nobody may touch. Said beside the thing rather than
+   in a paragraph underneath, because a disabled checkbox with no reason next to it reads as a
+   fault in the page. */
+.pinnote{color:var(--ink-faint);font-size:var(--t-micro);font-weight:500;white-space:nowrap}
+
+/* --- the day as a strip of hours
+   One hue, five steps, light to dark: this is a magnitude, and a magnitude drawn in more than
+   one hue invites somebody to read a meaning into the colour that is not in the data. Step 0 is
+   an empty cell rather than the lightest step, because "no arrivals at all" and "one truck" are
+   different answers to the question this strip is asked. Every cell carries its count in a
+   title, and the busiest and quietest are named in words underneath, so nothing here rests on
+   colour alone. */
+.hstrip{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);gap:2px;margin:var(--s2) 0}
+.hstrip__c{height:44px;border-radius:3px;background:var(--surface-sunk);border:1px solid var(--rule)}
+.hstrip__c--1{background:var(--dock-wash);border-color:var(--dock-wash)}
+.hstrip__c--2{background:#BBD9EC;border-color:#BBD9EC}
+.hstrip__c--3{background:#7FB6DA;border-color:#7FB6DA}
+.hstrip__c--4{background:var(--dock);border-color:var(--dock)}
+.hstrip__ax{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);gap:2px;font-size:var(--t-micro);color:var(--ink-muted);font-variant-numeric:tabular-nums;text-align:center}
+
+/* --- in above the line, out below it
+   A site that ships what it takes in draws symmetrical. One that is filling up or emptying
+   leans, and the lean is the reading — which is a subtraction the reader had to do per day
+   when this was two numbers. */
+.flow{margin:0}
+.flow__plot{position:relative;display:grid;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);gap:2px;height:132px;align-items:center}
+.flow__col{display:grid;grid-template-rows:1fr 1fr;height:100%;min-width:0}
+.flow__half{display:grid;min-height:0}
+.flow__half--in{align-items:end}
+.flow__half--out{align-items:start}
+.flow__half i{display:block;width:100%;background:var(--dock);border-radius:3px 3px 0 0}
+.flow__half--out i{background:var(--ok);border-radius:0 0 3px 3px}
+.flow__zero{position:absolute;left:0;right:0;top:50%;height:1px;background:var(--rule-strong)}
+.flow__k{display:flex;flex-wrap:wrap;align-items:baseline;gap:var(--s3);margin-top:var(--s2);font-size:var(--t-small)}
+.flow__net{color:var(--ink-muted)}
+
+/* --- one card a partner, worst first
+   Twelve rows read across is not how somebody finds the two vendors to ring. The bar is how
+   far short of perfect, so the longest bar is the call — the same direction as the ranked
+   chart, because a reader should not have to work out twice on one page which way is bad. */
+.pcards{display:grid;grid-template-columns:repeat(auto-fill,minmax(11em,1fr));gap:var(--s3);margin:var(--s2) 0}
+.pcard{border:1px solid var(--rule);border-left:3px solid var(--ink-faint);border-radius:var(--radius);padding:var(--s2) var(--s3);min-width:0}
+.pcard--ok{border-left-color:var(--ok)}
+.pcard--warn{border-left-color:var(--signal)}
+.pcard--stop{border-left-color:var(--stop)}
+.pcard__t{margin:0;font-size:var(--t-small);font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pcard__n{font-size:calc(var(--t-base) * 1.5);font-weight:700;font-variant-numeric:tabular-nums;line-height:1.1}
+.pcard__n span{font-size:var(--t-micro);font-weight:600;color:var(--ink-muted);margin-left:2px}
+.pcard__bar{height:5px;border-radius:3px;background:var(--surface-sunk);overflow:hidden;margin:var(--s1) 0}
+.pcard__bar i{display:block;height:100%;background:var(--stop);border-radius:3px}
+.pcard--ok .pcard__bar i{background:var(--ok)}
+.pcard--warn .pcard__bar i{background:var(--signal)}
+.pcard__s{margin:0;font-size:var(--t-micro);color:var(--ink-muted)}
+.state--error .state__icon{background:var(--stop-wash);color:var(--stop)}
+.state--warning .state__icon{background:var(--signal-wash);color:var(--signal)}
+.state__title{margin:0;font-size:var(--t-lead);font-weight:600}
+.state__message{margin:var(--s2) auto var(--s4);color:var(--ink-muted)}
+.state__actions{display:flex;justify-content:center;gap:var(--s2);flex-wrap:wrap}
+
+/* Login page — Stage 1, no later approved mockup supersedes it */
+.login-page{min-height:100vh;display:grid;place-items:center;padding:var(--s5)}
+.login-wrap{width:min(100%,360px)}
+/* The wordmark is the top of the card's hierarchy and has to outrank the "Sign
+   in" heading below it — at the old size the two read as the same level and the
+   card had no clear entry point. */
+.login-brand{display:flex;align-items:center;gap:var(--s3);margin-bottom:var(--s5)}
+.login-brand__badge{width:44px;height:44px;border-radius:10px;padding:7px 6px;background:var(--dock);display:grid;place-items:center;flex:none}
+.login-brand__badge img{width:100%;height:100%;object-fit:contain;display:block}
+.login-brand__name{margin:0;color:var(--brand-blue);font-size:calc(30px*var(--scale));font-weight:700;letter-spacing:-.02em}
+.login-card{background:var(--surface);border:1px solid var(--rule);border-radius:var(--radius-lg);padding:var(--s5)}
+/* Quieter under the wordmark: at title size these two lines competed with the
+   brand lockup above them and made the card read busy. */
+/* Ordered the way it reads: the brand, what this screen is, the two fields, the
+   way out if you have forgotten, then the action. The "contact an administrator"
+   paragraph between password and button put text where the eye was looking for
+   the button. */
+.login-card__title{margin:var(--s3) 0 0;font-size:var(--t-lead);font-weight:600}
+.login-card__intro{margin:var(--s1) 0 var(--s6);color:var(--ink-muted);font-size:var(--t-small)}
+.login-card .field{margin-bottom:var(--s3)}
+/* Sits directly under the password field, where someone who cannot get in looks
+   for it, rather than below the Sign in button — and centred, so the credentials,
+   the way out and the button read as one stack down the middle of the card. */
+.login-forgot{display:flex;justify-content:center;margin:0 0 var(--s4)}
+.login-divider{display:flex;align-items:center;gap:var(--s3);margin:var(--s5) 0 var(--s3);color:var(--ink-faint);font-size:var(--t-micro);text-transform:uppercase;letter-spacing:.09em}
+.login-divider::before,.login-divider::after{content:"";height:1px;background:var(--rule);flex:1}
+.login-owner{text-align:center}
+/* The Max Solutions mark under the sign-in card, at the size the owner asked for
+   — it is the company's own logo, not a footnote. */
+.login-owner img{width:auto;max-width:100%;height:30px}
+.login-footer{text-align:center;margin-top:var(--s4);color:var(--ink-muted);font-size:var(--t-small)}
+@media (max-width:600px){.login-page{padding:var(--s3);align-items:start}.login-wrap{margin-top:var(--s4)}.login-card{padding:var(--s4)}}
+
+/* My Appointments (Stage 2) — card layout restored; visual alignment with the later table-based
+   composed mockup (page-2-appts.html) is a follow-up, tracked in docs/STATUS.md */
+/* The next appointment is a column card beside the list, not a band across the
+   page. As a full-width row it grew with the viewport, left a wide empty middle,
+   and at the larger text sizes pushed its reference block past the right edge. */
+
+.next-appointment{display:flex;flex-direction:column;align-items:stretch;gap:var(--s3);background:var(--surface);border:1px solid var(--rule);border-left:3px solid var(--dock);border-radius:var(--radius-lg);padding:var(--s4);min-height:0;overflow-y:auto}
+.next-appointment__summary,.next-appointment__empty{display:grid;gap:3px;min-width:0}
+.next-appointment__eyebrow,.next-appointment__reference-label{color:var(--ink-muted);font-size:var(--t-micro);font-weight:600;letter-spacing:.08em;text-transform:uppercase}
+.next-appointment__title{font-size:var(--t-lead)}
+.next-appointment__time,.next-appointment__message{color:var(--ink-muted)}
+.next-appointment__reference{min-width:0;padding:var(--s3) 0 0;border-top:1px solid var(--rule);display:grid;gap:var(--s1);overflow-wrap:anywhere}
+.appointment-toolbar{min-height:var(--tap);margin:var(--s4) 0 var(--s3);display:flex;align-items:center;justify-content:space-between;gap:var(--s3)}
+.appointment-toolbar__meta,.profile{display:flex;align-items:center;gap:var(--s3);min-height:var(--ctl-h)}
+/* Stretches to the band's height so a line of text does not sit shorter than the
+   controls beside it. */
+.controls>.appointment-toolbar__meta{align-self:stretch}
+.appointment-toolbar__count,.page-updated{white-space:nowrap;font-size:var(--t-small);color:var(--ink-muted)}
+/* What happened to a booking, on the customer's own card. Closed by default and quiet when
+   open: this answers a question somebody occasionally asks, and the card is there to answer
+   "when is my truck". The rule above it separates it from the facts of the booking without
+   making it a second card. */
+/* What happened to a booking, opened by the chevron at the head. No heading of its own: the
+   chevron is the label, the way it is on a Users row, and a second "Activity" caption would be
+   a line of chrome above four lines of content. */
+.appointment-activity{display:grid;gap:2px;margin-top:var(--s2);padding-top:var(--s2);border-top:1px solid var(--rule)}
+.appointment-activity__row{display:grid;grid-template-columns:auto minmax(0,1fr);gap:var(--s3);font-size:var(--t-small)}
+.appointment-activity__when{color:var(--ink-faint);font-family:var(--font-data);white-space:nowrap}
+.appointment-activity__what{color:var(--ink-muted)}
+/* The chevron leads the head and turns when it opens, exactly as the Users row does. */
+.appointment-card__toggle{flex:none}
+.appointment-card__toggle svg{transition:transform var(--motion)}
+.appointment-card.is-open .appointment-card__toggle svg{transform:rotate(180deg)}
+/* The note joins the end of the detail row. It wraps where that row does not, because a
+   cancellation reason is a sentence rather than a field. */
+.appointment-card__note{color:var(--ink-muted);white-space:normal;flex:0 1 auto;min-width:18em}
+@media (prefers-reduced-motion:reduce){.appointment-card__toggle svg{transition:none}}
+.appointment-list{display:grid;grid-template-columns:minmax(0,1fr);gap:var(--s2);padding:var(--s2) var(--s3)}
+/* A card is a row of an operational list, not a page: two lines rather than six,
+   so more of the list is on screen. The border carries its own weight — a card
+   that fades into the page stops separating one booking from the next. */
+/* Fifty rows of the same shape are a wall. The alternating wash is the oldest
+   trick in the book for reading across one of them without losing the line —
+   it costs no height, no width and no extra rule. */
+.appointment-card{background:var(--surface);border:1px solid var(--rule-strong);border-radius:var(--radius);padding:var(--s2) var(--s3);min-width:0}
+.appointment-list>.appointment-card:nth-child(even){background:var(--surface-sunk)}
+.appointment-card__head{display:flex;align-items:center;gap:var(--s2);min-width:0}
+/* The three parts of the head line wrap rather than crush. The reference and the
+   window are fixed-width text; the route is the only elastic thing, so when the
+   card is narrow it used to be the only thing that gave — at 1280px it had 122px
+   for 150px of names and read "P… → G..". Wrapping means the route drops under
+   the reference with the full width of the card instead, which is where it is
+   readable. No breakpoint decides this: the route claims a floor and the line
+   breaks when the floor cannot be met. */
+.appointment-card__identity{display:flex;flex-wrap:wrap;align-items:baseline;gap:2px var(--s2);min-width:0;flex:1;overflow:hidden}
+/* The reference is what somebody is scanning the list for, so it is the largest
+   thing on the row rather than the smallest. */
+.appointment-card__reference{color:var(--dock-deep);font-size:calc(var(--t-base) * 1.08);font-weight:700;white-space:nowrap;font-variant-numeric:tabular-nums}
+/* Origin, arrow, destination — the movement in three parts, taking the width the
+   row has rather than leaving it empty. Either end elides before the arrow does,
+   so the shape of the line survives a long company name. */
+.appointment-card__title{margin:0;font-size:var(--t-base);font-weight:600;display:flex;align-items:baseline;gap:var(--s2);min-width:14em;flex:1 1 auto}
+.appointment-card__place{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.appointment-card__arrow{color:var(--ink-faint);font-weight:400;flex:none}
+.appointment-card__time{color:var(--ink-muted);font-size:var(--t-small);white-space:nowrap}
+/* Two lines to a row: the movement on top, the facts on one line underneath.
+   Wrapping onto a third and fourth line is what turned a list of fifty into a
+   wall. */
+.appointment-card__details{display:flex;align-items:baseline;gap:0 var(--s4);padding:var(--s2) 0 0;margin-top:var(--s2);border-top:1px solid var(--rule);white-space:nowrap;overflow:hidden}
+/* Each fact keeps its natural width. Letting them all shrink together turned
+   every one of them into an ellipsis; what does not fit is simply not drawn, and
+   the whole record is one click away in the appointment's own dialog. */
+.appointment-card__details>*{flex:0 0 auto}
+.appointment-detail{min-width:0;display:flex;align-items:baseline;gap:var(--s1);font-size:var(--t-small);line-height:1.5}
+.appointment-detail__label{color:var(--ink-muted);font-size:var(--t-micro);white-space:nowrap;flex:none}
+.appointment-detail__value{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500}
+.appointment-card__actions{display:flex;gap:var(--s1);margin-left:auto;flex:none}
+.appointment-card__actions .btn:disabled{opacity:.4;cursor:not-allowed}
+/* More than one action can apply to a row — a late truck can still arrive, or be
+   written off. They sit together and the cell does not grow. */
+.rowactions{display:flex;gap:var(--s2);justify-content:flex-end}
+/* A row that opens something says so on hover, and takes a focus ring, because
+   it is reachable from the keyboard as well as the pointer. */
+.table tr[data-open-record]{cursor:pointer}
+.table tr[data-open-record]:hover>td{background:var(--surface-sunk)}
+.table tr[data-open-record]:focus-visible{outline:2px solid var(--dock);outline-offset:-2px}
+.status{min-height:24px;padding:3px 8px;border-radius:var(--radius);display:inline-flex;align-items:center;background:var(--surface-sunk);color:var(--ink-muted);font-size:var(--t-micro);font-weight:600;white-space:nowrap;margin-left:var(--s3)}
+.status--scheduled,.status--confirmed{background:var(--dock-wash);color:var(--dock-deep)}
+.status--arrived,.status--in_progress{background:var(--signal-wash);color:var(--signal)}
+.status--completed{color:var(--ok)}
+.status--cancelled,.status--no_show{background:var(--stop-wash);color:var(--stop)}
+.muted{color:var(--ink-muted)}
+@media (max-width:1040px){.appointment-card__details{overflow-x:auto}
+  .appointment-card__head{flex-wrap:wrap}
+  .appointment-card__identity{flex:1 1 100%}}
+@media (max-width:700px){
+  .next-appointment{align-items:flex-start;flex-direction:column}
+  .next-appointment__reference{width:100%;padding:var(--s3) 0 0;border-left:0;border-top:1px solid var(--rule)}
+  .appointment-toolbar{align-items:stretch;flex-direction:column}
+  .appointment-views{width:100%}
+  .appointment-views button{flex:1}
+  .appointment-card__details{overflow-x:auto}
 }
 
-html[data-text="large"] { --scale: 1.15; }
-html[data-text="larger"] { --scale: 1.32; }
-
-* { box-sizing: border-box; }
-html, body { min-height: 100%; margin: 0; }
-body {
-  background: var(--ground);
-  color: var(--ink);
-  font-family: var(--font-ui);
-  font-size: var(--t-base);
-  line-height: 1.45;
-  -webkit-font-smoothing: antialiased;
-  font-variant-numeric: tabular-nums;
+/* --- narrow screens
+   The rail is a fixed 196px, which on a 390px phone left 194px for the whole
+   application. Below 900px it keeps its icons and drops its labels — the labels
+   stay in the DOM for screen readers. */
+@media (max-width:900px){
+  /* Narrow enough that the rail is icons whatever the reader chose — the width
+     rules, and the collapsed treatment comes from the rail's own container
+     query. Nothing to toggle here, so the control is not offered. */
+  /* html:root, not :root — `html[data-text="large"]` sets --rail-w:214px and is one
+     specificity point above a bare :root, so it won this whatever the source order and
+     whatever the viewport. On a 430px phone at Large text the rail took 214px of 430 and
+     the top bar was left 194px for 314px of content, so Sign out hung 89px off the right
+     edge of every page in the application. Adding `html` ties the specificity, and this
+     rule is later in the file, so the narrow screen wins where it should. */
+  html:root{--rail-w:60px}
+  .rail__collapse{display:none}
+  .page{padding:var(--s3) var(--s3) var(--s4)}
+  /* One group a line, and the utilities left-aligned with everything else rather than
+     stranded against the right edge of a phone. */
+  .controls__lead,.controls__filters,.controls__end{flex:1 1 100%}
+  .controls__end{margin-left:0;justify-content:flex-start}
+  .top{padding:0 var(--s3);gap:var(--s2)}
+  .top__date{display:none}
+  .top__loc{min-width:0;flex:1}
 }
-button, input, select, textarea { font: inherit; }
-button, select { cursor: pointer; }
-button:disabled, select:disabled { cursor: not-allowed; opacity: 0.58; }
-a { color: var(--dock-deep); }
-:focus-visible { outline: 2px solid var(--dock); outline-offset: 2px; border-radius: 3px; }
-[hidden] { display: none; }
-
-@media (prefers-reduced-motion: reduce) {
-  :root { --motion: 0s; }
-}
-
-.skip-link {
-  position: fixed;
-  inset-inline-start: var(--s3);
-  inset-block-start: -100px;
-  z-index: 100;
-  background: var(--surface);
-  color: var(--ink);
-  border: 1px solid var(--rule-strong);
-  border-radius: var(--radius);
-  min-height: var(--tap);
-  padding: var(--s2) var(--s3);
-  display: inline-flex;
-  align-items: center;
-}
-.skip-link:focus { inset-block-start: var(--s3); }
-
-.btn {
-  min-height: var(--tap);
-  border: 1px solid transparent;
-  border-radius: var(--radius);
-  padding: 6px 12px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  background: transparent;
-  color: var(--ink);
-  font-weight: 500;
-  text-decoration: none;
-  white-space: nowrap;
-  transition: background-color var(--motion), border-color var(--motion), color var(--motion);
-}
-.btn--primary { background: var(--dock); color: var(--white); }
-.btn--primary:hover { background: var(--dock-hover); }
-.btn--quiet { background: var(--surface); border-color: var(--rule-strong); }
-.btn--quiet:hover { background: var(--surface-sunk); }
-.btn--ghost { min-width: var(--tap); color: var(--ink-muted); padding-inline: var(--s2); }
-.btn--ghost:hover { color: var(--ink); background: var(--surface-sunk); }
-.btn--danger { color: var(--stop); border-color: var(--rule-strong); background: var(--surface); }
-.btn--block { width: 100%; }
-.btn__icon { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 1.8; }
-
-.field { width: 100%; display: grid; gap: 6px; }
-.field + .field { margin-top: var(--s4); }
-.field__label { min-height: calc(var(--t-small) * 1.45); display: flex; align-items: flex-end; font-size: var(--t-small); font-weight: 600; color: var(--ink); }
-.field__hint { margin: 0; font-size: var(--t-small); color: var(--ink-muted); }
-.input, .select {
-  width: 100%;
-  min-height: var(--tap);
-  border: 1px solid var(--rule-strong);
-  border-radius: var(--radius);
-  background: var(--surface);
-  color: var(--ink);
-  padding: 7px 9px;
-  transition: border-color var(--motion), box-shadow var(--motion);
-}
-.input:focus, .select:focus { border-color: var(--dock); }
-textarea.input { width: 100%; }
-.field--xs { max-width: 110px; }
-.field--sm { max-width: 190px; }
-.field--md { max-width: 300px; }
-.field--lg { max-width: 420px; }
-.field--full { max-width: none; }
-.fieldFlow { display: flex; flex-wrap: wrap; gap: var(--s3) var(--s4); align-items: start; }
-.fieldFlow > .field { flex: 1 1 auto; margin-top: 0; }
-.fieldFlow > .field--full { flex-basis: 100%; }
-.field + .fieldFlow { margin-top: var(--s4); }
-.fieldFlow + .fieldFlow { margin-top: var(--s3); }
-.fieldFlow + .field, .fieldFlow + .check-row { margin-top: var(--s4); }
-.fieldGrid { display: grid; gap: var(--s3) var(--s4); align-items: start; }
-.fieldGrid--2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-.fieldGrid--3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-.fieldGrid--4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-.fieldGrid > .field--full { grid-column: 1 / -1; }
-.passwordField { position: relative; display: flex; align-items: center; }
-.passwordField .input { padding-inline-end: calc(var(--tap) + 2px); }
-.passwordReveal { position: absolute; inset-inline-end: 0; inset-block-start: 0; width: var(--tap); height: 100%; min-height: var(--tap); border: 0; border-radius: var(--radius); display: flex; align-items: center; justify-content: center; background: transparent; color: var(--ink-muted); }
-.passwordReveal:hover { color: var(--ink); }
-.passwordReveal svg { width: 18px; height: 18px; stroke: currentColor; fill: none; stroke-width: 1.7; }
-
-.form-actions { display: flex; align-items: center; gap: var(--s2); margin-top: var(--s5); }
-.form-actions--stack { display: grid; }
-.form-message { min-height: 1.5em; margin: var(--s3) 0 0; color: var(--stop); font-size: var(--t-small); }
-.form-message--success { color: var(--ok); }
-.text-link { min-height: var(--tap); border: 0; background: transparent; color: var(--dock-deep); padding: 0 var(--s2); display: inline-flex; align-items: center; justify-content: center; text-decoration: underline; text-underline-offset: 2px; }
-
-.seg {
-  display: inline-flex;
-  border: 1px solid var(--rule-strong);
-  border-radius: var(--radius);
-  overflow: hidden;
-  background: var(--surface);
-}
-.seg button {
-  min-height: var(--tap);
-  border: 0;
-  border-inline-end: 1px solid var(--rule);
-  padding: 5px 10px;
-  background: transparent;
-  color: var(--ink-muted);
-  font-size: var(--t-small);
-  font-weight: 500;
-}
-.seg button:last-child { border-inline-end: 0; }
-.seg button[aria-pressed="true"] { background: var(--dock); color: var(--white); }
-
-.login-page { min-height: 100vh; display: grid; place-items: center; padding: var(--s5); }
-.login-wrap { width: min(100%, 360px); }
-.login-brand { display: flex; align-items: center; gap: 10px; margin-bottom: var(--s4); }
-.login-brand__badge, .rail__mark {
-  background: var(--dock);
-  display: grid;
-  place-items: center;
-  flex: none;
-}
-.login-brand__badge { width: 36px; height: 36px; border-radius: 8px; padding: 6px 5px; }
-.login-brand__badge img, .rail__mark img { width: 100%; height: 100%; object-fit: contain; display: block; }
-.login-brand__name { margin: 0; color: var(--brand-blue); font-size: calc(22px * var(--scale)); font-weight: 700; letter-spacing: -0.015em; }
-.login-card { background: var(--surface); border: 1px solid var(--rule); border-radius: var(--radius-lg); padding: var(--s5); }
-.login-card__title { margin: 0; font-size: var(--t-title); font-weight: 600; }
-.login-card__intro { margin: var(--s1) 0 var(--s5); color: var(--ink-muted); }
-.login-divider { display: flex; align-items: center; gap: var(--s3); margin: var(--s5) 0 var(--s3); color: var(--ink-faint); font-size: var(--t-micro); text-transform: uppercase; letter-spacing: 0.09em; }
-.login-divider::before, .login-divider::after { content: ""; height: 1px; background: var(--rule); flex: 1; }
-.login-owner { text-align: center; }
-.login-owner img { width: auto; max-width: 100%; height: 26px; }
-.login-footer { text-align: center; margin-top: var(--s4); color: var(--ink-muted); font-size: var(--t-small); }
-
-.shell { display: grid; grid-template-columns: var(--rail-w) minmax(0, 1fr); height: 100vh; overflow: hidden; }
-.rail { background: var(--rail); color: var(--rail-ink); display: flex; flex-direction: column; min-width: 0; overflow-y: auto; }
-.rail__brand { height: var(--topbar-h); display: flex; align-items: center; gap: 10px; padding: 0 var(--s4); border-bottom: 1px solid var(--rail-rule); text-decoration: none; }
-.rail__mark { width: 32px; height: 32px; border-radius: 7px; padding: 5px 4px; }
-.rail__name { color: var(--white); font-weight: 600; letter-spacing: -0.01em; }
-.rail__group { padding: var(--s4) var(--s2) var(--s1); }
-.rail__label { padding: 0 var(--s3) var(--s2); color: var(--rail-label); font-size: var(--t-micro); font-weight: 600; text-transform: uppercase; letter-spacing: 0.09em; }
-.rail__link { display: flex; align-items: center; gap: var(--s3); min-height: var(--tap); margin: 1px var(--s1); padding: 7px var(--s3); border-radius: var(--radius); color: var(--rail-ink); text-decoration: none; white-space: nowrap; transition: background-color var(--motion), color var(--motion); }
-.rail__link span, .rail__link > *:not(svg):not(.rail__count) { overflow: hidden; text-overflow: ellipsis; }
-.rail__link:hover { background: var(--rail-hover); color: var(--white); }
-.rail__link[aria-current="page"] { background: var(--dock); color: var(--white); font-weight: 500; }
-.rail__icon { width: 15px; height: 15px; flex: none; stroke: currentColor; fill: none; stroke-width: 1.6; }
-.rail__foot { margin-top: auto; padding: var(--s3); border-top: 1px solid var(--rail-rule); color: var(--rail-label); font-size: var(--t-small); }
-.rail__person { color: var(--rail-ink); font-weight: 500; }
-
-.main { min-width: 0; display: flex; flex-direction: column; overflow: hidden; }
-.top { min-height: var(--topbar-h); background: var(--surface); border-bottom: 1px solid var(--rule); display: flex; align-items: center; gap: var(--s3); padding: 7px var(--s5); flex: none; }
-.top__location { min-width: 180px; max-width: 260px; }
-.top__spacer { flex: 1; }
-.top__live { display: inline-flex; align-items: center; gap: 6px; color: var(--ink-muted); font-size: var(--t-small); white-space: nowrap; }
-.pulse { width: 7px; height: 7px; border-radius: 50%; background: var(--ok); }
-.pulse--stale { background: var(--signal); }
-.profile { display: flex; align-items: center; gap: var(--s2); }
-.avatar { width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; background: var(--dock-wash); color: var(--dock-deep); font-size: var(--t-micro); font-weight: 600; }
-.profile__text { display: grid; line-height: 1.2; }
-.profile__name { font-size: var(--t-small); font-weight: 600; }
-.profile__role { color: var(--ink-muted); font-size: var(--t-micro); }
-
-.network-banner { flex: none; padding: 6px var(--s5); background: var(--signal-wash); color: var(--signal); border-bottom: 1px solid var(--rule); font-size: var(--t-small); }
-.page { flex: 1; min-height: 0; overflow: auto; padding: var(--s4) var(--s5) var(--s5); }
-.page__head { display: flex; align-items: flex-end; gap: var(--s4); margin-bottom: var(--s4); }
-.page__title { margin: 0; font-size: var(--t-title); font-weight: 600; letter-spacing: -0.015em; }
-.page__sub { margin: 2px 0 0; color: var(--ink-muted); font-size: var(--t-small); }
-.page__actions { margin-inline-start: auto; display: flex; gap: var(--s2); align-items: center; }
-
-.panel { background: var(--surface); border: 1px solid var(--rule); border-radius: var(--radius-lg); padding: var(--s4); }
-.panel + .panel { margin-top: var(--s3); }
-.state { min-height: 280px; display: grid; place-items: center; text-align: center; }
-.state__content { max-width: 500px; }
-.state__icon { width: 44px; height: 44px; margin: 0 auto var(--s3); border-radius: 50%; display: grid; place-items: center; background: var(--dock-wash); color: var(--dock-deep); }
-.state__icon svg { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 1.7; }
-.state--error .state__icon { background: var(--stop-wash); color: var(--stop); }
-.state--warning .state__icon { background: var(--signal-wash); color: var(--signal); }
-.state__title { margin: 0; font-size: var(--t-lead); font-weight: 600; }
-.state__message { margin: var(--s2) auto var(--s4); color: var(--ink-muted); }
-.state__actions { display: flex; justify-content: center; gap: var(--s2); flex-wrap: wrap; }
-
-.loading { min-height: 100vh; display: grid; place-items: center; color: var(--ink-muted); }
-.loading__mark { width: 42px; height: 42px; margin: 0 auto var(--s3); border-radius: 10px; padding: 7px 6px; background: var(--dock); }
-.loading__mark img { width: 100%; height: 100%; object-fit: contain; }
-.loading__text { text-align: center; }
-
-.modal-backdrop { position: fixed; inset: 0; z-index: 80; display: grid; place-items: center; padding: var(--s4); background: var(--overlay); }
-.modal { width: min(100%, 420px); background: var(--surface); border: 1px solid var(--rule); border-radius: var(--radius-lg); padding: var(--s5); box-shadow: var(--shadow-overlay); }
-.modal__title { margin: 0; font-size: var(--t-title); }
-.modal__message { margin: var(--s2) 0 var(--s4); color: var(--ink-muted); }
-
-.toast-region { position: fixed; inset-inline-end: var(--s4); inset-block-end: var(--s4); z-index: 90; display: grid; gap: var(--s2); width: min(360px, calc(100vw - 32px)); }
-.toast { background: var(--surface); border: 1px solid var(--rule-strong); border-inline-start: 3px solid var(--dock); border-radius: var(--radius); padding: var(--s3); box-shadow: var(--shadow-overlay); }
-.toast--success { border-inline-start-color: var(--ok); }
-.toast--error { border-inline-start-color: var(--stop); }
-
-.app-loading { min-height: 100vh; }
-.muted { color: var(--ink-muted); }
-.data { font-family: var(--font-data); }
-.mobile-only { display: none; }
-
-@media (max-width: 980px) {
-  .profile__text { display: none; }
-  .top__live { display: none; }
+/* On a phone the secondary top-bar controls cost more room than they return. */
+@media (max-width:600px){
+  .seg{display:none}
+  /* Which site you are looking at is the most important thing in this bar, and it
+     had 70px to say "Mississauga" in — the spacer beside it was flex:1 as well, so
+     the two split the slack evenly and the name was cut to four characters. The
+     spacer has nothing to show on a phone; the name does. */
+  .top__spacer{display:none}
+  .top__loc{min-width:104px}
+  .top__conn span:not(.dot){display:none}
+  .who__name{display:none}
+  .split,.split--list{grid-template-columns:1fr}
+  .setlayout{grid-template-columns:1fr}
+  /* Desktop fits one viewport-height column and lets the board absorb the slack.
+     On a phone the header, filters and KPI strip use the whole column, so the
+     board collapsed to four pixels. Below this width the page scrolls. */
+  .shell{height:auto;min-height:100dvh;overflow:visible}
+  .main{overflow:visible}
+  .page{min-height:0;flex:none}
+  .board,.panel{min-height:60vh}
+  .board__scroll,.panel__scroll{min-height:0}
 }
 
-@media (max-width: 820px) {
-  .shell { grid-template-columns: 1fr; height: auto; min-height: 100vh; overflow: visible; }
-  .rail { position: sticky; top: 0; z-index: 30; flex-direction: row; align-items: center; overflow-x: auto; overflow-y: hidden; }
-  .rail__brand { flex: none; border-bottom: 0; border-inline-end: 1px solid var(--rail-rule); }
-  .rail__group { display: flex; align-items: center; padding: var(--s2); flex: none; }
-  .rail__label, .rail__foot { display: none; }
-  .main { overflow: visible; }
-  .top { position: sticky; top: var(--topbar-h); z-index: 20; }
-  .page { overflow: visible; padding: var(--s3); }
-}
+/* ===== hidden means hidden =====
+   A component setting its own display outranks [hidden] at equal specificity, so
+   element.hidden did nothing to a .frow and the Add user dialog showed both
+   account-setup branches at once. Last rule in the file, so it wins on source
+   order. */
+[hidden]{display:none}
 
-@media (max-width: 600px) {
-  .login-page { padding: var(--s3); align-items: start; }
-  .login-wrap { margin-top: var(--s4); }
-  .login-card { padding: var(--s4); }
-  .rail__brand { padding-inline: var(--s3); }
-  .rail__name { display: none; }
-  .rail__link { padding-inline: var(--s2); }
-  .top { top: var(--topbar-h); flex-wrap: wrap; padding: var(--s2) var(--s3); }
-  .top__location { order: 3; min-width: 100%; max-width: none; }
-  .top__spacer { display: none; }
-  .profile { margin-inline-start: auto; }
-  .page__head { align-items: flex-start; flex-direction: column; }
-  .page__actions { margin-inline-start: 0; width: 100%; }
-  .page__actions .btn { flex: 1; }
-  .desktop-only { display: none; }
-  .mobile-only { display: initial; }
-}
+/* ── Utilities ─────────────────────────────────────────────────────────────────
+   Last on purpose. These are applied *to* components to adjust one thing, so they
+   have to win against the component's own rule at equal specificity, and order is
+   what decides that. .section-gap declared earlier lost to .watch__t's margin
+   shorthand and every heading using it sat flush against what was above it. */
 
-/* Stage 2 — My Appointments */
-.metric-grid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: var(--s3);
-  margin-bottom: var(--s3);
-}
-.metric-card {
-  min-width: 0;
-  background: var(--surface);
-  border: 1px solid var(--rule);
-  border-radius: var(--radius-lg);
-  padding: var(--s4);
-  display: grid;
-  gap: var(--s1);
-}
-.metric-card__value { font-size: var(--t-metric); line-height: 1; }
-.metric-card__label { color: var(--ink-muted); font-size: var(--t-small); }
-.next-appointment {
-  min-height: 112px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--s5);
-  border-inline-start: 3px solid var(--dock);
-}
-.next-appointment__summary,
-.next-appointment__empty { display: grid; gap: 3px; }
-.next-appointment__eyebrow,
-.next-appointment__reference-label {
-  color: var(--ink-muted);
-  font-size: var(--t-micro);
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-.next-appointment__title { font-size: var(--t-lead); }
-.next-appointment__time,
-.next-appointment__message { color: var(--ink-muted); }
-.next-appointment__reference {
-  min-width: 180px;
-  padding-inline-start: var(--s5);
-  border-inline-start: 1px solid var(--rule);
-  display: grid;
-  gap: var(--s1);
-}
-.appointment-toolbar {
-  min-height: var(--tap);
-  margin: var(--s4) 0 var(--s3);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--s3);
-}
-.appointment-toolbar__count,
-.page-updated { white-space: nowrap; font-size: var(--t-small); }
-.appointment-list { display: grid; gap: var(--s3); }
-.appointment-card {
-  background: var(--surface);
-  border: 1px solid var(--rule);
-  border-radius: var(--radius-lg);
-  padding: var(--s4);
-}
-.appointment-card__head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--s3);
-}
-.appointment-card__reference {
-  margin-bottom: 2px;
-  color: var(--dock-deep);
-  font-size: var(--t-small);
-  font-weight: 600;
-}
-.appointment-card__title { margin: 0; font-size: var(--t-lead); }
-.appointment-card__time { margin: var(--s2) 0 var(--s4); color: var(--ink-muted); }
-.appointment-card__details {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: var(--s3) var(--s5);
-  padding: var(--s3) 0;
-  border-block: 1px solid var(--rule);
-}
-.appointment-detail { min-width: 0; display: grid; gap: 2px; }
-.appointment-detail__label { color: var(--ink-muted); font-size: var(--t-micro); }
-.appointment-detail__value { overflow-wrap: anywhere; }
-.appointment-card__actions {
-  margin-top: var(--s3);
-  display: flex;
-  justify-content: flex-end;
-  gap: var(--s2);
-  flex-wrap: wrap;
-}
-.status {
-  min-height: 28px;
-  padding: 4px 9px;
-  border-radius: 999px;
-  display: inline-flex;
-  align-items: center;
-  background: var(--surface-sunk);
-  color: var(--ink-muted);
-  font-size: var(--t-micro);
-  font-weight: 600;
-  white-space: nowrap;
-}
-.status--scheduled,
-.status--confirmed { background: var(--dock-wash); color: var(--dock-deep); }
-.status--arrived,
-.status--in_progress { background: var(--signal-wash); color: var(--signal); }
-.status--completed { color: var(--ok); }
-.status--cancelled,
-.status--no_show { background: var(--stop-wash); color: var(--stop); }
-body.modal-open { overflow: hidden; }
+/* ── Charts ───────────────────────────────────────────────────────────────────
+   A dial for one bounded percentage, a ring for a two-part whole, ranked bars for a
+   magnitude across named categories. conic-gradient rather than SVG: no third language
+   on the page and no library. Colour never carries identity alone — the dial names its
+   band, the ring names both slices, a ranked row carries its own category. */
+.dials{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:var(--s4);padding:var(--s4)}
+.dial{margin:0;display:grid;justify-items:center;gap:var(--s2)}
+.dial__face{position:relative;width:104px;aspect-ratio:1;display:grid;place-items:center}
+.dial__face::before{content:'';position:absolute;inset:0;border-radius:50%;
+  background:conic-gradient(var(--c,var(--chart-a)) calc(var(--pct,0)*1%),var(--chart-track) 0);mask:radial-gradient(circle,transparent 56%,var(--ink) 57%)}
+.dial__v{position:relative;font-size:var(--t-title);font-weight:600;color:var(--ink)}
+.dial__v i{font-style:normal;font-size:var(--t-small);color:var(--ink-muted)}
+.dial--low{--c:var(--ok)} .dial--mid{--c:var(--chart-a)} .dial--high{--c:var(--signal)} .dial--over{--c:var(--stop)}
+.dial--empty .dial__face::before{background:var(--chart-track)}
+/* One caption, two drawings. The dial centres under its face and the tile ranges left under
+   its bar; everything else about a reading's label is the same thing and is declared once. */
+.dial__l,.stat__l{font-size:var(--t-small);font-weight:600;display:grid;gap:1px}
+.dial__l span,.stat__l span{font-weight:400;font-size:var(--t-micro);color:var(--ink-muted);text-transform:none}
+.dial__l{text-align:center}
 
-@media (max-width: 1040px) {
-  .appointment-card__details { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-}
+/* The Fill view: a number with a bar under it, not an outline filling up.
+   Three in a row share one baseline and one scale, which is the whole reason a bar beats a
+   silhouette here — three silhouettes have three different area-to-value curves and cannot
+   be compared against each other at all.
+   Colour is earned. --c defaults to the neutral accent, and a tone only overrides it where
+   readingBand found a target to be met or missed; a metric with no target stays neutral and
+   says only how big it is. The verdict is printed in words underneath in every case, so the
+   reading never rests on hue. */
+.dials--tile{grid-template-columns:repeat(auto-fit,minmax(200px,1fr));align-items:start}
+.stat{--c:var(--chart-a);margin:0;display:grid;gap:var(--s2);justify-items:stretch}
+.stat--good{--c:var(--ok)} .stat--warn{--c:var(--signal)} .stat--bad{--c:var(--stop)}
+.stat__v{font-family:var(--font-data);font-size:var(--t-metric);font-weight:600;line-height:1;
+  color:var(--ink);font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.stat__v i{font-style:normal;font-size:var(--t-lead);font-weight:500;color:var(--ink-muted);margin-left:1px}
+/* How the reading moved against the window before it.
 
-@media (max-width: 640px) {
-  .fieldGrid--2, .fieldGrid--3, .fieldGrid--4 { grid-template-columns: 1fr; }
-}
+   In ink, never in the good/bad palette, and this is the whole rule: whether up is good depends
+   on the reading. More dock time used is capacity being earned; more cancelled is not. A green
+   arrow on a rising cancellation rate would be the page contradicting itself, and the verdict
+   already has a colour of its own on the same tile. So the arrow says which way and the tone
+   stays neutral, one step lighter than the number it sits beside.
 
-@media (max-width: 700px) {
-  .metric-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .next-appointment { align-items: flex-start; flex-direction: column; }
-  .next-appointment__reference {
-    width: 100%;
-    padding: var(--s3) 0 0;
-    border-inline-start: 0;
-    border-top: 1px solid var(--rule);
-  }
-  .appointment-toolbar { align-items: stretch; flex-direction: column; }
-  .appointment-views { width: 100%; }
-  .appointment-views button { flex: 1; }
-  .appointment-card__details { grid-template-columns: 1fr; gap: var(--s3); }
-  .appointment-card__actions { justify-content: stretch; }
-  .appointment-card__actions .btn { flex: 1 1 100%; }
-}
+   No font-variant-numeric: body sets tabular figures and this inherits them. letter-spacing is
+   restated, because that one is inherited from .stat__v's -.02em, a tracking chosen for a 27px
+   number and wrong on a 13px chip.
 
-/* Stage 3 — Booking */
-.modal-backdrop[hidden] { display: none; }
-.panel__head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--s3); margin-bottom: var(--s3); }
-.panel__title { margin: 0; font-size: var(--t-lead); font-weight: 600; }
-.panel__sub { margin: var(--s1) 0 0; color: var(--ink-muted); font-size: var(--t-small); }
-.booking-steps {
-  display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: var(--s2);
-  margin-bottom: var(--s3);
-}
-.booking-step {
-  min-height: var(--tap);
-  border: 1px solid var(--rule);
-  border-radius: var(--radius);
-  padding: var(--s2);
-  display: flex;
-  align-items: center;
-  gap: var(--s2);
-  background: var(--surface);
-  color: var(--ink-muted);
-  text-align: start;
-}
-.booking-step[aria-current="step"] { border-color: var(--dock); background: var(--dock-wash); color: var(--dock-deep); }
-.booking-step:disabled { cursor: default; }
-.booking-step__number {
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  display: grid;
-  place-items: center;
-  flex: none;
-  background: var(--surface-sunk);
-  color: var(--ink-muted);
-  font-family: var(--font-data);
-  font-size: var(--t-micro);
-  font-weight: 600;
-}
-.booking-step[aria-current="step"] .booking-step__number { background: var(--dock); color: var(--white); }
-.booking-step__label { font-size: var(--t-small); font-weight: 600; }
-.booking-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(260px, 320px); gap: var(--s3); align-items: start; }
-.booking-workspace { min-height: 520px; }
-.booking-side { display: grid; gap: var(--s3); position: sticky; top: var(--s3); }
-.booking-section-head { display: flex; justify-content: space-between; align-items: flex-start; gap: var(--s5); padding-bottom: var(--s4); margin-bottom: var(--s4); border-bottom: 1px solid var(--rule); }
-.booking-section-head > p { max-width: 420px; margin: 0; color: var(--ink-muted); }
-.booking-kicker { display: block; margin-bottom: 2px; color: var(--dock-deep); font-size: var(--t-micro); font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; }
-.booking-title { margin: 0; font-size: var(--t-title); }
+   The caption rule is the dial's alone, and it sets size only: the dial separates the chip from
+   its note with a middot, so the left margin was landing on top of that and opening a gap wide
+   enough to read as a column break. The tile keeps the margin, because there the chip follows a
+   27px number with no separator between them. */
+.chg{font-family:var(--font-data);font-size:var(--t-small);font-weight:600;color:var(--ink-muted);
+  letter-spacing:0;margin-left:var(--s2);white-space:nowrap}
+.chg--level{color:var(--ink-faint)}
+.dial__l .chg{font-size:var(--t-micro);margin-left:0}
+.stat__track{position:relative;height:8px;border-radius:99px;background:var(--chart-track);overflow:visible}
+.stat__fill{display:block;height:100%;border-radius:99px;background:var(--c);max-width:100%}
+/* Where the reading has to get to. Overhangs the track top and bottom so it reads as a line
+   across the bar rather than as a gap in the fill. */
+.stat__mark{position:absolute;top:-3px;bottom:-3px;width:2px;border-radius:1px;
+  background:var(--ink-faint);transform:translateX(-1px)}
+/* Past the end. The bar cannot draw 108% inside a track that is 100% wide, so the overflow
+   is a cap on the end rather than a fill that silently stops at full and reads as exactly
+   full — which is the one wrong answer. */
+.stat--over .stat__track::after{content:'';position:absolute;right:-6px;top:-1px;bottom:-1px;
+  width:4px;border-radius:99px;background:var(--stop)}
+.stat--none{--c:var(--rule-strong)}
+.stat--none .stat__v{color:var(--ink-faint)}
+.ring{margin:0;display:grid;justify-items:center;gap:var(--s3);padding:var(--s4)}
+.ring__face{position:relative;width:132px;aspect-ratio:1;display:grid;place-items:center}
+.ring__face::before{content:'';position:absolute;inset:0;border-radius:50%;
+  background:conic-gradient(var(--chart-a) calc(var(--a,50)*1%),var(--chart-b) 0);mask:radial-gradient(circle,transparent 58%,var(--ink) 59%)}
+.ring__c{position:relative;font-size:var(--t-lead);font-weight:600;display:grid;justify-items:center;line-height:1.1}
+.ring__c i{font-style:normal;font-size:var(--t-micro);font-weight:400;color:var(--ink-muted)}
+.ring__k{display:flex;gap:var(--s4);flex-wrap:wrap;justify-content:center}
+.lg--a{--c:var(--chart-a)} .lg--b{--c:var(--chart-b)}
+.ranked{display:grid;gap:var(--s2);padding:var(--s4)}
+.ranked__row{display:grid;grid-template-columns:minmax(0,9em) minmax(0,1fr) auto;gap:var(--s3);align-items:center;font-size:var(--t-small)}
+.ranked__l{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--ink-muted)}
+.ranked__t{height:10px;border-radius:5px;background:var(--chart-track);overflow:hidden}
+.ranked__t>span{display:block;height:100%;border-radius:5px;background:var(--chart-a)}
+.ranked__v{font-weight:600;font-variant-numeric:tabular-nums}
+/* A trailer filling up, for the one question a bar never answered well: how much room is
+   left. Loads from the front, so the gap is at the doors where somebody looking for it
+   would look, and one division per skid position while they are still far enough apart to
+   count. Colour says the band and the caption says it in words too. */
+.trucks{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:var(--s4);padding:var(--s4)}
+.truck{margin:0;display:grid;gap:var(--s2);justify-items:center;min-width:0}
+.truck__svg{width:100%;max-width:230px;height:auto;overflow:visible}
+.truck--wide .truck__svg{max-width:420px}
+/* The same drawing standing up: a reading filling the outline of what it measures.
+   Everything else about it — well, level, outline, caption — is the trailer's. */
+/* The tractor is solid and the trailer is an outline, which is not a style choice: the
+   trailer has to stay hollow because the load is drawn inside it, and a hollow tractor beside
+   a hollow trailer read as a hole in the drawing rather than as a truck. Solid is also what
+   the reference silhouette is. The window is the only white in the tractor, which is what
+   stops the cab being a black lump. */
+.truck__box{fill:none;stroke:var(--ink-muted);stroke-width:1.6}
+.truck__cabin{fill:var(--ink-muted);stroke:none}
+.truck__glass{fill:var(--surface);stroke:none}
+.truck__wheel{fill:var(--ink-muted);stroke:none}
+.truck__ground,.truck__hitch{stroke:var(--ink-muted);stroke-width:2;stroke-linecap:round}
+.truck__well{fill:var(--chart-track)}
+/* Three bands. Blue is a truck with room, green is one worth sending, red will not go on.
+   The amber "mostly empty" step this replaces read as a warning about a lightly loaded truck,
+   and a truck at 40% is not a fault — it is the room this drawing exists to show. */
+.truck__load--part{fill:var(--chart-a)}
+.truck__load--full{fill:var(--ok)} .truck__load--over{fill:var(--stop)}
+/* How full it is, in the middle of the body, knocked out of the load. Sized in the viewBox's
+   own units so it scales with the drawing — a 96px trailer in a dialog row and a 260px one on
+   a report get the same proportion rather than the same pixels. */
+.truck__pct{fill:#fff;font-weight:700;font-size:13px;font-variant-numeric:tabular-nums;pointer-events:none}
+.truck__pct--ink{fill:var(--ink-muted)}
+.truck--unset .truck__box{stroke-dasharray:3 3}
+/* The punctuality badge. Its disc takes the fill of whichever load class the verdict put on
+   the group, so the badge cannot be a colour the reading is not; the ring behind it is the
+   page's own surface, punched out so the badge separates from the clock rather than merging
+   into it. The two selectors carry the group class as well, to beat the load fill above. */
+.truck__cap{display:grid;justify-items:center;gap:1px;text-align:center;font-size:var(--t-small)}
+.truck__cap b{font-family:var(--font-data);font-size:var(--t-base)}
+.truck__cap span{color:var(--ink-muted);font-size:var(--t-micro)}
+.truck__cap em{font-style:normal;font-weight:600;font-size:var(--t-micro);text-transform:uppercase;letter-spacing:.03em;color:var(--ink-muted)}
+/* Two charts abreast in one panel body, so a view is a dashboard rather than a single
+   drawing floating in the middle of a lot of white. Collapses to one on a narrow card. */
+.chart2{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:var(--s4);align-items:start}
+.chart2>section{min-width:0;display:grid;gap:var(--s2);align-content:start}
+.chart2 .ranked,.chart2 .ring,.chart2 .dials,.chart2 .trucks{padding:0}
+.chart2__t{font-size:var(--t-micro);text-transform:uppercase;letter-spacing:.05em;color:var(--ink-muted);font-weight:600;margin:0}
+/* A verdict beside a reading: the glyph, the word and the colour all saying the same
+   thing, so none of the three is carrying it alone. Sits inside a KPI's label, which is
+   where a person's eye already goes after the number. */
+.vd{display:inline-flex;align-items:center;gap:3px;text-transform:none;letter-spacing:0;font-weight:600;white-space:nowrap}
+.vd svg{width:12px;height:12px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+.vd--ok{color:var(--ok)} .vd--warn{color:var(--signal)} .vd--stop{color:var(--stop)} .vd--quiet{color:var(--ink-faint)}
 
-.booking-textarea { resize: vertical; min-height: 108px; }
-.choice-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s2); }
-.choice-card {
-  min-height: var(--tap);
-  border: 1px solid var(--rule-strong);
-  border-radius: var(--radius);
-  padding: var(--s3);
-  display: grid;
-  gap: 2px;
-  background: var(--surface);
-  color: var(--ink);
-  text-align: start;
-}
-.choice-card:hover { background: var(--surface-sunk); }
-.choice-card[aria-pressed="true"] { border-color: var(--dock); background: var(--dock-wash); color: var(--dock-deep); }
-.choice-card span { color: var(--ink-muted); font-size: var(--t-small); }
-.check-row {
-  min-height: var(--tap);
-  display: flex;
-  align-items: flex-start;
-  gap: var(--s3);
-  padding: var(--s3);
-  border: 1px solid var(--rule);
-  border-radius: var(--radius);
-  background: var(--surface);
-}
-.check-row input { width: 18px; block-size: 18px; margin-top: 2px; flex: none; }
-.check-row span { display: grid; gap: 2px; }
-.check-row small { color: var(--ink-muted); font-size: var(--t-small); }
-.inline-note { margin-bottom: var(--s4); padding: var(--s3); border-inline-start: 3px solid var(--dock); background: var(--dock-wash); color: var(--dock-deep); }
-.inline-note--warning { margin-top: var(--s4); border-inline-start-color: var(--signal); background: var(--signal-wash); color: var(--signal); display: grid; gap: 2px; }
-.booking-actions { min-height: var(--tap); margin-top: var(--s5); padding-top: var(--s4); border-top: 1px solid var(--rule); display: flex; align-items: center; gap: var(--s2); }
-.booking-actions__spacer { flex: 1; }
-.summary-list { margin: 0; display: grid; }
-.summary-list__row { display: grid; grid-template-columns: minmax(90px, 0.8fr) minmax(0, 1.2fr); gap: var(--s3); padding: var(--s2) 0; border-top: 1px solid var(--rule); }
-.summary-list__row:first-child { border-top: 0; }
-.summary-list dt { color: var(--ink-muted); font-size: var(--t-small); }
-.summary-list dd { margin: 0; text-align: end; overflow-wrap: anywhere; }
-.templates-empty { margin: 0; color: var(--ink-muted); font-size: var(--t-small); }
-.template-list { display: grid; gap: var(--s2); }
-.template-card { padding: var(--s3); border: 1px solid var(--rule); border-radius: var(--radius); display: grid; gap: var(--s1); }
-.template-card__meta { color: var(--ink-muted); font-size: var(--t-small); }
-.template-card__actions { margin-top: var(--s2); display: flex; gap: var(--s2); }
-.template-card__actions .btn { flex: 1; }
-.after-hours-toggle { margin-top: var(--s4); }
-.after-hours-panel { margin-top: var(--s3); padding: var(--s4); border: 1px solid var(--signal); border-radius: var(--radius); background: var(--signal-wash); display: grid; gap: var(--s4); }
-.slot-toolbar { margin: var(--s5) 0 var(--s3); display: flex; align-items: center; justify-content: space-between; gap: var(--s3); }
-.slot-toolbar > div { display: grid; gap: 2px; }
-.slot-toolbar span { color: var(--ink-muted); font-size: var(--t-small); }
-.slot-state { min-height: 140px; border: 1px dashed var(--rule-strong); border-radius: var(--radius); display: grid; place-items: center; padding: var(--s4); color: var(--ink-muted); text-align: center; }
-.slot-state--error { color: var(--stop); gap: var(--s1); }
-.slot-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--s2); }
-.slot-card {
-  min-height: var(--tap);
-  border: 1px solid var(--rule-strong);
-  border-radius: var(--radius);
-  padding: var(--s3);
-  display: grid;
-  gap: 2px;
-  background: var(--surface);
-  color: var(--ink);
-  text-align: start;
-}
-.slot-card:hover { background: var(--surface-sunk); }
-.slot-card--selected { border-color: var(--dock); background: var(--dock-wash); }
-.slot-card__time { font-family: var(--font-data); font-size: var(--t-lead); }
-.slot-card__date, .slot-card__reason, .slot-card__meta, .slot-card__warning { font-size: var(--t-small); }
-.slot-card__reason, .slot-card__meta { color: var(--ink-muted); }
-.slot-card__warning { color: var(--signal); font-weight: 600; }
-.confirm-grid, .confirmation-details { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--s2); }
-.confirm-item { min-width: 0; padding: var(--s3); border: 1px solid var(--rule); border-radius: var(--radius); display: grid; gap: 2px; }
-.confirm-item__label { color: var(--ink-muted); font-size: var(--t-micro); }
-.confirm-item__value { overflow-wrap: anywhere; }
-.save-template-row { margin-top: var(--s4); }
-.booking-success { text-align: center; padding: var(--s4) 0 var(--s5); }
-.booking-success__mark { width: 44px; height: 44px; margin: 0 auto var(--s3); border-radius: 50%; display: grid; place-items: center; background: var(--dock-wash); color: var(--ok); font-size: var(--t-title); font-weight: 700; }
-.booking-success__title { margin: var(--s1) 0; font-family: var(--font-data); font-size: var(--t-metric); color: var(--dock-deep); }
-.booking-success p { margin: 0; color: var(--ink-muted); }
-.confirmation-layout { display: grid; grid-template-columns: minmax(0, 1fr) 220px; gap: var(--s4); align-items: start; }
-.confirmation-qr { display: grid; gap: var(--s2); text-align: center; color: var(--ink-muted); font-size: var(--t-small); }
-.confirmation-qr strong { color: var(--ink); }
-.qr-frame { width: 196px; max-width: 100%; aspect-ratio: 1; margin: 0 auto; padding: var(--s2); border: 1px solid var(--rule); border-radius: var(--radius); background: var(--surface); }
-.qr-frame svg { width: 100%; height: 100%; display: block; }
-.confirmation-actions { margin-top: var(--s5); display: flex; flex-wrap: wrap; gap: var(--s2); }
-.modal--wide { width: min(100%, 720px); }
-.modal__actions { margin-top: var(--s4); display: flex; justify-content: flex-end; gap: var(--s2); flex-wrap: wrap; }
-.modal__actions--three .btn { flex: 1 1 180px; }
-.consolidation-list { display: grid; gap: var(--s2); max-height: 260px; overflow: auto; }
-.consolidation-item { padding: var(--s3); border: 1px solid var(--rule); border-radius: var(--radius); display: grid; gap: 2px; }
-.consolidation-item span { color: var(--ink-muted); font-size: var(--t-small); }
+/* ── On paper ──────────────────────────────────────────────────────────────────
+   Reports is the only screen with a Print button now. Everything else that had one
+   gave it up for Export, on the owner's rule: a page of data is something somebody
+   reconciles in a spreadsheet, and only a report is something you carry into a
+   meeting. So these rules have one job — turn the reports screen into a document.
 
-@media (max-width: 1120px) {
-  .booking-layout { grid-template-columns: minmax(0, 1fr) 270px; }
-  .slot-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .confirm-grid, .confirmation-details { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-}
-
-@media (max-width: 900px) {
-  .booking-layout { grid-template-columns: 1fr; }
-  .booking-side { position: static; grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .booking-step__label { display: none; }
-  .booking-step { justify-content: center; }
-}
-
-@media (max-width: 700px) {
-  .booking-steps { gap: var(--s1); }
-  .booking-step { padding-inline: var(--s1); }
-  .fieldGrid--2, .fieldGrid--3, .fieldGrid--4, .choice-row, .booking-side, .slot-grid, .confirm-grid, .confirmation-details, .confirmation-layout { grid-template-columns: 1fr; }
-  .booking-section-head { display: grid; gap: var(--s2); }
-  .slot-toolbar { align-items: stretch; flex-direction: column; }
-  .slot-toolbar .btn { width: 100%; }
-  .summary-list__row { grid-template-columns: 1fr; gap: 2px; }
-  .summary-list dd { text-align: start; }
-  .confirmation-actions .btn { flex: 1 1 100%; }
-  .booking-actions .btn { flex: 1; }
+   Before this block there were no print rules at all, which meant every Print button
+   in the product put the navigation rail, the top bar, the filter row and the
+   connection indicator on the paper, in screen colours. Nobody would have shipped
+   that on purpose; it was never looked at, because nothing in the build could look
+   at it. */
+@media print {
+  @page { margin: 14mm; }
+  /* Plain display:none, and nothing forcing it. The block sits at the end of the stylesheet,
+     so against the single-class rules it overrides it wins on order at equal specificity, and
+     the attribute selectors on the buttons are a step above the .btn classes they beat. The
+     first draft forced these declarations out of habit; the conformance check refused it, and
+     it was right for the usual reason — if specificity is fighting you, look again. It was
+     not fighting. Re-proved in a browser afterwards rather than assumed: under print media
+     the rail, top bar, banner, controls and both buttons all compute to none. */
+  .rail, .top, .sub, .controls, .pagehead__actions, .scrim, .toast, .switcher,
+  [data-fullscreen], [data-customize], [data-export], [data-print] { display: none; }
+  .app, [data-chrome] { display: block; height: auto; }
+  .main, .page, .page--fixed { display: block; height: auto; max-height: none; padding: 0; overflow: visible; }
+  body { background: #fff; color: #000; font-size: 10.5pt; }
+  .card, .panel, .kpi { background: #fff; box-shadow: none; border-color: #999; }
+  /* A panel that scrolls on screen has to give up its whole contents to the page,
+     or the printout is the first screenful and a cropped chart. */
+  .panel__scroll, .tablewrap { overflow: visible; max-height: none; }
+  /* Nothing that is one idea may be split across a page break, and a table running
+     over two pages repeats its header rather than leaving the second page unlabelled. */
+  .card, .panel, .kpi, .dials, .chart2 > section, tr { break-inside: avoid; }
+  thead { display: table-header-group; }
+  .pagehead__title { font-size: 16pt; }
+  /* Charts are drawn in ink the printer has to be told to keep. Without this every
+     fill drops to white and a bar chart prints as an empty axis. */
+  svg, .stat__fill, .hstrip__c, .ring__seg { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 }

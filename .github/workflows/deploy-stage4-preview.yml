@@ -1,0 +1,159 @@
+name: Deploy Stage 4 Preview
+
+on:
+  push:
+    branches:
+      - feat/stage4-dock-board
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: stage4-preview
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/stage4-dock-board
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Verify MaxDock conformance
+        run: node scripts/verify-maxdock.mjs
+      - name: Verify implementation architecture
+        run: node scripts/verify-maxdock-implementation.mjs
+      - name: Verify Stage 1 shell
+        run: node scripts/verify-stage1-shell.mjs
+      - name: Verify Stage 2 My Appointments
+        run: node scripts/verify-stage2-my-appointments.mjs
+      - name: Verify Stage 3 Booking
+        run: node scripts/verify-stage3-booking.mjs
+      - name: Verify Stage 4 Dock Board
+        run: node scripts/verify-stage4-board.mjs
+      - name: Verify bulk user import
+        run: node scripts/verify-users-import.mjs
+
+      - name: Verify bulk appointment import
+        run: node scripts/verify-appointments-import.mjs
+
+      - name: Verify per-role rail visibility
+        run: node scripts/verify-role-visibility.mjs
+
+      - name: Which truck a combined run needs
+        run: node scripts/verify-truck-ladder.mjs
+
+      - name: Documents on an appointment
+        run: node scripts/verify-appointment-documents.mjs
+
+      - name: What the board and the queue show
+        run: node scripts/verify-schedule-metrics.mjs
+
+      - name: How a report reading is drawn
+        run: node scripts/verify-report-readings.mjs
+
+      - name: No em dashes in anything the site renders
+        run: node scripts/verify-no-em-dashes.mjs
+
+      - name: Where a combined load came from
+        run: node scripts/verify-combine-trail.mjs
+
+      - name: Reading a settings section against editing one
+        run: node scripts/verify-edit-mode.mjs
+
+      - name: Scanning a load in at the dock
+        run: node scripts/verify-qr-scan.mjs
+
+      - name: Where Print goes, where Export goes, what reaches the paper
+        run: node scripts/verify-print-export.mjs
+
+      - name: One subject to a settings section
+        run: node scripts/verify-settings-grouping.mjs
+
+      - name: The rollback document still matches what it preserves
+        run: node scripts/verify-rollback-doc.mjs
+
+      - name: Hit areas on the compact controls
+        run: node scripts/verify-tap-targets.mjs
+
+  deploy-preview:
+    runs-on: ubuntu-latest
+    needs: verify
+    environment:
+      name: stage4-preview
+      url: ${{ steps.deployment.outputs.page_url }}stage4-preview/
+    steps:
+      - name: Check out production root
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          path: site
+
+      - name: Check out current Stage 4 branch head
+        uses: actions/checkout@v4
+        with:
+          ref: feat/stage4-dock-board
+          path: stage4
+          fetch-depth: 1
+
+      - name: Build isolated preview from branch head
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf site/stage4-preview
+          mkdir -p site/stage4-preview
+          cp stage4/index.html site/stage4-preview/index.html
+          cp -R stage4/app site/stage4-preview/app
+          cp -R stage4/assets site/stage4-preview/assets
+          cp -R stage4/js site/stage4-preview/js
+          touch site/.nojekyll
+          stage4_sha="$(git -C stage4 rev-parse HEAD)"
+          printf '{"branch":"feat/stage4-dock-board","commit":"%s"}\n' "$stage4_sha" > site/stage4-preview/build.json
+
+          # Stamp the commit onto every asset URL so a deploy invalidates the
+          # browser's cache by itself. Nothing in the URLs changed between builds
+          # before this, so Chrome kept serving the stylesheet and the page modules
+          # it already had and a plain reload showed yesterday's application —
+          # which cost the owner several rounds of "I cannot see the changes".
+          #
+          # The page modules import each other by relative path, so versioning only
+          # the <script> tag would leave every imported module cached. The import
+          # specifiers carry the same stamp, which is why this rewrites the copied
+          # tree rather than just the HTML. Done here and never in the repository:
+          # the source keeps clean paths.
+          v="${stage4_sha:0:12}"
+          # Only our own relative paths. An earlier version matched src="...js"
+          # outright, which also stamped the Supabase CDN tag — not our URL to
+          # version, and it broke the smoke test that checks for that tag verbatim.
+          find site/stage4-preview -name '*.html' -print0 \
+            | xargs -0 sed -i -E "s#(href=\"(\.\./)?assets/maxdock\.css)\"#\1?v=$v\"#g; s#(src=\"(\.\./)?js/[^\"]*\.js)\"#\1?v=$v\"#g"
+          find site/stage4-preview/js -name '*.js' -print0 \
+            | xargs -0 sed -i -E "s#(from '\.\.?/[^']+\.js)'#\1?v=$v'#g; s#(import\('\.\.?/[^']+\.js)'#\1?v=$v'#g; s#(import '\.\.?/[^']+\.js)'#\1?v=$v'#g"
+          # Proof rather than hope: every relative import must carry the stamp.
+          if grep -rq 'supabase.min.js?v=' site/stage4-preview; then
+            echo "Cache-busting must not touch the Supabase CDN tag." >&2
+            exit 1
+          fi
+          if grep -rqE "(from|import) '\.\.?/[^']+\.js'" site/stage4-preview/js; then
+            echo "Cache-busting missed an import specifier:" >&2
+            grep -rnE "(from|import) '\.\.?/[^']+\.js'" site/stage4-preview/js >&2
+            exit 1
+          fi
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+      - name: Deploy preview
+        id: deployment
+        uses: actions/deploy-pages@v4

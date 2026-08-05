@@ -36,6 +36,45 @@ jobs:
         run: node scripts/verify-stage2-my-appointments.mjs
       - name: Verify Stage 3 Booking
         run: node scripts/verify-stage3-booking.mjs
+      - name: Verify bulk user import
+        run: node scripts/verify-users-import.mjs
+
+      - name: Verify bulk appointment import
+        run: node scripts/verify-appointments-import.mjs
+
+      - name: Verify per-role rail visibility
+        run: node scripts/verify-role-visibility.mjs
+
+      - name: Which truck a combined run needs
+        run: node scripts/verify-truck-ladder.mjs
+
+      - name: Documents on an appointment
+        run: node scripts/verify-appointment-documents.mjs
+
+      - name: What the board and the queue show
+        run: node scripts/verify-schedule-metrics.mjs
+
+      - name: How a report reading is drawn
+        run: node scripts/verify-report-readings.mjs
+
+      - name: No em dashes in anything the site renders
+        run: node scripts/verify-no-em-dashes.mjs
+
+      - name: Where a combined load came from
+        run: node scripts/verify-combine-trail.mjs
+
+      - name: Reading a settings section against editing one
+        run: node scripts/verify-edit-mode.mjs
+
+      - name: Scanning a load in at the dock
+        run: node scripts/verify-qr-scan.mjs
+
+      - name: The rollback document still matches what it preserves
+        run: node scripts/verify-rollback-doc.mjs
+
+      - name: Hit areas on the compact controls
+        run: node scripts/verify-tap-targets.mjs
+
       - name: Prepare static site artifact
         if: github.event_name != 'pull_request'
         shell: bash
@@ -44,6 +83,27 @@ jobs:
           mkdir -p _site
           cp index.html _site/
           cp -R app assets js _site/
+          # The same cache stamp the preview build uses. Without it a deploy changes
+          # no URL, so a browser keeps serving the stylesheet and the page modules it
+          # already has and a plain reload shows the previous release. Applied to the
+          # copied tree only — the source keeps clean paths — and the import
+          # specifiers are stamped too, because versioning only the <script> tag
+          # would leave every module it imports cached.
+          v="$(git rev-parse --short=12 HEAD)"
+          # Only our own relative paths — never the Supabase CDN tag.
+          find _site -name '*.html' -print0 \
+            | xargs -0 sed -i -E "s#(href=\"(\.\./)?assets/maxdock\.css)\"#\1?v=$v\"#g; s#(src=\"(\.\./)?js/[^\"]*\.js)\"#\1?v=$v\"#g"
+          find _site/js -name '*.js' -print0 \
+            | xargs -0 sed -i -E "s#(from '\.\.?/[^']+\.js)'#\1?v=$v'#g; s#(import\('\.\.?/[^']+\.js)'#\1?v=$v'#g; s#(import '\.\.?/[^']+\.js)'#\1?v=$v'#g"
+          if grep -rq 'supabase.min.js?v=' _site; then
+            echo "Cache-busting must not touch the Supabase CDN tag." >&2
+            exit 1
+          fi
+          if grep -rqE "(from|import) '\.\.?/[^']+\.js'" _site/js; then
+            echo "Cache-busting missed an import specifier:" >&2
+            grep -rnE "(from|import) '\.\.?/[^']+\.js'" _site/js >&2
+            exit 1
+          fi
       - uses: actions/configure-pages@v5
         if: github.event_name != 'pull_request'
       - uses: actions/upload-pages-artifact@v3

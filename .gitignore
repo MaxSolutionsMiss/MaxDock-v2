@@ -2,3 +2,7 @@
 Thumbs.db
 *.log
 _site/
+
+# Screenshots from probe scripts. They belong in the scratchpad, not here.
+/*.png
+/*.jpg
