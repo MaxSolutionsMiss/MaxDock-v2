@@ -25,8 +25,44 @@ build can reach them. Steps marked **[build]** are commits in this repository.
 
 **What is already done.** The build side of phase A is finished and pushed. This repository has
 no runtime dependency on v1 left: nothing in any `.js`, `.ts`, `.html`, `.json`, `.webmanifest`
-or workflow file points at `github.io/MaxDock/` or `db04`. What remains in phase A is all
-settings, and all yours.
+or workflow file points at `github.io/MaxDock/` or `db04`.
+
+---
+
+## A0 — [owner] The gate, and it is not a Supabase setting
+
+**Checked 2026-08-05. Do not start A1 until this is resolved.**
+
+`main` was last deployed to Pages on **25 July 2026**, run titled "Stage 3: build Booking (#10)".
+Its tip is `a72079a`. What that publishes at
+`https://maxsolutionsmiss.github.io/MaxDock-v2/` is three pages:
+
+```
+app/board.html   app/book.html   app/my-appointments.html
+```
+
+The application has nine. Operations queue, Reports, Receiving, Settings, Users and Data
+integration are not on the live v2 site at all. They are on `feat/stage4-dock-board`, which is
+**322 commits ahead of `main`** and open as **draft PR #11**, which the owner's standing
+instruction says not to merge.
+
+So the sentence "everything should be on v2, no ties to the old MaxDock" is not blocked by
+Supabase, by the old repository, or by anything in this document below this line. It is blocked
+by v2 never having been deployed. v1 is still the only complete MaxDock that is actually running.
+
+**What this means for A1 specifically.** Setting `MAXDOCK_APP_URL` to v2 and deploying the invite
+function would work — main's `index.html` does carry the password panel and its `login.js` does
+handle `?mode=setup`, both checked — and it would send every invited person to a three-page
+build from 25 July. Nothing would error. They would simply arrive at an application missing most
+of itself, which is a worse outcome than the 404 this runbook was written to avoid, because
+nothing about it looks wrong.
+
+**The decision, and it is the owner's alone.** Either merge PR #11 to `main` so Pages publishes
+the current application, or pick a subset to merge first. Neither is something the build side
+should do unasked: PR #11 is draft by standing instruction and stays that way until the owner
+says otherwise.
+
+Everything from A1 onwards assumes this is done.
 
 ---
 
