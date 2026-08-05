@@ -154,13 +154,51 @@ passwordForm.addEventListener('submit', async event => {
   }
 });
 
+// The same panel, greeting two different people.
+//
+// Somebody following an invitation has never had a MaxDock password, and somebody who signed in
+// with a temporary one is choosing their first real password. Telling either of them to *reset*
+// a password and pick a *new* one describes something that never happened. Somebody who used
+// Forgot password is doing exactly that, and for them the original words are right.
+//
+// It is one word in three places and it was worth catching, because this screen is the first
+// thing every account in the product ever sees.
+const PASSWORD_WORDS = {
+  setup: {
+    title: 'Set your password',
+    intro: 'Choose a password for your new MaxDock account.',
+    submit: 'Save password',
+  },
+  reset: {
+    title: 'Reset your password',
+    intro: 'Choose a new password for your MaxDock account.',
+    submit: 'Save new password',
+  },
+};
+
+// Setup wins on the query string, which is what both producers of it set: the invite link's
+// redirectTo, and session.js sending a must_change_password account here. The hash is checked
+// too because Supabase appends its own `type=` to the link, and an invite that somehow arrived
+// without the query should still not be called a reset.
+function passwordKind() {
+  if (params.get('mode') === 'setup') return 'setup';
+  if (globalThis.location.hash.includes('type=invite')) return 'setup';
+  return 'reset';
+}
+
+function showPasswordPanel(kind) {
+  const words = PASSWORD_WORDS[kind] || PASSWORD_WORDS.reset;
+  document.getElementById('password-title').textContent = words.title;
+  document.getElementById('password-intro').textContent = words.intro;
+  document.getElementById('password-submit').textContent = words.submit;
+  showPanel('password');
+}
+
+// Supabase raises PASSWORD_RECOVERY for an invitation as well as for a genuine reset -- an invite
+// establishes a recovery-type session -- so this handler cannot decide the wording from the event
+// it is named after. It asks the URL, the same as the first render does, and the two agree.
 const unsubscribe = db.auth.onChange(async event => {
-  if (event === 'PASSWORD_RECOVERY') {
-    document.getElementById('password-title').textContent = 'Reset your password';
-    document.getElementById('password-intro').textContent = 'Choose a new password for your MaxDock account.';
-    document.getElementById('password-submit').textContent = 'Save new password';
-    showPanel('password');
-  }
+  if (event === 'PASSWORD_RECOVERY') showPasswordPanel(passwordKind());
 });
 
 globalThis.addEventListener('pagehide', unsubscribe, { once: true });
@@ -169,9 +207,9 @@ globalThis.addEventListener('pagehide', unsubscribe, { once: true });
   try {
     const authSession = await session.getAuthSession();
     const recovery = params.get('mode') === 'recovery' || globalThis.location.hash.includes('type=recovery');
-    const setup = params.get('mode') === 'setup';
+    const setup = passwordKind() === 'setup';
     if (authSession && (recovery || setup)) {
-      showPanel('password');
+      showPasswordPanel(passwordKind());
       return;
     }
     if (authSession) {

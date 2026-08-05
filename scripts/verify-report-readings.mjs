@@ -211,6 +211,31 @@ if (!errors.length) {
   // to leave unwired. It was, on this page, until it moved somewhere people would press it.
   need(queue, /data-search-go[\s\S]{0,200}renderTable\(\)/,
     'The queue\'s magnifier does nothing when it is pressed.');
+  // ── An invited person is not told to reset a password they never had ──────
+  //
+  // Caught by the owner testing a real invitation: the panel said "Reset your password" and
+  // "Choose a new password" to somebody whose account had existed for ten seconds. The copy was
+  // hardcoded, and Supabase raises PASSWORD_RECOVERY for an invitation as well as for a genuine
+  // reset, so the handler could not tell them apart by the event it is named after.
+  const login = read('js/pages/login.js');
+  need(login, /function passwordKind\(\)/,
+    'Nothing decides whether somebody arriving at the password panel is setting a first password or resetting an old one.');
+  need(login, /setup: \{\s*\n?\s*title: 'Set your password'/,
+    'The password panel has no setup wording, so an invited account is told to reset something it never had.');
+  need(login, /reset: \{\s*\n?\s*title: 'Reset your password'/,
+    'The password panel lost its reset wording, so Forgot password now describes itself wrongly.');
+  // The event handler must ask the URL rather than assume. This is the line that actually broke:
+  // it set reset wording unconditionally and overwrote whatever the first render had chosen.
+  forbid(login, /if \(event === 'PASSWORD_RECOVERY'\) \{[\s\S]{0,200}textContent = 'Reset your password'/,
+    'The PASSWORD_RECOVERY handler hardcodes reset wording again. It fires for invitations too, so it overwrites the setup wording the first render chose.');
+  need(login, /if \(event === 'PASSWORD_RECOVERY'\) showPasswordPanel\(passwordKind\(\)\)/,
+    'The recovery event does not take its wording from the URL, so the two ways into this panel can disagree.');
+  // Both producers of ?mode=setup are first-time password setting: the invite link's redirectTo,
+  // and session.js sending a must_change_password account here. If a third appears that is not,
+  // this pairing has to be revisited.
+  need(read('js/session.js'), /\?mode=setup&return=/,
+    'A must_change_password account is no longer sent to the setup mode, so the wording it was given no longer matches how it arrives.');
+
   // ── An invitation lands on a page this repository actually serves ──────────
   //
   // maxdock-invite-user sent every invitation and every password reset to
