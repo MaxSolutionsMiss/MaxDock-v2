@@ -7,8 +7,31 @@
 
 import { createClient } from "npm:@supabase/supabase-js@2.110.3";
 
+// Where an invited person and a password reset are sent.
+//
+// `/?mode=setup` is this application's own login page, index.html, which already carries the
+// panel that sets a password: it handles the mode, it handles the PASSWORD_RECOVERY event, and
+// the client is created with detectSessionInUrl so the tokens in the link establish a session
+// before the panel is shown. It is also where this application's own "forgot password" sends
+// people, so both routes end on one screen with one set of validation and one set of messages.
+//
+// It used to be `/set-password.html`, which is a page that exists only in the v1 repository.
+// That made a static site nobody was still developing into a live dependency of every invitation,
+// and it is why retiring v1 could not start: rename or delete that repository and the next person
+// invited lands on a 404 with nothing to act on. This is the line that unpicks it.
+//
+// The fallback moved with it, and it had to. It named v1's db04 folder, and v1 does not
+// understand `?mode=setup` -- it has the separate page this function no longer points at. Leaving
+// the two out of step would mean a deploy without the secret set sent people to a host that
+// cannot serve the route they were sent to, which is a worse failure than the one being fixed
+// because it looks like nothing is wrong until somebody tries to accept an invitation.
+//
+// So the pair is now coherent: this function targets this application, with or without the
+// variable. That makes deploying it a decision rather than a formality. Deploy it together with
+// setting MAXDOCK_APP_URL, in the same sitting, and not while v1 is still the application people
+// are being invited to -- see docs/RENAME-RUNBOOK.md step 2.
 const appUrl = (Deno.env.get("MAXDOCK_APP_URL") ??
-  "https://maxsolutionsmiss.github.io/MaxDock/db04").replace(/\/$/, "");
+  "https://maxsolutionsmiss.github.io/MaxDock-v2").replace(/\/$/, "");
 const allowedOrigin = new URL(appUrl).origin;
 
 function corsHeaders(request: Request): Record<string, string> {
@@ -299,7 +322,7 @@ Deno.serve(async (request: Request) => {
       const {data: linkData, error: linkError} = await serviceClient.auth.admin.generateLink({
         type: "recovery",
         email: authEmail,
-        options: {redirectTo: `${appUrl}/set-password.html`}
+        options: {redirectTo: `${appUrl}/?mode=setup`}
       });
       const invitationLink = linkData?.properties?.action_link;
       if (linkError || !invitationLink) {
@@ -389,7 +412,7 @@ Deno.serve(async (request: Request) => {
         type: "invite",
         email: authEmail,
         options: {
-          redirectTo: `${appUrl}/set-password.html`,
+          redirectTo: `${appUrl}/?mode=setup`,
           data: {username, full_name: fullName}
         }
       });

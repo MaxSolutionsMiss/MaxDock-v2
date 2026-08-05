@@ -16,7 +16,7 @@ build can reach them. Steps marked **[build]** are commits in this repository.
 
 ## The one thing that makes the order matter
 
-`supabase/functions/maxdock-invite-user/index.ts` sends invited people and password resets to:
+The **deployed** `maxdock-invite-user` function sends invited people and password resets to:
 
 ```ts
 redirectTo: `${appUrl}/set-password.html`
@@ -24,14 +24,27 @@ redirectTo: `${appUrl}/set-password.html`
 
 where `appUrl` is `MAXDOCK_APP_URL`, falling back to `https://maxsolutionsmiss.github.io/MaxDock/db04`.
 
+That is what is live today. The copy in this repository no longer says it — see below — but a file
+in a repository redirects nobody. Until it is deployed, the sentence above is the truth.
+
 `set-password.html` **exists only in the old repository** — `db04/set-password.html`, wired to
 v1's own stylesheet and scripts. This repository has no equivalent.
 
 So the old repository is not idle history. It is currently serving the page every invitation and
-every password reset lands on. Rename it, delete it, or point `MAXDOCK_APP_URL` at v2 before v2
-has that page, and the next person invited gets a 404 — with no error anybody can act on.
+every password reset lands on. Rename it, delete it, or point `MAXDOCK_APP_URL` at v2 while that
+line still says `/set-password.html`, and the next person invited gets a 404 — with no error
+anybody can act on.
 
-That is why step 1 is a commit here and not a setting over there.
+**The fix is not to build that page here.** This application already has the screen. `index.html`
+at the repository root is the login page and it carries the password panel: `js/pages/login.js`
+handles `?mode=setup`, handles `?mode=recovery`, handles the `PASSWORD_RECOVERY` event, and
+`js/db.js` creates the client with `detectSessionInUrl: true`, so the tokens in an emailed link
+establish a session before the panel is shown. It is also where this application's own "forgot
+password" already sends people. A second password-setting page would be two screens doing one job
+with two sets of validation and two sets of error messages.
+
+So the function points at `${appUrl}/?mode=setup` instead, which is a one-line change already
+committed here, and step 1 is deploying it rather than writing a page.
 
 One thing that is *not* a problem, contrary to what a quick reading of `docs/GO_LIVE_AUDIT.md`
 §1.2 suggests: CORS survives this. The function computes
@@ -48,39 +61,38 @@ a different procedure.
 
 ---
 
-## Step 1 — [build] Give v2 a set-password page
+## Steps 1 and 2 — [owner] Set the secret and deploy the function, in that order, one sitting
 
-Rebuilt against this repository's stylesheet and `js/db.js` rather than copied: the v1 file pulls
-in `maxdock.css`, `maxdock-config.js`, `maxdock-db.js` and `maxdock-password.js`, none of which
-exist here.
+These are one step in two halves and must not be separated. The deployed function currently sends
+people to v1's `set-password.html`; the version in this repository sends them to this
+application's `?mode=setup`. Whichever is deployed has to agree with wherever `MAXDOCK_APP_URL`
+points, and both halves below make them agree.
 
-Done when `set-password.html` is at the repository root — the same level as `index.html`, because
-`redirectTo` appends it to the site root and not to `app/` — and a recovery link opens it, sets a
-password, and signs the person in.
+**Do not start this while v1 is still the application people are being invited to.** The moment
+the new function is deployed, every invitation and every password reset goes to v2. That is the
+intent, but it is a cutover, not a preparation.
 
-**Verify before moving on.** With `MAXDOCK_APP_URL` still unset, nothing has changed for anybody:
-the old page is still what invitations use. This step is additive and safe to land on its own.
-
-## Step 2 — [owner] Point the invite function at v2
-
-Supabase Dashboard → project `rywzqepzramurbrpmept` → **Edge Functions** → **Secrets**
-(also reachable as Project Settings → Edge Functions → Secrets).
-
-Add or edit:
+**1. The secret.** Supabase Dashboard → project `rywzqepzramurbrpmept` → **Edge Functions** →
+**Secrets** (also reachable as Project Settings → Edge Functions → Secrets).
 
 | Name | Value |
 |---|---|
 | `MAXDOCK_APP_URL` | `https://maxsolutionsmiss.github.io/MaxDock-v2` |
 
-No trailing slash needed; the function strips one if present. Use the **current** name here — the
-repository has not been renamed yet, and this step is deliberately separated from the rename so
-each one can be tested alone.
+No trailing slash needed; the function strips one if present. Use the **current** repository name
+here. The rename is separated from this deliberately, so each can be tested on its own.
+
+**2. The function.** Deploy `supabase/functions/maxdock-invite-user/index.ts` from this repository
+— Edge Functions → `maxdock-invite-user`. Keep **Verify JWT with legacy secret** OFF, as the file
+header says.
 
 **Verify.** Invite a test user. The email should land on
-`https://maxsolutionsmiss.github.io/MaxDock-v2/set-password.html` and let them set a password.
+`https://maxsolutionsmiss.github.io/MaxDock-v2/?mode=setup`, show the "Set your password" panel,
+and sign them in once saved. Then use "Forgot password" on the same login screen and confirm the
+recovery route lands on the same panel.
 
-**Undo.** Delete the secret. The function falls back to the old URL and behaves exactly as it does
-today.
+**Undo.** Redeploy the previous function from the v1 repository and delete the secret. Both halves
+have to go back together, for the same reason they went forward together.
 
 ## Step 3 — [owner] Point Supabase Auth at v2
 
@@ -166,7 +178,7 @@ Same two places as steps 2 and 3:
 
 | Where | To |
 |---|---|
-| `MAXDOCK_APP_URL` | `https://maxsolutionsmiss.github.io/MaxDock` |
+| `MAXDOCK_APP_URL` | `https://maxsolutionsmiss.github.io/MaxDock` (redeploy not needed; the function reads it per invocation) |
 | Auth Site URL | `https://maxsolutionsmiss.github.io/MaxDock/` |
 | Auth Redirect URLs | add `https://maxsolutionsmiss.github.io/MaxDock/**`, then remove the `MaxDock-v2` and `db04` entries |
 
@@ -191,7 +203,7 @@ moved.
 
 | Symptom | Cause | Fix |
 |---|---|---|
-| Invitation link 404s | `MAXDOCK_APP_URL` points somewhere without `set-password.html` | Set it back to the previous value; the function reads it per invocation, no redeploy |
+| Invitation link 404s or shows the sign-in form instead of the password panel | `MAXDOCK_APP_URL` and the deployed function disagree: one names v1, the other sends to `?mode=setup` | Make them agree. The secret is read per invocation, so fixing it needs no redeploy; changing which function is deployed does |
 | Password reset email returns to the wrong host | Auth Site URL not updated | Authentication → URL Configuration |
 | A button does nothing, console shows a CORS error | The **organisation** was renamed, not just the repository | Set `MAXDOCK_APP_URL` to the new origin |
 | Smoke workflow fails on 404 | Step 9 has not landed | Land it, or re-run after it does |

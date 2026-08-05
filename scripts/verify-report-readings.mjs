@@ -211,6 +211,42 @@ if (!errors.length) {
   // to leave unwired. It was, on this page, until it moved somewhere people would press it.
   need(queue, /data-search-go[\s\S]{0,200}renderTable\(\)/,
     'The queue\'s magnifier does nothing when it is pressed.');
+  // ── An invitation lands on a page this repository actually serves ──────────
+  //
+  // maxdock-invite-user sent every invitation and every password reset to
+  // `${appUrl}/set-password.html`. That page exists only in the v1 repository, which made a
+  // static site nobody was still developing into a live dependency of every account: rename or
+  // retire it and the next person invited gets a 404 with nothing to act on.
+  //
+  // It points at this application's own login page instead, which already carries the panel.
+  // Both are checked, because there are two generateLink calls -- invite and recovery -- and one
+  // of them silently reverting is the fault worth catching.
+  const invite = read('supabase/functions/maxdock-invite-user/index.ts');
+  // Comments stripped before the check. The header explains why the old path was abandoned and
+  // names it to do so, and a guard that reads prose fails on the very sentence that records the
+  // decision it is protecting -- which is how a correct file gets "fixed" back to the fault.
+  const inviteCode = invite.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  forbid(inviteCode, /set-password\.html/,
+    'The invite function points at set-password.html again. That page lives only in the v1 repository, so this makes retiring v1 impossible and every invitation depends on a site nobody maintains.');
+  const redirects = [...invite.matchAll(/redirectTo: `\$\{appUrl\}([^`]*)`/g)].map(match => match[1]);
+  if (redirects.length !== 2) {
+    errors.push(`The invite function has ${redirects.length} redirect target(s); it should have exactly two, one for invite and one for recovery. If a route was added it needs checking here too.`);
+  }
+  for (const target of redirects) {
+    if (target !== '/?mode=setup') {
+      errors.push(`An invite redirect points at "${target}". It has to be /?mode=setup, which is the login page's own password panel -- anything else is either a page this repository does not serve or a second screen doing the same job.`);
+    }
+  }
+  // The panel that has to be there when they arrive.
+  need(read('js/pages/login.js'), /params\.get\('mode'\) === 'setup'/,
+    'The login page no longer recognises ?mode=setup, so everybody following an invitation link lands on the sign-in form instead of the panel that sets their password.');
+  need(read('js/db.js'), /detectSessionInUrl: true/,
+    'The client no longer reads the tokens out of an emailed link, so an invitation cannot establish the session the password panel needs.');
+  // The fallback has to agree with the route. Naming v1 while sending to ?mode=setup means a
+  // deploy without the secret set points people at a host that cannot serve where they are sent.
+  need(invite, /Deno\.env\.get\("MAXDOCK_APP_URL"\) \?\?\s*\n?\s*"https:\/\/maxsolutionsmiss\.github\.io\/MaxDock-v2"/,
+    'The invite function\'s fallback URL and its redirect route disagree. Deployed without MAXDOCK_APP_URL set, it would send people to a host that does not serve the route they were sent to.');
+
   // ── A reading says which way it moved, not only how big it is ──────────────
   //
   // 68% of dock time used is fine on the way up from 61 and a problem on the way down from 79.
