@@ -115,7 +115,19 @@ a different procedure.
 
 # Phase A — retire v1
 
-## A1 — [owner] Set the secret and deploy the function, one sitting
+## A1 — DONE 2026-08-05
+
+> Secret set by the owner; function deployed and read back to confirm. Live is **version 12**,
+> `verify_jwt` false, fallback `https://maxsolutionsmiss.github.io/MaxDock-v2`, both `redirectTo`
+> values `${appUrl}/?mode=setup`, and `set-password.html` appears nowhere in the code. The tie to
+> the v1 repository is cut at the last place it existed.
+>
+> The version counter went 10 to 12 on a single deploy. Only one deploy was made from here.
+> Unexplained, and noted rather than smoothed over: if a version 11 was deployed from elsewhere
+> between the reading and the writing, it was overwritten by this one, which was verified by
+> reading the live source back rather than by trusting the response.
+
+### What it was — [owner] Set the secret and deploy the function, one sitting
 
 These are one step in two halves and must not be separated. The deployed function currently sends
 people to v1's `set-password.html`; the version in this repository sends them to this
