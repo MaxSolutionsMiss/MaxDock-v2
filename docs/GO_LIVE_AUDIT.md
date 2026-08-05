@@ -61,11 +61,15 @@ Three ways out, in order of preference:
 
 ### 1.2 Moving to a company domain silently breaks every account operation
 
+> **Updated 2026-08-05.** Two things in this section have changed and one of them was overstated.
+> The finding stands for a move to a **company domain**, which is what it was written about. It
+> does not apply to renaming a repository inside the same organisation — see the correction below.
+
 `supabase/functions/maxdock-invite-user/index.ts` pins its CORS origin:
 
 ```ts
 const appUrl = (Deno.env.get("MAXDOCK_APP_URL") ??
-  "https://maxsolutionsmiss.github.io/MaxDock/db04").replace(/\/$/, "");
+  "https://maxsolutionsmiss.github.io/MaxDock-v2").replace(/\/$/, "");
 const allowedOrigin = new URL(appUrl).origin;
 ```
 
@@ -77,11 +81,22 @@ and account deletion** — everything the account service does.
 It fails as a browser CORS error, not as a message anybody can read. The person on the other end
 sees a button that does nothing.
 
-The same variable sets the `redirectTo` on invite and recovery links, so an unset value also mails
-people a link back to the old host.
+**Correction: a repository rename does not do this.** `allowedOrigin` is the *origin*, which is
+`https://maxsolutionsmiss.github.io` whatever the path underneath it. Renaming `MaxDock-v2` moves
+the path and not the origin, so every account operation keeps working through it. Only a move that
+changes the host — a company domain, or renaming the GitHub organisation — breaks CORS. Read as
+covering both, this paragraph made a repository rename look far more dangerous than it is.
 
-**Fix:** set `MAXDOCK_APP_URL` to the production URL in the function's secrets before the first
-sign-in attempt. One environment variable, but it must happen first.
+**Also corrected: the fallback no longer names v1.** It used to be
+`https://maxsolutionsmiss.github.io/MaxDock/db04`, and the `redirectTo` on invite and recovery
+links used to be `${appUrl}/set-password.html` — a page that exists only in the v1 repository.
+That made every invitation depend on a site nobody was still developing, and it is why retiring v1
+could not begin. Both links now go to `${appUrl}/?mode=setup`, which is this application's own
+login page and its own password panel. See `docs/RENAME-RUNBOOK.md`.
+
+**Fix:** set `MAXDOCK_APP_URL` to the production URL in the function's secrets, and deploy the
+function from this repository in the same sitting. The two have to agree: the deployed function
+still in place today sends people to v1's page, and the version here sends them to `?mode=setup`.
 
 ### 1.3 Supabase Auth still points at the old host
 
