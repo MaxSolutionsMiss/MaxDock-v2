@@ -269,7 +269,7 @@ if (!errors.length) {
     'The client no longer reads the tokens out of an emailed link, so an invitation cannot establish the session the password panel needs.');
   // The fallback has to agree with the route. Naming v1 while sending to ?mode=setup means a
   // deploy without the secret set points people at a host that cannot serve where they are sent.
-  need(invite, /Deno\.env\.get\("MAXDOCK_APP_URL"\) \?\?\s*\n?\s*"https:\/\/maxsolutionsmiss\.github\.io\/MaxDock-v2"/,
+  need(invite, /Deno\.env\.get\("MAXDOCK_APP_URL"\) \?\?\s*\n?\s*"https:\/\/maxsolutionsmiss\.github\.io\/MaxDock"/,
     'The invite function\'s fallback URL and its redirect route disagree. Deployed without MAXDOCK_APP_URL set, it would send people to a host that does not serve the route they were sent to.');
 
   // ── A reading says which way it moved, not only how big it is ──────────────

@@ -69,7 +69,7 @@ Three ways out, in order of preference:
 
 ```ts
 const appUrl = (Deno.env.get("MAXDOCK_APP_URL") ??
-  "https://maxsolutionsmiss.github.io/MaxDock-v2").replace(/\/$/, "");
+  "https://maxsolutionsmiss.github.io/MaxDock").replace(/\/$/, "");
 const allowedOrigin = new URL(appUrl).origin;
 ```
 
@@ -82,7 +82,7 @@ It fails as a browser CORS error, not as a message anybody can read. The person 
 sees a button that does nothing.
 
 **Correction: a repository rename does not do this.** `allowedOrigin` is the *origin*, which is
-`https://maxsolutionsmiss.github.io` whatever the path underneath it. Renaming `MaxDock-v2` moves
+`https://maxsolutionsmiss.github.io` whatever the path underneath it. Renaming `MaxDock` moves
 the path and not the origin, so every account operation keeps working through it. Only a move that
 changes the host — a company domain, or renaming the GitHub organisation — breaks CORS. Read as
 covering both, this paragraph made a repository rename look far more dangerous than it is.

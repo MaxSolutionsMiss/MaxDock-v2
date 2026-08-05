@@ -1,6 +1,6 @@
 # MaxDock v2 — Stage 1 Audit, 2026-07-24
 
-**Scope:** `MaxSolutionsMiss/MaxDock-v2` at `50cbe19` (PR #5, `stage1/static-shell`), audited
+**Scope:** `MaxSolutionsMiss/MaxDock` at `50cbe19` (PR #5, `stage1/static-shell`), audited
 against `maxdock-design-v2.html`, `MAXDOCK_FUNCTIONAL_SPEC.md`, `MAXDOCK_ARCHITECTURE.md` and
 `MAXDOCK_BRIDGE.md`. Deployed shell tested in headless Chrome at 1920, 1440, 1194 and 390 px.
 
@@ -162,7 +162,7 @@ rule, which is why it passed a screen that breaks a stated requirement.
 It is merged (`50cbe19`, PR #5) and it is deployed and serving:
 
 ```
-https://maxsolutionsmiss.github.io/MaxDock-v2/
+https://maxsolutionsmiss.github.io/MaxDock/
 HTTP 200 · 4,820 bytes · "Sign in · MaxDock" · no React mount
 ```
 

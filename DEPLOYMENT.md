@@ -1,6 +1,6 @@
 # MaxDock Deployment and Cutover Rules
 
-This document is implementation-owned. It defines how MaxDock-v2 is deployed and how the eventual production cutover is controlled.
+This document is implementation-owned. It defines how MaxDock is deployed and how the eventual production cutover is controlled.
 
 ## Environments
 
@@ -10,9 +10,9 @@ The existing MaxDock repository and website remain the operational production sy
 
 ### Rebuild staging
 
-`https://maxsolutionsmiss.github.io/MaxDock-v2/` is the staging environment for the rebuild.
+`https://maxsolutionsmiss.github.io/MaxDock/` is the staging environment for the rebuild.
 
-During the rebuild, the `main` branch of `MaxDock-v2` represents the latest reviewed staging state. It is not the production replacement, even when a stage is deployed successfully.
+During the rebuild, the `main` branch of `MaxDock` represents the latest reviewed staging state. It is not the production replacement, even when a stage is deployed successfully.
 
 ## Stage deployment loop
 
@@ -26,7 +26,7 @@ Every implementation stage follows this sequence:
 6. Resolve every CI error. Warnings must be reviewed and explained.
 7. Review the pull request without automatic merging.
 8. Merge only after the user explicitly approves the stage.
-9. Deploy the merged stage to the stable MaxDock-v2 staging URL.
+9. Deploy the merged stage to the stable MaxDock staging URL.
 10. Ask Claude to audit the repository and deployed staging site.
 11. Add Claude's dated audit under `/docs/` through the design-to-implementation bridge.
 12. Correct every accepted audit finding before the next stage starts.
@@ -53,7 +53,7 @@ A workaround that leaves the underlying failure in place is not an accepted comp
 
 ## Production cutover gate
 
-MaxDock-v2 does not replace the existing production MaxDock until all of the following are complete:
+MaxDock does not replace the existing production MaxDock until all of the following are complete:
 
 - all eight implementation stages are complete;
 - both automated architecture gates pass in strict static mode;
@@ -73,7 +73,7 @@ The final cutover is a separate approved change, not an automatic consequence of
 Before cutover:
 
 1. Tag and preserve the last accepted old MaxDock release.
-2. Tag the accepted MaxDock-v2 release.
+2. Tag the accepted MaxDock release.
 3. Confirm database compatibility and rollback steps.
 4. Schedule the cutover during an approved operational window.
 5. Verify login, booking, queue and administrator functions immediately after cutover.

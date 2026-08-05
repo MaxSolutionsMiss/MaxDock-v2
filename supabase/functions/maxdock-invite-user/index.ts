@@ -31,7 +31,7 @@ import { createClient } from "npm:@supabase/supabase-js@2.110.3";
 // setting MAXDOCK_APP_URL, in the same sitting, and not while v1 is still the application people
 // are being invited to -- see docs/RENAME-RUNBOOK.md step 2.
 const appUrl = (Deno.env.get("MAXDOCK_APP_URL") ??
-  "https://maxsolutionsmiss.github.io/MaxDock-v2").replace(/\/$/, "");
+  "https://maxsolutionsmiss.github.io/MaxDock").replace(/\/$/, "");
 const allowedOrigin = new URL(appUrl).origin;
 
 function corsHeaders(request: Request): Record<string, string> {

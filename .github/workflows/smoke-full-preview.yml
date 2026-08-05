@@ -13,7 +13,7 @@ jobs:
         run: sleep 30
       - name: Verify deployed routes and assets
         env:
-          BASE: https://maxsolutionsmiss.github.io/MaxDock-v2/stage4-preview
+          BASE: https://maxsolutionsmiss.github.io/MaxDock/stage4-preview
         run: |
           set -euo pipefail
           for path in \
@@ -40,7 +40,7 @@ jobs:
           done
       - name: Verify deployed Supabase loaders
         env:
-          BASE: https://maxsolutionsmiss.github.io/MaxDock-v2/stage4-preview
+          BASE: https://maxsolutionsmiss.github.io/MaxDock/stage4-preview
         run: |
           set -euo pipefail
           expected='<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.52.1/dist/umd/supabase.min.js"></script>'
@@ -52,7 +52,7 @@ jobs:
           done
       - name: Verify deployed canonical CSS and direct modal
         env:
-          BASE: https://maxsolutionsmiss.github.io/MaxDock-v2/stage4-preview
+          BASE: https://maxsolutionsmiss.github.io/MaxDock/stage4-preview
         run: |
           set -euo pipefail
           curl --fail --silent --show-error --location --retry 8 --retry-delay 3 "${BASE}/assets/maxdock.css?sha=${GITHUB_SHA}" -o /tmp/maxdock.css
@@ -80,7 +80,7 @@ jobs:
           ! grep -q 'bookingModalMarkup' /tmp/router.js
       - name: Verify deployed pages are backend-wired, not mockups
         env:
-          BASE: https://maxsolutionsmiss.github.io/MaxDock-v2/stage4-preview
+          BASE: https://maxsolutionsmiss.github.io/MaxDock/stage4-preview
         run: |
           set -euo pipefail
           # A 200 on these modules only proves a file exists. Assert the deployed

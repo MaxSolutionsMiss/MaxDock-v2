@@ -45,4 +45,4 @@ Claude owns the design and architecture contracts. Implementation owns `/app`, `
 
 ## Staging
 
-`https://maxsolutionsmiss.github.io/MaxDock-v2/` is staging until the full rebuild passes role-based and operational acceptance testing.
+`https://maxsolutionsmiss.github.io/MaxDock/` is staging until the full rebuild passes role-based and operational acceptance testing.

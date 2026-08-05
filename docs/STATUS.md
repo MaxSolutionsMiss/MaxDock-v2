@@ -5,7 +5,7 @@
 **Stage 4 pull request:** draft PR #11  
 **Production branch:** `main`  
 **Production commit before Stage 4:** `a72079a0395144c6db62d96060b7ffea6d3049a1`  
-**Production URL:** `https://maxsolutionsmiss.github.io/MaxDock-v2/`
+**Production URL:** `https://maxsolutionsmiss.github.io/MaxDock/`
 
 ## Stage
 
@@ -1946,7 +1946,7 @@ one thing in this application that must not have one.
 
 `docs/NAMING-AND-DOMAIN.md`: rename the organisation to `maxsolutions` and drop the
 `Miss` — twelve sites in three countries, and it reads as a typo to anybody who does not
-know it meant Mississauga. One repository per product; do not rename `MaxDock-v2` until
+know it meant Mississauga. One repository per product; do not rename `MaxDock` until
 cutover, because the preview workflows key off it and v1 still exists. One company
 domain with a subdomain per product — `dock.maxsolutions.ca`, `metrics.maxsolutions.ca`
 — because Pages allows one custom domain per repository, so subdomain-per-product maps

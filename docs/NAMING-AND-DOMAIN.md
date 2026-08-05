@@ -29,7 +29,7 @@ through that redirect, so nothing breaks the moment you press the button.
 
 **What it does break, and it matters here.** GitHub Pages is served from
 `<organisation>.github.io`. Rename the organisation and the staging URL becomes
-`https://maxsolutions.github.io/MaxDock-v2/`. That is not something to rely on a
+`https://maxsolutions.github.io/MaxDock/`. That is not something to rely on a
 redirect for, and the address appears in twelve places in this repository — the smoke
 test's `BASE`, `README.md`, `DEPLOYMENT.md`, `docs/STATUS.md` and the two audit
 documents. One commit fixes all of them, and it should land in the same hour as the
@@ -53,10 +53,11 @@ things are moving at once.
 | `maxdock` | this application |
 | `maxmetrics` | the KPI product, when it starts |
 
-**Do not rename `MaxDock-v2` to `maxdock` yet.** Two reasons, both concrete: the
-preview and smoke workflows have the current name in their URLs, and the *old* MaxDock
-repository still exists and is still production. Rename at cutover, when the old one is
-tagged and retired and there is no longer a v1 for a `-v2` to distinguish itself from.
+**Done, 2026-08-05.** `MaxDock-v2` is now `MaxDock`. The two reasons this said to wait were
+both cleared first: the old repository was backed up, renamed to `maxdock-v1` and archived, and
+the smoke workflow's URLs moved in the same hour as the rename. Lower-casing it to `maxdock`
+is still open and is a separate, smaller move -- GitHub treats repository names as
+case-insensitive for uniqueness, so it is a rename of one repository and nothing else.
 
 **Resist a shared repository until something is actually shared.** If MaxMetrics ends
 up using this stylesheet and these Supabase contracts, a `maxsolutions-platform`
@@ -104,8 +105,8 @@ opposite of what you described.
 2. Rename the organisation in GitHub settings.
 3. Same hour: the twelve URL references and the smoke test's `BASE` in this repository,
    and `git remote set-url` on any local clone. One commit, and CI proves it.
-4. Confirm `https://maxsolutions.github.io/MaxDock-v2/` serves the preview.
-5. At cutover, and not before: rename `MaxDock-v2` to `maxdock`, add the custom domain
+4. Confirm `https://maxsolutions.github.io/MaxDock/` serves the preview.
+5. At cutover, and not before: rename `MaxDock` to `maxdock`, add the custom domain
    in Pages settings, commit the `CNAME`, and point `dock.maxsolutions.ca` at it.
 
 Steps 3 and 4 are mine whenever you have done step 2.

@@ -155,7 +155,7 @@ drops all of it; there is nothing to undo in the database for this part.
 ## 4. Layer 1 — Code
 
 All work is on `claude/maxdock-handoff-setup-h7d5nu` with a **draft** pull request that is not
-merged. `main` is untouched, so `https://maxsolutionsmiss.github.io/MaxDock-v2/` is still serving
+merged. `main` is untouched, so `https://maxsolutionsmiss.github.io/MaxDock/` is still serving
 the baseline commit. There is nothing to undo in production.
 
 To discard the code:
@@ -172,7 +172,7 @@ git push --force-with-lease origin claude/maxdock-handoff-setup-h7d5nu:feat/stag
 ```
 
 Option B also restores the Stage 4 preview at
-`https://maxsolutionsmiss.github.io/MaxDock-v2/stage4-preview/`, because that preview publishes
+`https://maxsolutionsmiss.github.io/MaxDock/stage4-preview/`, because that preview publishes
 from `feat/stage4-dock-board`.
 
 ---
@@ -919,7 +919,7 @@ where n.nspname = 'public' and p.proname = 'change_appointment_status'
   and pg_get_functiondef(p.oid) not ilike '%departed%';
 ```
 
-Then open the live site at `https://maxsolutionsmiss.github.io/MaxDock-v2/`, sign in, and check the
+Then open the live site at `https://maxsolutionsmiss.github.io/MaxDock/`, sign in, and check the
 dock board, the operations queue and the receiving screen still load and still show today's loads.
 Production was never changed, so this is a confirmation rather than a repair.
 
