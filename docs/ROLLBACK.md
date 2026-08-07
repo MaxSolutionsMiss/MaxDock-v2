@@ -1762,3 +1762,123 @@ bucket refused the read, so nothing that used to be visible stops being visible.
 ### What was verified after the change
 
 Recorded once the migration had run, in the section below.
+
+---
+
+## 5e-i. Colleagues at one company see each other's loads (2026-08-05)
+
+**Baseline commit:** `7fe5cc3`
+**Functions changed:** one — `public.list_my_appointments()`
+**Schema changed:** none. No column added, no table altered, no data migrated.
+
+### What this changes and why it is one function
+
+Two people at one outside company could not see each other's bookings, so they could not
+combine them either — which is the single thing the combining feature exists for on the
+customer side. `list_my_appointments` scoped on `created_by = auth.uid()`, so George saw
+George's and Michael saw Michael's.
+
+The obvious fix was a company key on the profile and on the appointment, set server-side. That
+was designed and then abandoned, because the investigation found the key already exists and is
+already safe:
+
+- `profiles.organization_name` is the company an outside account belongs to.
+- Its RLS is `profiles_update_system_admin` — `is_system_admin()` for both `USING` and
+  `WITH CHECK`. There is no self-update policy on `profiles` at all.
+- The only function that writes it is `admin_update_user`, and the overload that accepts
+  `p_organization_name` guards on `is_system_admin`. The five-argument overload cannot change
+  it: it reads the current value and passes it straight back.
+- The only other writer is the `maxdock-invite-user` edge function, which refuses any caller
+  whose profile is not `system_admin`.
+
+So the company on a profile is administrator-set and cannot be altered by the person it
+belongs to. That makes it safe to scope visibility on.
+
+**What is deliberately not used:** `appointments.company_name`. It carries the same value in
+practice — `js/pages/booking.js:119` pre-fills it from the booker's own
+`profile.organization_name` — but it is an editable text input on the booking form
+(`booking.js:420` and `:715`). Scoping on it would let any outside account type
+"Kruger Packaging" into a booking and then read Kruger's schedule. It stays a label and stays
+what the combine lane matches on; it is not what anything trusts.
+
+### The exact predicate
+
+Own rows always, plus rows created by anybody sharing a non-empty company, compared trimmed and
+case-folded. An account with no company set behaves exactly as it did before this change, which
+is why `McDermid` needed no migration.
+
+### The reverse
+
+Restores the definition captured verbatim below. Safe to run at any time: it narrows what is
+visible rather than widening it, so it cannot expose anything.
+
+```sql
+begin;
+
+CREATE OR REPLACE FUNCTION public.list_my_appointments()
+ RETURNS TABLE(appointment_id uuid, booking_reference text, location_id uuid, location_name text, location_timezone text, start_at timestamp with time zone, end_at timestamp with time zone, direction text, appointment_type text, appointment_type_code text, truck_type text, truck_type_code text, skid_count integer, handling_type text, handling_type_code text, company_name text, carrier_name text, external_reference text, status text, created_at timestamp with time zone, cancellation_reason text, merged_into_reference text, combined_from_count integer)
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+begin
+  if auth.uid() is null or not public.has_permission('appointment.view_own') then
+    raise exception 'You must be signed in to view your appointments.';
+  end if;
+
+  return query
+  select
+    a.id,
+    a.booking_reference,
+    a.location_id,
+    l.name,
+    l.timezone,
+    a.start_at,
+    a.end_at,
+    a.direction,
+    at.name,
+    a.appointment_type_code,
+    tt.name,
+    a.truck_type_code,
+    a.skid_count,
+    ht.name,
+    a.handling_type_code,
+    coalesce(a.company_name, a.requester_type),
+    a.carrier_name,
+    a.external_reference,
+    a.status,
+    a.created_at,
+    a.cancellation_reason,
+    kept.booking_reference,
+    (select count(*) from public.appointments m where m.merged_into_appointment_id = a.id)::integer
+  from public.appointments a
+  join public.locations l on l.id = a.location_id
+  left join public.appointment_types at on at.code = a.appointment_type_code
+  left join public.truck_types tt on tt.code = a.truck_type_code
+  left join public.handling_types ht on ht.code = a.handling_type_code
+  left join public.appointments kept on kept.id = a.merged_into_appointment_id
+  where a.entry_kind = 'appointment'
+    and a.created_by = auth.uid()
+  order by a.start_at desc;
+end;
+$function$;
+
+commit;
+```
+
+### The procedure, click by click
+
+1. Open the Supabase dashboard and pick project `rywzqepzramurbrpmept`.
+2. Go to **SQL Editor** and open a new query.
+3. Paste the whole reverse block above, including `begin;` and `commit;`.
+4. Run it. It should report success with no rows returned.
+5. Go to **Database → Functions**, open `list_my_appointments`, and confirm the `where` clause
+   reads `and a.created_by = auth.uid()` with no company test after it.
+6. Sign in as an outside account and open **My appointments**. It should list only bookings
+   that account made itself.
+7. No front-end revert is required. The application does not know how this function scopes;
+   it renders whatever rows come back.
+
+### What was verified after the change
+
+Recorded once the migration had run, in the section below.
